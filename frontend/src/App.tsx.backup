@@ -1,0 +1,86 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    h4: {
+      fontWeight: 600,
+    },
+  },
+});
+
+// Simple page components
+const Dashboard = () => (
+  <div style={{ padding: '20px' }}>
+    <h1>IGS Pharmacy Management System</h1>
+    <p>Welcome to the Dashboard</p>
+    <nav style={{ marginTop: '20px' }}>
+      <a href="/products" style={{ marginRight: '20px' }}>Products</a>
+      <a href="/inventory" style={{ marginRight: '20px' }}>Inventory</a>
+      <a href="/sales" style={{ marginRight: '20px' }}>Sales</a>
+      <a href="/patients" style={{ marginRight: '20px' }}>Patients</a>
+      <a href="/prescriptions" style={{ marginRight: '20px' }}>Prescriptions</a>
+      <a href="/reports" style={{ marginRight: '20px' }}>Reports</a>
+      <a href="/settings">Settings</a>
+    </nav>
+  </div>
+);
+
+const Products = () => <div style={{ padding: '20px' }}><h1>Products</h1><p>Product management page</p></div>;
+const Inventory = () => <div style={{ padding: '20px' }}><h1>Inventory</h1><p>Inventory management page</p></div>;
+const Sales = () => <div style={{ padding: '20px' }}><h1>Sales</h1><p>Sales management page</p></div>;
+const Patients = () => <div style={{ padding: '20px' }}><h1>Patients</h1><p>Patient management page</p></div>;
+const Prescriptions = () => <div style={{ padding: '20px' }}><h1>Prescriptions</h1><p>Prescription management page</p></div>;
+const Reports = () => <div style={{ padding: '20px' }}><h1>Reports</h1><p>Reports and analytics page</p></div>;
+const Settings = () => <div style={{ padding: '20px' }}><h1>Settings</h1><p>System settings page</p></div>;
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Router>
+          <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/inventory" element={<Inventory />} />
+              <Route path="/sales" element={<Sales />} />
+              <Route path="/patients" element={<Patients />} />
+              <Route path="/prescriptions" element={<Prescriptions />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </div>
+        </Router>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
