@@ -1,0 +1,18 @@
+{
+  "name": "igs-pharma",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "ui": "cd frontend && pnpm run start",
+    "api": "cd backend/src/IGS.WebAPI && dotnet watch run",
+    "api:build": "cd backend/src/IGS.WebAPI && dotnet build",
+    "migadd": "cd backend/src/IGS.WebAPI && dotnet ef migrations add AddUserRegistrationFields --project ../IGS.Infrastructure/IGS.Infrastructure.csproj --startup-project ../IGS.WebAPI/IGS.WebAPI.csproj",
+    "migup": "cd backend/src/IGS.WebAPI && dotnet ef database update --project ../IGS.Infrastructure/IGS.Infrastructure.csproj --startup-project ../IGS.WebAPI/IGS.WebAPI.csproj"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.12.4"
+
+}
