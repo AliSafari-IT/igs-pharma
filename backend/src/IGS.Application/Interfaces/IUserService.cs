@@ -16,4 +16,5 @@ public interface IUserService
     Task<bool> IsEmailAvailableAsync(string email);
     Task<bool> IsEmployeeIdAvailableAsync(string employeeId);
     Task<bool> IsCardIdAvailableAsync(string cardId);
+    Task<User?> UpdateUserAsync(int userId, UpdateUserDto updateDto);
 }

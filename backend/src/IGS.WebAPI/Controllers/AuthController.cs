@@ -1,8 +1,13 @@
 using System.ComponentModel.DataAnnotations;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using IGS.Application.DTOs.Auth;
 using IGS.Application.Interfaces;
+using IGS.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 
 namespace IGS.WebAPI.Controllers;
 
@@ -12,11 +17,17 @@ public class AuthController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly ILogger<AuthController> _logger;
+    private readonly IConfiguration _configuration;
 
-    public AuthController(IUserService userService, ILogger<AuthController> logger)
+    public AuthController(
+        IUserService userService,
+        ILogger<AuthController> logger,
+        IConfiguration configuration
+    )
     {
         _userService = userService;
         _logger = logger;
+        _configuration = configuration;
     }
 
     [HttpPost("register")]
@@ -305,17 +316,137 @@ public class AuthController : ControllerBase
         }
     }
 
-    // TODO: Implement JWT token generation and validation
     private string GenerateJwtToken(IGS.Domain.Entities.User user)
     {
-        // Placeholder - implement JWT token generation
-        return $"jwt-token-for-{user.Username}-{DateTime.UtcNow.Ticks}";
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.ASCII.GetBytes(
+            _configuration["Jwt:Key"]
+                ?? "your-256-bit-secret-key-here-make-this-secure-in-production"
+        );
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(
+                new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Name, user.Username),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role.ToString()),
+                    // Add any additional claims as needed
+                }
+            ),
+            Expires = DateTime.UtcNow.AddDays(7), // Token expires in 7 days
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(key),
+                SecurityAlgorithms.HmacSha256Signature
+            ),
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        return tokenHandler.WriteToken(token);
+    }
+
+    [HttpPut("users/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateUser(int userId, [FromBody] UpdateUserDto updateDto)
+    {
+        try
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(new { message = "Invalid user data", errors = ModelState });
+
+            // Get the current user ID from the JWT token
+            var currentUserId = GetUserIdFromToken();
+            if (
+                string.IsNullOrEmpty(currentUserId)
+                || !int.TryParse(currentUserId, out int currentUserIdInt)
+            )
+            {
+                return Unauthorized(new { message = "Invalid or missing authentication token" });
+            }
+
+            // Only allow users to update their own profile unless they're an admin
+            var currentUser = await _userService.GetUserByIdAsync(currentUserIdInt);
+            if (
+                currentUser == null
+                || (currentUser.Id != userId && currentUser.Role != UserRole.Admin)
+            )
+            {
+                return Forbid();
+            }
+
+            var updatedUser = await _userService.UpdateUserAsync(userId, updateDto);
+            if (updatedUser == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            return Ok(
+                new
+                {
+                    message = "User updated successfully",
+                    user = new UserDto
+                    {
+                        Id = updatedUser.Id.ToString(),
+                        Username = updatedUser.Username,
+                        Email = updatedUser.Email,
+                        FirstName = updatedUser.FirstName,
+                        LastName = updatedUser.LastName,
+                        Role = updatedUser.Role.ToString(),
+                        Department = updatedUser.Department,
+                        Permissions = updatedUser.Permissions,
+                        IsActive = updatedUser.IsActive,
+                    },
+                }
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while updating the user" });
+        }
     }
 
     private string? GetUserIdFromToken()
     {
-        // Placeholder - extract user ID from JWT token
-        return "placeholder-user-id";
+        var token = HttpContext
+            .Request.Headers["Authorization"]
+            .FirstOrDefault()
+            ?.Split(" ")
+            .Last();
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        try
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(
+                _configuration["Jwt:Key"]
+                    ?? "your-256-bit-secret-key-here-make-this-secure-in-production"
+            );
+
+            tokenHandler.ValidateToken(
+                token,
+                new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ClockSkew = TimeSpan.Zero,
+                },
+                out SecurityToken validatedToken
+            );
+
+            var jwtToken = (JwtSecurityToken)validatedToken;
+            var userId = jwtToken.Claims.First(x => x.Type == ClaimTypes.NameIdentifier).Value;
+            return userId;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
 

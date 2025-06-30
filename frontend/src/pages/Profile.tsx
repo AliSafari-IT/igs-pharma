@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Container, 
   Typography, 
@@ -12,7 +12,10 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  TextField
+  TextField,
+  Snackbar,
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import { 
   Person as PersonIcon, 
@@ -24,10 +27,96 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
+interface ProfileFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  department: string;
+}
+
 const Profile: React.FC = () => {
-  const { user } = useAuth();
-  const [isEditing, setIsEditing] = React.useState(false);
-  
+  const { user, updateUser } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState<ProfileFormData>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phoneNumber: '',
+    department: ''
+  });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error'
+  });
+
+  // Initialize form data when user is loaded
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        phoneNumber: user.phoneNumber || '',
+        department: user.department || ''
+      });
+    }
+  }, [user]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+
+      const updatedUser = await response.json();
+      updateUser(updatedUser);
+      
+      setSnackbar({
+        open: true,
+        message: 'Profile updated successfully!',
+        severity: 'success'
+      });
+      
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to update profile. Please try again.',
+        severity: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar(prev => ({ ...prev, open: false }));
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -79,16 +168,22 @@ const Profile: React.FC = () => {
                 {isEditing ? (
                   <Box width="100%" display="flex" gap={2}>
                     <TextField 
+                      name="firstName"
                       label="First Name" 
-                      defaultValue={user.firstName}
+                      value={formData.firstName}
+                      onChange={handleInputChange}
                       fullWidth
                       size="small"
+                      disabled={isLoading}
                     />
                     <TextField 
+                      name="lastName"
                       label="Last Name" 
-                      defaultValue={user.lastName}
+                      value={formData.lastName}
+                      onChange={handleInputChange}
                       fullWidth
                       size="small"
+                      disabled={isLoading}
                     />
                   </Box>
                 ) : (
@@ -107,11 +202,14 @@ const Profile: React.FC = () => {
                 </ListItemIcon>
                 {isEditing ? (
                   <TextField 
+                    name="email"
                     label="Email" 
-                    defaultValue={user.email}
+                    value={formData.email}
+                    onChange={handleInputChange}
                     fullWidth
                     size="small"
                     type="email"
+                    disabled={isLoading}
                   />
                 ) : (
                   <ListItemText primary="Email" secondary={user.email} />
@@ -126,11 +224,14 @@ const Profile: React.FC = () => {
                 </ListItemIcon>
                 {isEditing ? (
                   <TextField 
+                    name="phoneNumber"
                     label="Phone Number" 
-                    defaultValue={user.phoneNumber || ''}
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
                     fullWidth
                     size="small"
                     type="tel"
+                    disabled={isLoading}
                   />
                 ) : (
                   <ListItemText 
@@ -148,10 +249,13 @@ const Profile: React.FC = () => {
                 </ListItemIcon>
                 {isEditing ? (
                   <TextField 
+                    name="department"
                     label="Department" 
-                    defaultValue={user.department || ''}
+                    value={formData.department}
+                    onChange={handleInputChange}
                     fullWidth
                     size="small"
+                    disabled={isLoading}
                   />
                 ) : (
                   <ListItemText 
@@ -185,19 +289,33 @@ const Profile: React.FC = () => {
                 <Button 
                   variant="contained" 
                   color="primary"
-                  // TODO: Implement save functionality
-                  onClick={() => {
-                    // Save changes
-                    setIsEditing(false);
-                  }}
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                  startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
                 >
-                  Save Changes
+                  {isLoading ? 'Saving...' : 'Save Changes'}
                 </Button>
               </Box>
             )}
           </Grid>
         </Grid>
       </Paper>
+      
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

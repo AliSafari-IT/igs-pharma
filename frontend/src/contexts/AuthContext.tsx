@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
 interface User {
   id: string;
@@ -20,6 +26,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
+  updateUser: (userData: Partial<User>) => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
 }
@@ -37,41 +44,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Check for stored authentication on app load
-    const storedToken = localStorage.getItem('auth_token');
-    const storedUser = localStorage.getItem('auth_user');
+    const storedToken = localStorage.getItem("auth_token");
+    const storedUser = localStorage.getItem("auth_user");
 
     if (storedToken && storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setToken(storedToken);
         setUser(parsedUser);
-        
+
         // Verify token is still valid
         verifyToken(storedToken);
       } catch (error) {
-        console.error('Error parsing stored user data:', error);
+        console.error("Error parsing stored user data:", error);
         logout();
       }
     }
-    
+
     setIsLoading(false);
   }, []);
 
   const verifyToken = async (authToken: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/auth/verify`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         logout();
       }
     } catch (error) {
-      console.error('Token verification failed:', error);
+      console.error("Token verification failed:", error);
       logout();
     }
   };
@@ -79,19 +89,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = (authToken: string, userData: User) => {
     setToken(authToken);
     setUser(userData);
-    
+
     // Store in localStorage for persistence
-    localStorage.setItem('auth_token', authToken);
-    localStorage.setItem('auth_user', JSON.stringify(userData));
+    localStorage.setItem("auth_token", authToken);
+    localStorage.setItem("auth_user", JSON.stringify(userData));
   };
 
   const logout = () => {
     setToken(null);
     setUser(null);
-    
+
     // Clear localStorage
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
   };
 
   const hasPermission = (permission: string): boolean => {
@@ -102,19 +112,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return user?.role === role;
   };
 
-  const value: AuthContextType = {
-    user,
-    token,
-    isAuthenticated: !!user && !!token,
-    isLoading,
-    login,
-    logout,
-    hasPermission,
-    hasRole,
+  const updateUser = (userData: Partial<User>) => {
+    if (!user) return;
+
+    const updatedUser = { ...user, ...userData };
+    setUser(updatedUser);
+    localStorage.setItem("auth_user", JSON.stringify(updatedUser));
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        isAuthenticated: !!user && !!token,
+        isLoading,
+        login,
+        logout,
+        updateUser,
+        hasPermission,
+        hasRole,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -123,7 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

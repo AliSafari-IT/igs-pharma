@@ -160,6 +160,53 @@ public class UserService : IUserService
         return !await _context.Users.AnyAsync(u => u.CardId == cardId);
     }
 
+    public async Task<User?> UpdateUserAsync(int userId, UpdateUserDto updateDto)
+    {
+        try
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                _logger.LogWarning("User with ID {UserId} not found for update", userId);
+                return null;
+            }
+
+            // Update fields if they are provided in the DTO
+            if (!string.IsNullOrEmpty(updateDto.FirstName))
+                user.FirstName = updateDto.FirstName;
+
+            if (!string.IsNullOrEmpty(updateDto.LastName))
+                user.LastName = updateDto.LastName;
+
+            if (!string.IsNullOrEmpty(updateDto.Email) && updateDto.Email != user.Email)
+            {
+                if (!await IsEmailAvailableAsync(updateDto.Email))
+                {
+                    throw new InvalidOperationException("Email is already in use by another user");
+                }
+                user.Email = updateDto.Email;
+            }
+
+            if (!string.IsNullOrEmpty(updateDto.PhoneNumber))
+                user.Phone = updateDto.PhoneNumber;
+
+            if (updateDto.Department != null)
+                user.Department = updateDto.Department;
+
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} profile updated successfully", userId);
+
+            return user;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
+            throw;
+        }
+    }
+
     private static List<string> GetDefaultPermissions(string role)
     {
         return role.ToLowerInvariant() switch
