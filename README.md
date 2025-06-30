@@ -26,11 +26,14 @@ A comprehensive pharmacy management system built with React TypeScript frontend,
 ### Frontend
 
 - React 18 with TypeScript
+- Vite for fast development and building
 - Material-UI (MUI) for modern UI components
 - React Router v6 for navigation
-- React Query for data fetching and caching
+- TanStack React Query for data fetching and caching
 - Formik & Yup for form handling and validation
-- Chart.js for analytics and reporting
+- Recharts for analytics and reporting
+- Vitest for testing with Jest DOM matchers
+- pnpm as package manager
 
 ### Backend
 
@@ -76,7 +79,7 @@ igs-pharma/
 
 ### Prerequisites
 
-- Node.js 18+ and npm/yarn
+- Node.js 18+ and pnpm (recommended package manager)
 - .NET 8 SDK
 - MySQL 8.0
 - Visual Studio Code or Visual Studio
@@ -103,13 +106,25 @@ dotnet run --project src/IGS.WebAPI
 
 ```bash
 cd frontend
-npm install
-npm start
+pnpm install
+pnpm dev
 ```
 
 ### Environment Variables
 
-Create `.env` files in both backend and frontend directories with the required configuration.
+#### Frontend (.env)
+
+Create a `.env` file in the frontend directory:
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+#### Backend
+
+Configure your backend connection strings and JWT settings in `appsettings.json` or user secrets.
+
+**Note**: For Vite applications, environment variables must be prefixed with `VITE_` and accessed via `import.meta.env.VITE_*`.
 
 ## License
 

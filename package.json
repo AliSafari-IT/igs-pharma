@@ -9,6 +9,7 @@
     "api:build": "pnpm --filter @igs-pharma/api api:build",
     "migadd": "pnpm --filter @igs-pharma/api migadd",
     "migup": "pnpm --filter @igs-pharma/api migup",
+    "migdown": "pnpm --filter @igs-pharma/api migdown",
     "ui:test": "pnpm --filter @igs-pharma/ui test",
     "ui:test:watch": "pnpm --filter @igs-pharma/ui test:watch",
     "ui:test:coverage": "pnpm --filter @igs-pharma/ui test:coverage"
