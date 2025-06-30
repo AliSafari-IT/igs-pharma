@@ -29,7 +29,7 @@ import {
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
+import { authApi } from '../services/api';
 
 interface RegisterFormData {
   username: string;
@@ -74,6 +74,7 @@ const validationSchema = Yup.object({
   employeeId: Yup.string()
     .max(50, 'Employee ID must not exceed 50 characters'),
   cardId: Yup.string()
+    .required('Card ID is required')
     .max(50, 'Card ID must not exceed 50 characters'),
   cardExpiryDate: Yup.date()
     .min(new Date(), 'Card expiry date must be in the future'),
@@ -111,21 +112,29 @@ const Register: React.FC = () => {
       try {
         // Format the data for the API
         const registerData = {
-          ...values,
-          // Ensure required fields are sent as empty strings if not provided
-          phoneNumber: values.phoneNumber || '',
-          department: values.department || '',
-          employeeId: values.employeeId || '',
-          cardId: values.cardId || '',
-          // Format date as ISO string if provided, otherwise null
-          cardExpiryDate: values.cardExpiryDate 
-            ? new Date(values.cardExpiryDate).toISOString() 
-            : null,
-          // Ensure ConfirmPassword is included and matches Password
+          username: values.username.trim(),
+          email: values.email.trim(),
+          password: values.password,
           confirmPassword: values.confirmPassword,
+          firstName: values.firstName.trim(),
+          lastName: values.lastName.trim(),
+          // Handle optional fields properly - use null for empty fields to avoid validation errors
+          phoneNumber: values.phoneNumber && values.phoneNumber.trim() !== "" ? values.phoneNumber.trim() : null,
+          department: values.department && values.department.trim() !== "" ? values.department.trim() : null,
+          // Ensure role is capitalized correctly to match backend enum
+          role: "Cashier", // Hardcode to ensure it matches exactly
+          employeeId: values.employeeId && values.employeeId.trim() !== "" ? values.employeeId.trim() : null,
+          cardId: values.cardId && values.cardId.trim() !== "" ? values.cardId.trim() : null,
+          // Format date as ISO string if provided, otherwise null
+          cardExpiryDate: values.cardExpiryDate && values.cardExpiryDate.trim() !== "" 
+            ? new Date(values.cardExpiryDate).toISOString() 
+            : null
         };
+        
+        // Log the data being sent to the API for debugging
+        console.log('Registration data being sent:', JSON.stringify(registerData, null, 2));
 
-        const response = await apiService.post('/auth/register', registerData);
+        const response = await authApi.register(registerData);
         
         setSuccess('Registration successful! You can now log in with your credentials.');
         
@@ -138,18 +147,27 @@ const Register: React.FC = () => {
         console.error('Registration error:', err);
         console.error('Error response data:', err.response?.data);
         
-        let errorMessage = 'Registration failed. Please try again.';
+        let errorMessage = 'Registration failed. Please check your information and try again.';
         
         if (err.response?.data) {
           // Handle validation errors from the server
           if (err.response.data.errors) {
             // If we have a dictionary of field errors
-            if (typeof err.response.data.errors === 'object') {
-              errorMessage = Object.entries(err.response.data.errors)
-                .map(([field, errors]) => 
-                  `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`
-                )
-                .join('\n');
+            if (typeof err.response.data.errors === 'object' && err.response.data.errors !== null) {
+              // Map field errors to formik errors
+              const fieldErrors: Record<string, string> = {};
+              Object.entries(err.response.data.errors).forEach(([field, errors]) => {
+                const errorMessage = Array.isArray(errors) ? errors.join(', ') : String(errors);
+                fieldErrors[field.toLowerCase()] = errorMessage;
+              });
+              
+              // Set formik errors
+              formik.setErrors({
+                ...formik.errors,
+                ...fieldErrors
+              });
+              
+              errorMessage = 'Please fix the highlighted errors below.';
             } 
             // If we have an array of error messages
             else if (Array.isArray(err.response.data.errors)) {
@@ -159,7 +177,21 @@ const Register: React.FC = () => {
           // Handle simple error message
           else if (err.response.data.message) {
             errorMessage = err.response.data.message;
+            
+            // Handle specific error messages
+            if (errorMessage.toLowerCase().includes('username')) {
+              formik.setFieldError('username', errorMessage);
+            } else if (errorMessage.toLowerCase().includes('email')) {
+              formik.setFieldError('email', errorMessage);
+            } else if (errorMessage.toLowerCase().includes('employeeid')) {
+              formik.setFieldError('employeeId', errorMessage);
+            } else if (errorMessage.toLowerCase().includes('cardid') || errorMessage.toLowerCase().includes('card id')) {
+              formik.setFieldError('cardId', errorMessage);
+            }
           }
+          
+          // Log the full error object for debugging
+          console.log('Full error response:', JSON.stringify(err.response?.data, null, 2));
         } else if (err.message) {
           errorMessage = err.message;
         }
@@ -175,7 +207,7 @@ const Register: React.FC = () => {
   const handleUsernameBlur = async () => {
     if (formik.values.username && !formik.errors.username) {
       try {
-        const response = await apiService.get(`/auth/check-username/${formik.values.username}`);
+        const response = await authApi.checkUsername(formik.values.username);
         if (!response.data.available) {
           formik.setFieldError('username', 'Username is already taken');
         }
@@ -188,7 +220,7 @@ const Register: React.FC = () => {
   const handleEmailBlur = async () => {
     if (formik.values.email && !formik.errors.email) {
       try {
-        const response = await apiService.get(`/auth/check-email/${formik.values.email}`);
+        const response = await authApi.checkEmail(formik.values.email);
         if (!response.data.available) {
           formik.setFieldError('email', 'Email is already registered');
         }
@@ -201,7 +233,7 @@ const Register: React.FC = () => {
   const handleEmployeeIdBlur = async () => {
     if (formik.values.employeeId && !formik.errors.employeeId) {
       try {
-        const response = await apiService.get(`/auth/check-employee-id/${formik.values.employeeId}`);
+        const response = await authApi.checkEmployeeId(formik.values.employeeId);
         if (!response.data.available) {
           formik.setFieldError('employeeId', 'Employee ID is already assigned');
         }
@@ -440,12 +472,13 @@ const Register: React.FC = () => {
                     fullWidth
                     id="cardId"
                     name="cardId"
-                    label="Card ID"
+                    label="Card ID *"
                     value={formik.values.cardId}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     error={formik.touched.cardId && Boolean(formik.errors.cardId)}
-                    helperText={formik.touched.cardId && formik.errors.cardId}
+                    helperText={(formik.touched.cardId && formik.errors.cardId) || 'Required field'}
+                    required
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -547,18 +580,12 @@ const Register: React.FC = () => {
                     type="submit"
                     fullWidth
                     variant="contained"
-                    size="large"
-                    disabled={loading}
-                    sx={{ mt: 3, mb: 2, py: 1.5 }}
+                    color="primary"
+                    disabled={loading || formik.isSubmitting}
+                    startIcon={loading ? <CircularProgress size={20} /> : <PersonAdd />}
+                    sx={{ mt: 3, mb: 2, height: '48px' }}
                   >
-                    {loading ? (
-                      <>
-                        <CircularProgress size={20} sx={{ mr: 1 }} />
-                        Registering...
-                      </>
-                    ) : (
-                      'Register User'
-                    )}
+                    {loading ? 'Registering...' : 'Register'}
                   </Button>
                 </Grid>
 

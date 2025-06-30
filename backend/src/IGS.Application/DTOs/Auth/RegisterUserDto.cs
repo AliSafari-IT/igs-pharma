@@ -35,7 +35,7 @@ public class RegisterUserDto
     public string? Department { get; set; }
 
     [StringLength(50, ErrorMessage = "Role cannot exceed 50 characters")]
-    public string Role { get; set; } = "Employee"; // Default role
+    public string Role { get; set; } = "Cashier"; // Default role
 
     // ID Card related fields
     [StringLength(50, ErrorMessage = "Employee ID cannot exceed 50 characters")]

@@ -1,7 +1,8 @@
 import axios from 'axios';
-import { Product, CreateProduct, UpdateProduct, UpdateStockRequest } from '../types/Product';
+import { Product, CreateProduct, UpdateProduct } from '../types/Product';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Vite uses import.meta.env instead of process.env
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -87,6 +88,18 @@ export const prescriptionApi = {
   create: (prescription: any) => api.post('/prescriptions', prescription),
   update: (id: number, prescription: any) => api.put(`/prescriptions/${id}`, prescription),
   fill: (id: number) => api.patch(`/prescriptions/${id}/fill`),
+};
+
+// Authentication API
+export const authApi = {
+  register: (userData: any) => api.post('/auth/register', userData),
+  login: (credentials: { username: string; password: string }) => api.post('/auth/login', credentials),
+  logout: () => api.post('/auth/logout'),
+  checkUsername: (username: string) => api.get(`/auth/check-username/${encodeURIComponent(username)}`),
+  checkEmail: (email: string) => api.get(`/auth/check-email/${encodeURIComponent(email)}`),
+  checkEmployeeId: (employeeId: string) => api.get(`/auth/check-employee-id/${encodeURIComponent(employeeId)}`),
+  refreshToken: () => api.post('/auth/refresh'),
+  getCurrentUser: () => api.get('/auth/me'),
 };
 
 // Reports API
