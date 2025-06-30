@@ -1,9 +1,9 @@
 using AutoMapper;
-using BCrypt.Net;
 using IGS.Application.DTOs.Auth;
+using BCrypt.Net;
 using IGS.Application.Interfaces;
 using IGS.Domain.Entities;
-using IGS.Infrastructure.Data;
+using IGS.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,13 +11,13 @@ namespace IGS.Application.Services;
 
 public class UserService : IUserService
 {
-    private readonly PharmacyDbContext _context;
+    private readonly IUserRepository _userRepository;
     private readonly IMapper _mapper;
     private readonly ILogger<UserService> _logger;
 
-    public UserService(PharmacyDbContext context, IMapper mapper, ILogger<UserService> logger)
+    public UserService(IUserRepository userRepository, IMapper mapper, ILogger<UserService> logger)
     {
-        _context = context;
+        _userRepository = userRepository;
         _mapper = mapper;
         _logger = logger;
     }
@@ -67,8 +67,7 @@ public class UserService : IUserService
                 Permissions = GetDefaultPermissions(registerDto.Role),
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _userRepository.AddAsync(user);
 
             _logger.LogInformation(
                 "User {Username} registered successfully with ID {UserId}",
@@ -99,11 +98,13 @@ public class UserService : IUserService
 
     public async Task<User?> ValidateCredentialsAsync(string username, string password)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u =>
-            u.Username == username && u.IsActive
-        );
+        var user = await _userRepository.GetByUsernameAsync(username);
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+        if (
+            user == null
+            || !user.IsActive
+            || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)
+        )
             return null;
 
         return user;
@@ -111,55 +112,58 @@ public class UserService : IUserService
 
     public async Task<User?> GetUserByIdAsync(int userId)
     {
-        return await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+        var user = await _userRepository.GetByIdAsync(userId);
+        return user?.IsActive == true ? user : null;
     }
 
     public async Task<User?> GetUserByUsernameAsync(string username)
     {
-        return await _context.Users.FirstOrDefaultAsync(u => u.Username == username && u.IsActive);
+        var user = await _userRepository.GetByUsernameAsync(username);
+        return user?.IsActive == true ? user : null;
     }
 
     public async Task<User?> GetUserByEmailAsync(string email)
     {
-        return await _context.Users.FirstOrDefaultAsync(u =>
-            u.Email == email.ToLowerInvariant() && u.IsActive
-        );
+        var user = await _userRepository.GetByEmailAsync(email.ToLowerInvariant());
+        return user?.IsActive == true ? user : null;
     }
 
     public async Task<User?> GetUserByCardIdAsync(string cardId)
     {
-        return await _context.Users.FirstOrDefaultAsync(u => u.CardId == cardId && u.IsActive);
+        var users = await _userRepository.FindAsync(u => u.CardId == cardId);
+        return users.FirstOrDefault(u => u.IsActive);
     }
 
     public async Task<User?> GetUserByEmployeeIdAsync(string employeeId)
     {
-        return await _context.Users.FirstOrDefaultAsync(u =>
-            u.EmployeeId == employeeId && u.IsActive
-        );
+        var users = await _userRepository.FindAsync(u => u.EmployeeId == employeeId);
+        return users.FirstOrDefault(u => u.IsActive);
     }
 
     public async Task<bool> IsUsernameAvailableAsync(string username)
     {
-        return !await _context.Users.AnyAsync(u => u.Username == username);
+        return !await _userRepository.UsernameExistsAsync(username);
     }
 
     public async Task<bool> IsEmailAvailableAsync(string email)
     {
-        return !await _context.Users.AnyAsync(u => u.Email == email.ToLowerInvariant());
+        return !await _userRepository.EmailExistsAsync(email.ToLowerInvariant());
     }
 
     public async Task<bool> IsEmployeeIdAvailableAsync(string employeeId)
     {
         if (string.IsNullOrEmpty(employeeId))
             return true;
-        return !await _context.Users.AnyAsync(u => u.EmployeeId == employeeId);
+        var users = await _userRepository.FindAsync(u => u.EmployeeId == employeeId);
+        return !users.Any();
     }
 
     public async Task<bool> IsCardIdAvailableAsync(string cardId)
     {
         if (string.IsNullOrEmpty(cardId))
             return true;
-        return !await _context.Users.AnyAsync(u => u.CardId == cardId);
+        var users = await _userRepository.FindAsync(u => u.CardId == cardId);
+        return !users.Any();
     }
 
     public async Task<User?> UpdateUserAsync(int userId, UpdateUserDto updateDto)
@@ -169,7 +173,7 @@ public class UserService : IUserService
             _logger.LogInformation("Starting update for user ID: {UserId}", userId);
             _logger.LogDebug("Update data: {@UpdateData}", updateDto);
 
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
             {
                 _logger.LogWarning("User with ID {UserId} not found for update", userId);
@@ -238,7 +242,7 @@ public class UserService : IUserService
 
                 user.UpdatedAt = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();
+                await _userRepository.UpdateAsync(user);
                 _logger.LogInformation("User {UserId} profile updated successfully", userId);
 
                 return user;
