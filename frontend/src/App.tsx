@@ -16,6 +16,7 @@ import Patients from './pages/Patients';
 import Prescriptions from './pages/Prescriptions';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -188,6 +189,22 @@ function App() {
                 <ProtectedRoute requiredPermission="sales.view">
                   <Layout>
                     <Sales />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/settings" element={
+                <ProtectedRoute requiredPermission="settings.view">
+                  <Layout>
+                    <Settings />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Profile />
                   </Layout>
                 </ProtectedRoute>
               } />

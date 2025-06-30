@@ -8,6 +8,8 @@ interface User {
   lastName: string;
   role: string;
   department?: string;
+  phoneNumber?: string;
+  employeeId?: string;
   permissions: string[];
 }
 

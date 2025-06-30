@@ -3,7 +3,6 @@ import {
   AppBar,
   Avatar,
   Box,
-  Button,
   CssBaseline,
   Divider,
   Drawer,
@@ -25,15 +24,14 @@ import {
   Dashboard as DashboardIcon,
   Inventory as InventoryIcon,
   ShoppingCart as SalesIcon,
+  Medication as ProductsIcon,
+  Logout,
+  AccountCircle,
+  Settings as SettingsIcon,
+  LocalPharmacy as PharmacyIcon,
   People as PatientsIcon,
   Receipt as PrescriptionsIcon,
   Assessment as ReportsIcon,
-  Settings as SettingsIcon,
-  LocalPharmacy as PharmacyIcon,
-  Medication as ProductsIcon,
-  AccountCircle,
-  Logout,
-  Person,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -191,21 +189,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             open={Boolean(anchorEl)}
             onClose={handleUserMenuClose}
           >
-            <MenuItem onClick={handleUserMenuClose}>
+            <MenuItem onClick={() => { handleUserMenuClose(); navigate('/profile'); }}>
               <ListItemIcon>
-                <Person fontSize="small" />
+                <AccountCircle fontSize="small" />
               </ListItemIcon>
-              <ListItemText>
-                <Typography variant="body2">
-                  {user?.firstName} {user?.lastName}
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  {user?.role} • {user?.department}
-                </Typography>
-              </ListItemText>
+              <ListItemText>My Profile</ListItemText>
+            </MenuItem>
+            <MenuItem onClick={() => { handleUserMenuClose(); navigate('/settings'); }}>
+              <ListItemIcon>
+                <SettingsIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Settings</ListItemText>
             </MenuItem>
             <Divider />
-            <MenuItem onClick={handleLogout}>
+            <MenuItem onClick={() => { handleUserMenuClose(); handleLogout(); }}>
               <ListItemIcon>
                 <Logout fontSize="small" />
               </ListItemIcon>
