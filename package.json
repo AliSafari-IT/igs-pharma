@@ -8,7 +8,10 @@
     "api": "pnpm --filter @igs-pharma/api api",
     "api:build": "pnpm --filter @igs-pharma/api api:build",
     "migadd": "pnpm --filter @igs-pharma/api migadd",
-    "migup": "pnpm --filter @igs-pharma/api migup"
+    "migup": "pnpm --filter @igs-pharma/api migup",
+    "ui:test": "pnpm --filter @igs-pharma/ui test",
+    "ui:test:watch": "pnpm --filter @igs-pharma/ui test:watch",
+    "ui:test:coverage": "pnpm --filter @igs-pharma/ui test:coverage"
   },
   "keywords": [],
   "author": "",
