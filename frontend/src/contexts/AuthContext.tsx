@@ -43,28 +43,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored authentication on app load
-    const storedToken = localStorage.getItem("auth_token");
-    const storedUser = localStorage.getItem("auth_user");
+    const initializeAuth = async () => {
+      // Check for stored authentication on app load
+      const storedToken = localStorage.getItem("auth_token");
+      const storedUser = localStorage.getItem("auth_user");
 
-    if (storedToken && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUser(parsedUser);
+      if (storedToken && storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          
+          // First set the token and user to prevent flash of login page
+          setToken(storedToken);
+          setUser(parsedUser);
 
-        // Verify token is still valid
-        verifyToken(storedToken);
-      } catch (error) {
-        console.error("Error parsing stored user data:", error);
-        logout();
+          // Then verify the token
+          const isValid = await verifyToken(storedToken);
+          
+          if (!isValid) {
+            // If token is invalid, clear the stored data
+            logout();
+          }
+        } catch (error) {
+          console.error("Error initializing auth:", error);
+          logout();
+        }
       }
-    }
+      
+      setIsLoading(false);
+    };
 
-    setIsLoading(false);
+    initializeAuth();
   }, []);
 
-  const verifyToken = async (authToken: string) => {
+  const verifyToken = async (authToken: string): Promise<boolean> => {
     try {
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/auth/verify`,
@@ -78,11 +89,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
 
       if (!response.ok) {
-        logout();
+        throw new Error('Token verification failed');
       }
+      
+      const data = await response.json();
+      if (data.isValid) {
+        // Update user data if needed
+        if (data.user) {
+          setUser(data.user);
+          localStorage.setItem("auth_user", JSON.stringify(data.user));
+        }
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error("Token verification failed:", error);
-      logout();
+      return false;
     }
   };
 
@@ -93,11 +115,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Store in localStorage for persistence
     localStorage.setItem("auth_token", authToken);
     localStorage.setItem("auth_user", JSON.stringify(userData));
+    
+    // Set token in axios defaults if you're using axios
+    // api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
   };
 
   const logout = () => {
     setToken(null);
     setUser(null);
+    
+    // Clear localStorage
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    
+    // Clear axios defaults if you're using axios
+    // delete api.defaults.headers.common['Authorization'];
 
     // Clear localStorage
     localStorage.removeItem("auth_token");

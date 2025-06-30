@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "api": "dotnet watch run",
+    "api": "npx kill-port 5000 && dotnet watch run",
     "api:build": "dotnet build",
     "migadd": "node -e \"const name = process.argv[1] || 'MigrationName'; require('child_process').execSync(`dotnet ef migrations add ${name} --project ../IGS.Infrastructure/IGS.Infrastructure.csproj --startup-project ../IGS.WebAPI/IGS.WebAPI.csproj`, { stdio: 'inherit' })\" --",
     "migup": "node -e \"require('child_process').execSync(`dotnet ef database update --project ../IGS.Infrastructure/IGS.Infrastructure.csproj --startup-project ../IGS.WebAPI/IGS.WebAPI.csproj`, { stdio: 'inherit' })\" --",

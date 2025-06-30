@@ -57,7 +57,9 @@ public class UserService : IUserService
                 Department = registerDto.Department,
                 Role = Enum.Parse<UserRole>(registerDto.Role, true),
                 EmployeeId = registerDto.EmployeeId,
-                CardId = registerDto.CardId,
+                CardId = string.IsNullOrEmpty(registerDto.CardId)
+                    ? $"CARD_{Guid.NewGuid().ToString("N")[..8].ToUpper()}"
+                    : registerDto.CardId,
                 CardExpiryDate = registerDto.CardExpiryDate,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -164,6 +166,9 @@ public class UserService : IUserService
     {
         try
         {
+            _logger.LogInformation("Starting update for user ID: {UserId}", userId);
+            _logger.LogDebug("Update data: {@UpdateData}", updateDto);
+
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
@@ -171,39 +176,87 @@ public class UserService : IUserService
                 return null;
             }
 
-            // Update fields if they are provided in the DTO
-            if (!string.IsNullOrEmpty(updateDto.FirstName))
-                user.FirstName = updateDto.FirstName;
-
-            if (!string.IsNullOrEmpty(updateDto.LastName))
-                user.LastName = updateDto.LastName;
-
-            if (!string.IsNullOrEmpty(updateDto.Email) && updateDto.Email != user.Email)
+            try
             {
-                if (!await IsEmailAvailableAsync(updateDto.Email))
+                // Update fields if they are provided in the DTO
+                if (!string.IsNullOrEmpty(updateDto.FirstName))
                 {
-                    throw new InvalidOperationException("Email is already in use by another user");
+                    _logger.LogDebug(
+                        "Updating FirstName from '{Old}' to '{New}'",
+                        user.FirstName,
+                        updateDto.FirstName
+                    );
+                    user.FirstName = updateDto.FirstName;
                 }
-                user.Email = updateDto.Email;
+
+                if (!string.IsNullOrEmpty(updateDto.LastName))
+                {
+                    _logger.LogDebug(
+                        "Updating LastName from '{Old}' to '{New}'",
+                        user.LastName,
+                        updateDto.LastName
+                    );
+                    user.LastName = updateDto.LastName;
+                }
+
+                if (!string.IsNullOrEmpty(updateDto.Email) && updateDto.Email != user.Email)
+                {
+                    _logger.LogDebug(
+                        "Updating Email from '{Old}' to '{New}'",
+                        user.Email,
+                        updateDto.Email
+                    );
+                    if (!await IsEmailAvailableAsync(updateDto.Email))
+                    {
+                        var errorMsg =
+                            $"Email '{updateDto.Email}' is already in use by another user";
+                        _logger.LogWarning(errorMsg);
+                        throw new InvalidOperationException(errorMsg);
+                    }
+                    user.Email = updateDto.Email;
+                }
+
+                if (!string.IsNullOrEmpty(updateDto.PhoneNumber))
+                {
+                    _logger.LogDebug(
+                        "Updating Phone from '{Old}' to '{New}'",
+                        user.Phone,
+                        updateDto.PhoneNumber
+                    );
+                    user.Phone = updateDto.PhoneNumber;
+                }
+
+                if (updateDto.Department != null)
+                {
+                    _logger.LogDebug(
+                        "Updating Department from '{Old}' to '{New}'",
+                        user.Department,
+                        updateDto.Department
+                    );
+                    user.Department = updateDto.Department;
+                }
+
+                user.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("User {UserId} profile updated successfully", userId);
+
+                return user;
             }
-
-            if (!string.IsNullOrEmpty(updateDto.PhoneNumber))
-                user.Phone = updateDto.PhoneNumber;
-
-            if (updateDto.Department != null)
-                user.Department = updateDto.Department;
-
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("User {UserId} profile updated successfully", userId);
-
-            return user;
+            catch (Exception ex) when (ex is not InvalidOperationException)
+            {
+                _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
+                throw new Exception($"An error occurred while updating the user: {ex.Message}", ex);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
-            throw;
+            _logger.LogError(
+                ex,
+                "Unexpected error in UpdateUserAsync for user ID {UserId}",
+                userId
+            );
+            throw new Exception($"An unexpected error occurred: {ex.Message}", ex);
         }
     }
 

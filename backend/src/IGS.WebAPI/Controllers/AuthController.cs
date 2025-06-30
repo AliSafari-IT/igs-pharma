@@ -224,7 +224,6 @@ public class AuthController : ControllerBase
     {
         try
         {
-            // TODO: Extract user ID from JWT token
             var userId = GetUserIdFromToken();
 
             if (string.IsNullOrEmpty(userId))
@@ -247,18 +246,20 @@ public class AuthController : ControllerBase
             return Ok(
                 new
                 {
-                    valid = true,
-                    user = new UserDto
+                    isValid = true, // Changed from 'valid' to 'isValid' to match frontend expectation
+                    user = new
                     {
-                        Id = user.Id.ToString(),
-                        Username = user.Username,
-                        Email = user.Email,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName,
-                        Role = user.Role.ToString(),
-                        Department = user.Department,
-                        Permissions = user.Permissions,
-                        IsActive = user.IsActive,
+                        id = user.Id.ToString(),
+                        username = user.Username,
+                        email = user.Email,
+                        firstName = user.FirstName,
+                        lastName = user.LastName,
+                        role = user.Role.ToString(),
+                        department = user.Department,
+                        phoneNumber = user.Phone,
+                        employeeId = user.EmployeeId,
+                        permissions = user.Permissions ?? new List<string>(),
+                        isActive = user.IsActive,
                     },
                 }
             );
@@ -266,7 +267,7 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error verifying token");
-            return StatusCode(500, new { message = "An error occurred during token verification" });
+            return StatusCode(500, new { message = "An error occurred while verifying the token" });
         }
     }
 
@@ -333,10 +334,11 @@ public class AuthController : ControllerBase
                     new Claim(ClaimTypes.Name, user.Username),
                     new Claim(ClaimTypes.Email, user.Email),
                     new Claim(ClaimTypes.Role, user.Role.ToString()),
-                    // Add any additional claims as needed
                 }
             ),
-            Expires = DateTime.UtcNow.AddDays(7), // Token expires in 7 days
+            Expires = DateTime.UtcNow.AddMinutes(int.Parse(_configuration["Jwt:ExpiresInMinutes"] ?? "1440")),
+            Issuer = _configuration["Jwt:Issuer"],
+            Audience = _configuration["Jwt:Audience"],
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(key),
                 SecurityAlgorithms.HmacSha256Signature
@@ -351,102 +353,148 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> UpdateUser(int userId, [FromBody] UpdateUserDto updateDto)
     {
+        _logger.LogInformation("UpdateUser endpoint called for user ID: {UserId}", userId);
+        _logger.LogDebug("Request data: {@UpdateData}", updateDto);
+
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
+            );
+            _logger.LogWarning(
+                "Invalid model state: {ModelErrors}",
+                string.Join(", ", errors.SelectMany(e => e.Value ?? Array.Empty<string>()))
+            );
+            return BadRequest(
+                new
+                {
+                    success = false,
+                    message = "Validation failed",
+                    errors = errors,
+                }
+            );
+        }
+
+        // Get the current user ID from the JWT token
+        var currentUserId = GetUserIdFromToken();
+        if (
+            string.IsNullOrEmpty(currentUserId)
+            || !int.TryParse(currentUserId, out int currentUserIdInt)
+        )
+        {
+            _logger.LogWarning("Invalid or missing authentication token");
+            return Unauthorized(
+                new { success = false, message = "Invalid or missing authentication token" }
+            );
+        }
+
+        _logger.LogInformation("Current user ID from token: {CurrentUserId}", currentUserIdInt);
+
+        // Only allow users to update their own profile unless they're an admin
+        var currentUser = await _userService.GetUserByIdAsync(currentUserIdInt);
+        if (currentUser == null)
+        {
+            _logger.LogWarning("Current user not found with ID: {CurrentUserId}", currentUserIdInt);
+            return Unauthorized(new { success = false, message = "User not found" });
+        }
+
+        if (currentUser.Id != userId && currentUser.Role != UserRole.Admin)
+        {
+            _logger.LogWarning(
+                "User {CurrentUserId} attempted to update profile for user {UserId} without permission",
+                currentUserIdInt,
+                userId
+            );
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new
+                {
+                    success = false,
+                    message = "You do not have permission to update this profile",
+                }
+            );
+        }
+
+        _logger.LogInformation(
+            "Updating user {UserId} with data: {UserData}",
+            userId,
+            new
+            {
+                updateDto.FirstName,
+                updateDto.LastName,
+                updateDto.Email,
+            }
+        );
+
         try
         {
-            if (!ModelState.IsValid)
-                return BadRequest(new { message = "Invalid user data", errors = ModelState });
-
-            // Get the current user ID from the JWT token
-            var currentUserId = GetUserIdFromToken();
-            if (
-                string.IsNullOrEmpty(currentUserId)
-                || !int.TryParse(currentUserId, out int currentUserIdInt)
-            )
-            {
-                return Unauthorized(new { message = "Invalid or missing authentication token" });
-            }
-
-            // Only allow users to update their own profile unless they're an admin
-            var currentUser = await _userService.GetUserByIdAsync(currentUserIdInt);
-            if (
-                currentUser == null
-                || (currentUser.Id != userId && currentUser.Role != UserRole.Admin)
-            )
-            {
-                return Forbid();
-            }
-
             var updatedUser = await _userService.UpdateUserAsync(userId, updateDto);
             if (updatedUser == null)
             {
-                return NotFound(new { message = "User not found" });
+                _logger.LogWarning(
+                    "Failed to update user with ID: {UserId} - User not found",
+                    userId
+                );
+                return NotFound(new { success = false, message = "User not found" });
             }
 
+            _logger.LogInformation("User {UserId} updated successfully", userId);
             return Ok(
                 new
                 {
+                    success = true,
                     message = "User updated successfully",
-                    user = new UserDto
+                    user = new
                     {
-                        Id = updatedUser.Id.ToString(),
-                        Username = updatedUser.Username,
-                        Email = updatedUser.Email,
-                        FirstName = updatedUser.FirstName,
-                        LastName = updatedUser.LastName,
-                        Role = updatedUser.Role.ToString(),
-                        Department = updatedUser.Department,
-                        Permissions = updatedUser.Permissions,
-                        IsActive = updatedUser.IsActive,
+                        id = updatedUser.Id,
+                        username = updatedUser.Username,
+                        email = updatedUser.Email,
+                        firstName = updatedUser.FirstName,
+                        lastName = updatedUser.LastName,
+                        role = updatedUser.Role.ToString(),
+                        department = updatedUser.Department,
+                        phoneNumber = updatedUser.Phone,
+                        permissions = updatedUser.Permissions ?? new List<string>(),
+                        isActive = updatedUser.IsActive,
                     },
                 }
             );
         }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(
+                "Validation error updating user {UserId}: {ErrorMessage}",
+                userId,
+                ex.Message
+            );
+            return BadRequest(new { success = false, message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
-            return StatusCode(500, new { message = "An error occurred while updating the user" });
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new
+                {
+                    success = false,
+                    message = "An error occurred while updating the user",
+                    error = ex.Message,
+                    details = ex.InnerException?.Message,
+                }
+            );
         }
     }
 
     private string? GetUserIdFromToken()
     {
-        var token = HttpContext
-            .Request.Headers["Authorization"]
-            .FirstOrDefault()
-            ?.Split(" ")
-            .Last();
-        if (string.IsNullOrEmpty(token))
-            return null;
-
-        try
+        // Use the built-in authentication context instead of manual token parsing
+        if (HttpContext.User?.Identity?.IsAuthenticated == true)
         {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(
-                _configuration["Jwt:Key"]
-                    ?? "your-256-bit-secret-key-here-make-this-secure-in-production"
-            );
-
-            tokenHandler.ValidateToken(
-                token,
-                new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = TimeSpan.Zero,
-                },
-                out SecurityToken validatedToken
-            );
-
-            var jwtToken = (JwtSecurityToken)validatedToken;
-            var userId = jwtToken.Claims.First(x => x.Type == ClaimTypes.NameIdentifier).Value;
-            return userId;
+            var userIdClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+            return userIdClaim?.Value;
         }
-        catch
-        {
-            return null;
-        }
+        return null;
     }
 }
 

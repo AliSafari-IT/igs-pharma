@@ -73,30 +73,64 @@ const Profile: React.FC = () => {
     }));
   };
 
-  const handleSubmit = async () => {
-    if (!user) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    setIsLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/${user.id}`, {
+      // Prepare the update payload matching the UpdateUserDto
+      const updateData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber || null, // Send null instead of empty string
+        department: formData.department
+      };
+
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const token = localStorage.getItem('auth_token');
+      const url = `${apiUrl}/auth/users/${user?.id}`;
+      
+      console.log('Profile update request:', {
+        url,
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          'Authorization': `Bearer ${token ? token.substring(0, 20) + '...' : 'NO_TOKEN'}`
         },
-        body: JSON.stringify(formData)
+        body: updateData
       });
 
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updateData)
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      let responseData;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        responseData = { message: await response.text() || `HTTP ${response.status}` };
+      }
+      console.log('Response data:', responseData);
+      
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        throw new Error(responseData.message || `HTTP ${response.status}: Failed to update profile`);
       }
 
-      const updatedUser = await response.json();
-      updateUser(updatedUser);
+      // The backend returns the updated user data in response.user
+      updateUser(responseData.user);
       
       setSnackbar({
         open: true,
-        message: 'Profile updated successfully!',
+        message: responseData.message || 'Profile updated successfully!',
         severity: 'success'
       });
       
