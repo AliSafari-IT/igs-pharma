@@ -88,7 +88,7 @@ const Login: React.FC = () => {
       
       try {
         // Simulate API call for traditional login
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/login`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -135,7 +135,7 @@ const Login: React.FC = () => {
 
       if (cardData) {
         // Send card data to backend for authentication
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/card-login`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/card-login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

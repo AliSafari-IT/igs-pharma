@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const verifyToken = async (authToken: string) => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/verify`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,

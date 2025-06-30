@@ -61,18 +61,22 @@ public class AuthController : ControllerBase
                 registerDto.Username,
                 ex.ToString()
             );
-            
+
             // In development environment, return detailed error information
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
             {
-                return StatusCode(500, new { 
-                    message = "An error occurred during registration",
-                    error = ex.Message,
-                    stackTrace = ex.StackTrace,
-                    innerException = ex.InnerException?.Message
-                });
+                return StatusCode(
+                    500,
+                    new
+                    {
+                        message = "An error occurred during registration",
+                        error = ex.Message,
+                        stackTrace = ex.StackTrace,
+                        innerException = ex.InnerException?.Message,
+                    }
+                );
             }
-            
+
             return StatusCode(500, new { message = "An error occurred during registration" });
         }
     }
