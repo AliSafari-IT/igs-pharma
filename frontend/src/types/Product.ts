@@ -26,40 +26,42 @@ export interface Product {
 }
 
 export interface CreateProduct {
-  name: string;
-  description: string;
-  sku: string;
-  barcode: string;
-  price: number;
-  costPrice: number;
-  stockQuantity: number;
-  minStockLevel: number;
-  maxStockLevel: number;
-  expiryDate?: string;
-  manufactureDate?: string;
-  manufacturer: string;
-  batchNumber: string;
-  requiresPrescription: boolean;
-  categoryId: number;
-  supplierId?: number;
+  Name: string;
+  Description: string;
+  SKU: string;
+  Barcode: string;
+  Price: number;
+  CostPrice: number;
+  StockQuantity: number;
+  MinStockLevel: number;
+  MaxStockLevel: number;
+  ExpiryDate?: string;
+  ManufactureDate?: string;
+  Manufacturer: string;
+  BatchNumber: string;
+  RequiresPrescription: boolean;
+  CategoryId: number;
+  SupplierId?: number;
 }
 
 export interface UpdateProduct {
-  name: string;
-  description: string;
-  price: number;
-  costPrice: number;
-  stockQuantity: number;
-  minStockLevel: number;
-  maxStockLevel: number;
-  expiryDate?: string;
-  manufactureDate?: string;
-  manufacturer: string;
-  batchNumber: string;
-  requiresPrescription: boolean;
-  isActive: boolean;
-  categoryId: number;
-  supplierId?: number;
+  Name: string;
+  Description: string;
+  SKU: string;
+  Barcode: string;
+  Price: number;
+  CostPrice: number;
+  StockQuantity: number;
+  MinStockLevel: number;
+  MaxStockLevel: number;
+  ExpiryDate?: string;
+  ManufactureDate?: string;
+  Manufacturer: string;
+  BatchNumber: string;
+  RequiresPrescription: boolean;
+  IsActive: boolean;
+  CategoryId: number;
+  SupplierId?: number;
 }
 
 export interface UpdateStockRequest {

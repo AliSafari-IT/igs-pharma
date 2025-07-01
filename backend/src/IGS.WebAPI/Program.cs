@@ -14,18 +14,32 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder
+    .Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Configure case-insensitive property binding
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 // Database configuration
 builder.Services.AddDbContext<PharmacyDbContext>(options =>
+{
     options.UseMySql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
-    )
-);
+    );
+});
 
-// AutoMapper
-builder.Services.AddAutoMapper(typeof(Program));
+// AutoMapper configuration
+builder.Services.AddAutoMapper(cfg => {
+    // Explicitly register the CategoryMappingProfile from WebAPI project
+    cfg.AddProfile<IGS.WebAPI.Mappings.CategoryMappingProfile>();
+    
+    // Also scan assemblies for other profiles
+    cfg.AddMaps(typeof(Program).Assembly);
+    cfg.AddMaps(typeof(IGS.Application.Mappings.MappingProfile).Assembly);
+});
 
 // JWT Authentication
 var jwtKey =

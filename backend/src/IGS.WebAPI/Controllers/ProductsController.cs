@@ -1,18 +1,20 @@
 using IGS.Application.DTOs;
 using IGS.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace IGS.WebAPI.Controllers;
-
 [ApiController]
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _productService;
+    private readonly ILogger<ProductsController> _logger;
 
-    public ProductsController(IProductService productService)
+    public ProductsController(IProductService productService, ILogger<ProductsController> logger)
     {
         _productService = productService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -64,16 +66,32 @@ public class ProductsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<ProductDto>> CreateProduct(CreateProductDto createProductDto)
+    public async Task<ActionResult<ProductDto>> CreateProduct([FromBody] CreateProductDto createProductDto)
     {
         try
         {
+            // Log the received data
+            _logger.LogInformation("Received product creation request: {@ProductDto}", createProductDto);
+            
+            if (!ModelState.IsValid)
+            {
+                _logger.LogWarning("Invalid model state: {@ModelState}", ModelState);
+                return BadRequest(ModelState);
+            }
+            
             var product = await _productService.CreateProductAsync(createProductDto);
+            _logger.LogInformation("Product created successfully with ID: {ProductId}", product.Id);
             return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validation error during product creation");
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            return BadRequest(ex.Message);
+            _logger.LogError(ex, "Error creating product");
+            return BadRequest($"Error creating product: {ex.Message}");
         }
     }
 

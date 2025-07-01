@@ -82,14 +82,41 @@ public class ProductService : IProductService
 
     public async Task<ProductDto> CreateProductAsync(CreateProductDto createProductDto)
     {
+        // Validate CategoryId
+        var category = await _categoryRepository.GetByIdAsync(createProductDto.CategoryId);
+        if (category == null)
+            throw new ArgumentException(
+                $"Category with ID {createProductDto.CategoryId} does not exist"
+            );
+
+        // Validate SupplierId if provided
+        if (createProductDto.SupplierId.HasValue)
+        {
+            var supplier = await _supplierRepository.GetByIdAsync(
+                createProductDto.SupplierId.Value
+            );
+            if (supplier == null)
+                throw new ArgumentException(
+                    $"Supplier with ID {createProductDto.SupplierId} does not exist"
+                );
+        }
+
         var product = _mapper.Map<Product>(createProductDto);
         product.CreatedAt = DateTime.UtcNow;
         product.UpdatedAt = DateTime.UtcNow;
+        product.IsActive = true; // Ensure new products are active by default
 
-        await _productRepository.AddAsync(product);
+        try
+        {
+            await _productRepository.AddAsync(product);
 
-        return await GetProductByIdAsync(product.Id)
-            ?? throw new InvalidOperationException("Failed to create product");
+            return await GetProductByIdAsync(product.Id)
+                ?? throw new InvalidOperationException("Failed to create product");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to create product: {ex.Message}", ex);
+        }
     }
 
     public async Task<ProductDto> UpdateProductAsync(int id, UpdateProductDto updateProductDto)

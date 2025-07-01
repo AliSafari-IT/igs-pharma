@@ -11,6 +11,7 @@ import {
   Switch,
   MenuItem,
   Box,
+  Typography,
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
@@ -30,20 +31,32 @@ const validationSchema = Yup.object({
   sku: Yup.string().required('SKU is required'),
   price: Yup.number().min(0, 'Price must be positive').required('Price is required'),
   costPrice: Yup.number().min(0, 'Cost price must be positive').required('Cost price is required'),
-  stockQuantity: Yup.number().min(0, 'Stock quantity must be positive').required('Stock quantity is required'),
-  minStockLevel: Yup.number().min(0, 'Min stock level must be positive').required('Min stock level is required'),
-  maxStockLevel: Yup.number().min(0, 'Max stock level must be positive').required('Max stock level is required'),
-  categoryId: Yup.number().required('Category is required'),
+  stockQuantity: Yup.number().min(0, 'Stock quantity must be non-negative').required('Stock quantity is required'),
+  minStockLevel: Yup.number().min(0, 'Min stock level must be non-negative').required('Min stock level is required'),
+  maxStockLevel: Yup.number().min(0, 'Max stock level must be non-negative').required('Max stock level is required'),
   manufacturer: Yup.string().required('Manufacturer is required'),
+  categoryId: Yup.number().min(1, 'Please select a valid category').required('Category is required'),
 });
 
 const ProductForm: React.FC<ProductFormProps> = ({ open, product, onClose, onSuccess }) => {
   const isEditing = !!product;
 
-  const { data: categories = [] } = useQuery({
+  const { data: categories = [], isError: isCategoriesError, isLoading: isCategoriesLoading } = useQuery({
     queryKey: ['categories'],
-    queryFn: () => categoryApi.getAll().then(res => res.data),
+    queryFn: async () => {
+      try {
+        console.log('Fetching categories...');
+        const response = await categoryApi.getAll();
+        console.log('Categories API response:', response);
+        return response.data;
+      } catch (error) {
+        console.error('Error loading categories:', error);
+        throw error;
+      }
+    },
     enabled: open,
+    retry: 2,
+    retryDelay: 1000
   });
 
   const { data: suppliers = [] } = useQuery({
@@ -53,10 +66,17 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, product, onClose, onSuc
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateProduct) => productApi.create(data),
+    mutationFn: (data: CreateProduct) => {
+      console.log('Creating product with data:', data);
+      return productApi.create(data);
+    },
     onSuccess: () => {
+      console.log('Product created successfully');
       onSuccess();
       formik.resetForm();
+    },
+    onError: (error) => {
+      console.error('Error creating product:', error);
     },
   });
 
@@ -91,23 +111,58 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, product, onClose, onSuc
     validationSchema,
     enableReinitialize: true,
     onSubmit: (values) => {
+      console.log('Form values:', values);
+      
       if (isEditing && product) {
+        const updateData = {
+          Name: values.name,
+          Description: values.description,
+          SKU: values.sku,
+          Barcode: values.barcode,
+          Price: values.price,
+          CostPrice: values.costPrice,
+          StockQuantity: values.stockQuantity,
+          MinStockLevel: values.minStockLevel,
+          MaxStockLevel: values.maxStockLevel,
+          ExpiryDate: values.expiryDate || undefined,
+          ManufactureDate: values.manufactureDate || undefined,
+          Manufacturer: values.manufacturer,
+          BatchNumber: values.batchNumber,
+          RequiresPrescription: values.requiresPrescription,
+          IsActive: values.isActive,
+          CategoryId: values.categoryId,
+          SupplierId: values.supplierId ? Number(values.supplierId) : undefined,
+        };
+        
+        console.log('Update product data:', updateData);
+        
         updateMutation.mutate({
           id: product.id,
-          data: {
-            ...values,
-            expiryDate: values.expiryDate || undefined,
-            manufactureDate: values.manufactureDate || undefined,
-            supplierId: values.supplierId || undefined,
-          },
+          data: updateData,
         });
       } else {
-        createMutation.mutate({
-          ...values,
-          expiryDate: values.expiryDate || undefined,
-          manufactureDate: values.manufactureDate || undefined,
-          supplierId: values.supplierId || undefined,
-        });
+        const createData = {
+          Name: values.name,
+          Description: values.description,
+          SKU: values.sku,
+          Barcode: values.barcode,
+          Price: values.price,
+          CostPrice: values.costPrice,
+          StockQuantity: values.stockQuantity,
+          MinStockLevel: values.minStockLevel,
+          MaxStockLevel: values.maxStockLevel,
+          ExpiryDate: values.expiryDate || undefined,
+          ManufactureDate: values.manufactureDate || undefined,
+          Manufacturer: values.manufacturer,
+          BatchNumber: values.batchNumber,
+          RequiresPrescription: values.requiresPrescription,
+          CategoryId: values.categoryId,
+          SupplierId: values.supplierId ? Number(values.supplierId) : undefined,
+        };
+        
+        console.log('Create product data:', createData);
+        
+        createMutation.mutate(createData);
       }
     },
   });
@@ -256,24 +311,59 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, product, onClose, onSuc
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                name="categoryId"
-                label="Category"
-                value={formik.values.categoryId}
-                onChange={formik.handleChange}
-                error={formik.touched.categoryId && Boolean(formik.errors.categoryId)}
-                helperText={formik.touched.categoryId && formik.errors.categoryId}
-                margin="normal"
-              >
-                <MenuItem value={0}>Select Category</MenuItem>
-                {categories.map((category: any) => (
-                  <MenuItem key={category.id} value={category.id}>
-                    {category.name}
-                  </MenuItem>
-                ))}
-              </TextField>
+              {isCategoriesLoading ? (
+                <TextField
+                  fullWidth
+                  label="Category"
+                  value="Loading categories..."
+                  disabled
+                  margin="normal"
+                />
+              ) : isCategoriesError ? (
+                <>
+                  <TextField
+                    fullWidth
+                    name="categoryId"
+                    label="Category ID (Manual Entry)"
+                    type="number"
+                    value={formik.values.categoryId}
+                    onChange={formik.handleChange}
+                    error={formik.touched.categoryId && Boolean(formik.errors.categoryId)}
+                    helperText={
+                      (formik.touched.categoryId && formik.errors.categoryId) ||
+                      "Categories could not be loaded. Please enter a valid category ID manually."
+                    }
+                    margin="normal"
+                    inputProps={{ min: 1 }}
+                  />
+                  <Typography color="error" variant="caption" display="block">
+                    Error loading categories. Please try refreshing the page or contact support if the issue persists.
+                  </Typography>
+                </>
+              ) : (
+                <TextField
+                  fullWidth
+                  select
+                  name="categoryId"
+                  label="Category"
+                  value={formik.values.categoryId}
+                  onChange={formik.handleChange}
+                  error={formik.touched.categoryId && Boolean(formik.errors.categoryId)}
+                  helperText={formik.touched.categoryId && formik.errors.categoryId}
+                  margin="normal"
+                >
+                  <MenuItem value={0}>Select Category</MenuItem>
+                  {Array.isArray(categories) && categories.length > 0 ? (
+                    categories.map((category: any) => (
+                      <MenuItem key={category.id} value={category.id}>
+                        {category.name}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled>No categories available</MenuItem>
+                  )}
+                </TextField>
+              )}
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField

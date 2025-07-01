@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace IGS.WebAPI.Controllers
 {
-    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class SuppliersController : ControllerBase
