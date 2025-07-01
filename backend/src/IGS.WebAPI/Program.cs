@@ -2,10 +2,13 @@ using System.Security.Claims;
 using System.Text;
 using IGS.Application.Interfaces;
 using IGS.Application.Services;
+using IGS.Application.Services.Interfaces;
 using IGS.Domain.Entities;
 using IGS.Domain.Interfaces;
+using IGS.Domain.Repositories;
 using IGS.Infrastructure.Data;
 using IGS.Infrastructure.Data.Repositories;
+using IGS.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -32,11 +35,13 @@ builder.Services.AddDbContext<PharmacyDbContext>(options =>
 });
 
 // AutoMapper configuration
-builder.Services.AddAutoMapper(cfg => {
+builder.Services.AddAutoMapper(cfg =>
+{
     // Explicitly register mapping profiles from WebAPI project
     cfg.AddProfile<IGS.WebAPI.Mappings.CategoryMappingProfile>();
     cfg.AddProfile<IGS.WebAPI.Mappings.SupplierMappingProfile>();
-    
+    cfg.AddProfile<IGS.WebAPI.Mappings.SettingsMappingProfile>();
+
     // Also scan assemblies for other profiles
     cfg.AddMaps(typeof(Program).Assembly);
     cfg.AddMaps(typeof(IGS.Application.Mappings.MappingProfile).Assembly);
@@ -66,7 +71,66 @@ builder
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Product policies
+    options.AddPolicy("ProductsRead", policy => policy.RequireClaim("Permission", "products.read"));
+    options.AddPolicy(
+        "ProductsWrite",
+        policy => policy.RequireClaim("Permission", "products.write")
+    );
+
+    // Category policies
+    options.AddPolicy(
+        "CategoriesRead",
+        policy => policy.RequireClaim("Permission", "categories.read")
+    );
+    options.AddPolicy(
+        "CategoriesWrite",
+        policy => policy.RequireClaim("Permission", "categories.write")
+    );
+
+    // Supplier policies
+    options.AddPolicy(
+        "SuppliersRead",
+        policy => policy.RequireClaim("Permission", "suppliers.read")
+    );
+    options.AddPolicy(
+        "SuppliersWrite",
+        policy => policy.RequireClaim("Permission", "suppliers.write")
+    );
+
+    // Inventory policies
+    options.AddPolicy(
+        "InventoryRead",
+        policy => policy.RequireClaim("Permission", "inventory.read")
+    );
+    options.AddPolicy(
+        "InventoryWrite",
+        policy => policy.RequireClaim("Permission", "inventory.write")
+    );
+
+    // Sales policies
+    options.AddPolicy("SalesRead", policy => policy.RequireClaim("Permission", "sales.read"));
+    options.AddPolicy("SalesWrite", policy => policy.RequireClaim("Permission", "sales.write"));
+
+    // Patient policies
+    options.AddPolicy("PatientsRead", policy => policy.RequireClaim("Permission", "patients.read"));
+    options.AddPolicy(
+        "PatientsWrite",
+        policy => policy.RequireClaim("Permission", "patients.write")
+    );
+
+    // Settings policies
+    options.AddPolicy("SettingsRead", policy => policy.RequireClaim("Permission", "settings.read"));
+    options.AddPolicy(
+        "SettingsWrite",
+        policy => policy.RequireClaim("Permission", "settings.write")
+    );
+
+    // Admin policy
+    options.AddPolicy("Admin", policy => policy.RequireClaim("Role", "admin"));
+});
 
 // Repositories
 builder.Services.AddScoped<IRepository<Product>, Repository<Product>>();
@@ -78,12 +142,14 @@ builder.Services.AddScoped<IInventoryTransactionRepository, InventoryTransaction
 builder.Services.AddScoped<IPatientRepository, PatientRepository>();
 builder.Services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
 builder.Services.AddScoped<ISaleRepository, SaleRepository>();
+builder.Services.AddScoped<ISettingsRepository, SettingsRepository>();
 
 // Application services
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
 
 // CORS
 builder.Services.AddCors(options =>

@@ -42,6 +42,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Ensure admin users have settings permissions
+  const ensureAdminPermissions = (userData: User): User => {
+    // If user is admin, ensure they have settings permissions
+    if (userData.role?.toLowerCase() === 'admin') {
+      const requiredPermissions = ['settings.read', 'settings.write'];
+      
+      // Create a new permissions array with the required permissions added
+      const updatedPermissions = [...userData.permissions];
+      
+      // Add any missing permissions
+      requiredPermissions.forEach(permission => {
+        if (!updatedPermissions.includes(permission)) {
+          console.log(`Adding missing permission: ${permission} to admin user`);
+          updatedPermissions.push(permission);
+        }
+      });
+      
+      // Return updated user with the new permissions
+      return {
+        ...userData,
+        permissions: updatedPermissions
+      };
+    }
+    
+    // Return original user data if not admin
+    return userData;
+  };
+
   useEffect(() => {
     const initializeAuth = async () => {
       // Check for stored authentication on app load
@@ -50,7 +78,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (storedToken && storedUser) {
         try {
-          const parsedUser = JSON.parse(storedUser);
+          let parsedUser = JSON.parse(storedUser);
+          
+          // Ensure admin users have settings permissions
+          parsedUser = ensureAdminPermissions(parsedUser);
+          
+          // Update localStorage with potentially modified user
+          localStorage.setItem("auth_user", JSON.stringify(parsedUser));
           
           // First set the token and user to prevent flash of login page
           setToken(storedToken);
@@ -109,12 +143,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const login = (authToken: string, userData: User) => {
+    // Ensure admin users have settings permissions
+    const updatedUserData = ensureAdminPermissions(userData);
+    
     setToken(authToken);
-    setUser(userData);
+    setUser(updatedUserData);
 
     // Store in localStorage for persistence
     localStorage.setItem("auth_token", authToken);
-    localStorage.setItem("auth_user", JSON.stringify(userData));
+    localStorage.setItem("auth_user", JSON.stringify(updatedUserData));
     
     // Set token in axios defaults if you're using axios
     // api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;

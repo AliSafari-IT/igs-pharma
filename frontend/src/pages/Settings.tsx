@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { settingsApi } from "../services/api";
 import {
   Box,
   Typography,
+  Paper,
+  Tabs,
+  Tab,
   Grid,
-  Card,
-  CardContent,
-  Button,
   TextField,
   Switch,
   FormControlLabel,
+  Button,
   Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
+  Alert,
   List,
   ListItem,
   ListItemText,
@@ -19,11 +28,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert,
-  Tabs,
-  Tab,
-  Paper,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Settings as SettingsIcon,
   Notifications,
@@ -34,9 +39,9 @@ import {
   Add,
   Save,
   RestoreFromTrash,
-} from '@mui/icons-material';
-import { useFormik } from 'formik';
-import * as Yup from 'yup';
+} from "@mui/icons-material";
+import { useFormik } from "formik";
+import * as Yup from "yup";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -65,57 +70,78 @@ const Settings: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [settings, setSettings] = useState({
     // General Settings
-    pharmacyName: 'IGS Pharmacy',
-    address: '123 Main Street, City, State 12345',
-    phone: '(555) 123-4567',
-    email: 'info@igspharmacy.com',
-    
+    pharmacyName: "IGS Pharmacy",
+    address: "123 Main Street, City, State 12345",
+    phone: "(555) 123-4567",
+    email: "info@igspharmacy.com",
+
     // Notification Settings
     lowStockAlerts: true,
     expiryAlerts: true,
     prescriptionReminders: true,
     emailNotifications: true,
     smsNotifications: false,
-    
+
     // Inventory Settings
     autoReorder: true,
     reorderThreshold: 10,
-    defaultSupplier: 'MedSupply Co.',
-    
+    defaultSupplier: "MedSupply Co.",
+
     // Security Settings
     sessionTimeout: 30,
     requirePasswordChange: true,
     twoFactorAuth: false,
-    
+
     // Backup Settings
     autoBackup: true,
-    backupFrequency: 'daily',
+    backupFrequency: "daily",
     retentionDays: 30,
   });
 
   const [users] = useState([
-    { id: 1, name: 'John Doe', email: 'john@pharmacy.com', role: 'Admin', active: true },
-    { id: 2, name: 'Jane Smith', email: 'jane@pharmacy.com', role: 'Pharmacist', active: true },
-    { id: 3, name: 'Mike Johnson', email: 'mike@pharmacy.com', role: 'Technician', active: false },
+    {
+      id: 1,
+      name: "John Doe",
+      email: "john@pharmacy.com",
+      role: "Admin",
+      active: true,
+    },
+    {
+      id: 2,
+      name: "Jane Smith",
+      email: "jane@pharmacy.com",
+      role: "Pharmacist",
+      active: true,
+    },
+    {
+      id: 3,
+      name: "Mike Johnson",
+      email: "mike@pharmacy.com",
+      role: "Technician",
+      active: false,
+    },
   ]);
 
   const userFormik = useFormik({
     initialValues: {
-      name: '',
-      email: '',
-      role: 'Technician',
-      password: '',
-      confirmPassword: '',
+      name: "",
+      email: "",
+      role: "Technician",
+      password: "",
+      confirmPassword: "",
     },
     validationSchema: Yup.object({
-      name: Yup.string().required('Name is required'),
-      email: Yup.string().email('Invalid email').required('Email is required'),
-      role: Yup.string().required('Role is required'),
-      password: Yup.string().min(6, 'Password must be at least 6 characters'),
-      confirmPassword: Yup.string().oneOf([Yup.ref('password')], 'Passwords must match'),
+      name: Yup.string().required("Name is required"),
+      email: Yup.string().email("Invalid email").required("Email is required"),
+      role: Yup.string().required("Role is required"),
+      password: Yup.string().min(6, "Password must be at least 6 characters"),
+      confirmPassword: Yup.string().oneOf(
+        [Yup.ref("password")],
+        "Passwords must match"
+      ),
     }),
     onSubmit: (values) => {
-      console.log('User form submitted:', values);
+      console.log("User form submitted:", values);
       setIsUserDialogOpen(false);
       userFormik.resetForm();
     },
@@ -126,21 +152,85 @@ const Settings: React.FC = () => {
   };
 
   const handleSettingChange = (key: string, value: any) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Define mutation for saving settings
+  const mutation = useMutation({
+    mutationFn: (settings: any) => settingsApi.updateSettings(settings),
+  });
+
+  const saveSettings = mutation.mutate;
+  const isSaving = mutation.isPending;
+
+  // Handle mutation state changes
+  useEffect(() => {
+    if (mutation.isSuccess) {
+      console.log("Settings saved successfully:", mutation.data);
+      // Show success message
+      setSuccessMessage("Settings saved successfully");
+      setTimeout(() => setSuccessMessage(""), 3000); // Clear message after 3 seconds
+    }
+
+    if (mutation.isError) {
+      const error = mutation.error as any;
+      console.error("Error saving settings:", error);
+      // Show error message
+      setErrorMessage(
+        `Error saving settings: ${error?.message || "Unknown error"}`
+      );
+      setTimeout(() => setErrorMessage(""), 5000); // Clear message after 5 seconds
+    }
+  }, [mutation.isSuccess, mutation.isError, mutation.data, mutation.error]);
+
+  const { data: settingsData, isPending: isLoadingSettings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => settingsApi.getSettings().then((res) => res.data),
+  });
+
+  // Use React's useEffect to handle the data when it changes
+  useEffect(() => {
+    if (settingsData) {
+      console.log("Settings loaded:", settingsData);
+      // Convert backend settings format to frontend format
+      setSettings({
+        pharmacyName: settingsData.pharmacyName || "IGS Pharmacy",
+        address: settingsData.address || "123 Main Street, City, State 12345",
+        phone: settingsData.phone || "(555) 123-4567",
+        email: settingsData.email || "info@igspharmacy.com",
+        lowStockAlerts: settingsData.lowStockAlerts ?? true,
+        expiryAlerts: settingsData.expiryAlerts ?? true,
+        prescriptionReminders: settingsData.prescriptionReminders ?? true,
+        emailNotifications: settingsData.emailNotifications ?? true,
+        smsNotifications: settingsData.smsNotifications ?? false,
+        autoReorder: settingsData.autoReorder ?? true,
+        reorderThreshold: settingsData.reorderThreshold || 10,
+        defaultSupplier: settingsData.defaultSupplier || "MedSupply Co.",
+        sessionTimeout: settingsData.sessionTimeout || 30,
+        requirePasswordChange: settingsData.requirePasswordChange ?? true,
+        twoFactorAuth: settingsData.twoFactorAuth ?? false,
+        autoBackup: settingsData.autoBackup ?? true,
+        backupFrequency: settingsData.backupFrequency || "daily",
+        retentionDays: settingsData.retentionDays || 30,
+      });
+    }
+  }, [settingsData]);
+
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
   const handleSaveSettings = () => {
-    console.log('Saving settings:', settings);
-    // Implementation for saving settings
+    console.log("Saving settings:", settings);
+    saveSettings(settings);
   };
 
   const handleBackup = () => {
-    console.log('Creating backup...');
+    console.log("Creating backup...");
     // Implementation for creating backup
   };
 
   const handleRestore = () => {
-    console.log('Restoring from backup...');
+    console.log("Restoring from backup...");
     // Implementation for restoring from backup
   };
 
@@ -150,8 +240,18 @@ const Settings: React.FC = () => {
         Settings
       </Typography>
 
-      <Paper sx={{ width: '100%' }}>
-        <Tabs value={tabValue} onChange={handleTabChange} aria-label="settings tabs">
+      {isLoadingSettings && <Alert severity="info">Loading settings...</Alert>}
+
+      {successMessage && <Alert severity="success">{successMessage}</Alert>}
+
+      {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+
+      <Paper sx={{ width: "100%" }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          aria-label="settings tabs"
+        >
           <Tab label="General" />
           <Tab label="Notifications" />
           <Tab label="Inventory" />
@@ -168,7 +268,9 @@ const Settings: React.FC = () => {
                 fullWidth
                 label="Pharmacy Name"
                 value={settings.pharmacyName}
-                onChange={(e) => handleSettingChange('pharmacyName', e.target.value)}
+                onChange={(e) =>
+                  handleSettingChange("pharmacyName", e.target.value)
+                }
                 margin="normal"
               />
             </Grid>
@@ -177,7 +279,7 @@ const Settings: React.FC = () => {
                 fullWidth
                 label="Phone Number"
                 value={settings.phone}
-                onChange={(e) => handleSettingChange('phone', e.target.value)}
+                onChange={(e) => handleSettingChange("phone", e.target.value)}
                 margin="normal"
               />
             </Grid>
@@ -186,7 +288,7 @@ const Settings: React.FC = () => {
                 fullWidth
                 label="Address"
                 value={settings.address}
-                onChange={(e) => handleSettingChange('address', e.target.value)}
+                onChange={(e) => handleSettingChange("address", e.target.value)}
                 margin="normal"
               />
             </Grid>
@@ -196,12 +298,16 @@ const Settings: React.FC = () => {
                 label="Email"
                 type="email"
                 value={settings.email}
-                onChange={(e) => handleSettingChange('email', e.target.value)}
+                onChange={(e) => handleSettingChange("email", e.target.value)}
                 margin="normal"
               />
             </Grid>
             <Grid item xs={12}>
-              <Button variant="contained" onClick={handleSaveSettings} startIcon={<Save />}>
+              <Button
+                variant="contained"
+                onClick={handleSaveSettings}
+                startIcon={<Save />}
+              >
                 Save General Settings
               </Button>
             </Grid>
@@ -219,7 +325,9 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.lowStockAlerts}
-                    onChange={(e) => handleSettingChange('lowStockAlerts', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange("lowStockAlerts", e.target.checked)
+                    }
                   />
                 }
                 label="Low Stock Alerts"
@@ -228,7 +336,9 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.expiryAlerts}
-                    onChange={(e) => handleSettingChange('expiryAlerts', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange("expiryAlerts", e.target.checked)
+                    }
                   />
                 }
                 label="Expiry Date Alerts"
@@ -237,7 +347,12 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.prescriptionReminders}
-                    onChange={(e) => handleSettingChange('prescriptionReminders', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange(
+                        "prescriptionReminders",
+                        e.target.checked
+                      )
+                    }
                   />
                 }
                 label="Prescription Reminders"
@@ -252,7 +367,12 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.emailNotifications}
-                    onChange={(e) => handleSettingChange('emailNotifications', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange(
+                        "emailNotifications",
+                        e.target.checked
+                      )
+                    }
                   />
                 }
                 label="Email Notifications"
@@ -261,14 +381,20 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.smsNotifications}
-                    onChange={(e) => handleSettingChange('smsNotifications', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange("smsNotifications", e.target.checked)
+                    }
                   />
                 }
                 label="SMS Notifications"
               />
             </Grid>
             <Grid item xs={12}>
-              <Button variant="contained" onClick={handleSaveSettings} startIcon={<Save />}>
+              <Button
+                variant="contained"
+                onClick={handleSaveSettings}
+                startIcon={<Save />}
+              >
                 Save Notification Settings
               </Button>
             </Grid>
@@ -283,7 +409,9 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.autoReorder}
-                    onChange={(e) => handleSettingChange('autoReorder', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange("autoReorder", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Auto-Reordering"
@@ -295,7 +423,12 @@ const Settings: React.FC = () => {
                 label="Reorder Threshold"
                 type="number"
                 value={settings.reorderThreshold}
-                onChange={(e) => handleSettingChange('reorderThreshold', parseInt(e.target.value))}
+                onChange={(e) =>
+                  handleSettingChange(
+                    "reorderThreshold",
+                    parseInt(e.target.value)
+                  )
+                }
                 helperText="Minimum stock level before reordering"
                 margin="normal"
               />
@@ -305,12 +438,18 @@ const Settings: React.FC = () => {
                 fullWidth
                 label="Default Supplier"
                 value={settings.defaultSupplier}
-                onChange={(e) => handleSettingChange('defaultSupplier', e.target.value)}
+                onChange={(e) =>
+                  handleSettingChange("defaultSupplier", e.target.value)
+                }
                 margin="normal"
               />
             </Grid>
             <Grid item xs={12}>
-              <Button variant="contained" onClick={handleSaveSettings} startIcon={<Save />}>
+              <Button
+                variant="contained"
+                onClick={handleSaveSettings}
+                startIcon={<Save />}
+              >
                 Save Inventory Settings
               </Button>
             </Grid>
@@ -319,7 +458,12 @@ const Settings: React.FC = () => {
 
         {/* User Management */}
         <TabPanel value={tabValue} index={3}>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+            mb={2}
+          >
             <Typography variant="h6">User Management</Typography>
             <Button
               variant="contained"
@@ -334,7 +478,9 @@ const Settings: React.FC = () => {
               <ListItem key={user.id} divider>
                 <ListItemText
                   primary={user.name}
-                  secondary={`${user.email} • ${user.role} • ${user.active ? 'Active' : 'Inactive'}`}
+                  secondary={`${user.email} • ${user.role} • ${
+                    user.active ? "Active" : "Inactive"
+                  }`}
                 />
                 <ListItemSecondaryAction>
                   <IconButton edge="end" color="primary">
@@ -358,7 +504,12 @@ const Settings: React.FC = () => {
                 label="Session Timeout (minutes)"
                 type="number"
                 value={settings.sessionTimeout}
-                onChange={(e) => handleSettingChange('sessionTimeout', parseInt(e.target.value))}
+                onChange={(e) =>
+                  handleSettingChange(
+                    "sessionTimeout",
+                    parseInt(e.target.value)
+                  )
+                }
                 margin="normal"
               />
             </Grid>
@@ -367,7 +518,12 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.requirePasswordChange}
-                    onChange={(e) => handleSettingChange('requirePasswordChange', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange(
+                        "requirePasswordChange",
+                        e.target.checked
+                      )
+                    }
                   />
                 }
                 label="Require Regular Password Changes"
@@ -376,7 +532,9 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.twoFactorAuth}
-                    onChange={(e) => handleSettingChange('twoFactorAuth', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange("twoFactorAuth", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Two-Factor Authentication"
@@ -384,11 +542,16 @@ const Settings: React.FC = () => {
             </Grid>
             <Grid item xs={12}>
               <Alert severity="info">
-                Two-factor authentication adds an extra layer of security to user accounts.
+                Two-factor authentication adds an extra layer of security to
+                user accounts.
               </Alert>
             </Grid>
             <Grid item xs={12}>
-              <Button variant="contained" onClick={handleSaveSettings} startIcon={<Save />}>
+              <Button
+                variant="contained"
+                onClick={handleSaveSettings}
+                startIcon={<Save />}
+              >
                 Save Security Settings
               </Button>
             </Grid>
@@ -403,7 +566,9 @@ const Settings: React.FC = () => {
                 control={
                   <Switch
                     checked={settings.autoBackup}
-                    onChange={(e) => handleSettingChange('autoBackup', e.target.checked)}
+                    onChange={(e) =>
+                      handleSettingChange("autoBackup", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Automatic Backups"
@@ -415,7 +580,9 @@ const Settings: React.FC = () => {
                 select
                 label="Backup Frequency"
                 value={settings.backupFrequency}
-                onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
+                onChange={(e) =>
+                  handleSettingChange("backupFrequency", e.target.value)
+                }
                 margin="normal"
                 SelectProps={{ native: true }}
               >
@@ -430,23 +597,34 @@ const Settings: React.FC = () => {
                 label="Retention Period (days)"
                 type="number"
                 value={settings.retentionDays}
-                onChange={(e) => handleSettingChange('retentionDays', parseInt(e.target.value))}
+                onChange={(e) =>
+                  handleSettingChange("retentionDays", parseInt(e.target.value))
+                }
                 margin="normal"
               />
             </Grid>
             <Grid item xs={12}>
               <Box display="flex" gap={2}>
-                <Button variant="contained" onClick={handleBackup} startIcon={<Backup />}>
+                <Button
+                  variant="contained"
+                  onClick={handleBackup}
+                  startIcon={<Backup />}
+                >
                   Create Backup Now
                 </Button>
-                <Button variant="outlined" onClick={handleRestore} startIcon={<RestoreFromTrash />}>
+                <Button
+                  variant="outlined"
+                  onClick={handleRestore}
+                  startIcon={<RestoreFromTrash />}
+                >
                   Restore from Backup
                 </Button>
               </Box>
             </Grid>
             <Grid item xs={12}>
               <Alert severity="warning">
-                Regular backups are essential for data protection. Ensure backups are stored securely.
+                Regular backups are essential for data protection. Ensure
+                backups are stored securely.
               </Alert>
             </Grid>
           </Grid>
@@ -454,7 +632,12 @@ const Settings: React.FC = () => {
       </Paper>
 
       {/* User Form Dialog */}
-      <Dialog open={isUserDialogOpen} onClose={() => setIsUserDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={isUserDialogOpen}
+        onClose={() => setIsUserDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Add New User</DialogTitle>
         <form onSubmit={userFormik.handleSubmit}>
           <DialogContent>
@@ -475,7 +658,9 @@ const Settings: React.FC = () => {
               type="email"
               value={userFormik.values.email}
               onChange={userFormik.handleChange}
-              error={userFormik.touched.email && Boolean(userFormik.errors.email)}
+              error={
+                userFormik.touched.email && Boolean(userFormik.errors.email)
+              }
               helperText={userFormik.touched.email && userFormik.errors.email}
               margin="normal"
             />
@@ -500,8 +685,13 @@ const Settings: React.FC = () => {
               type="password"
               value={userFormik.values.password}
               onChange={userFormik.handleChange}
-              error={userFormik.touched.password && Boolean(userFormik.errors.password)}
-              helperText={userFormik.touched.password && userFormik.errors.password}
+              error={
+                userFormik.touched.password &&
+                Boolean(userFormik.errors.password)
+              }
+              helperText={
+                userFormik.touched.password && userFormik.errors.password
+              }
               margin="normal"
             />
             <TextField
@@ -511,8 +701,14 @@ const Settings: React.FC = () => {
               type="password"
               value={userFormik.values.confirmPassword}
               onChange={userFormik.handleChange}
-              error={userFormik.touched.confirmPassword && Boolean(userFormik.errors.confirmPassword)}
-              helperText={userFormik.touched.confirmPassword && userFormik.errors.confirmPassword}
+              error={
+                userFormik.touched.confirmPassword &&
+                Boolean(userFormik.errors.confirmPassword)
+              }
+              helperText={
+                userFormik.touched.confirmPassword &&
+                userFormik.errors.confirmPassword
+              }
               margin="normal"
             />
           </DialogContent>

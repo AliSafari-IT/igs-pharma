@@ -14,7 +14,7 @@ const api = axios.create({
 // Add request interceptor to include auth token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -58,6 +58,12 @@ export const supplierApi = {
   create: (supplier: any) => api.post('/suppliers', supplier),
   update: (id: number, supplier: any) => api.put(`/suppliers/${id}`, supplier),
   delete: (id: number) => api.delete(`/suppliers/${id}`),
+};
+
+// Settings API
+export const settingsApi = {
+  getSettings: () => api.get('/settings'),
+  updateSettings: (settings: any) => api.put('/settings', settings),
 };
 
 // Patients API

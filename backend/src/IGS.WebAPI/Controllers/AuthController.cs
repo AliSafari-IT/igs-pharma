@@ -325,17 +325,29 @@ public class AuthController : ControllerBase
                 ?? "your-256-bit-secret-key-here-make-this-secure-in-production"
         );
 
+        // Create a list of claims starting with the basic user information
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim(ClaimTypes.Role, user.Role.ToString()),
+        };
+
+        // Add all user permissions as claims
+        if (user.Permissions != null)
+        {
+            foreach (var permission in user.Permissions)
+            {
+                claims.Add(new Claim("Permission", permission));
+            }
+            _logger.LogInformation("Added {Count} permission claims to token for user {Username}", 
+                user.Permissions.Count, user.Username);
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(
-                new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim(ClaimTypes.Name, user.Username),
-                    new Claim(ClaimTypes.Email, user.Email),
-                    new Claim(ClaimTypes.Role, user.Role.ToString()),
-                }
-            ),
+            Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddMinutes(int.Parse(_configuration["Jwt:ExpiresInMinutes"] ?? "1440")),
             Issuer = _configuration["Jwt:Issuer"],
             Audience = _configuration["Jwt:Audience"],
