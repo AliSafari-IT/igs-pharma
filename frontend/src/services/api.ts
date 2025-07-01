@@ -98,14 +98,14 @@ export const prescriptionApi = {
 
 // Authentication API
 export const authApi = {
-  register: (userData: any) => api.post('/auth/register', userData),
   login: (credentials: { username: string; password: string }) => api.post('/auth/login', credentials),
   logout: () => api.post('/auth/logout'),
-  checkUsername: (username: string) => api.get(`/auth/check-username/${encodeURIComponent(username)}`),
-  checkEmail: (email: string) => api.get(`/auth/check-email/${encodeURIComponent(email)}`),
-  checkEmployeeId: (employeeId: string) => api.get(`/auth/check-employee-id/${encodeURIComponent(employeeId)}`),
-  refreshToken: () => api.post('/auth/refresh'),
-  getCurrentUser: () => api.get('/auth/me'),
+  register: (userData: any) => api.post('/Auth/register', userData),
+  checkUsername: (username: string) => api.get(`/auth/check-username?username=${username}`),
+  checkEmail: (email: string) => api.get(`/auth/check-email?email=${email}`),
+  checkEmployeeId: (employeeId: string) => api.get(`/auth/check-employeeid?employeeId=${employeeId}`),
+  refreshToken: () => api.post('/auth/refresh-token'),
+  getCurrentUser: () => api.get('/auth/current-user'),
 };
 
 // Reports API

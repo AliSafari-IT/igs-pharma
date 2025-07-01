@@ -1,47 +1,32 @@
 import React, { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { settingsApi } from "../services/api";
 import {
   Box,
   Typography,
   Paper,
   Tabs,
   Tab,
-  Grid,
-  TextField,
-  Switch,
-  FormControlLabel,
   Button,
-  Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
-  Alert,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
+  TextField,
+  Grid,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-} from "@mui/material";
-import {
-  Settings as SettingsIcon,
-  Notifications,
-  Security,
-  Backup,
-  Edit,
-  Delete,
-  Add,
-  Save,
-  RestoreFromTrash,
-} from "@mui/icons-material";
-import { useFormik } from "formik";
-import * as Yup from "yup";
+  IconButton,
+  Alert,
+  Switch,
+  FormControlLabel,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+} from '@mui/material';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+import { settingsApi, authApi } from '../services/api';
+import { Add, Backup, Delete, Edit, RestoreFromTrash, Save } from "@mui/icons-material";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -98,56 +83,145 @@ const Settings: React.FC = () => {
     retentionDays: 30,
   });
 
-  const [users] = useState([
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john@pharmacy.com",
-      role: "Admin",
-      active: true,
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      email: "jane@pharmacy.com",
-      role: "Pharmacist",
-      active: true,
-    },
-    {
-      id: 3,
-      name: "Mike Johnson",
-      email: "mike@pharmacy.com",
-      role: "Technician",
-      active: false,
-    },
+  const [users, setUsers] = useState<any[]>([
+    { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin', active: true },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Pharmacist', active: true },
+    { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'Technician', active: false },
   ]);
 
-  const userFormik = useFormik({
-    initialValues: {
-      name: "",
-      email: "",
-      role: "Technician",
-      password: "",
-      confirmPassword: "",
+  // Add user mutation
+  const addUserMutation = useMutation({
+    mutationFn: (userData: any) => {
+      console.log('Sending user registration data:', JSON.stringify(userData, null, 2));
+      return authApi.register(userData);
     },
-    validationSchema: Yup.object({
-      name: Yup.string().required("Name is required"),
-      email: Yup.string().email("Invalid email").required("Email is required"),
-      role: Yup.string().required("Role is required"),
-      password: Yup.string().min(6, "Password must be at least 6 characters"),
-      confirmPassword: Yup.string().oneOf(
-        [Yup.ref("password")],
-        "Passwords must match"
-      ),
-    }),
-    onSubmit: (values) => {
-      console.log("User form submitted:", values);
+    onSuccess: (response) => {
+      console.log('Registration success response:', response);
+      // Add the new user to the list
+      const userData = response.data;
+      const newUser = {
+        id: userData.id,
+        name: `${userData.firstName} ${userData.lastName}`,
+        email: userData.email,
+        role: userData.role,
+        active: userData.isActive,
+      };
+      setUsers((prevUsers) => [...prevUsers, newUser]);
+      
+      // Show success message
+      setSuccessMessage("User added successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      
+      // Close dialog and reset form
       setIsUserDialogOpen(false);
       userFormik.resetForm();
     },
+    onError: (error: any) => {
+      console.error("Registration error:", error);
+      console.error("Response data:", error?.response?.data);
+      console.error("Request payload:", error?.config?.data);
+      
+      // Extract detailed error information
+      let errorDetails = '';
+      if (error?.response?.data?.errors) {
+        if (typeof error.response.data.errors === 'object') {
+          // Handle case where errors is an object with field names as keys
+          Object.entries(error.response.data.errors).forEach(([field, messages]) => {
+            // Format the field name for display
+            const formattedField = field.charAt(0).toUpperCase() + field.slice(1); // Capitalize field name
+            const messageStr = Array.isArray(messages) ? (messages as string[]).join(', ') : String(messages);
+            errorDetails += `${formattedField}: ${messageStr}\n`;
+            
+            // Set field errors in formik if they exist
+            if (userFormik.setFieldError && userFormik.setFieldTouched) {
+              // Match our PascalCase field names
+              userFormik.setFieldTouched(field, true, false);
+              userFormik.setFieldError(
+                field, 
+                messageStr
+              );
+            }
+          });
+        } else if (Array.isArray(error.response.data.errors)) {
+          // Handle case where errors is an array of strings
+          errorDetails = error.response.data.errors.join(', ');
+        }
+      } else if (error?.response?.data?.title || error?.response?.data?.detail) {
+        // Handle ASP.NET Core ProblemDetails format
+        errorDetails = error.response.data.title || error.response.data.detail;
+      }
+      
+      // Show error message
+      const errorMessage = error?.response?.data?.message || 
+                          errorDetails || 
+                          error?.message || 
+                          "Unknown error";
+      setErrorMessage(`Error adding user: ${errorMessage}`);
+      setTimeout(() => setErrorMessage(""), 8000); // Give more time to read detailed errors
+    },
   });
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const userFormik = useFormik({
+    initialValues: {
+      Username: "",
+      Email: "",
+      Password: "",
+      ConfirmPassword: "",
+      FirstName: "",
+      LastName: "",
+      PhoneNumber: "",
+      Department: "Pharmacy",
+      Role: "Technician",
+      EmployeeId: "",
+      CardId: "",
+      CardExpiryDate: null as Date | null,
+    },
+    validationSchema: Yup.object({
+      Username: Yup.string()
+        .required("Username is required")
+        .min(3, "Username must be at least 3 characters")
+        .max(50, "Username cannot exceed 50 characters"),
+      Email: Yup.string()
+        .email("Invalid email format")
+        .required("Email is required"),
+      Password: Yup.string()
+        .min(6, "Password must be at least 6 characters")
+        .max(100, "Password cannot exceed 100 characters")
+        .required("Password is required"),
+      ConfirmPassword: Yup.string()
+        .oneOf([Yup.ref("Password")], "Password and confirmation password do not match")
+        .required("Password confirmation is required"),
+      FirstName: Yup.string()
+        .required("First name is required")
+        .max(50, "First name cannot exceed 50 characters"),
+      LastName: Yup.string()
+        .required("Last name is required")
+        .max(50, "Last name cannot exceed 50 characters"),
+      Role: Yup.string()
+        .required("Role is required")
+        .max(50, "Role cannot exceed 50 characters"),
+      PhoneNumber: Yup.string()
+        .matches(/^[\d\s\+\-\(\)]+$/, "Invalid phone number format"),
+      Department: Yup.string()
+        .max(100, "Department cannot exceed 100 characters"),
+      EmployeeId: Yup.string()
+        .max(50, "Employee ID cannot exceed 50 characters"),
+      CardId: Yup.string()
+        .max(50, "Card ID cannot exceed 50 characters"),
+    }),
+    onSubmit: (values) => {
+      // Format CardExpiryDate as ISO string if it exists
+      const formattedValues = {
+        ...values,
+        CardExpiryDate: values.CardExpiryDate ? new Date(values.CardExpiryDate).toISOString() : null
+      };
+      
+      // Submit to the API with exact field names matching the backend DTO
+      addUserMutation.mutate(formattedValues);
+    },
+  });
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -155,25 +229,32 @@ const Settings: React.FC = () => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Define mutation for saving settings
-  const mutation = useMutation({
+  // Save settings mutation
+  const saveSettingsMutation = useMutation({
     mutationFn: (settings: any) => settingsApi.updateSettings(settings),
+    onSuccess: () => {
+      setSuccessMessage("Settings saved successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+      
+      // No need to manually refetch as we're handling this in useEffect
+    },
+    onError: (error: any) => {
+      setErrorMessage(`Error saving settings: ${error.message}`);
+      setTimeout(() => setErrorMessage(""), 5000);
+    },
   });
 
-  const saveSettings = mutation.mutate;
-  const isSaving = mutation.isPending;
+  const saveSettings = saveSettingsMutation.mutate;
+  const isSaving = saveSettingsMutation.isPending;
 
   // Handle mutation state changes
   useEffect(() => {
-    if (mutation.isSuccess) {
-      console.log("Settings saved successfully:", mutation.data);
-      // Show success message
-      setSuccessMessage("Settings saved successfully");
-      setTimeout(() => setSuccessMessage(""), 3000); // Clear message after 3 seconds
+    if (saveSettingsMutation.isSuccess) {
+      console.log("Settings saved successfully:", saveSettingsMutation.data);
     }
 
-    if (mutation.isError) {
-      const error = mutation.error as any;
+    if (saveSettingsMutation.isError) {
+      const error = saveSettingsMutation.error as any;
       console.error("Error saving settings:", error);
       // Show error message
       setErrorMessage(
@@ -181,7 +262,7 @@ const Settings: React.FC = () => {
       );
       setTimeout(() => setErrorMessage(""), 5000); // Clear message after 5 seconds
     }
-  }, [mutation.isSuccess, mutation.isError, mutation.data, mutation.error]);
+  }, [saveSettingsMutation.isSuccess, saveSettingsMutation.isError, saveSettingsMutation.data, saveSettingsMutation.error]);
 
   const { data: settingsData, isPending: isLoadingSettings } = useQuery({
     queryKey: ["settings"],
@@ -641,81 +722,156 @@ const Settings: React.FC = () => {
         <DialogTitle>Add New User</DialogTitle>
         <form onSubmit={userFormik.handleSubmit}>
           <DialogContent>
-            <TextField
-              fullWidth
-              name="name"
-              label="Full Name"
-              value={userFormik.values.name}
-              onChange={userFormik.handleChange}
-              error={userFormik.touched.name && Boolean(userFormik.errors.name)}
-              helperText={userFormik.touched.name && userFormik.errors.name}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              name="email"
-              label="Email"
-              type="email"
-              value={userFormik.values.email}
-              onChange={userFormik.handleChange}
-              error={
-                userFormik.touched.email && Boolean(userFormik.errors.email)
-              }
-              helperText={userFormik.touched.email && userFormik.errors.email}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              select
-              name="role"
-              label="Role"
-              value={userFormik.values.role}
-              onChange={userFormik.handleChange}
-              margin="normal"
-              SelectProps={{ native: true }}
-            >
-              <option value="Admin">Admin</option>
-              <option value="Pharmacist">Pharmacist</option>
-              <option value="Technician">Technician</option>
-            </TextField>
-            <TextField
-              fullWidth
-              name="password"
-              label="Password"
-              type="password"
-              value={userFormik.values.password}
-              onChange={userFormik.handleChange}
-              error={
-                userFormik.touched.password &&
-                Boolean(userFormik.errors.password)
-              }
-              helperText={
-                userFormik.touched.password && userFormik.errors.password
-              }
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              name="confirmPassword"
-              label="Confirm Password"
-              type="password"
-              value={userFormik.values.confirmPassword}
-              onChange={userFormik.handleChange}
-              error={
-                userFormik.touched.confirmPassword &&
-                Boolean(userFormik.errors.confirmPassword)
-              }
-              helperText={
-                userFormik.touched.confirmPassword &&
-                userFormik.errors.confirmPassword
-              }
-              margin="normal"
-            />
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="FirstName"
+                  label="First Name"
+                  value={userFormik.values.FirstName}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.FirstName && Boolean(userFormik.errors.FirstName)}
+                  helperText={userFormik.touched.FirstName && userFormik.errors.FirstName}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="LastName"
+                  label="Last Name"
+                  value={userFormik.values.LastName}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.LastName && Boolean(userFormik.errors.LastName)}
+                  helperText={userFormik.touched.LastName && userFormik.errors.LastName}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="Username"
+                  label="Username"
+                  value={userFormik.values.Username}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.Username && Boolean(userFormik.errors.Username)}
+                  helperText={userFormik.touched.Username && userFormik.errors.Username}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="Email"
+                  label="Email"
+                  type="email"
+                  value={userFormik.values.Email}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.Email && Boolean(userFormik.errors.Email)}
+                  helperText={userFormik.touched.Email && userFormik.errors.Email}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="PhoneNumber"
+                  label="Phone Number"
+                  value={userFormik.values.PhoneNumber}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.PhoneNumber && Boolean(userFormik.errors.PhoneNumber)}
+                  helperText={userFormik.touched.PhoneNumber && userFormik.errors.PhoneNumber}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="Department"
+                  label="Department"
+                  value={userFormik.values.Department}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.Department && Boolean(userFormik.errors.Department)}
+                  helperText={userFormik.touched.Department && userFormik.errors.Department}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="EmployeeId"
+                  label="Employee ID (Optional)"
+                  value={userFormik.values.EmployeeId}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.EmployeeId && Boolean(userFormik.errors.EmployeeId)}
+                  helperText={userFormik.touched.EmployeeId && userFormik.errors.EmployeeId}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="CardId"
+                  label="Card ID (Optional)"
+                  value={userFormik.values.CardId}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.CardId && Boolean(userFormik.errors.CardId)}
+                  helperText={userFormik.touched.CardId && userFormik.errors.CardId}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  select
+                  name="Role"
+                  label="Role"
+                  value={userFormik.values.Role}
+                  onChange={userFormik.handleChange}
+                  margin="normal"
+                  SelectProps={{ native: true }}
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Pharmacist">Pharmacist</option>
+                  <option value="Technician">Technician</option>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="Password"
+                  label="Password"
+                  type="password"
+                  value={userFormik.values.Password}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.Password && Boolean(userFormik.errors.Password)}
+                  helperText={userFormik.touched.Password && userFormik.errors.Password}
+                  margin="normal"
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  name="ConfirmPassword"
+                  label="Confirm Password"
+                  type="password"
+                  value={userFormik.values.ConfirmPassword}
+                  onChange={userFormik.handleChange}
+                  error={userFormik.touched.ConfirmPassword && Boolean(userFormik.errors.ConfirmPassword)}
+                  helperText={userFormik.touched.ConfirmPassword && userFormik.errors.ConfirmPassword}
+                  margin="normal"
+                />
+              </Grid>
+            </Grid>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setIsUserDialogOpen(false)}>Cancel</Button>
-            <Button type="submit" variant="contained">
-              Add User
+            <Button 
+              type="submit" 
+              variant="contained" 
+              disabled={addUserMutation.isPending}
+            >
+              {addUserMutation.isPending ? "Adding..." : "Add User"}
             </Button>
           </DialogActions>
         </form>
