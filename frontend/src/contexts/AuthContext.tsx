@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const hasRole = (role: string): boolean => {
-    return user?.role === role;
+    return user?.role?.toLowerCase() === role.toLowerCase();
   };
 
   const updateUser = (userData: Partial<User>) => {

@@ -178,7 +178,7 @@ function App() {
               } />
               
               <Route path="/inventory" element={
-                <ProtectedRoute requiredPermission="inventory.view">
+                <ProtectedRoute requiredPermission="inventory.read">
                   <Layout>
                     <Inventory />
                   </Layout>

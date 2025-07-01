@@ -11,8 +11,11 @@ public class MappingProfile : Profile
         // Product mappings
         CreateMap<Product, ProductDto>()
             .ForMember(dest => dest.CategoryName, opt => opt.MapFrom(src => src.Category.Name))
-            .ForMember(dest => dest.SupplierName, opt => opt.MapFrom(src => src.Supplier != null ? src.Supplier.Name : string.Empty));
-        
+            .ForMember(
+                dest => dest.SupplierName,
+                opt => opt.MapFrom(src => src.Supplier != null ? src.Supplier.Name : string.Empty)
+            );
+
         CreateMap<CreateProductDto, Product>();
         CreateMap<UpdateProductDto, Product>();
 
@@ -23,13 +26,16 @@ public class MappingProfile : Profile
 
         // Sale mappings
         CreateMap<Sale, SaleDto>()
-            .ForMember(dest => dest.PatientName, opt => opt.MapFrom(src => src.Patient != null ? src.Patient.FullName : string.Empty))
+            .ForMember(
+                dest => dest.PatientName,
+                opt => opt.MapFrom(src => src.Patient != null ? src.Patient.FullName : string.Empty)
+            )
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User.FullName));
-        
+
         CreateMap<SaleItem, SaleItemDto>()
             .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name))
             .ForMember(dest => dest.ProductSKU, opt => opt.MapFrom(src => src.Product.SKU));
-        
+
         CreateMap<CreateSaleDto, Sale>();
         CreateMap<CreateSaleItemDto, SaleItem>();
 

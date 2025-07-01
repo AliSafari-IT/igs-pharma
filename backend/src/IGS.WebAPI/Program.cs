@@ -33,8 +33,9 @@ builder.Services.AddDbContext<PharmacyDbContext>(options =>
 
 // AutoMapper configuration
 builder.Services.AddAutoMapper(cfg => {
-    // Explicitly register the CategoryMappingProfile from WebAPI project
+    // Explicitly register mapping profiles from WebAPI project
     cfg.AddProfile<IGS.WebAPI.Mappings.CategoryMappingProfile>();
+    cfg.AddProfile<IGS.WebAPI.Mappings.SupplierMappingProfile>();
     
     // Also scan assemblies for other profiles
     cfg.AddMaps(typeof(Program).Assembly);
