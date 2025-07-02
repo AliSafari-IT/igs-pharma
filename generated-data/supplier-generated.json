@@ -1,0 +1,222 @@
+[
+  {
+    "Id": null,
+    "Name": "Supplier 1",
+    "ContactName": "Michael Smith",
+    "Email": "aijpsrky@example.com",
+    "Phone": "+14757046297",
+    "Address": "484 Main St, City 1",
+    "IsActive": true,
+    "CreatedAt": "2024-08-08 19:24:57",
+    "UpdatedAt": "2025-04-22 14:23:27"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 2",
+    "ContactName": "Sarah Williams",
+    "Email": "bpzokkvg@example.com",
+    "Phone": "+16589519796",
+    "Address": "655 Main St, City 2",
+    "IsActive": true,
+    "CreatedAt": "2024-01-11 21:02:41",
+    "UpdatedAt": "2024-12-31 14:53:27"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 3",
+    "ContactName": "James Garcia",
+    "Email": "isbtrhmc@example.com",
+    "Phone": "+11073700050",
+    "Address": "410 Main St, City 3",
+    "IsActive": true,
+    "CreatedAt": "2024-03-25 12:51:33",
+    "UpdatedAt": "2025-06-19 01:26:59"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 4",
+    "ContactName": "David Davis",
+    "Email": "javmbfeq@example.com",
+    "Phone": "+14529493001",
+    "Address": "460 Main St, City 4",
+    "IsActive": true,
+    "CreatedAt": "2024-04-26 01:20:27",
+    "UpdatedAt": "2024-04-26 19:19:11"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 5",
+    "ContactName": "Mia Rodriguez",
+    "Email": "sufbnevo@example.com",
+    "Phone": "+16332222717",
+    "Address": "172 Main St, City 5",
+    "IsActive": true,
+    "CreatedAt": "2024-06-03 21:41:22",
+    "UpdatedAt": "2024-07-13 00:28:34"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 6",
+    "ContactName": "Sarah Garcia",
+    "Email": "itdbzsvn@example.com",
+    "Phone": "+11382802053",
+    "Address": "536 Main St, City 6",
+    "IsActive": true,
+    "CreatedAt": "2024-12-03 03:23:56",
+    "UpdatedAt": "2024-02-28 21:49:22"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 7",
+    "ContactName": "David Johnson",
+    "Email": "xavaqvod@example.com",
+    "Phone": "+18527662936",
+    "Address": "193 Main St, City 7",
+    "IsActive": true,
+    "CreatedAt": "2025-01-11 22:27:12",
+    "UpdatedAt": "2024-08-08 09:13:30"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 8",
+    "ContactName": "Sophia Rodriguez",
+    "Email": "mrmgzcdz@example.com",
+    "Phone": "+19811507362",
+    "Address": "80 Main St, City 8",
+    "IsActive": true,
+    "CreatedAt": "2025-04-24 18:02:52",
+    "UpdatedAt": "2024-05-25 14:40:44"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 9",
+    "ContactName": "Alice Gonzalez",
+    "Email": "xzhiaglg@example.com",
+    "Phone": "+12352806911",
+    "Address": "630 Main St, City 9",
+    "IsActive": true,
+    "CreatedAt": "2024-06-18 21:42:47",
+    "UpdatedAt": "2025-02-19 08:35:13"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 10",
+    "ContactName": "James Thomas",
+    "Email": "erplnnty@example.com",
+    "Phone": "+19174690563",
+    "Address": "788 Main St, City 10",
+    "IsActive": true,
+    "CreatedAt": "2024-09-04 02:40:28",
+    "UpdatedAt": "2025-07-01 07:39:53"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 11",
+    "ContactName": "David Miller",
+    "Email": "zeapsrfz@example.com",
+    "Phone": "+18396672142",
+    "Address": "708 Main St, City 11",
+    "IsActive": true,
+    "CreatedAt": "2025-04-07 05:32:37",
+    "UpdatedAt": "2024-09-23 20:21:12"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 12",
+    "ContactName": "Emma Gonzalez",
+    "Email": "bfyhutec@example.com",
+    "Phone": "+15138216440",
+    "Address": "808 Main St, City 12",
+    "IsActive": true,
+    "CreatedAt": "2024-12-17 06:52:24",
+    "UpdatedAt": "2024-04-24 07:15:54"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 13",
+    "ContactName": "Bob Gonzalez",
+    "Email": "ijgrxcss@example.com",
+    "Phone": "+18896317055",
+    "Address": "460 Main St, City 13",
+    "IsActive": true,
+    "CreatedAt": "2025-05-22 01:55:59",
+    "UpdatedAt": "2024-07-20 02:07:45"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 14",
+    "ContactName": "Bob Johnson",
+    "Email": "hedncjyf@example.com",
+    "Phone": "+19050990625",
+    "Address": "759 Main St, City 14",
+    "IsActive": true,
+    "CreatedAt": "2024-04-07 11:06:32",
+    "UpdatedAt": "2024-10-05 04:38:31"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 15",
+    "ContactName": "Bob Garcia",
+    "Email": "fqglldbn@example.com",
+    "Phone": "+15648066563",
+    "Address": "335 Main St, City 15",
+    "IsActive": true,
+    "CreatedAt": "2025-06-16 08:45:07",
+    "UpdatedAt": "2024-08-10 11:26:14"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 16",
+    "ContactName": "Olivia Hernandez",
+    "Email": "yndveoro@example.com",
+    "Phone": "+12570211259",
+    "Address": "163 Main St, City 16",
+    "IsActive": true,
+    "CreatedAt": "2025-05-14 03:47:44",
+    "UpdatedAt": "2024-10-01 08:16:00"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 17",
+    "ContactName": "Sophia Smith",
+    "Email": "tsfxkqzh@example.com",
+    "Phone": "+15603798474",
+    "Address": "813 Main St, City 17",
+    "IsActive": true,
+    "CreatedAt": "2024-05-18 16:19:38",
+    "UpdatedAt": "2025-03-15 14:18:49"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 18",
+    "ContactName": "Michael Miller",
+    "Email": "dtodrpwl@example.com",
+    "Phone": "+12668271263",
+    "Address": "722 Main St, City 18",
+    "IsActive": true,
+    "CreatedAt": "2024-11-24 02:59:31",
+    "UpdatedAt": "2024-05-31 21:30:10"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 19",
+    "ContactName": "Joseph Smith",
+    "Email": "ijxzxlsn@example.com",
+    "Phone": "+12639870491",
+    "Address": "736 Main St, City 19",
+    "IsActive": true,
+    "CreatedAt": "2025-05-04 14:06:35",
+    "UpdatedAt": "2024-01-20 02:02:52"
+  },
+  {
+    "Id": null,
+    "Name": "Supplier 20",
+    "ContactName": "Mia Garcia",
+    "Email": "yskikvee@example.com",
+    "Phone": "+18559755462",
+    "Address": "214 Main St, City 20",
+    "IsActive": true,
+    "CreatedAt": "2024-09-22 04:12:22",
+    "UpdatedAt": "2024-04-23 18:15:50"
+  }
+]

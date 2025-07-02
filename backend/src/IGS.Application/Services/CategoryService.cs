@@ -27,7 +27,7 @@ namespace IGS.Application.Services
             _logger = logger;
         }
 
-        public async Task<IEnumerable<CategoryDto>> GetAllAsync()
+        public async Task<IEnumerable<CategoryListDto>> GetAllAsync()
         {
             try
             {
@@ -41,24 +41,24 @@ namespace IGS.Application.Services
                 _logger.LogInformation($"Found {categories.Count()} categories");
 
                 // Log before mapping
-                _logger.LogInformation("Starting mapping categories to CategoryDto");
+                _logger.LogInformation("Starting mapping categories to CategoryListDto");
 
                 // Check if categories is null
                 if (categories == null)
                 {
                     _logger.LogWarning("Categories collection is null");
-                    return new List<CategoryDto>();
+                    return new List<CategoryListDto>();
                 }
 
                 try
                 {
-                    var result = _mapper.Map<IEnumerable<CategoryDto>>(categories);
-                    _logger.LogInformation("Successfully mapped categories to CategoryDto");
+                    var result = _mapper.Map<IEnumerable<CategoryListDto>>(categories);
+                    _logger.LogInformation("Successfully mapped categories to CategoryListDto");
                     return result;
                 }
                 catch (Exception mapEx)
                 {
-                    _logger.LogError(mapEx, "Error mapping categories to CategoryDto");
+                    _logger.LogError(mapEx, "Error mapping categories to CategoryListDto");
                     throw new Exception("Error mapping categories to DTOs", mapEx);
                 }
             }

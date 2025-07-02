@@ -1,0 +1,66 @@
+# Setup Data Configuration
+# This is an example configuration file for the setup-data package
+
+# API Configuration
+api:
+  # Base URL for the API
+  baseUrl: http://localhost:5000/api
+  
+  # Authentication configuration (optional)
+  auth:
+    # Authentication type: 'bearer' or 'basic'
+    type: bearer
+    # Bearer token (for bearer auth)
+    token: your_token_here
+    # Username and password (for basic auth)
+    # username: your_username
+    # password: your_password
+  
+  # Whether API imports should be transactional (all or nothing)
+  transactional: true
+
+# Database Configuration
+database:
+  # Whether to use direct database connection
+  useDirectConnection: false
+  # Database connection details (only needed if useDirectConnection is true)
+  host: localhost
+  port: 3306
+  user: root
+  password: your_password_here
+  database: your_database_name
+
+# Data Transformation Options
+transform:
+  # Property name casing: 'pascal', 'camel', 'snake', or 'kebab'
+  casing: pascal
+  
+  # Custom field mappings (optional)
+  mappings:
+    # Map source field names to target field names
+    # sourceFieldName: targetFieldName
+    id: Id
+    name: Name
+    description: Description
+
+# Mock Data Generation Options
+mock:
+  # Default number of items to generate
+  defaultCount: 10
+  
+  # Faker.js seed for reproducible data
+  seed: 123
+  
+  # Custom field generators (optional)
+  generators:
+    # Field name: faker method
+    productName: commerce.productName
+    price: commerce.price
+    description: commerce.productDescription
+
+# Schema Locations
+schemas:
+  # Map entity names to schema file paths
+  products: ./schemas/Product.cs
+  categories: ./schemas/Category.cs
+  users: ./schemas/User.cs

@@ -24,7 +24,7 @@ namespace IGS.WebAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<CategoryDto>>> GetAll()
+        public async Task<ActionResult<IEnumerable<CategoryListDto>>> GetAll()
         {
             try
             {

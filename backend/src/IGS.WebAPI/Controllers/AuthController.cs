@@ -503,13 +503,13 @@ public class AuthController : ControllerBase
         }
     }
 
-    [HttpDelete("users/{id}")]
+    [HttpDelete("users/{userId}")]
     [Authorize]
-    public async Task<IActionResult> DeleteUser(int id)
+    public async Task<IActionResult> DeleteUser(int userId)
     {
         try
         {
-            var result = await _userService.DeleteUserAsync(id);
+            var result = await _userService.DeleteUserAsync(userId);
             if (!result)
             {
                 return NotFound(new { success = false, message = "User not found" });
@@ -519,7 +519,7 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting user with ID {UserId}", id);
+            _logger.LogError(ex, "Error deleting user with ID {UserId}", userId);
             return StatusCode(
                 StatusCodes.Status500InternalServerError,
                 new { success = false, message = "An error occurred while deleting the user" }
@@ -528,7 +528,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("users")]
-    [Authorize]
+    [Authorize(Policy = "UsersViewOrWrite")]
     public async Task<IActionResult> GetAllUsers()
     {
         try

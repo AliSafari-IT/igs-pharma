@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 namespace IGS.WebAPI.Controllers;
+
 [ApiController]
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
@@ -42,7 +43,9 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet("search")]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> SearchProducts([FromQuery] string searchTerm)
+    public async Task<ActionResult<IEnumerable<ProductDto>>> SearchProducts(
+        [FromQuery] string searchTerm
+    )
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
             return BadRequest("Search term is required");
@@ -59,26 +62,33 @@ public class ProductsController : ControllerBase
     }
 
     [HttpGet("expiring")]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> GetExpiringProducts([FromQuery] int days = 30)
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetExpiringProducts(
+        [FromQuery] int days = 30
+    )
     {
         var products = await _productService.GetExpiringProductsAsync(days);
         return Ok(products);
     }
 
     [HttpPost]
-    public async Task<ActionResult<ProductDto>> CreateProduct([FromBody] CreateProductDto createProductDto)
+    public async Task<ActionResult<ProductDto>> CreateProduct(
+        [FromBody] CreateProductDto createProductDto
+    )
     {
         try
         {
             // Log the received data
-            _logger.LogInformation("Received product creation request: {@ProductDto}", createProductDto);
-            
+            _logger.LogInformation(
+                "Received product creation request: {@ProductDto}",
+                createProductDto
+            );
+
             if (!ModelState.IsValid)
             {
                 _logger.LogWarning("Invalid model state: {@ModelState}", ModelState);
                 return BadRequest(ModelState);
             }
-            
+
             var product = await _productService.CreateProductAsync(createProductDto);
             _logger.LogInformation("Product created successfully with ID: {ProductId}", product.Id);
             return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product);
@@ -96,7 +106,10 @@ public class ProductsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<ProductDto>> UpdateProduct(int id, UpdateProductDto updateProductDto)
+    public async Task<ActionResult<ProductDto>> UpdateProduct(
+        int id,
+        UpdateProductDto updateProductDto
+    )
     {
         try
         {

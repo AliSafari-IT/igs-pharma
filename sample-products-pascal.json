@@ -1,0 +1,18 @@
+[
+  {
+    "Name": "Test Product 1",
+    "Description": "This is a test product description",
+    "Sku": "TP-001",
+    "Barcode": "123456789012",
+    "Price": 19.99,
+    "CategoryId": 1
+  },
+  {
+    "Name": "Test Product 2",
+    "Description": "Another test product description",
+    "Sku": "TP-002",
+    "Barcode": "223456789012",
+    "Price": 29.99,
+    "CategoryId": 2
+  }
+]

@@ -1,0 +1,105 @@
+# Setup Data Configuration
+# This is an example configuration file for the setup-data package
+
+# API Configuration
+api:
+  # Base URL for the API
+  baseUrl: http://localhost:5000/api
+  
+  # Authentication configuration (optional): auth_token
+  auth:
+    # Authentication type: 'bearer' or 'basic'
+    type: bearer
+    # Bearer token (for bearer auth): update this token to your current effective value
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiI1IiwidW5pcXVlX25hbWUiOiJ0ZXN0dXNlcjIiLCJlbWFpbCI6InRlc3QyQGV4YW1wbGUuY29tIiwicm9sZSI6IkFkbWluIiwiUGVybWlzc2lvbiI6WyJwcm9kdWN0cy5yZWFkIiwicHJvZHVjdHMudmlldyIsInByb2R1Y3RzLndyaXRlIiwic2FsZXMucmVhZCIsInNhbGVzLndyaXRlIiwicGF0aWVudHMud3JpdGUiLCJwYXRpZW50cy5yZWFkIiwiaW52ZW50b3J5LnZpZXciLCJpbnZlbnRvcnkucmVhZCIsImludmVudG9yeS53cml0ZSIsInNhbGVzLnZpZXciLCJzZXR0aW5ncy52aWV3Iiwic2V0dGluZ3Mud3JpdGUiLCJzZXR0aW5ncy5yZWFkIiwidXNlcnMud3JpdGUiLCJ1c2Vycy52aWV3IiwicGF0aWVudHMudmlldyIsInByZXNjcmlwdGlvbnMudmlldyJdLCJuYmYiOjE3NTE0Njc5NDAsImV4cCI6MTc1MTU1NDM0MCwiaWF0IjoxNzUxNDY3OTQwLCJpc3MiOiJhc2FmYXJpbS5jb20iLCJhdWQiOiJhc2FmYXJpbS5jb20ifQ.cLqV0EeqBwYxYyw6SIgnZvFEFVMJK5EvMZwESbO-Zfc
+    # Username and password (for basic auth)
+    # username: your_username
+    # password: your_password
+  
+  # Whether API imports should be transactional (all or nothing)
+  transactional: true
+
+# Database Configuration
+database:
+  # Whether to use direct database connection
+  useDirectConnection: true
+  # Example Database connection details (only needed if useDirectConnection is true)
+  host: localhost
+  port: 3306
+  user: root
+  password: Ali+123456/
+  database: igs_pharma_db
+  
+  # Duplicate handling options
+  duplicates:
+    # How to handle duplicate entries: 'fail' (default), 'skip', or 'update'
+    strategy: update
+    # Fields to use as unique identifiers for detecting duplicates (optional)
+    # If not specified, primary key will be used
+    keys:
+      Categories: ["Name"]
+      Products: ["Name", "SKU"]
+      Users: ["Email", "Username"]
+
+# Data Transformation Options
+transform:
+  # Property name casing: 'pascal', 'camel', 'snake', or 'kebab'
+  casing: pascal
+  
+  # Custom field mappings (optional)
+  mappings:
+    # Map source field names to target field names
+    # sourceFieldName: targetFieldName
+    id: Id
+    name: Name
+    description: Description
+
+# Mock Data Generation Options
+mock:
+  # Default number of items to generate
+  defaultCount: 50
+  
+  # Faker.js seed for reproducible data
+  seed: 123
+  
+  # Custom field generators (optional)
+  generators:
+    # Field name: faker method
+    productName: commerce.productName
+    price: commerce.price
+    description: commerce.productDescription
+    categoryId: random.number
+    stockQuantity: random.number
+    minStockLevel: random.number
+    maxStockLevel: random.number
+    expiryDate: date.past
+    manufactureDate: date.past
+    manufacturer: company.name
+    batchNumber: random.alphaNumeric
+    requiresPrescription: random.boolean
+    supplierId: random.number(1, 10)
+    patientId: random.number(1, 10)
+    doctorId: random.number(1, 10)
+    prescriptionId: random.number(1, 10)
+    saleId: random.number(1, 10)
+    inventoryTransactionId: random.number(1, 10)
+    purchaseOrderId: random.number(1, 10)
+    settingId: random.number(1, 10)
+    
+
+# Schema Locations
+schemas:
+  # Map entity names to schema file paths
+  products: ./schemas/Product.cs
+  categories: ./schemas/Category.cs
+  users: ./schemas/User.cs
+  doctors: ./schemas/Doctor.cs
+  prescriptions: ./schemas/Prescription.cs
+  prescriptionItems: ./schemas/PrescriptionItem.cs
+  sales: ./schemas/Sale.cs
+  saleItems: ./schemas/SaleItem.cs
+  inventoryTransactions: ./schemas/InventoryTransaction.cs
+  purchaseOrders: ./schemas/PurchaseOrder.cs
+  settings: ./schemas/Settings.cs
+  suppliers: ./schemas/Supplier.cs
+  patients: ./schemas/Patient.cs

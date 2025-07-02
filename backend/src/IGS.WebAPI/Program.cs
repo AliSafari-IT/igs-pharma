@@ -23,6 +23,10 @@ builder
     {
         // Configure case-insensitive property binding
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        // Handle circular references
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        // Ensure proper formatting
+        options.JsonSerializerOptions.WriteIndented = true;
     });
 
 // Database configuration
@@ -71,70 +75,42 @@ builder
         };
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    // Product policies
-    options.AddPolicy("ProductsRead", policy => policy.RequireClaim("Permission", "products.read"));
-    options.AddPolicy(
-        "ProductsWrite",
-        policy => policy.RequireClaim("Permission", "products.write")
-    );
-
-    // Category policies
-    options.AddPolicy(
-        "CategoriesRead",
-        policy => policy.RequireClaim("Permission", "categories.read")
-    );
-    options.AddPolicy(
-        "CategoriesWrite",
-        policy => policy.RequireClaim("Permission", "categories.write")
-    );
-
-    // Supplier policies
-    options.AddPolicy(
-        "SuppliersRead",
-        policy => policy.RequireClaim("Permission", "suppliers.read")
-    );
-    options.AddPolicy(
-        "SuppliersWrite",
-        policy => policy.RequireClaim("Permission", "suppliers.write")
-    );
-
-    // Inventory policies
-    options.AddPolicy(
-        "InventoryRead",
-        policy => policy.RequireClaim("Permission", "inventory.read")
-    );
-    options.AddPolicy(
-        "InventoryWrite",
-        policy => policy.RequireClaim("Permission", "inventory.write")
-    );
-
-    // Sales policies
-    options.AddPolicy("SalesRead", policy => policy.RequireClaim("Permission", "sales.read"));
-    options.AddPolicy("SalesWrite", policy => policy.RequireClaim("Permission", "sales.write"));
-
-    // Patient policies
-    options.AddPolicy("PatientsRead", policy => policy.RequireClaim("Permission", "patients.read"));
-    options.AddPolicy(
-        "PatientsWrite",
-        policy => policy.RequireClaim("Permission", "patients.write")
-    );
-
-    // Settings policies
-    options.AddPolicy("SettingsRead", policy => policy.RequireClaim("Permission", "settings.read"));
-    options.AddPolicy(
-        "SettingsWrite",
-        policy => policy.RequireClaim("Permission", "settings.write")
-    );
-
-    // Users policies
-    options.AddPolicy("UsersRead", policy => policy.RequireClaim("Permission", "users.read"));
-    options.AddPolicy("UsersWrite", policy => policy.RequireClaim("Permission", "users.write"));
-
-    // Admin policy
-    options.AddPolicy("Admin", policy => policy.RequireClaim("Role", "Admin"));
-});
+builder
+    .Services.AddAuthorizationBuilder()
+    .AddPolicy("ProductsWrite", policy => policy.RequireClaim("Permission", "products.write"))
+    .AddPolicy("ProductsRead", policy => policy.RequireClaim("Permission", "products.read"))
+    .AddPolicy("CategoriesRead", policy => policy.RequireClaim("Permission", "categories.read"))
+    .AddPolicy("CategoriesWrite", policy => policy.RequireClaim("Permission", "categories.write"))
+    .AddPolicy("SuppliersRead", policy => policy.RequireClaim("Permission", "suppliers.read"))
+    .AddPolicy("SuppliersWrite", policy => policy.RequireClaim("Permission", "suppliers.write"))
+    .AddPolicy("InventoryRead", policy => policy.RequireClaim("Permission", "inventory.read"))
+    .AddPolicy("InventoryWrite", policy => policy.RequireClaim("Permission", "inventory.write"))
+    .AddPolicy("SalesRead", policy => policy.RequireClaim("Permission", "sales.read"))
+    .AddPolicy("SalesWrite", policy => policy.RequireClaim("Permission", "sales.write"))
+    .AddPolicy("PatientsRead", policy => policy.RequireClaim("Permission", "patients.read"))
+    .AddPolicy("PatientsWrite", policy => policy.RequireClaim("Permission", "patients.write"))
+    .AddPolicy(
+        "PatientsViewOrWrite",
+        policy =>
+            policy.RequireAssertion(context =>
+                context.User.HasClaim(c =>
+                    c.Type == "Permission"
+                    && (c.Value == "patients.view" || c.Value == "patients.write")
+                )
+            )
+    )
+    .AddPolicy("SettingsRead", policy => policy.RequireClaim("Permission", "settings.read"))
+    .AddPolicy("SettingsWrite", policy => policy.RequireClaim("Permission", "settings.write"))
+    .AddPolicy(
+        "UsersViewOrWrite",
+        policy =>
+            policy.RequireAssertion(context =>
+                context.User.HasClaim(c =>
+                    c.Type == "Permission" && (c.Value == "users.view" || c.Value == "users.write")
+                )
+            )
+    )
+    .AddPolicy("Admin", policy => policy.RequireClaim("Role", "Admin"));
 
 // Repositories
 builder.Services.AddScoped<IRepository<Product>, Repository<Product>>();

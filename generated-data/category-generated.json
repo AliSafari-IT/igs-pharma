@@ -1,0 +1,162 @@
+[
+  {
+    "Id": null,
+    "Name": "Category 1",
+    "Description": "Description for category 1",
+    "IsActive": true,
+    "CreatedAt": "2024-09-06 23:12:43",
+    "UpdatedAt": "2024-09-01 07:23:43"
+  },
+  {
+    "Id": null,
+    "Name": "Category 2",
+    "Description": "Description for category 2",
+    "IsActive": true,
+    "CreatedAt": "2025-06-22 05:16:33",
+    "UpdatedAt": "2025-03-22 13:40:44"
+  },
+  {
+    "Id": null,
+    "Name": "Category 3",
+    "Description": "Description for category 3",
+    "IsActive": true,
+    "CreatedAt": "2024-03-13 08:28:04",
+    "UpdatedAt": "2024-11-03 00:03:33"
+  },
+  {
+    "Id": null,
+    "Name": "Category 4",
+    "Description": "Description for category 4",
+    "IsActive": true,
+    "CreatedAt": "2024-10-14 08:01:31",
+    "UpdatedAt": "2024-03-28 05:26:56"
+  },
+  {
+    "Id": null,
+    "Name": "Category 5",
+    "Description": "Description for category 5",
+    "IsActive": true,
+    "CreatedAt": "2024-08-21 23:23:21",
+    "UpdatedAt": "2025-06-05 03:32:09"
+  },
+  {
+    "Id": null,
+    "Name": "Category 6",
+    "Description": "Description for category 6",
+    "IsActive": true,
+    "CreatedAt": "2024-10-25 12:06:03",
+    "UpdatedAt": "2024-09-02 15:44:09"
+  },
+  {
+    "Id": null,
+    "Name": "Category 7",
+    "Description": "Description for category 7",
+    "IsActive": true,
+    "CreatedAt": "2024-01-15 16:31:43",
+    "UpdatedAt": "2024-10-21 06:06:45"
+  },
+  {
+    "Id": null,
+    "Name": "Category 8",
+    "Description": "Description for category 8",
+    "IsActive": true,
+    "CreatedAt": "2024-07-11 04:12:27",
+    "UpdatedAt": "2024-01-09 12:11:15"
+  },
+  {
+    "Id": null,
+    "Name": "Category 9",
+    "Description": "Description for category 9",
+    "IsActive": true,
+    "CreatedAt": "2024-05-28 03:56:58",
+    "UpdatedAt": "2024-03-16 19:13:53"
+  },
+  {
+    "Id": null,
+    "Name": "Category 10",
+    "Description": "Description for category 10",
+    "IsActive": true,
+    "CreatedAt": "2025-03-25 00:46:24",
+    "UpdatedAt": "2024-06-19 07:42:32"
+  },
+  {
+    "Id": null,
+    "Name": "Category 11",
+    "Description": "Description for category 11",
+    "IsActive": true,
+    "CreatedAt": "2024-07-10 16:20:34",
+    "UpdatedAt": "2025-01-28 13:32:22"
+  },
+  {
+    "Id": null,
+    "Name": "Category 12",
+    "Description": "Description for category 12",
+    "IsActive": true,
+    "CreatedAt": "2024-03-09 17:21:30",
+    "UpdatedAt": "2025-06-30 22:37:26"
+  },
+  {
+    "Id": null,
+    "Name": "Category 13",
+    "Description": "Description for category 13",
+    "IsActive": true,
+    "CreatedAt": "2024-03-15 18:28:41",
+    "UpdatedAt": "2025-06-10 02:42:53"
+  },
+  {
+    "Id": null,
+    "Name": "Category 14",
+    "Description": "Description for category 14",
+    "IsActive": true,
+    "CreatedAt": "2025-04-28 04:45:34",
+    "UpdatedAt": "2024-10-18 03:12:16"
+  },
+  {
+    "Id": null,
+    "Name": "Category 15",
+    "Description": "Description for category 15",
+    "IsActive": true,
+    "CreatedAt": "2024-01-02 14:21:29",
+    "UpdatedAt": "2024-05-27 01:01:07"
+  },
+  {
+    "Id": null,
+    "Name": "Category 16",
+    "Description": "Description for category 16",
+    "IsActive": true,
+    "CreatedAt": "2024-10-08 13:15:00",
+    "UpdatedAt": "2024-06-06 11:45:06"
+  },
+  {
+    "Id": null,
+    "Name": "Category 17",
+    "Description": "Description for category 17",
+    "IsActive": true,
+    "CreatedAt": "2025-02-28 13:41:25",
+    "UpdatedAt": "2025-06-08 21:39:44"
+  },
+  {
+    "Id": null,
+    "Name": "Category 18",
+    "Description": "Description for category 18",
+    "IsActive": true,
+    "CreatedAt": "2024-01-13 19:33:26",
+    "UpdatedAt": "2024-03-08 07:32:46"
+  },
+  {
+    "Id": null,
+    "Name": "Category 19",
+    "Description": "Description for category 19",
+    "IsActive": true,
+    "CreatedAt": "2024-03-02 04:49:12",
+    "UpdatedAt": "2024-08-04 00:45:28"
+  },
+  {
+    "Id": null,
+    "Name": "Category 20",
+    "Description": "Description for category 20",
+    "IsActive": true,
+    "CreatedAt": "2024-02-27 15:51:00",
+    "UpdatedAt": "2024-07-25 20:07:20"
+  }
+]

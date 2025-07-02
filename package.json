@@ -12,11 +12,18 @@
     "migdown": "pnpm --filter @igs-pharma/api migdown",
     "ui:test": "pnpm --filter @igs-pharma/ui test",
     "ui:test:watch": "pnpm --filter @igs-pharma/ui test:watch",
-    "ui:test:coverage": "pnpm --filter @igs-pharma/ui test:coverage"
+    "ui:test:coverage": "pnpm --filter @igs-pharma/ui test:coverage",
+    "setup-data": "node ./packages/setup-data/bin/setup-data.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.12.4"
-
+  "packageManager": "pnpm@10.12.4",
+  "dependencies": {
+    "setup-data": "workspace:*"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0",
+    "mysql2": "^3.14.1"
+  }
 }

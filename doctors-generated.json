@@ -1,0 +1,167 @@
+[
+  {
+    "FirstName": "Enola",
+    "LastName": "Fay",
+    "Email": "enola.fay@medcenter.com",
+    "Phone": "689-770-0909",
+    "Specialization": "General Practice",
+    "LicenseNumber": "MD-6JXT2EYI",
+    "IsActive": true,
+    "CreatedAt": "2023-04-27 05:54:24",
+    "UpdatedAt": "2025-05-10 11:19:45"
+  },
+  {
+    "FirstName": "Eliane",
+    "LastName": "Reynolds",
+    "Email": "eliane_reynolds@medcenter.com",
+    "Phone": "261-433-4719",
+    "Specialization": "Oncology",
+    "LicenseNumber": "MD-AKMZABMP",
+    "IsActive": true,
+    "CreatedAt": "2022-12-18 22:53:59",
+    "UpdatedAt": "2025-05-05 11:48:40"
+  },
+  {
+    "FirstName": "Jettie",
+    "LastName": "Vandervort",
+    "Email": "jettie_vandervort85@medcenter.com",
+    "Phone": "388-211-3128",
+    "Specialization": "Dermatology",
+    "LicenseNumber": "MD-SLMDWLIJ",
+    "IsActive": true,
+    "CreatedAt": "2022-11-14 07:03:27",
+    "UpdatedAt": "2025-04-16 03:32:57"
+  },
+  {
+    "FirstName": "Robert",
+    "LastName": "Klocko",
+    "Email": "robert.klocko@medcenter.com",
+    "Phone": "759-335-6267",
+    "Specialization": "Ophthalmology",
+    "LicenseNumber": "MD-TY9ON7IT",
+    "IsActive": true,
+    "CreatedAt": "2023-12-18 20:38:44",
+    "UpdatedAt": "2025-04-29 00:58:27"
+  },
+  {
+    "FirstName": "Jana",
+    "LastName": "Marvin",
+    "Email": "jana_marvin@medcenter.com",
+    "Phone": "657-751-4967",
+    "Specialization": "General Practice",
+    "LicenseNumber": "MD-SWLDCGUT",
+    "IsActive": true,
+    "CreatedAt": "2025-06-02 17:02:24",
+    "UpdatedAt": "2025-05-09 21:54:31"
+  },
+  {
+    "FirstName": "David",
+    "LastName": "Langosh",
+    "Email": "david_langosh@medcenter.com",
+    "Phone": "688-134-0955",
+    "Specialization": "Gastroenterology",
+    "LicenseNumber": "MD-FHPP06QP",
+    "IsActive": true,
+    "CreatedAt": "2022-09-28 03:14:50",
+    "UpdatedAt": "2025-05-10 07:00:31"
+  },
+  {
+    "FirstName": "Jennyfer",
+    "LastName": "Schultz",
+    "Email": "jennyfer_schultz@medcenter.com",
+    "Phone": "699-625-5486",
+    "Specialization": "Pulmonology",
+    "LicenseNumber": "MD-PBRUAEEL",
+    "IsActive": true,
+    "CreatedAt": "2025-06-21 05:13:24",
+    "UpdatedAt": "2025-05-18 16:34:33"
+  },
+  {
+    "FirstName": "Elwyn",
+    "LastName": "McCullough",
+    "Email": "elwyn_mccullough@medcenter.com",
+    "Phone": "631-640-4332",
+    "Specialization": "Endocrinology",
+    "LicenseNumber": "MD-1KWXXLEZ",
+    "IsActive": true,
+    "CreatedAt": "2023-02-10 10:36:07",
+    "UpdatedAt": "2025-05-25 10:16:29"
+  },
+  {
+    "FirstName": "Ona",
+    "LastName": "Breitenberg",
+    "Email": "ona.breitenberg@medcenter.com",
+    "Phone": "186-232-2509",
+    "Specialization": "Orthopedics",
+    "LicenseNumber": "MD-6MBFBZDT",
+    "IsActive": true,
+    "CreatedAt": "2024-05-17 21:15:42",
+    "UpdatedAt": "2025-06-23 00:24:17"
+  },
+  {
+    "FirstName": "Kristy",
+    "LastName": "Funk",
+    "Email": "kristy_funk0@medcenter.com",
+    "Phone": "063-718-5525",
+    "Specialization": "Obstetrics and Gynecology",
+    "LicenseNumber": "MD-QYMPRP7G",
+    "IsActive": true,
+    "CreatedAt": "2023-09-01 01:11:59",
+    "UpdatedAt": "2025-05-23 14:02:31"
+  },
+  {
+    "FirstName": "Breanne",
+    "LastName": "Nolan",
+    "Email": "breanne.nolan@medcenter.com",
+    "Phone": "043-740-4400",
+    "Specialization": "Neurology",
+    "LicenseNumber": "MD-VVUFIEBV",
+    "IsActive": true,
+    "CreatedAt": "2023-04-11 15:22:41",
+    "UpdatedAt": "2025-05-20 18:01:41"
+  },
+  {
+    "FirstName": "May",
+    "LastName": "Pacocha",
+    "Email": "may.pacocha69@medcenter.com",
+    "Phone": "226-719-2370",
+    "Specialization": "Ophthalmology",
+    "LicenseNumber": "MD-V5KUL3HE",
+    "IsActive": true,
+    "CreatedAt": "2024-10-09 10:41:21",
+    "UpdatedAt": "2025-04-14 08:09:39"
+  },
+  {
+    "FirstName": "Elda",
+    "LastName": "Gleason",
+    "Email": "elda_gleason@medcenter.com",
+    "Phone": "165-097-7284",
+    "Specialization": "General Practice",
+    "LicenseNumber": "MD-YCVKZJM3",
+    "IsActive": true,
+    "CreatedAt": "2025-03-14 18:54:20",
+    "UpdatedAt": "2025-05-28 07:19:38"
+  },
+  {
+    "FirstName": "Julianne",
+    "LastName": "Ward",
+    "Email": "julianne.ward40@medcenter.com",
+    "Phone": "010-348-7933",
+    "Specialization": "Ophthalmology",
+    "LicenseNumber": "MD-EFPG08HM",
+    "IsActive": true,
+    "CreatedAt": "2025-02-17 10:40:06",
+    "UpdatedAt": "2025-05-16 10:12:07"
+  },
+  {
+    "FirstName": "Rod",
+    "LastName": "Jacobi",
+    "Email": "rod.jacobi@medcenter.com",
+    "Phone": "595-651-2450",
+    "Specialization": "Gastroenterology",
+    "LicenseNumber": "MD-VYFT4BRM",
+    "IsActive": true,
+    "CreatedAt": "2023-08-06 13:39:36",
+    "UpdatedAt": "2025-05-05 23:18:26"
+  }
+]

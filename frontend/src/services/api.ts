@@ -107,7 +107,7 @@ export const authApi = {
   logout: () => api.post('/Auth/logout'),
   register: (userData: any) => api.post('/Auth/register', userData),
   updateUser: (userId: string, userData: any) => api.put(`/Auth/users/${userId}`, userData),
-  deleteUser: (userId: string) => api.delete(`/Auth/users/${userId}`),
+  deleteUser: (userId: string) => api.delete(`/Auth/users/${userId}?userId=${userId}`),
   checkUsername: (username: string) => api.get(`/Auth/check-username/${username}`),
   checkEmail: (email: string) => api.get(`/Auth/check-email/${email}`),
   checkEmployeeId: (employeeId: string) => api.get(`/Auth/check-employee-id/${employeeId}`),

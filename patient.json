@@ -1,0 +1,17 @@
+{
+    "firstName": "Max",
+    "lastName": "Mustermann",
+    "email": "max.mustermann@example.com",
+    "phone": "+6912345678",
+    "dateOfBirth": "1985-05-16",
+    "gender": "Male",
+    "address": "6 Main Street",
+    "city": "Hamburg",
+    "postalCode": "1001",
+    "country": "Germany",
+    "insuranceNumber": "12346",
+    "insuranceProvider": "Health Fund",
+    "allergies": "Peanuts",
+    "medicalConditions": "Allergies",
+    "isActive": true
+}

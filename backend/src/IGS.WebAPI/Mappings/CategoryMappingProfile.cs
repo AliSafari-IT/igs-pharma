@@ -10,6 +10,7 @@ namespace IGS.WebAPI.Mappings
         {
             // Explicitly define Category mappings in WebAPI project
             CreateMap<Category, CategoryDto>();
+            CreateMap<Category, CategoryListDto>();
             CreateMap<CreateCategoryDto, Category>();
             CreateMap<UpdateCategoryDto, Category>();
         }

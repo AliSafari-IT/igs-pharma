@@ -118,3 +118,4 @@ debug.log
 # Yarn Integrity file
 .yarn-integrity
 
+!packages/setup-data/bin
