@@ -341,14 +341,19 @@ public class AuthController : ControllerBase
             {
                 claims.Add(new Claim("Permission", permission));
             }
-            _logger.LogInformation("Added {Count} permission claims to token for user {Username}", 
-                user.Permissions.Count, user.Username);
+            _logger.LogInformation(
+                "Added {Count} permission claims to token for user {Username}",
+                user.Permissions.Count,
+                user.Username
+            );
         }
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(int.Parse(_configuration["Jwt:ExpiresInMinutes"] ?? "1440")),
+            Expires = DateTime.UtcNow.AddMinutes(
+                int.Parse(_configuration["Jwt:ExpiresInMinutes"] ?? "1440")
+            ),
             Issuer = _configuration["Jwt:Issuer"],
             Audience = _configuration["Jwt:Audience"],
             SigningCredentials = new SigningCredentials(
@@ -493,6 +498,73 @@ public class AuthController : ControllerBase
                     message = "An error occurred while updating the user",
                     error = ex.Message,
                     details = ex.InnerException?.Message,
+                }
+            );
+        }
+    }
+
+    [HttpDelete("users/{id}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        try
+        {
+            var result = await _userService.DeleteUserAsync(id);
+            if (!result)
+            {
+                return NotFound(new { success = false, message = "User not found" });
+            }
+
+            return Ok(new { success = true, message = "User deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting user with ID {UserId}", id);
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new { success = false, message = "An error occurred while deleting the user" }
+            );
+        }
+    }
+
+    [HttpGet("users")]
+    [Authorize]
+    public async Task<IActionResult> GetAllUsers()
+    {
+        try
+        {
+            _logger.LogInformation("Fetching all users");
+            var users = await _userService.GetAllUsersAsync();
+
+            // Create a simplified response to avoid serialization issues
+            var simplifiedUsers = users
+                .Select(user => new
+                {
+                    Id = user.Id.ToString(),
+                    user.Username,
+                    user.Email,
+                    user.FirstName,
+                    user.LastName,
+                    Role = user.Role.ToString(),
+                    user.Department,
+                    PermissionCount = user.Permissions?.Count ?? 0,
+                    user.IsActive,
+                })
+                .ToList();
+
+            _logger.LogInformation($"Successfully fetched {simplifiedUsers.Count} users");
+            return Ok(new { success = true, users = simplifiedUsers });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching all users");
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new
+                {
+                    success = false,
+                    message = "An error occurred while fetching users",
+                    error = ex.Message,
                 }
             );
         }

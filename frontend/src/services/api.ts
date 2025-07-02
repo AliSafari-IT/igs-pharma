@@ -98,14 +98,21 @@ export const prescriptionApi = {
 
 // Authentication API
 export const authApi = {
-  login: (credentials: { username: string; password: string }) => api.post('/auth/login', credentials),
-  logout: () => api.post('/auth/logout'),
+  getAllUsers: () => {
+    console.log('Making API call to /Auth/users');
+    console.log('Auth token:', localStorage.getItem('auth_token') ? 'exists' : 'missing');
+    return api.get('/Auth/users');
+  },
+  login: (credentials: { username: string; password: string }) => api.post('/Auth/login', credentials),
+  logout: () => api.post('/Auth/logout'),
   register: (userData: any) => api.post('/Auth/register', userData),
-  checkUsername: (username: string) => api.get(`/auth/check-username?username=${username}`),
-  checkEmail: (email: string) => api.get(`/auth/check-email?email=${email}`),
-  checkEmployeeId: (employeeId: string) => api.get(`/auth/check-employeeid?employeeId=${employeeId}`),
-  refreshToken: () => api.post('/auth/refresh-token'),
-  getCurrentUser: () => api.get('/auth/current-user'),
+  updateUser: (userId: string, userData: any) => api.put(`/Auth/users/${userId}`, userData),
+  deleteUser: (userId: string) => api.delete(`/Auth/users/${userId}`),
+  checkUsername: (username: string) => api.get(`/Auth/check-username/${username}`),
+  checkEmail: (email: string) => api.get(`/Auth/check-email/${email}`),
+  checkEmployeeId: (employeeId: string) => api.get(`/Auth/check-employee-id/${employeeId}`),
+  refreshToken: () => api.post('/Auth/refresh-token'),
+  getCurrentUser: () => api.get('/Auth/current-user'),
 };
 
 // Reports API

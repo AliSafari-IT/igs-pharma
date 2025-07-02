@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
@@ -17,6 +17,7 @@ import Prescriptions from './pages/Prescriptions';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
+import Users from './pages/Users';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -237,6 +238,14 @@ function App() {
                 <ProtectedRoute requiredRole="admin">
                   <Layout>
                     <Settings />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/users" element={
+                <ProtectedRoute requiredRole="Admin">
+                  <Layout>
+                    <Users />
                   </Layout>
                 </ProtectedRoute>
               } />

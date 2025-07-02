@@ -128,8 +128,12 @@ builder.Services.AddAuthorization(options =>
         policy => policy.RequireClaim("Permission", "settings.write")
     );
 
+    // Users policies
+    options.AddPolicy("UsersRead", policy => policy.RequireClaim("Permission", "users.read"));
+    options.AddPolicy("UsersWrite", policy => policy.RequireClaim("Permission", "users.write"));
+
     // Admin policy
-    options.AddPolicy("Admin", policy => policy.RequireClaim("Role", "admin"));
+    options.AddPolicy("Admin", policy => policy.RequireClaim("Role", "Admin"));
 });
 
 // Repositories

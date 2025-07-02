@@ -17,4 +17,6 @@ public interface IUserService
     Task<bool> IsEmployeeIdAvailableAsync(string employeeId);
     Task<bool> IsCardIdAvailableAsync(string cardId);
     Task<User?> UpdateUserAsync(int userId, UpdateUserDto updateDto);
+    Task<bool> DeleteUserAsync(int userId);
+    Task<IEnumerable<User>> GetAllUsersAsync();
 }

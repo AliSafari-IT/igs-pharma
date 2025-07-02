@@ -1,6 +1,6 @@
 using AutoMapper;
-using IGS.Application.DTOs.Auth;
 using BCrypt.Net;
+using IGS.Application.DTOs.Auth;
 using IGS.Application.Interfaces;
 using IGS.Domain.Entities;
 using IGS.Domain.Interfaces;
@@ -170,114 +170,45 @@ public class UserService : IUserService
     {
         try
         {
-            _logger.LogInformation("Starting update for user ID: {UserId}", userId);
-            _logger.LogDebug("Update data: {@UpdateData}", updateDto);
-
             var user = await _userRepository.GetByIdAsync(userId);
             if (user == null)
-            {
-                _logger.LogWarning("User with ID {UserId} not found for update", userId);
                 return null;
-            }
 
-            try
-            {
-                // Update fields if they are provided in the DTO
-                if (!string.IsNullOrEmpty(updateDto.FirstName))
-                {
-                    _logger.LogDebug(
-                        "Updating FirstName from '{Old}' to '{New}'",
-                        user.FirstName,
-                        updateDto.FirstName
-                    );
-                    user.FirstName = updateDto.FirstName;
-                }
+            // Update basic properties
+            user.FirstName = updateDto.FirstName ?? user.FirstName;
+            user.LastName = updateDto.LastName ?? user.LastName;
+            user.Email = updateDto.Email ?? user.Email;
+            user.Phone = updateDto.PhoneNumber ?? user.Phone;
+            user.Department = updateDto.Department ?? user.Department;
 
-                if (!string.IsNullOrEmpty(updateDto.LastName))
-                {
-                    _logger.LogDebug(
-                        "Updating LastName from '{Old}' to '{New}'",
-                        user.LastName,
-                        updateDto.LastName
-                    );
-                    user.LastName = updateDto.LastName;
-                }
+            // Note: Password updates are handled separately for security reasons
 
-                if (!string.IsNullOrEmpty(updateDto.Email) && updateDto.Email != user.Email)
-                {
-                    _logger.LogDebug(
-                        "Updating Email from '{Old}' to '{New}'",
-                        user.Email,
-                        updateDto.Email
-                    );
-                    if (!await IsEmailAvailableAsync(updateDto.Email))
-                    {
-                        var errorMsg =
-                            $"Email '{updateDto.Email}' is already in use by another user";
-                        _logger.LogWarning(errorMsg);
-                        throw new InvalidOperationException(errorMsg);
-                    }
-                    user.Email = updateDto.Email;
-                }
+            await _userRepository.UpdateAsync(user);
+            _logger.LogInformation("User {UserId} profile updated successfully", userId);
 
-                if (!string.IsNullOrEmpty(updateDto.PhoneNumber))
-                {
-                    _logger.LogDebug(
-                        "Updating Phone from '{Old}' to '{New}'",
-                        user.Phone,
-                        updateDto.PhoneNumber
-                    );
-                    user.Phone = updateDto.PhoneNumber;
-                }
-
-                if (updateDto.Department != null)
-                {
-                    _logger.LogDebug(
-                        "Updating Department from '{Old}' to '{New}'",
-                        user.Department,
-                        updateDto.Department
-                    );
-                    user.Department = updateDto.Department;
-                }
-
-                user.UpdatedAt = DateTime.UtcNow;
-
-                await _userRepository.UpdateAsync(user);
-                _logger.LogInformation("User {UserId} profile updated successfully", userId);
-
-                return user;
-            }
-            catch (Exception ex) when (ex is not InvalidOperationException)
-            {
-                _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
-                throw new Exception($"An error occurred while updating the user: {ex.Message}", ex);
-            }
+            return user;
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Unexpected error in UpdateUserAsync for user ID {UserId}",
-                userId
-            );
-            throw new Exception($"An unexpected error occurred: {ex.Message}", ex);
+            _logger.LogError(ex, "Error updating user with ID {UserId}", userId);
+            throw new Exception($"An error occurred while updating the user: {ex.Message}", ex);
         }
     }
 
-    private static List<string> GetDefaultPermissions(string role)
+    private List<string> GetDefaultPermissions(string role)
     {
-        return role.ToLowerInvariant() switch
+        return role.ToLower() switch
         {
             "admin" => new List<string>
             {
-                "users.read",
-                "users.write",
-                "users.delete",
                 "products.read",
                 "products.write",
-                "products.delete",
                 "inventory.read",
                 "inventory.write",
+                "categories.read",
+                "categories.write",
+                "suppliers.read",
+                "suppliers.write",
                 "sales.read",
                 "sales.write",
                 "patients.read",
@@ -287,6 +218,8 @@ public class UserService : IUserService
                 "reports.read",
                 "settings.read",
                 "settings.write",
+                "users.read",
+                "users.write",
             },
             "pharmacist" => new List<string>
             {
@@ -294,6 +227,8 @@ public class UserService : IUserService
                 "products.write",
                 "inventory.read",
                 "inventory.write",
+                "categories.read",
+                "suppliers.read",
                 "sales.read",
                 "sales.write",
                 "patients.read",
@@ -321,5 +256,45 @@ public class UserService : IUserService
             },
             _ => new List<string> { "products.read" }, // Default employee permissions
         };
+    }
+
+    public async Task<bool> DeleteUserAsync(int userId)
+    {
+        try
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
+            {
+                _logger.LogWarning("User with ID {UserId} not found for deletion", userId);
+                return false;
+            }
+
+            // Perform the deletion
+            _userRepository.Remove(user);
+            await _userRepository.SaveChangesAsync();
+            _logger.LogInformation("User with ID {UserId} deleted successfully", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting user with ID {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task<IEnumerable<User>> GetAllUsersAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Getting all users from repository");
+            var users = await _userRepository.GetAllAsync();
+            _logger.LogInformation("Retrieved {Count} users from repository", users.Count());
+            return users;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving all users");
+            throw;
+        }
     }
 }

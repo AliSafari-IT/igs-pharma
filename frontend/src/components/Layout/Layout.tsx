@@ -32,6 +32,7 @@ import {
   People as PatientsIcon,
   Receipt as PrescriptionsIcon,
   Assessment as ReportsIcon,
+  PersonAdd as UsersIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -51,6 +52,7 @@ const menuItems = [
   { text: 'Prescriptions', icon: <PrescriptionsIcon />, path: '/prescriptions' },
   { text: 'Reports', icon: <ReportsIcon />, path: '/reports' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
+  { text: 'Users', icon: <UsersIcon />, path: '/users' },
 ];
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
