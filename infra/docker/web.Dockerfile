@@ -16,16 +16,16 @@ COPY . .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
-ARG DATABASE_URL
-ARG AUTH_SECRET
-ARG AUTH_URL
-
-ENV DATABASE_URL=$DATABASE_URL
-ENV AUTH_SECRET=$AUTH_SECRET
-ENV AUTH_URL=$AUTH_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN pnpm --filter=@igs/web run build
+# D-023: image builds never receive real secrets (no ARG/ENV: build args and builder layers end up
+# in the build cache). The env schema only needs *valid-looking* values to build; these obviously
+# fake placeholders live on this RUN line alone, so they are not persisted as image ENV. Real
+# values are injected at runtime only (getEnv() is lazy).
+RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
+    AUTH_SECRET=build-only-placeholder-not-a-secret-000000 \
+    AUTH_URL=http://localhost \
+    pnpm --filter=@igs/web run build
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:24-alpine AS runner
