@@ -12,6 +12,8 @@
     "@igs/auth": "workspace:*",
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
+    "@igs/kernel": "workspace:*",
+    "@igs/module-audit": "workspace:*",
     "@igs/observability": "workspace:*",
     "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",

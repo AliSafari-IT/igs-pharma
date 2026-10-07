@@ -25,7 +25,27 @@ export interface AuditEntry {
  * `actor.type` is stored as `actor_type` (incl. `anonymous`, A1).
  */
 export interface AuditPort {
-  record(entry: AuditEntry, context: { actor: Actor; tx: Tx; at: Date }): Promise<void>;
+  /**
+   * Called **right before commit** with the entries a command buffered via `ctx.audit.record`, in
+   * call order, inside the command's transaction (D-026). `origin` (raw IP / user agent) comes only
+   * from the edge adapter via `CallOptions.origin`: the port hashes it, never stores it raw.
+   */
+  record(
+    entry: AuditEntry,
+    context: { actor: Actor; tx: Tx; at: Date; origin?: Origin },
+  ): Promise<void>;
+  /**
+   * Optional, **synchronous, no database access**: called when a handler calls `ctx.audit.record`,
+   * so an unregistered action or invalid `data` fails in the handler's stack instead of at flush
+   * time. The flush validates again (covers custom ports).
+   */
+  validate?(entry: AuditEntry): void;
+}
+
+/** Where a call came from. Set by the edge adapter only; handlers never see it (PII). */
+export interface Origin {
+  readonly ip?: string | undefined;
+  readonly userAgent?: string | undefined;
 }
 
 export interface Metrics {

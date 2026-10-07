@@ -23,8 +23,12 @@ export interface AuditEvent {
 }
 
 export interface RecordOptions {
-  /** `AUDIT_HMAC_KEY` (≥ 32 chars). */
-  readonly hmacKey: string;
+  /**
+   * `AUDIT_HMAC_KEY` (≥ 32 chars). Optional: processes that never see an `origin` (the worker)
+   * don't hold it. An event WITH an origin and no key fails closed (`audit.origin_without_key`),
+   * raw IP / user agent are never stored.
+   */
+  readonly hmacKey?: string | undefined;
   /** Prefix stored with each hash so a key rotation stays unambiguous (`v1:<hex>`). */
   readonly hmacKeyVersion?: string;
 }
@@ -42,6 +46,7 @@ function sqlState(error: unknown): string | undefined {
 
 function keyedHash(options: RecordOptions, value: string | undefined): string | null {
   if (value === undefined || value === "") return null;
+  if (options.hmacKey === undefined) throw invariant("audit.origin_without_key");
   return `${options.hmacKeyVersion ?? "v1"}:${hmacSha256Hex(options.hmacKey, value)}`;
 }
 
@@ -57,9 +62,14 @@ export async function record(
   event: AuditEvent,
   options: RecordOptions,
 ): Promise<{ seq: number; hash: string }> {
-  if (options.hmacKey.length < MIN_KEY_LENGTH) throw invariant("audit.hmac_key_too_short");
+  if (options.hmacKey !== undefined && options.hmacKey.length < MIN_KEY_LENGTH) {
+    throw invariant("audit.hmac_key_too_short");
+  }
   if (event.actor.id === "") throw invariant("audit.invalid_actor");
   const data = parseAuditData(event.action, event.data);
+  // before the chain lock: a missing key must not hold it
+  const ipHash = keyedHash(options, event.origin?.ip);
+  const uaHash = keyedHash(options, event.origin?.userAgent);
 
   const [head] = await tx.select().from(chainHead).where(eq(chainHead.id, 1)).for("update");
   if (!head) throw invariant("audit.chain_head_missing");
@@ -74,8 +84,8 @@ export async function record(
     entityType: event.entityType ?? null,
     entityId: event.entityId ?? null,
     locationId: event.locationId ?? null,
-    ipHash: keyedHash(options, event.origin?.ip),
-    uaHash: keyedHash(options, event.origin?.userAgent),
+    ipHash,
+    uaHash,
     data,
     prevHash: head.hash,
   };

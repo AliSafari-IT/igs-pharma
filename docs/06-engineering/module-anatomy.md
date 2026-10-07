@@ -68,3 +68,5 @@ Run locally: `pnpm lint:boundaries` and `pnpm test:boundaries`. CI's `lint` job 
 2. Add `schema.ts` with `pgSchema("<name>")`; run `pnpm db:generate` — the glob picks it up.
 3. Export only the public API from `src/index.ts`.
 4. If it needs a new allowed dependency edge, change the rules in `eslint.config.mjs` **with an architect-approved decision**, never by exempting a file.
+
+12. **Audit actions and composition roots (T-006b).** A module that audits exports `registerAuditActions()` (its `registerAuditAction(action, schema)` calls). Each app's composition root calls them **before** `configureKernel({ audit })`: an unregistered action is rejected (fail closed). Modules with background jobs export a `register<Module>Jobs(boss)`-style function (it takes the kernel runtime inside the module); the worker only wires it. See `kernel.md` and `docs/03-architecture/audit-log.md`.

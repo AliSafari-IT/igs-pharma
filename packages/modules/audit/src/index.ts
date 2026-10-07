@@ -10,3 +10,15 @@ export {
 export { type AuditDataShape, registerAuditAction } from "./actions";
 export { canonicalJson } from "./canonical";
 export { GENESIS_HASH, computeHash } from "./chain";
+export {
+  AUDIT_JOBS,
+  type ChainVerificationResult,
+  type JobScheduler,
+  MIN_FUTURE_PARTITIONS,
+  type PartitionMaintenanceResult,
+  registerAuditJobs,
+  reportPartitionsFailed,
+  reportVerifyFailed,
+  runChainVerification,
+  runPartitionMaintenance,
+} from "./jobs";

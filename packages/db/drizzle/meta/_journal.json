@@ -50,6 +50,13 @@
       "when": 1791405159465,
       "tag": "0006_audit_utc_partitions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791406971328,
+      "tag": "0007_audit_worker_role",
+      "breakpoints": true
     }
   ]
 }
