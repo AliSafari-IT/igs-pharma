@@ -19,7 +19,8 @@
     "db:studio": "turbo run db:studio --filter=@igs/db",
     "clean": "turbo run clean && rm -rf node_modules",
     "lint:boundaries": "eslint . && node tools/boundaries/check-cycles.mjs",
-    "test:boundaries": "node --test tools/boundaries/boundaries.test.mjs"
+    "test:boundaries": "node --test tools/boundaries/boundaries.test.mjs",
+    "db:check": "node tools/db/check-drift.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

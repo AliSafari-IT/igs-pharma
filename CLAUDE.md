@@ -39,6 +39,7 @@ pnpm run format             # Biome auto-format
 pnpm run test               # Vitest (all packages)
 pnpm run test:watch         # watch mode
 pnpm --filter=@igs/crypto run test   # single package tests
+pnpm --filter=@igs/db run test       # real-Postgres tests (Testcontainers; or TEST_DATABASE_URL without Docker)
 
 # E2E (Playwright)
 cd e2e && pnpm exec playwright test
@@ -51,6 +52,7 @@ pnpm exec playwright test --ui
 pnpm db:generate            # generate Drizzle migration files
 pnpm db:migrate             # apply migrations to DATABASE_URL
 pnpm db:studio              # open Drizzle Studio
+pnpm db:check               # drift check: schema changed without a committed migration?
 ```
 
 ### Build
@@ -95,7 +97,7 @@ All env vars are typed and validated at startup via `packages/config/src/env.ts`
 
 ### Database schema
 
-Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). `packages/db` provides the client, the shared tables (`idempotency_keys`), the `newId()` UUIDv7 helper (`@igs/db/ids`) and aggregates module schemas for drizzle-kit **by path glob only — it never imports modules**. See `packages/db/README.md`. Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
+Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). `packages/db` provides the client, the shared tables (`idempotency_keys`), the `newId()` UUIDv7 helper (`@igs/db/ids`) and aggregates module schemas for drizzle-kit **by path glob only — it never imports modules**. See `packages/db/README.md` and `docs/06-engineering/migrations.md` (migration policy, `@igs/db/testing` harness). Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
 
 ### Auth
 

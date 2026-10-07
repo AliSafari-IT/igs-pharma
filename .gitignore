@@ -41,9 +41,6 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# drizzle generated meta
-**/drizzle/meta/
-
 # test artifacts
 **/test-results/
 **/playwright-report/
