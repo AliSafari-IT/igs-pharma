@@ -1,0 +1,26 @@
+{
+  "name": "@igs/auth",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./client": { "types": "./src/client.ts", "default": "./src/client.ts" },
+    "./permissions": {
+      "types": "./src/permissions.ts",
+      "default": "./src/permissions.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@igs/config": "workspace:*",
+    "@igs/db": "workspace:*",
+    "better-auth": "1.2.5",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "typescript": "5.7.2"
+  }
+}

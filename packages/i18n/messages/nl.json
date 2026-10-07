@@ -1,0 +1,15 @@
+{
+  "common": {
+    "loading": "Laden...",
+    "error": "Er is een fout opgetreden.",
+    "retry": "Opnieuw proberen"
+  },
+  "nav": {
+    "home": "Home",
+    "catalog": "Producten",
+    "account": "Mijn account"
+  },
+  "health": {
+    "pageTitle": "Gezondheid & welzijn"
+  }
+}

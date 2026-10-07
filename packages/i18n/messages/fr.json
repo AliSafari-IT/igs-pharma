@@ -1,0 +1,15 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur s'est produite.",
+    "retry": "Réessayer"
+  },
+  "nav": {
+    "home": "Accueil",
+    "catalog": "Produits",
+    "account": "Mon compte"
+  },
+  "health": {
+    "pageTitle": "Santé & bien-être"
+  }
+}

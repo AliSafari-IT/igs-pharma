@@ -1,0 +1,22 @@
+{
+  "name": "@igs/observability",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./logger": { "types": "./src/logger.ts", "default": "./src/logger.ts" },
+    "./otel": { "types": "./src/otel.ts", "default": "./src/otel.ts" }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@igs/config": "workspace:*",
+    "pino": "9.5.0"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "@types/node": "22.10.2",
+    "typescript": "5.7.2"
+  }
+}

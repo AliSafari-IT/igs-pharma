@@ -1,0 +1,52 @@
+/* packages/ui/src/styles/tokens.css */
+/* Tailwind CSS v4 theme — single source of design tokens */
+@import "tailwindcss";
+
+@theme {
+  /* Brand */
+  --color-primary: #0f766e; /* teal-700 */
+  --color-primary-hover: #115e59; /* teal-800 */
+  --color-primary-active: #134e4a; /* teal-900 */
+  --color-primary-subtle: #f0fdfa; /* teal-50  */
+  --color-primary-muted: #ccfbf1; /* teal-100 */
+  --color-secondary: #14b8a6; /* teal-500 — decorative only */
+  --color-accent: #f59e0b; /* amber-500 — use with dark text */
+  --color-accent-subtle: #fffbeb; /* amber-50  */
+  --color-accent-strong: #92400e; /* amber-800 */
+
+  /* Neutrals */
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc; /* slate-50  */
+  --color-surface-2: #f1f5f9; /* slate-100 */
+  --color-border: #e2e8f0; /* slate-200 — decorative */
+  --color-border-strong: #64748b; /* slate-500 — inputs ≥3:1 */
+  --color-text: #0f172a; /* slate-900 */
+  --color-text-muted: #64748b; /* slate-500 — on white/surface only */
+  --color-text-subtle: #475569; /* slate-600 — muted on surface-2 */
+  --color-focus: #0f766e;
+
+  /* Feedback */
+  --color-success: #16a34a;
+  --color-success-text: #15803d;
+  --color-success-subtle: #f0fdf4;
+  --color-error: #dc2626;
+  --color-error-text: #b91c1c;
+  --color-error-subtle: #fef2f2;
+  --color-warning: #f59e0b;
+  --color-warning-text: #92400e;
+  --color-info: #0f766e;
+
+  /* Typography */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", ui-serif, Georgia, serif;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
+  --shadow-pop: 0 8px 32px rgb(15 23 42 / 0.12);
+}

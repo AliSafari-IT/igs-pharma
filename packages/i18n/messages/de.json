@@ -1,0 +1,15 @@
+{
+  "common": {
+    "loading": "Laden...",
+    "error": "Ein Fehler ist aufgetreten.",
+    "retry": "Erneut versuchen"
+  },
+  "nav": {
+    "home": "Startseite",
+    "catalog": "Produkte",
+    "account": "Mein Konto"
+  },
+  "health": {
+    "pageTitle": "Gesundheit & Wohlbefinden"
+  }
+}

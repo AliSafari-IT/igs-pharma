@@ -1,0 +1,23 @@
+{
+  "name": "@igs/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./routing": { "types": "./src/routing.ts", "default": "./src/routing.ts" }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next-intl": "3.26.3"
+  },
+  "peerDependencies": {
+    "next": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "next": "16.0.0",
+    "typescript": "5.7.2"
+  }
+}

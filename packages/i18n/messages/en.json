@@ -1,0 +1,15 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred.",
+    "retry": "Try again"
+  },
+  "nav": {
+    "home": "Home",
+    "catalog": "Products",
+    "account": "My account"
+  },
+  "health": {
+    "pageTitle": "Health & wellness"
+  }
+}

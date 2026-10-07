@@ -1,0 +1,23 @@
+{
+  "name": "@igs/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./hash": { "types": "./src/hash.ts", "default": "./src/hash.ts" },
+    "./envelope": {
+      "types": "./src/envelope.ts",
+      "default": "./src/envelope.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "@types/node": "22.10.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

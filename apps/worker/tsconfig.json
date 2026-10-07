@@ -1,0 +1,7 @@
+{
+  "extends": "@igs/tsconfig/node.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/.tsbuildinfo"
+  },
+  "include": ["src"]
+}

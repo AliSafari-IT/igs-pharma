@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/tsconfig" },
+    { "path": "packages/config" },
+    { "path": "packages/db" },
+    { "path": "packages/auth" },
+    { "path": "packages/crypto" },
+    { "path": "packages/observability" },
+    { "path": "packages/ui" },
+    { "path": "packages/i18n" },
+    { "path": "apps/web" },
+    { "path": "apps/platform" },
+    { "path": "apps/worker" }
+  ]
+}

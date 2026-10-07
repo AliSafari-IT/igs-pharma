@@ -1,0 +1,15 @@
+{
+  "name": "@igs/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "@playwright/test": "1.49.1",
+    "typescript": "5.7.2"
+  }
+}
