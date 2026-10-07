@@ -5,6 +5,7 @@ export {
   type VerifyFailure,
   type VerifyRange,
   verifyChain,
+  verifyChainSnapshot,
 } from "./verify";
 export { type AuditDataShape, registerAuditAction } from "./actions";
 export { canonicalJson } from "./canonical";

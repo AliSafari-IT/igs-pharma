@@ -1,12 +1,27 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { command } from "@igs/kernel";
 import { actors, configureKernelForTests, resetKernelForTests } from "@igs/kernel/testing";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { type AuditEvent, createAuditPort, record, registerAuditAction, verifyChain } from "../src";
+import {
+  type AuditEvent,
+  type VerifyRange,
+  createAuditPort,
+  record,
+  registerAuditAction,
+  verifyChain,
+  verifyChainSnapshot,
+} from "../src";
 import { resetAuditActions } from "../src/actions";
 
 const KEY = "k".repeat(32);
@@ -39,6 +54,8 @@ const decided = (orderId = "o-1", extra: Partial<AuditEvent> = {}): AuditEvent =
   data: { decision: "approved", orderId },
   ...extra,
 });
+/** The documented caller pattern: one REPEATABLE READ, read-only transaction (R2). */
+const verify = (range?: VerifyRange) => verifyChainSnapshot(iso.db, range);
 const append = (event: AuditEvent) => iso.db.transaction((tx) => record(tx, event, options));
 const rows = () =>
   iso.sql<
@@ -68,7 +85,7 @@ describe("record", () => {
     expect(stored[0]?.prev_hash).toBe("0".repeat(64));
     expect(stored[1]?.prev_hash).toBe(stored[0]?.hash);
     expect(stored[1]?.hash).toBe(b.hash);
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: true, checked: 2, headSeq: 2 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 2, headSeq: 2 });
   });
 
   it("rolls back with the transaction (event and chain head together)", async () => {
@@ -80,7 +97,7 @@ describe("record", () => {
       }),
     ).rejects.toThrow("boom");
     expect((await rows()).length).toBe(1);
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: true, checked: 1, headSeq: 1 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 1, headSeq: 1 });
   });
 
   it("50 parallel records produce a valid, gap-free chain", async () => {
@@ -90,7 +107,7 @@ describe("record", () => {
     expect(new Set(results.map((r) => r.seq)).size).toBe(50);
     const stored = await rows();
     expect(stored.map((r) => r.seq)).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: true, checked: 50, headSeq: 50 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 50, headSeq: 50 });
   });
 
   it("hashes IP and user agent with the keyed hash (v1:<hex>) and never stores raw values", async () => {
@@ -139,7 +156,7 @@ describe("record", () => {
       append(decided("o-1", { at: new Date("2100-01-01T00:00:00Z") })),
     ).rejects.toThrow();
     expect((await rows()).length).toBe(0);
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: true, checked: 0 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 0 });
   });
 });
 
@@ -152,7 +169,7 @@ describe("verifyChain detects tampering (privileged connection)", () => {
     await tamper(
       `UPDATE audit.events SET data = '{"decision":"rejected","orderId":"o-3"}' WHERE seq = 3`,
     );
-    expect(await verifyChain(iso.db)).toMatchObject({
+    expect(await verify()).toMatchObject({
       ok: false,
       firstBadSeq: 3,
       reason: "hash_mismatch",
@@ -161,18 +178,18 @@ describe("verifyChain detects tampering (privileged connection)", () => {
 
   it("an altered row whose hash was recomputed is caught by the next link", async () => {
     await tamper(`UPDATE audit.events SET hash = repeat('a', 64) WHERE seq = 2`);
-    expect(await verifyChain(iso.db)).toMatchObject({
+    expect(await verify()).toMatchObject({
       ok: false,
       firstBadSeq: 2,
       reason: "hash_mismatch",
     });
     await tamper(`UPDATE audit.events SET prev_hash = repeat('b', 64) WHERE seq = 4`);
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: false });
+    expect(await verify()).toMatchObject({ ok: false });
   });
 
   it("a deleted row in the middle (gap)", async () => {
     await tamper("DELETE FROM audit.events WHERE seq = 3");
-    expect(await verifyChain(iso.db)).toMatchObject({
+    expect(await verify()).toMatchObject({
       ok: false,
       firstBadSeq: 3,
       reason: "seq_gap",
@@ -181,7 +198,7 @@ describe("verifyChain detects tampering (privileged connection)", () => {
 
   it("deleted newest rows (head no longer matches)", async () => {
     await tamper("DELETE FROM audit.events WHERE seq = 5");
-    expect(await verifyChain(iso.db)).toMatchObject({
+    expect(await verify()).toMatchObject({
       ok: false,
       firstBadSeq: 5,
       reason: "head_mismatch",
@@ -190,12 +207,12 @@ describe("verifyChain detects tampering (privileged connection)", () => {
 
   it("a rewritten head", async () => {
     await tamper("UPDATE audit.chain_head SET hash = repeat('c', 64)");
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: false, reason: "head_mismatch" });
+    expect(await verify()).toMatchObject({ ok: false, reason: "head_mismatch" });
   });
 
   it("a rewritten genesis link", async () => {
     await tamper("UPDATE audit.events SET prev_hash = repeat('d', 64) WHERE seq = 1");
-    expect(await verifyChain(iso.db)).toMatchObject({
+    expect(await verify()).toMatchObject({
       ok: false,
       firstBadSeq: 1,
       reason: "prev_hash_mismatch",
@@ -211,38 +228,77 @@ describe("verifyChain ranges", () => {
       const at = new Date(t0 - (7 - i) * 60_000); // one minute apart, oldest first
       hashes.push((await append(decided(`o-${i}`, { at }))).hash);
     }
-    expect(await verifyChain(iso.db, { toSeq: 3 })).toMatchObject({ ok: true, checked: 3 });
-    expect(await verifyChain(iso.db, { sinceAt: new Date(t0 - 3.5 * 60_000) })).toMatchObject({
+    expect(await verify({ toSeq: 3 })).toMatchObject({ ok: true, checked: 3 });
+    expect(await verify({ sinceAt: new Date(t0 - 3.5 * 60_000) })).toMatchObject({
       ok: true,
       checked: 3,
     });
-    expect(await verifyChain(iso.db, { sinceAt: new Date(t0 + 60_000) })).toMatchObject({
+    expect(await verify({ sinceAt: new Date(t0 + 60_000) })).toMatchObject({
       ok: true,
       checked: 0,
     });
-    expect(
-      await verifyChain(iso.db, { fromCheckpoint: { seq: 4, hash: hashes[3] as string } }),
-    ).toMatchObject({
+    expect(await verify({ fromCheckpoint: { seq: 4, hash: hashes[3] as string } })).toMatchObject({
       ok: true,
       checked: 2,
     });
-    expect(
-      await verifyChain(iso.db, { fromCheckpoint: { seq: 4, hash: "e".repeat(64) } }),
-    ).toMatchObject({
+    expect(await verify({ fromCheckpoint: { seq: 4, hash: "e".repeat(64) } })).toMatchObject({
       ok: false,
       firstBadSeq: 5,
       reason: "prev_hash_mismatch",
     });
     // tampering outside the window is not seen by a windowed verification, inside it is
     await tamper("UPDATE audit.events SET data = '{}'::jsonb WHERE seq = 2");
-    expect(
-      await verifyChain(iso.db, { fromCheckpoint: { seq: 4, hash: hashes[3] as string } }),
-    ).toMatchObject({ ok: true });
-    expect(await verifyChain(iso.db, { toSeq: 3 })).toMatchObject({ ok: false, firstBadSeq: 2 });
+    expect(await verify({ fromCheckpoint: { seq: 4, hash: hashes[3] as string } })).toMatchObject({
+      ok: true,
+    });
+    expect(await verify({ toSeq: 3 })).toMatchObject({ ok: false, firstBadSeq: 2 });
   });
 
   it("an empty chain verifies", async () => {
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: true, checked: 0, headSeq: 0 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 0, headSeq: 0 });
+  });
+});
+
+describe("verifyChain needs one snapshot (R2)", () => {
+  it("throws under READ COMMITTED (statements would see different snapshots)", async () => {
+    await expect(verifyChain(iso.db)).rejects.toMatchObject({
+      code: "audit.verify_requires_snapshot",
+    });
+    await expect(
+      iso.db.transaction((tx) => verifyChain(tx), { isolationLevel: "read committed" }),
+    ).rejects.toMatchObject({ code: "audit.verify_requires_snapshot" });
+  });
+
+  it("accepts REPEATABLE READ and SERIALIZABLE", async () => {
+    await append(decided("o-1"));
+    for (const isolationLevel of ["repeatable read", "serializable"] as const) {
+      await expect(
+        iso.db.transaction((tx) => verifyChain(tx), { isolationLevel, accessMode: "read only" }),
+      ).resolves.toMatchObject({ ok: true, checked: 1 });
+    }
+  });
+
+  it("records committing after the snapshot do not cause a false head_mismatch", async () => {
+    for (let i = 1; i <= 5; i++) await append(decided(`o-${i}`));
+    const result = await iso.db.transaction(
+      async (tx) => {
+        await tx.execute(sql`SELECT 1`); // the snapshot is taken here
+        for (let i = 6; i <= 10; i++) await append(decided(`o-${i}`)); // commit on other connections
+        return verifyChain(tx);
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+    expect(result).toMatchObject({ ok: true, checked: 5, headSeq: 5 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 10, headSeq: 10 });
+  });
+
+  it("verifying while 20 records commit concurrently stays ok", async () => {
+    for (let i = 1; i <= 30; i++) await append(decided(`o-${i}`));
+    const writers = Array.from({ length: 20 }, (_, i) => append(decided(`w-${i}`)));
+    const verifications = await Promise.all([verify(), verify(), verify()]);
+    await Promise.all(writers);
+    for (const v of verifications) expect(v).toMatchObject({ ok: true });
+    expect(await verify()).toMatchObject({ ok: true, checked: 50, headSeq: 50 });
   });
 });
 
@@ -273,7 +329,12 @@ describe("append-only in the database (D-027)", () => {
     try {
       const db = drizzle(conn);
       await db.transaction((tx) => record(tx, decided("o-2"), options));
-      expect(await verifyChain(db)).toMatchObject({ ok: true, checked: 2 });
+      expect(
+        await db.transaction((tx) => verifyChain(tx), {
+          isolationLevel: "repeatable read",
+          accessMode: "read only",
+        }),
+      ).toMatchObject({ ok: true, checked: 2 });
 
       const denied = async (statement: string, code = "42501") => {
         const error = await conn.unsafe(statement).then(
@@ -309,6 +370,145 @@ describe("partitions (D-029)", () => {
     expect(await future()).toBe(5);
     await expect(iso.sql`SELECT audit.ensure_partitions(99)`).rejects.toThrow(/between 0 and 24/);
   });
+
+  // R1: month arithmetic must not depend on the session TimeZone (Europe/Brussels is our D-003 zone)
+  it("bounds are exact UTC month starts and later runs never overlap, under a Brussels session", async () => {
+    const bounds = async () =>
+      iso.sql.begin(async (sql) => {
+        await sql.unsafe("SET LOCAL TimeZone = 'UTC'"); // render bounds in UTC
+        return sql<{ name: string; bound: string }[]>`
+          SELECT c.relname AS name, pg_get_expr(c.relpartbound, c.oid) AS bound
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'audit' AND c.relkind = 'r' AND c.relname ~ '^events_y20(40|41)m' ORDER BY c.relname`;
+      });
+    await iso.sql.begin(async (sql) => {
+      await sql.unsafe("SET LOCAL TimeZone = 'Europe/Brussels'");
+      // two daily-job runs in consecutive months (the `from_month` seam simulates the clock)
+      await sql`SELECT audit.ensure_partitions(3, '2040-10-15'::date)`;
+      await sql`SELECT audit.ensure_partitions(3, '2040-11-15'::date)`; // overlapped before the fix
+    });
+    const stored = await bounds();
+    expect(stored.map((r) => r.name)).toEqual([
+      "events_y2040m10",
+      "events_y2040m11",
+      "events_y2040m12",
+      "events_y2041m01",
+      "events_y2041m02",
+    ]);
+    expect(stored.map((r) => r.bound)).toEqual([
+      "FOR VALUES FROM ('2040-10-01 00:00:00+00') TO ('2040-11-01 00:00:00+00')",
+      "FOR VALUES FROM ('2040-11-01 00:00:00+00') TO ('2040-12-01 00:00:00+00')",
+      "FOR VALUES FROM ('2040-12-01 00:00:00+00') TO ('2041-01-01 00:00:00+00')",
+      "FOR VALUES FROM ('2041-01-01 00:00:00+00') TO ('2041-02-01 00:00:00+00')",
+      "FOR VALUES FROM ('2041-02-01 00:00:00+00') TO ('2041-03-01 00:00:00+00')",
+    ]);
+  });
+
+  it("future_partitions is independent of the session TimeZone", async () => {
+    const [utc, brussels] = await iso.sql.begin(async (sql) => {
+      const a = await sql<{ n: number }[]>`SELECT audit.future_partitions() AS n`;
+      await sql.unsafe("SET LOCAL TimeZone = 'Europe/Brussels'");
+      const b = await sql<{ n: number }[]>`SELECT audit.future_partitions() AS n`;
+      return [a[0]?.n, b[0]?.n];
+    });
+    expect(brussels).toBe(utc);
+  });
+});
+
+describe("0006: pinned functions, grants, alignment assertion (T-014)", () => {
+  it("grants survive the function replacement", async () => {
+    const [row] = await iso.sql<
+      { app_future: boolean; app_ensure: boolean; app_assert: boolean; public_ensure: boolean }[]
+    >`SELECT
+        has_function_privilege('igs_app', 'audit.future_partitions()', 'EXECUTE') AS app_future,
+        has_function_privilege('igs_app', 'audit.ensure_partitions(integer, date)', 'EXECUTE') AS app_ensure,
+        has_function_privilege('igs_app', 'audit.assert_partitions_aligned()', 'EXECUTE') AS app_assert,
+        coalesce((SELECT bool_or(a.grantee = 0) FROM pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          WHERE p.oid = 'audit.ensure_partitions(integer, date)'::regprocedure), false) AS public_ensure`;
+    expect(row).toEqual({
+      app_future: true,
+      app_ensure: false,
+      app_assert: false,
+      public_ensure: false,
+    });
+  });
+
+  it("functions carry the pinned settings", async () => {
+    const rows = await iso.sql<{ proname: string; proconfig: string[] | null }[]>`
+      SELECT p.proname, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'audit' ORDER BY p.proname`;
+    const byName = Object.fromEntries(rows.map((r) => [r.proname, r.proconfig ?? []]));
+    for (const name of ["ensure_partitions", "future_partitions", "assert_partitions_aligned"]) {
+      expect(byName[name], name).toEqual(
+        expect.arrayContaining(["TimeZone=UTC", "search_path=pg_catalog, audit"]),
+      );
+    }
+    expect(byName["reject_mutation"]).toEqual(
+      expect.arrayContaining(["search_path=pg_catalog, audit"]),
+    );
+  });
+
+  it("assert_partitions_aligned passes on a fresh database and rejects a misaligned partition", async () => {
+    const aligned = async () =>
+      (await iso.sql<{ n: number }[]>`SELECT audit.assert_partitions_aligned() AS n`)[0]?.n;
+    expect(await aligned()).toBe(4); // current month + 3
+    // a partition on 01:00 UTC bounds (what the TimeZone bug produced)
+    await iso.sql`CREATE TABLE audit.events_y2039m01 PARTITION OF audit.events
+      FOR VALUES FROM ('2039-01-01 01:00:00+00') TO ('2039-02-01 01:00:00+00')`;
+    await expect(aligned()).rejects.toThrow(/events_y2039m01 is not aligned to UTC month starts/);
+  });
+
+  it("upgrading a 0005 database with misaligned partitions fails the migration; an aligned one upgrades", async () => {
+    const folder = fileURLToPath(new URL("../../../db/drizzle", import.meta.url));
+    const upTo5 = mkdtempSync(join(tmpdir(), "igs-mig-"));
+    cpSync(folder, upTo5, { recursive: true });
+    const journalFile = join(upTo5, "meta", "_journal.json");
+    const journal = JSON.parse(readFileSync(journalFile, "utf8")) as { entries: { tag: string }[] };
+    journal.entries = journal.entries.filter((e) => e.tag <= "0005_audit");
+    writeFileSync(journalFile, JSON.stringify(journal));
+
+    const migrateTo = async (db: IsolatedDatabase, dir: string) => {
+      const client = postgres(db.url, { max: 1, onnotice: () => {} });
+      try {
+        await migrate(drizzle(client), { migrationsFolder: dir });
+      } finally {
+        await client.end({ timeout: 5 });
+      }
+    };
+    const old = await createIsolatedDatabase({ migrated: false });
+    const old2 = await createIsolatedDatabase({ migrated: false });
+    try {
+      // misaligned: the 0005 function run from a Brussels session (the reproduced bug)
+      await migrateTo(old, upTo5);
+      await old.sql.begin(async (sql) => {
+        await sql.unsafe("SET LOCAL TimeZone = 'Europe/Brussels'");
+        await sql`SELECT audit.ensure_partitions(14)`;
+      });
+      await expect(migrateTo(old, folder)).rejects.toThrow(/not aligned to UTC month starts/);
+
+      // aligned: upgrades, and the new function replaced the old overload
+      await migrateTo(old2, upTo5);
+      await migrateTo(old2, folder);
+      const [fn] = await old2.sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace
+        WHERE ns.nspname = 'audit' AND p.proname = 'ensure_partitions'`;
+      expect(fn?.n).toBe(1);
+    } finally {
+      await old.drop();
+      await old2.drop();
+      rmSync(upTo5, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("record maps untranslatable data to audit.invalid_data (N3)", () => {
+  it("a NUL character is rejected as invalid data, not a raw Postgres error", async () => {
+    registerAuditAction("orders.order.noted", z.object({ ref: z.string() }));
+    await expect(
+      append({ ...decided(), action: "orders.order.noted", data: { ref: "a\u0000b" } }),
+    ).rejects.toMatchObject({ code: "audit.invalid_data" });
+    expect((await rows()).length).toBe(0);
+  });
 });
 
 describe("kernel integration (AuditPort)", () => {
@@ -336,7 +536,7 @@ describe("kernel integration (AuditPort)", () => {
     const stored = await iso.sql<{ actor_type: string; actor_id: string; entity_id: string }[]>`
       SELECT actor_type, actor_id, entity_id FROM audit.events`;
     expect(stored).toEqual([{ actor_type: "user", actor_id: pharmacist.id, entity_id: "o-1" }]);
-    expect(await verifyChain(iso.db)).toMatchObject({ ok: true, checked: 1 });
+    expect(await verify()).toMatchObject({ ok: true, checked: 1 });
   });
 
   it("an anonymous actor is audited with actor_type = anonymous", async () => {

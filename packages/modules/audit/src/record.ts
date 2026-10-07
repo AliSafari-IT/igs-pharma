@@ -31,6 +31,15 @@ export interface RecordOptions {
 
 const MIN_KEY_LENGTH = 32;
 
+function sqlState(error: unknown): string | undefined {
+  for (let e: unknown = error, depth = 0; e && depth < 4; depth++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return undefined;
+}
+
 function keyedHash(options: RecordOptions, value: string | undefined): string | null {
   if (value === undefined || value === "") return null;
   return `${options.hmacKeyVersion ?? "v1"}:${hmacSha256Hex(options.hmacKey, value)}`;
@@ -72,22 +81,31 @@ export async function record(
   };
   const hash = computeHash(core);
 
-  await tx.insert(events).values({
-    id: core.id,
-    at: core.at,
-    seq: core.seq,
-    actorType: core.actorType,
-    actorId: core.actorId,
-    action: core.action,
-    entityType: core.entityType,
-    entityId: core.entityId,
-    locationId: core.locationId,
-    ipHash: core.ipHash,
-    uaHash: core.uaHash,
-    data: core.data,
-    prevHash: core.prevHash,
-    hash,
-  });
+  try {
+    await tx.insert(events).values({
+      id: core.id,
+      at: core.at,
+      seq: core.seq,
+      actorType: core.actorType,
+      actorId: core.actorId,
+      action: core.action,
+      entityType: core.entityType,
+      entityId: core.entityId,
+      locationId: core.locationId,
+      ipHash: core.ipHash,
+      uaHash: core.uaHash,
+      data: core.data,
+      prevHash: core.prevHash,
+      hash,
+    });
+  } catch (error) {
+    // jsonb cannot store \u0000 / lone surrogates: a data problem, not an infrastructure failure
+    const code = sqlState(error);
+    if (code === "22P05" || code === "22021" || code === "22P02") {
+      throw invariant("audit.invalid_data", { action: event.action });
+    }
+    throw error;
+  }
   await tx.update(chainHead).set({ seq: core.seq, hash }).where(eq(chainHead.id, 1));
   return { seq: core.seq, hash };
 }
