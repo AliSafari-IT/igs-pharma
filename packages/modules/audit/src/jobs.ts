@@ -1,4 +1,4 @@
-import type { KernelRuntime } from "@igs/kernel";
+import { type KernelRuntime, getKernelRuntime } from "@igs/kernel";
 import { sql } from "drizzle-orm";
 
 import { verifyChainSnapshot } from "./verify";
@@ -119,9 +119,21 @@ export interface JobScheduler {
 
 /**
  * Creates the queues (with retries and dead-letter queues), schedules the daily runs and registers
- * the handlers. Called by the worker's composition root after `configureKernel`.
+ * the handlers. Called by the worker's composition root after `configureKernel` and safe to call on
+ * every boot (`createQueue` and `schedule` are idempotent in pg-boss 10; a real-pg-boss test proves a
+ * restart neither throws nor loses the queue options).
+ *
+ * The kernel runtime (database, metrics, logger) is taken from the configured kernel **inside the
+ * module**: apps never hold a database handle (D-015). Apps must not call `getKernelRuntime()`
+ * themselves; the `runtime` parameter is a test seam.
+ *
+ * Changing a queue's options later is an `updateQueue` concern: `createQueue` leaves existing
+ * queues alone.
  */
-export async function registerAuditJobs(boss: JobScheduler, runtime: KernelRuntime): Promise<void> {
+export async function registerAuditJobs(
+  boss: JobScheduler,
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<void> {
   const { partitions, verify, timezone, retryLimit, retryDelaySeconds } = AUDIT_JOBS;
   const retry = { retryLimit, retryDelay: retryDelaySeconds };
 
