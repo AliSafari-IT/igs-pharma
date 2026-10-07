@@ -29,7 +29,8 @@ export interface AuditPort {
 }
 
 export interface Metrics {
-  increment(name: string, attributes?: Readonly<Record<string, string>>): void;
+  /** Adds `value` (default 1) to a counter. Labels must be low-cardinality: never put counts or ids in them. */
+  increment(name: string, attributes?: Readonly<Record<string, string>>, value?: number): void;
   /** Point-in-time value (e.g. outbox lag in seconds). */
   gauge?(name: string, value: number, attributes?: Readonly<Record<string, string>>): void;
 }

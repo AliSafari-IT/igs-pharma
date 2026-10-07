@@ -97,6 +97,7 @@ export interface RecordedSpan {
 export interface RecordedMetric {
   readonly name: string;
   readonly attributes: Readonly<Record<string, string>>;
+  readonly value: number;
 }
 
 export interface KernelTestHandles {
@@ -144,7 +145,10 @@ export function configureKernelForTests(
         };
       },
     },
-    metrics: { increment: (name, attributes = {}) => void metrics.push({ name, attributes }) },
+    metrics: {
+      increment: (name, attributes = {}, value = 1) =>
+        void metrics.push({ name, attributes, value }),
+    },
     logger: { error: (obj) => void errors.push(obj) },
     ...(options.maxRetries === undefined ? {} : { maxRetries: options.maxRetries }),
     ...(options.idempotencyTtlMs === undefined

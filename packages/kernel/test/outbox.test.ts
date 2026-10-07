@@ -13,6 +13,7 @@ import {
   defineEvent,
   handleOnce,
   pgBossExecutor,
+  purgeExpired,
   registerEvents,
   startOutboxRelay,
 } from "../src";
@@ -342,5 +343,45 @@ describe("handleOnce", () => {
     );
     expect(runs).toBe(1);
     expect(results.filter((r) => r === "ok").length).toBe(1);
+  });
+});
+
+describe("K5: metrics by value and housekeeping", () => {
+  it("relay counters carry the count as the value, not as a label", async () => {
+    await approve({ orderId: "o1" }, pharmacist());
+    await approve({ orderId: "o2" }, pharmacist());
+    const seen: { name: string; attributes: unknown; value: number | undefined }[] = [];
+    await relay({
+      metrics: {
+        increment: (name, attributes, value) => void seen.push({ name, attributes, value }),
+      },
+    }).runOnce();
+    expect(seen).toEqual([{ name: "kernel.outbox.published", attributes: {}, value: 2 }]);
+  });
+
+  it("purgeExpired removes old published outbox rows and expired keys only", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = kernel.clock.now();
+    const iso8601 = (ms: number) => new Date(now.getTime() + ms).toISOString();
+    const row = (id: string, publishedMs: number | null, deadMs: number | null = null) =>
+      iso.sql`INSERT INTO system.outbox (id, topic, schema_version, payload, created_at, published_at, dead_at)
+        VALUES (${id}, 'orders.review.approved', 1, '{}'::jsonb, ${iso8601(-30 * day)}::timestamptz,
+          ${publishedMs === null ? null : iso8601(publishedMs)}::timestamptz,
+          ${deadMs === null ? null : iso8601(deadMs)}::timestamptz)`;
+    await row(newId(), -8 * day); // published 8 days ago → purged
+    await row(newId(), -6 * day); // published 6 days ago → kept
+    await row(newId(), null); // unpublished → kept
+    await row(newId(), null, -20 * day); // dead-lettered → kept for inspection
+    await iso.sql`INSERT INTO system.idempotency_keys (key, expires_at) VALUES
+      ('old', ${iso8601(-1000)}::timestamptz), ('live', ${iso8601(day)}::timestamptz)`;
+
+    const result = await purgeExpired({ db: iso.db, now });
+    expect(result).toEqual({ outbox: 1, idempotencyKeys: 1 });
+    expect(await count("system.outbox")).toBe(3);
+    expect(
+      (await q<{ key: string }>("SELECT key FROM system.idempotency_keys")).map((r) => r.key),
+    ).toEqual(["live"]);
+    // idempotent
+    expect(await purgeExpired({ db: iso.db, now })).toEqual({ outbox: 0, idempotencyKeys: 0 });
   });
 });

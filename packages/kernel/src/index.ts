@@ -53,3 +53,5 @@ export {
   startOutboxRelay,
 } from "./relay";
 export { checkDatabase, closeDatabase } from "./lifecycle";
+export { type PurgeOptions, type PurgeResult, purgeExpired } from "./maintenance";
+export { canonicalJson, requestHash } from "./canonical";

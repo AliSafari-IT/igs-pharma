@@ -169,6 +169,21 @@ describe("authorization and validation happen before any database work", () => {
     expect(await count("kernel_items")).toBe(0);
   });
 
+  it("K1: an unauthorised actor with INVALID input gets Forbidden, not ValidationFailed", async () => {
+    const customer = actors.user({ roles: ["customer"] });
+    const error = await createItem({ id: 42 }, customer).catch((e: unknown) => e);
+    expect(error).toMatchObject({ kind: "Forbidden", code: "kernel.forbidden" });
+    expect((error as DomainError).fields).toBeUndefined(); // no schema paths leak
+    const read = query({
+      name: "test.item.list",
+      input: z.object({ page: z.number() }),
+      permission: "orders.read",
+      handler: async () => [],
+    });
+    await expect(read({ page: "x" }, customer)).rejects.toMatchObject({ kind: "Forbidden" });
+    expect(transactionCalls).toBe(0);
+  });
+
   it("anonymous actors can never run non-public commands, whatever roles are passed", async () => {
     const sneaky = { ...actors.anonymous(), roles: ["owner"] };
     await expect(createItem({ id: "a" }, sneaky)).rejects.toMatchObject({ kind: "Forbidden" });
@@ -237,6 +252,40 @@ describe("idempotency", () => {
 
   beforeEach(() => {
     runs = 0;
+  });
+
+  it("K4: the same key with DIFFERENT input is a Conflict and does not run the handler", async () => {
+    const actor = pharmacist();
+    await once({ id: "a" }, actor, { idempotencyKey: "k-hash" });
+    await expect(once({ id: "b" }, actor, { idempotencyKey: "k-hash" })).rejects.toMatchObject({
+      kind: "Conflict",
+      code: "kernel.idempotency_key_reused",
+    });
+    expect(runs).toBe(1);
+    // same input (key order irrelevant) still replays
+    const again = await once({ id: "a" }, actor, { idempotencyKey: "k-hash" });
+    expect(again.run).toBe(1);
+    const [row] = await iso.sql<{ request_hash: string }[]>`
+      SELECT request_hash FROM system.idempotency_keys WHERE key LIKE 'test.item.once:%:k-hash'`;
+    expect(row?.request_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("K4: an idempotent command whose output serialises to undefined is rejected and rolled back", async () => {
+    const nothing = command({
+      name: "test.item.nothing",
+      input: z.object({ id: z.string() }),
+      output: z.undefined(),
+      permission: "orders.review.decide",
+      audit: "none",
+      async handler({ input, ctx }) {
+        await insertItem(ctx, input.id);
+      },
+    });
+    await expect(
+      nothing({ id: "n" }, pharmacist(), { idempotencyKey: "k-undef" }),
+    ).rejects.toMatchObject({ code: "kernel.idempotent_output_undefined" });
+    expect(await count("kernel_items")).toBe(0);
+    expect(await count("system.idempotency_keys")).toBe(0);
   });
 
   it("replays the stored response for the same key without running the handler again", async () => {

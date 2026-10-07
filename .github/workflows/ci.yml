@@ -176,7 +176,7 @@ jobs:
           # NODE_ENV=test only because this CI Postgres has no TLS (production forces TLS).
           docker run -d --name worker --network host \
             -e NODE_ENV=test \
-            -e DATABASE_URL="$DATABASE_URL" -e AUTH_SECRET="$AUTH_SECRET" -e AUTH_URL="$AUTH_URL" \
+            -e DATABASE_URL="$DATABASE_URL" \
             igs-worker:ci
           for i in $(seq 1 30); do
             docker logs worker 2>&1 | grep -q "waiting for jobs" && break
