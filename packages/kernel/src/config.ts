@@ -30,6 +30,8 @@ export interface AuditPort {
 
 export interface Metrics {
   increment(name: string, attributes?: Readonly<Record<string, string>>): void;
+  /** Point-in-time value (e.g. outbox lag in seconds). */
+  gauge?(name: string, value: number, attributes?: Readonly<Record<string, string>>): void;
 }
 
 export interface Tracer {
@@ -38,6 +40,7 @@ export interface Tracer {
 
 export interface KernelLogger {
   error(obj: Record<string, unknown>, msg?: string): void;
+  info?(obj: Record<string, unknown>, msg?: string): void;
 }
 
 export interface KernelConfig {

@@ -38,6 +38,13 @@ pnpm db:check        # 4. drift check: fails if the schema differs from the comm
 pnpm --filter=@igs/db test   # 5. migrations + harness tests on real Postgres
 ```
 
+## pg-boss's `pgboss` schema (A6, D-021)
+
+pg-boss creates and upgrades its own `pgboss` schema when `boss.start()` runs with `migrate: true`. That needs DDL rights, which the production worker role must not have. Therefore:
+
+- **dev/test:** the worker (and kernel tests) start pg-boss with auto-migration.
+- **production:** the worker starts pg-boss with `migrate: false` (`NODE_ENV=production`); pg-boss's install/upgrade (`boss.start()` with a DDL-capable role, or `PgBoss.getConstructionPlans()` / `getMigrationPlans()` SQL) runs as an explicit step of the migration job next to `drizzle-kit migrate`. Wiring that step is B-08.
+
 ## CI guards
 
 | Guard | What it catches |

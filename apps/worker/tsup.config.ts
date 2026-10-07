@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { builtinModules } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,18 +49,32 @@ function thirdPartyDependencies(entry: string): string[] {
 
 /**
  * pnpm only exposes a package's *direct* dependencies, so every third-party package the bundle
- * imports (including via inlined @igs/* sources) must be declared by the worker itself — otherwise
- * `node dist/index.js` fails with ERR_MODULE_NOT_FOUND in the image. Fail the build instead.
+ * actually imports (including via inlined @igs/* sources) must be declared by the worker itself —
+ * otherwise `node dist/index.js` fails with ERR_MODULE_NOT_FOUND in the image. Fail the build instead.
+ *
+ * Checked against the real bundle (not the dependency closure), so a package that is only reachable
+ * through an unused import (e.g. better-auth behind `@igs/auth/permissions`) is not dragged into the image.
  */
-function assertDeclared(external: string[]): string[] {
+function assertBundleImportsDeclared(): void {
   const own = JSON.parse(fs.readFileSync(path.join(here, "package.json"), "utf8")) as Manifest;
-  const missing = external.filter((dep) => !(dep in (own.dependencies ?? {})));
+  const bundle = fs.readFileSync(path.join(here, "dist", "index.js"), "utf8");
+  const imported = new Set<string>();
+  for (const match of bundle.matchAll(
+    /(?:from\s*|import\s*\(?\s*|import\s+)["']([^"'.\/][^"']*)["']/g,
+  )) {
+    const spec = match[1] as string;
+    if (spec.startsWith("node:")) continue;
+    const parts = spec.split("/");
+    imported.add(spec.startsWith("@") ? parts.slice(0, 2).join("/") : (parts[0] as string));
+  }
+  const missing = [...imported].filter(
+    (dep) => !(dep in (own.dependencies ?? {})) && !builtinModules.includes(dep),
+  );
   if (missing.length > 0) {
     throw new Error(
-      `apps/worker/package.json must list these runtime dependencies (used by inlined @igs/* packages): ${missing.join(", ")}`,
+      `apps/worker/package.json must list these runtime dependencies (imported by dist/index.js): ${missing.join(", ")}`,
     );
   }
-  return external;
 }
 
 export default defineConfig({
@@ -75,7 +90,8 @@ export default defineConfig({
   // D-007: internal packages ship TS source, so they are inlined into the bundle…
   noExternal: [/^@igs\//],
   // …and everything third-party stays a runtime dependency of the image.
-  external: assertDeclared(thirdPartyDependencies("@igs/worker")),
+  external: thirdPartyDependencies("@igs/worker"),
+  onSuccess: async () => assertBundleImportsDeclared(),
   esbuildOptions(options) {
     options.alias = { ...options.alias, "server-only": path.join(here, "src/server-only.stub.ts") };
   },

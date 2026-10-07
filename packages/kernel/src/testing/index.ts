@@ -14,6 +14,7 @@ import {
   configureKernel,
   resetKernelConfig,
 } from "../config";
+import { resetEventRegistry } from "../events";
 
 // ── clock ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -158,4 +159,5 @@ export function configureKernelForTests(
 /** Back to "not configured" (the state before an app's composition root runs). */
 export function resetKernelForTests(): void {
   resetKernelConfig();
+  resetEventRegistry();
 }

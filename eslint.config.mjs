@@ -126,12 +126,8 @@ export default [
   ...[
     { app: "web", entry: "src/health.ts", note: "apps/web may only use @igs/db/health" },
     { app: "platform", entry: "src/health.ts", note: "apps/platform may only use @igs/db/health" },
-    // TODO(T-005, #7): remove this exemption when the outbox relay goes through the kernel.
-    {
-      app: "worker",
-      entry: "src/client.ts",
-      note: "apps/worker may use @igs/db/client until T-005",
-    },
+    // T-005b (A7): the worker's exemption is gone — it reaches data through @igs/kernel only.
+    { app: "worker", entry: undefined, note: "apps/worker may only use @igs/kernel (no @igs/db)" },
   ].map(({ app, entry, note }) => ({
     files: [`apps/${app}/**/*.{ts,tsx,mts}`],
     rules: {
@@ -141,7 +137,7 @@ export default [
           disallow: "**",
           message: `D-015: ${note}; apps read and write data only through module public APIs / the kernel (see module-anatomy.md)`,
         },
-        { target: "db", allow: entry },
+        ...(entry ? [{ target: "db", allow: entry }] : []),
       ]),
     },
   })),

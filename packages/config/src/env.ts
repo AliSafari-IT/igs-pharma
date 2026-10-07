@@ -1,35 +1,58 @@
 import { z } from "zod";
 
-const envSchema = z.object({
-  // Database
+/** Composable per-concern schemas: each process parses only what it uses (T-005b). */
+export const dbEnv = z.object({
   DATABASE_URL: z.string().url().describe("PostgreSQL connection string"),
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(100).default(10),
+});
 
-  // Auth
+export const authEnv = z.object({
   AUTH_SECRET: z.string().min(32).describe("Better Auth HMAC secret (≥32 chars)"),
   AUTH_URL: z.string().url().describe("Canonical app URL for Better Auth callbacks"),
+});
 
-  // Application
+export const appEnv = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
+});
 
-  // Crypto
+export const cryptoEnv = z.object({
   KMS_KEY_ID: z.string().optional().describe("Cloud KMS key ID for envelope encryption"),
   ENCRYPTION_KEY: z
     .string()
     .length(64)
     .optional()
     .describe("32-byte hex key for local dev (never production)"),
+});
 
-  // Observability
+export const observabilityEnv = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   SENTRY_DSN: z.string().url().optional(),
+});
 
-  // Feature flags
+export const featureFlagsEnv = z.object({
   NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS: z
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+});
+
+/** Full set used by `web` / `platform` (and `getEnv()`). */
+const envSchema = z.object({
+  ...dbEnv.shape,
+  ...authEnv.shape,
+  ...appEnv.shape,
+  ...cryptoEnv.shape,
+  ...observabilityEnv.shape,
+  ...featureFlagsEnv.shape,
+});
+
+/** What the worker needs: no `AUTH_*`, no feature flags. */
+export const workerEnv = z.object({
+  ...dbEnv.shape,
+  ...appEnv.shape,
+  ...cryptoEnv.shape,
+  ...observabilityEnv.shape,
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -39,7 +62,15 @@ export type Env = z.infer<typeof envSchema>;
  * Use the returned object everywhere — never access process.env directly.
  */
 export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
-  const result = envSchema.safeParse(input);
+  return parseEnvFor(envSchema, input);
+}
+
+/** Parses `input` against any composed schema; same readable error as `parseEnv`. */
+export function parseEnvFor<S extends z.ZodType>(
+  schema: S,
+  input: NodeJS.ProcessEnv = process.env,
+): z.output<S> {
+  const result = schema.safeParse(input);
   if (!result.success) {
     const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);

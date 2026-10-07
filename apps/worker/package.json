@@ -12,6 +12,7 @@
   "dependencies": {
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
+    "@igs/kernel": "workspace:*",
     "@igs/observability": "workspace:*",
     "drizzle-orm": "0.38.3",
     "pg-boss": "10.1.6",

@@ -1,2 +1,14 @@
-export { parseEnv, getEnv, type Env } from "./env";
+export {
+  parseEnv,
+  parseEnvFor,
+  getEnv,
+  type Env,
+  appEnv,
+  authEnv,
+  cryptoEnv,
+  dbEnv,
+  featureFlagsEnv,
+  observabilityEnv,
+  workerEnv,
+} from "./env";
 export { getFeatureFlags, type FeatureFlags } from "./feature-flags";

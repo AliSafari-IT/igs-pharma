@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { type Permission, hasPermission } from "@igs/auth/permissions";
+import { newId } from "@igs/db/ids";
 import { eq, lte } from "drizzle-orm";
 import type { z } from "zod";
 
@@ -14,7 +15,8 @@ import {
   isDomainError,
   validationFailed,
 } from "./errors";
-import { idempotencyKeys } from "./schema";
+import { type EventDef, requireRegistered } from "./events";
+import { idempotencyKeys, outbox } from "./schema";
 
 // ── public types ───────────────────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,11 @@ export interface Ctx {
   readonly now: Date;
   /** Written inside `tx`; commits or rolls back with the handler. */
   readonly audit: { record(entry: AuditEntry): Promise<void> };
+  /**
+   * Transactional outbox: the event row is inserted in `tx`, so it commits or rolls back with the
+   * handler. The payload is validated against the event schema; identifiers and status only (D-020).
+   */
+  readonly outbox: { publish<T>(event: EventDef<T>, payload: T): Promise<void> };
   /** Resource-level checks inside a handler (the command-level permission is already enforced). */
   can(permission: Permission): boolean;
   /**
@@ -194,6 +201,23 @@ function buildCtx(
       async record(entry) {
         audited.n++;
         await config.audit.record(entry, { actor, tx, at: now });
+      },
+    },
+    outbox: {
+      async publish(event, payload) {
+        requireRegistered(event);
+        const parsed = event.schema.safeParse(payload);
+        if (!parsed.success) {
+          throw invariant("kernel.invalid_event_payload", { topic: event.topic });
+        }
+        await tx.insert(outbox).values({
+          id: newId(),
+          topic: event.topic,
+          schemaVersion: event.version,
+          payload: parsed.data,
+          createdAt: now,
+          nextAttemptAt: now,
+        });
       },
     },
     can: (permission) => canDo(actor, permission),

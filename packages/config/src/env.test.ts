@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseEnv } from "./env";
+import { authEnv, parseEnv, parseEnvFor, workerEnv } from "./env";
 
 const valid = {
   DATABASE_URL: "postgresql://igs:igs@localhost:5432/igs_pharma",
@@ -41,5 +41,30 @@ describe("parseEnv", () => {
     });
     expect(env.DATABASE_MAX_CONNECTIONS).toBe(25);
     expect(env.NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS).toBe(true);
+  });
+});
+
+describe("parseEnvFor (per-process schemas)", () => {
+  const dbOnly = { DATABASE_URL: valid.DATABASE_URL };
+
+  it("worker schema starts without AUTH_*", () => {
+    const env = parseEnvFor(workerEnv, dbOnly);
+    expect(env.DATABASE_URL).toBe(valid.DATABASE_URL);
+    expect(env.NODE_ENV).toBe("development");
+    expect("AUTH_SECRET" in env).toBe(false);
+  });
+
+  it("worker schema still fails readably without DATABASE_URL", () => {
+    expect(() => parseEnvFor(workerEnv, {})).toThrow(/Invalid environment configuration/);
+    expect(() => parseEnvFor(workerEnv, {})).toThrow(/DATABASE_URL/);
+    expect(() => parseEnvFor(workerEnv, {})).not.toThrow(/AUTH_/);
+  });
+
+  it("the full schema (parseEnv) still requires AUTH_*", () => {
+    expect(() => parseEnv(dbOnly)).toThrow(/AUTH_SECRET/);
+  });
+
+  it("composes arbitrary schemas", () => {
+    expect(() => parseEnvFor(authEnv, {})).toThrow(/AUTH_URL/);
   });
 });

@@ -42,9 +42,9 @@ package is consumed straight from `src/`.
 4. **Exception (D-011):** `@igs/auth` **may** import `@igs/module-identity` (adapter schema). `@igs/module-identity` **must never** import `@igs/auth` — it owns tables only; the reverse would be a cycle.
 5. **`packages/db` and `packages/ui` never import modules.** `db` aggregates module schemas for drizzle-kit by path glob only (`../modules/*/src/schema.ts`, see `packages/db/README.md`). `ui` is pure presentation.
 6. **Apps** may import any package or module, never another app. **Packages never import apps.**
-7. **Apps reach data only through module public APIs / the kernel (D-015).** An app must not read or write tables directly, because that bypasses commands, authorization (D-005) and audit. The sole exemptions, listed in `eslint.config.mjs`:
+7. **Apps reach data only through module public APIs / the kernel (D-015).** An app must not read or write tables directly, because that bypasses commands, authorization (D-005) and audit. The sole exemption, listed in `eslint.config.mjs`:
    - `apps/web` and `apps/platform` → `@igs/db/health` only (used by the `/api/health` routes);
-   - `apps/worker` → `@igs/db/client` (temporary, removed in T-005 when the outbox relay goes through the kernel).
+   The worker has **no exemption** since T-005b: it reaches the database only through `@igs/kernel` (`startOutboxRelay`, `checkDatabase`, `closeDatabase`).
    Every other `@igs/db` entry (`.`, `/client`, `/schema`, `/ids`) imported from an app is an error that cites D-015.
 8. **`@igs/db/testing` and `@igs/db/testing/global-setup` are test-only.** They may be imported only from test code: `**/*.test.ts(x)`, `**/*.spec.ts(x)`, `**/test/**` and `**/vitest.config.ts`. Runtime code (modules, apps, packages) must never import them. Test code is not a production data path, so it may also use the rest of `@igs/db`.
 9. **No cycles between workspace packages** (`tools/boundaries/check-cycles.mjs`, D-014). *Covered:* circular dependencies between `apps/*`, `packages/*` and `packages/modules/*` as declared in their `package.json` files (e.g. `auth` ↔ `module-identity`). *Not covered:* circular imports between files inside a single package — those are a code-quality matter that TS/ESM tolerates; we revisit only if one ever causes a problem.

@@ -136,6 +136,9 @@ importers:
       '@igs/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@igs/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -346,6 +349,9 @@ importers:
       '@types/node':
         specifier: 24.19.1
         version: 24.19.1
+      pg-boss:
+        specifier: 10.1.6
+        version: 10.1.6
       postgres:
         specifier: 3.4.5
         version: 3.4.5
