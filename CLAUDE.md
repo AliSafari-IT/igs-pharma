@@ -83,7 +83,7 @@ e2e/             # Playwright tests
 
 - Apps may import packages; packages may import other packages.
 - Packages must NOT import from apps, and no circular deps between packages.
-- `eslint-plugin-boundaries` enforces this in CI.
+- `eslint-plugin-boundaries` is to enforce this in CI (wired in T-003; not yet active).
 - Within a package, only import from the public `index.ts` (or named exports in `package.json#exports`) — never deep-import into another package's `src/`.
 
 ### Environment
@@ -109,7 +109,7 @@ Tailwind CSS v4 with CSS-native `@theme {}` design tokens defined in `packages/u
 ### TypeScript
 
 - All packages extend `@igs/tsconfig/base.json` (or `nextjs.json` for React code, `node.json` for the worker).
-- `"moduleResolution": "Bundler"` is used for Next.js apps/packages; `"NodeNext"` for the worker only.
+- `"moduleResolution": "Bundler"` everywhere (apps, packages, worker) — internal packages export TS source and use extensionless relative imports. The worker runs via `tsx`; `tsc` there only typechecks.
 - `verbatimModuleSyntax` is on — use `import type` for type-only imports.
 - `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are enabled — array access returns `T | undefined`.
 

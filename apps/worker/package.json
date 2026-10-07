@@ -13,11 +13,12 @@
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/observability": "workspace:*",
+    "drizzle-orm": "0.38.3",
     "pg-boss": "10.1.6"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
-    "@types/node": "22.10.2",
+    "@types/node": "24.19.1",
     "tsx": "4.19.2",
     "typescript": "5.7.2"
   }

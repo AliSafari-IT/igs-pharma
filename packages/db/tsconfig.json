@@ -1,7 +1,6 @@
 {
   "extends": "@igs/tsconfig/base.json",
   "compilerOptions": {
-    "rootDir": "./src",
     "tsBuildInfoFile": "./node_modules/.cache/.tsbuildinfo"
   },
   "include": ["src", "drizzle.config.ts"]

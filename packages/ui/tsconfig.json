@@ -1,7 +1,6 @@
 {
   "extends": "@igs/tsconfig/nextjs.json",
   "compilerOptions": {
-    "rootDir": "./src",
     "tsBuildInfoFile": "./node_modules/.cache/.tsbuildinfo"
   },
   "include": ["src", "tailwind.config.ts"]

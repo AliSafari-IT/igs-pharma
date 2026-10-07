@@ -2,22 +2,32 @@
   "name": "@igs/config",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "exports": {
-    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
-    "./env": { "types": "./src/env.ts", "default": "./src/env.ts" },
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./env": {
+      "types": "./src/env.ts",
+      "default": "./src/env.ts"
+    },
     "./feature-flags": {
       "types": "./src/feature-flags.ts",
       "default": "./src/feature-flags.ts"
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "zod": "3.24.1"
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
-    "typescript": "5.7.2"
+    "@types/node": "24.19.1",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   }
 }

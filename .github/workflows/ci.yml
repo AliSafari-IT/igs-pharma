@@ -11,6 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Obviously fake values — CI never needs real secrets.
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+  AUTH_SECRET: ci-fake-auth-secret-not-a-real-secret-000
+  AUTH_URL: http://localhost:3000
   PNPM_VERSION: "10.9.0"
   NODE_VERSION: "24"
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
@@ -50,7 +54,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm biome ci .
-      - run: pnpm turbo run lint
 
   # ── 3. Typecheck ─────────────────────────────────────────────────────────────
   typecheck:
@@ -83,10 +86,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run test
-        env:
-          DATABASE_URL: postgresql://igs:igs@localhost:5432/igs_pharma
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET_TEST }}
-          AUTH_URL: http://localhost:3000
 
   # ── 5. Build ──────────────────────────────────────────────────────────────────
   build:
@@ -103,14 +102,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_STAGING }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET_STAGING }}
-          AUTH_URL: ${{ secrets.AUTH_URL_STAGING }}
 
   # ── 6. Secret scanning ────────────────────────────────────────────────────────
   secrets-scan:
     runs-on: ubuntu-latest
+    # gitleaks-action lists the PR's commits via the API (403 without pull-requests: read)
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:

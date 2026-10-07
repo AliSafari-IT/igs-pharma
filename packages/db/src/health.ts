@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-import { getDb } from "./client.js";
+import { getDb } from "./client";
 
 export async function dbHealthCheck(): Promise<{ ok: boolean; latencyMs: number }> {
   const start = Date.now();

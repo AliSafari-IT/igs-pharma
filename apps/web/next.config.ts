@@ -8,10 +8,6 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const config: NextConfig = {
   output: "standalone",
 
-  experimental: {
-    ppr: true,
-  },
-
   // Security headers
   async headers() {
     return [

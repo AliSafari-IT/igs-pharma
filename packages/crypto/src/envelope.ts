@@ -4,13 +4,9 @@
  * For now: throws if called, to prevent accidental use before proper setup.
  */
 export function encryptField(_plaintext: string): never {
-  throw new Error(
-    "Envelope encryption is not yet configured. Wire KMS_KEY_ID in Phase 1c.",
-  );
+  throw new Error("Envelope encryption is not yet configured. Wire KMS_KEY_ID in Phase 1c.");
 }
 
 export function decryptField(_ciphertext: string): never {
-  throw new Error(
-    "Envelope encryption is not yet configured. Wire KMS_KEY_ID in Phase 1c.",
-  );
+  throw new Error("Envelope encryption is not yet configured. Wire KMS_KEY_ID in Phase 1c.");
 }

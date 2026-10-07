@@ -5,4 +5,4 @@
  *   etc.
  */
 
-export { idempotencyKeys } from "./shared.js";
+export { idempotencyKeys } from "./shared";

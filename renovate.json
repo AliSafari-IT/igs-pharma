@@ -18,7 +18,11 @@
     },
     {
       "groupName": "TypeScript",
-      "matchPackageNames": ["typescript", "@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
+      "matchPackageNames": [
+        "typescript",
+        "@typescript-eslint/eslint-plugin",
+        "@typescript-eslint/parser"
+      ]
     }
   ]
 }

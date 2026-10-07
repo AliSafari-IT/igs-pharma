@@ -9,9 +9,8 @@ export default getRequestConfig(async ({ requestLocale }) => {
     : routing.defaultLocale;
 
   // Dynamic import of locale messages from the i18n package
-  const messages = (
-    await import(`../../../../packages/i18n/messages/${validLocale}.json`)
-  ).default as Record<string, unknown>;
+  const messages = (await import(`../../../../packages/i18n/messages/${validLocale}.json`))
+    .default as Record<string, unknown>;
 
   return {
     locale: validLocale,
