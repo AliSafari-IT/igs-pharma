@@ -69,7 +69,8 @@ apps/worker/     # Background jobs (Node.js, pg-boss)
 packages/
   tsconfig/      # Shared TypeScript configs (base/nextjs/node)
   config/        # Typed env vars (Zod) + feature flags
-  db/            # Drizzle ORM client, schema, migrations
+  db/            # Drizzle client, shared tables, UUIDv7 helper, migrations
+  modules/       # Domain modules (@igs/module-*), each owning its schema
   auth/          # Better Auth instance + RBAC permissions
   crypto/        # sha256, envelope encryption stubs
   observability/ # Pino logger (PII-aware), OTel stubs
@@ -92,11 +93,11 @@ All env vars are typed and validated at startup via `packages/config/src/env.ts`
 
 ### Database schema
 
-Schema lives in `packages/db/src/schema/`. The only Phase 0 table is `idempotency_keys` (cross-module deduplication). Domain module schemas (catalog, orders, etc.) are added as separate files in that directory. Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply.
+Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). `packages/db` provides the client, the shared tables (`idempotency_keys`), the `newId()` UUIDv7 helper (`@igs/db/ids`) and aggregates module schemas for drizzle-kit **by path glob only — it never imports modules**. See `packages/db/README.md`. Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
 
 ### Auth
 
-`packages/auth/src/index.ts` exports the Better Auth `auth` instance (server-only). `packages/auth/src/client.ts` exports `authClient` for Client Components. The `server-only` package guard prevents the server instance from being bundled into browser code — preserve this.
+`packages/auth/src/index.ts` exports `getAuth()`, a lazy memoised Better Auth factory (server-only). It must **never** be invoked at module top level: it reads env and opens the DB pool on first call, so importing `@igs/auth` is side-effect free (unit-tested). Tables (core + twoFactor + passkey) are owned by `@igs/module-identity` in the `identity` Postgres schema. `packages/auth/src/client.ts` exports `authClient` for Client Components. The `server-only` package guard prevents the server instance from being bundled into browser code — preserve this.
 
 ### i18n
 

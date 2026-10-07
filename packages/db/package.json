@@ -19,6 +19,10 @@
     "./schema": {
       "types": "./src/schema/index.ts",
       "default": "./src/schema/index.ts"
+    },
+    "./ids": {
+      "types": "./src/ids.ts",
+      "default": "./src/ids.ts"
     }
   },
   "scripts": {
@@ -31,12 +35,14 @@
     "@igs/config": "workspace:*",
     "drizzle-orm": "0.38.3",
     "postgres": "3.4.5",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "uuidv7": "1.2.1"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
     "@types/node": "24.19.1",
     "drizzle-kit": "0.30.1",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "zod": "4.6.5"
   }
 }
