@@ -59,6 +59,7 @@ jobs:
       - run: pnpm biome ci .
       - run: pnpm lint:boundaries
       - run: pnpm test:boundaries
+      - run: pnpm db:check
 
   # ── 3. Typecheck ─────────────────────────────────────────────────────────────
   typecheck:
