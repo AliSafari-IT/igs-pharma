@@ -7,6 +7,8 @@ export {
   auditEnv,
   authEnv,
   cryptoEnv,
+  cspEnv,
+  cspReportingEnabled,
   dbEnv,
   featureFlagsEnv,
   observabilityEnv,
