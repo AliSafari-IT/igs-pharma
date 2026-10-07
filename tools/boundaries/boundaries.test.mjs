@@ -77,11 +77,71 @@ mustPass(
   "packages/auth/src/x.ts",
   'import { identitySchema } from "@igs/module-identity";\nconsole.log(identitySchema);\n',
 );
+// --- D-015: apps reach data only via @igs/db/health (worker: /client until T-005) -----------------
 mustPass(
-  "app -> infra package subpath export",
+  "apps/web -> @igs/db/health (D-015)",
+  "apps/web/src/app/x.ts",
+  'import { dbHealthCheck } from "@igs/db/health";\nconsole.log(dbHealthCheck);\n',
+);
+mustFail(
+  "apps/web -> @igs/db/client (D-015)",
   "apps/web/src/app/x.ts",
   'import { getDb } from "@igs/db/client";\nconsole.log(getDb);\n',
+  "boundaries/entry-point",
 );
+mustFail(
+  "apps/platform -> @igs/db/schema (D-015)",
+  "apps/platform/src/app/x.ts",
+  'import { idempotencyKeys } from "@igs/db/schema";\nconsole.log(idempotencyKeys);\n',
+  "boundaries/entry-point",
+);
+mustFail(
+  "apps/web -> @igs/db root entry (D-015)",
+  "apps/web/src/app/x.ts",
+  'import { getDb } from "@igs/db";\nconsole.log(getDb);\n',
+  "boundaries/entry-point",
+);
+mustPass(
+  "apps/worker -> @igs/db/client (temporary exemption, T-005)",
+  "apps/worker/src/x.ts",
+  'import { getDb } from "@igs/db/client";\nconsole.log(getDb);\n',
+);
+
+// --- @igs/db/testing is test-only -----------------------------------------------------------------
+mustFail(
+  "module src -> @igs/db/testing",
+  "packages/modules/identity/src/x.ts",
+  'import { withTestTx } from "@igs/db/testing";\nconsole.log(withTestTx);\n',
+  "boundaries/entry-point",
+);
+mustFail(
+  "app src -> @igs/db/testing",
+  "apps/web/src/app/x.ts",
+  'import { withTestTx } from "@igs/db/testing";\nconsole.log(withTestTx);\n',
+  "boundaries/entry-point",
+);
+mustFail(
+  "module src -> @igs/db/testing/global-setup",
+  "packages/modules/identity/src/x.ts",
+  'import setup from "@igs/db/testing/global-setup";\nconsole.log(setup);\n',
+  "boundaries/entry-point",
+);
+mustPass(
+  "module test/ file -> @igs/db/testing",
+  "packages/modules/identity/test/x.ts",
+  'import { withTestTx } from "@igs/db/testing";\nconsole.log(withTestTx);\n',
+);
+mustPass(
+  "*.test.ts -> @igs/db/testing",
+  "packages/modules/identity/src/x.test.ts",
+  'import { withTestTx } from "@igs/db/testing";\nconsole.log(withTestTx);\n',
+);
+mustPass(
+  "vitest.config.ts -> @igs/db/testing/global-setup",
+  "packages/modules/identity/vitest.config.ts",
+  'import setup from "@igs/db/testing/global-setup";\nconsole.log(setup);\n',
+);
+
 mustPass(
   "module -> db helper",
   "packages/modules/identity/src/x.ts",

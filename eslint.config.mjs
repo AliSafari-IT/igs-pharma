@@ -11,6 +11,32 @@ const resolver = require.resolve("./tools/boundaries/resolver.cjs");
 
 const infra = ["config", "crypto", "db", "auth", "observability", "ui", "i18n", "kernel"];
 
+/** Test code: the only place `@igs/db/testing` may be imported from. */
+const TEST_FILES = [
+  "**/*.test.{ts,tsx,mts}",
+  "**/*.spec.{ts,tsx,mts}",
+  "**/test/**/*.{ts,tsx,mts}",
+  "**/vitest.config.ts",
+];
+
+const TESTING_MESSAGE =
+  "@igs/db/testing is test-only: import it from test code only (**/*.test.ts, **/test/**, **/vitest.config.ts)";
+
+/** entry-point options; `dbRules` decides what may be imported from @igs/db. */
+const entryPoint = (dbRules) => [
+  "error",
+  {
+    default: "disallow",
+    message: "Deep import into ${dependency.source}: import the module's public entry point only",
+    rules: [
+      // modules expose src/index.ts only; infra packages expose their package.json#exports
+      { target: "module", allow: "src/index.ts" },
+      { target: [...infra.filter((name) => name !== "db"), "app"], allow: "**" },
+      ...dbRules,
+    ],
+  },
+];
+
 export default [
   { ignores: ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/drizzle/**", "**/.turbo/**"] },
   {
@@ -75,20 +101,45 @@ export default [
           ],
         },
       ],
-      // A module is only reachable through its public entry point (src/index.ts)
-      "boundaries/entry-point": [
-        "error",
-        {
-          default: "disallow",
-          message:
-            "Deep import into ${dependency.source}: import the module's public entry point only",
-          rules: [
-            // modules expose src/index.ts only; infra packages expose their package.json#exports
-            { target: "module", allow: "src/index.ts" },
-            { target: [...infra, "app"], allow: "**" },
-          ],
-        },
-      ],
+      // Entry points per target. The default (this block) covers every non-test file; the blocks
+      // below override it for apps (D-015) and for test code.
+      "boundaries/entry-point": entryPoint([
+        { target: "db", allow: "**" },
+        { target: "db", disallow: "src/testing/**", message: TESTING_MESSAGE },
+      ]),
     },
+  },
+
+  // --- D-015: apps reach data only through module APIs / the kernel -----------------------------
+  // entry-point rules cannot filter on the importer, so each app gets its own block.
+  ...[
+    { app: "web", entry: "src/health.ts", note: "apps/web may only use @igs/db/health" },
+    { app: "platform", entry: "src/health.ts", note: "apps/platform may only use @igs/db/health" },
+    // TODO(T-005, #7): remove this exemption when the outbox relay goes through the kernel.
+    {
+      app: "worker",
+      entry: "src/client.ts",
+      note: "apps/worker may use @igs/db/client until T-005",
+    },
+  ].map(({ app, entry, note }) => ({
+    files: [`apps/${app}/**/*.{ts,tsx,mts}`],
+    rules: {
+      "boundaries/entry-point": entryPoint([
+        {
+          target: "db",
+          disallow: "**",
+          message: `D-015: ${note}; apps read and write data only through module public APIs / the kernel (see module-anatomy.md)`,
+        },
+        { target: "db", allow: entry },
+      ]),
+    },
+  })),
+
+  // --- @igs/db/testing is test-only -----------------------------------------------------------------
+  // Test code may use the harness (and, being non-production, the rest of @igs/db). Listed last so
+  // it overrides the app blocks above for test files.
+  {
+    files: TEST_FILES,
+    rules: { "boundaries/entry-point": entryPoint([{ target: "db", allow: "**" }]) },
   },
 ];
