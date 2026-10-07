@@ -1,6 +1,6 @@
 # 0005 — EU-sovereign hosting for all personal and health data
 
-- Status: Proposed (final provider after Q10)
+- Status: Accepted — Scaleway is the chosen provider (Q10 answered 2026-10-07, Ali Safari)
 - Date: 2026-10-07
 
 ## Context

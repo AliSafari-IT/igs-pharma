@@ -13,7 +13,7 @@ process asynchronously, idempotent by provider event id).
 | Shipping (Sendcloud / bpost / PostNL / DHL) | 1 | ↔ | REST + webhooks | fulfilment |
 | Medipim (product content) | 1 | ← | REST API, scheduled delta import | catalog |
 | SAM (FAMHP authentic source) | 1 | ← | Periodic export download (XML) | catalog |
-| LGO (certified pharmacy software) | 1 (stock) / 2 (Rx) | ↔ | Vendor API / file export / DB view — **TBD Phase 0** | inventory, rx |
+| LGO — **Officinall** (certified pharmacy software) | 1 (stock) / 2 (Rx) | ↔ | Vendor API / file export / DB view — confirm with Officinall in **Phase 0** | inventory, rx |
 | E-mail / SMS provider (EU) | 1 | → | API | notify |
 | Peppol access point | 1.5 | → | API (e.g. via accounting tool or AP provider) | orders/invoices |
 | Accounting (e.g. Exact Online, Odoo, Yuki, Octopus) | 1.5 | → | API / export | orders/invoices |
