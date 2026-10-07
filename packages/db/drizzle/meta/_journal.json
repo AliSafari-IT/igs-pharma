@@ -29,6 +29,13 @@
       "when": 1791400559970,
       "tag": "0003_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791402979338,
+      "tag": "0004_idempotency_request_hash",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,8 @@ export const idempotencyKeys = system.table(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     response: text("response"),
+    /** sha256 of the canonical parsed input: replaying a key with different input is a conflict (K4). */
+    requestHash: text("request_hash"),
   },
   (t) => [index("idempotency_keys_expires_at_idx").on(t.expiresAt)],
 );

@@ -6,6 +6,7 @@ import { eq, lte } from "drizzle-orm";
 import type { z } from "zod";
 
 import type { Actor } from "./actor";
+import { requestHash } from "./canonical";
 import { type AuditEntry, type KernelConfig, type Tx, getKernelConfig } from "./config";
 import {
   type FieldIssue,
@@ -271,22 +272,26 @@ async function claim<O>(
   spec: CommandSpec<unknown, O>,
   tx: Tx,
   key: string,
+  hash: string,
   now: Date,
 ): Promise<Claim<O>> {
   const expiresAt = new Date(now.getTime() + config.idempotencyTtlMs);
   const claimed = await tx
     .insert(idempotencyKeys)
-    .values({ key, createdAt: now, expiresAt })
+    .values({ key, createdAt: now, expiresAt, requestHash: hash })
     .onConflictDoUpdate({
       target: idempotencyKeys.key,
       // an EXPIRED row is reclaimed (acts as a fresh execution); a live one is left alone
-      set: { createdAt: now, expiresAt, response: null },
+      set: { createdAt: now, expiresAt, response: null, requestHash: hash },
       setWhere: lte(idempotencyKeys.expiresAt, now),
     })
     .returning({ key: idempotencyKeys.key });
   if (claimed.length > 0) return { replayed: false };
 
   const [existing] = await tx.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, key));
+  if (existing?.requestHash && existing.requestHash !== hash) {
+    throw conflict("kernel.idempotency_key_reused", { command: spec.name });
+  }
   if (!existing?.response) {
     throw conflict("kernel.idempotency_in_progress", { command: spec.name });
   }
@@ -298,7 +303,7 @@ async function claim<O>(
 
 /**
  * Defines a command: authorize/validate → ONE transaction (handler, audit, later outbox) → audit
- * guard → commit. Order of the pre-transaction stage: parse input → authorize; both happen before
+ * guard → commit. Order of the pre-transaction stage: authorize → parse input (K1); both happen before
  * the transaction opens, so a rejected call performs no database work.
  */
 export function command<I, O>(spec: CommandSpec<I, O>): Command<I, O> {
@@ -306,8 +311,9 @@ export function command<I, O>(spec: CommandSpec<I, O>): Command<I, O> {
     const config = getKernelConfig();
     guardNotNested(spec.name);
     return traced(config, spec.name, actor, async () => {
-      const input = parseInput(spec.input, rawInput);
+      // authorize BEFORE validating: an unauthorised caller learns nothing about the input schema (K1)
       authorize(spec.permission, actor);
+      const input = parseInput(spec.input, rawInput);
 
       const key = options.idempotencyKey;
       if (key !== undefined) {
@@ -331,15 +337,21 @@ export function command<I, O>(spec: CommandSpec<I, O>): Command<I, O> {
               spec as CommandSpec<unknown, O>,
               tx,
               storageKey,
+              requestHash(input),
               now,
             );
             if (claimed.replayed) return claimed.value;
           }
           const output = await runHandler(config, spec, input, tx, actor, now);
           if (storageKey !== undefined) {
+            const response = JSON.stringify(output);
+            if (response === undefined) {
+              // would leave the key "in progress" forever (K4)
+              throw invariant("kernel.idempotent_output_undefined", { command: spec.name });
+            }
             await tx
               .update(idempotencyKeys)
-              .set({ response: JSON.stringify(output) })
+              .set({ response })
               .where(eq(idempotencyKeys.key, storageKey));
           }
           return output;
@@ -362,8 +374,8 @@ export function query<I, O>(spec: QuerySpec<I, O>): Query<I, O> {
     const config = getKernelConfig();
     guardNotNested(spec.name);
     return traced(config, spec.name, actor, async () => {
-      const input = parseInput(spec.input, rawInput);
       authorize(spec.permission, actor);
+      const input = parseInput(spec.input, rawInput);
       return inTransaction(
         config,
         spec.name,

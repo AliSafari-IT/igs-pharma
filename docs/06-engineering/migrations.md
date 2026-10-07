@@ -45,6 +45,10 @@ pg-boss creates and upgrades its own `pgboss` schema when `boss.start()` runs wi
 - **dev/test:** the worker (and kernel tests) start pg-boss with auto-migration.
 - **production:** the worker starts pg-boss with `migrate: false` (`NODE_ENV=production`); pg-boss's install/upgrade (`boss.start()` with a DDL-capable role, or `PgBoss.getConstructionPlans()` / `getMigrationPlans()` SQL) runs as an explicit step of the migration job next to `drizzle-kit migrate`. Wiring that step is B-08.
 
+## Kernel tables and housekeeping
+
+`system.idempotency_keys` gained `request_hash` (migration `0004`, nullable: `handleOnce` claims have none). Old rows are removed by the worker's daily `purgeExpired` job (published outbox > 7 days, expired idempotency keys), which runs with the app role (DML only); no retention work is done by migrations.
+
 ## CI guards
 
 | Guard | What it catches |
