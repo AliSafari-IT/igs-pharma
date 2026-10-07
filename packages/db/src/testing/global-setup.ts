@@ -34,34 +34,16 @@ declare module "vitest" {
  */
 export default async function setup({ provide }: GlobalSetupContext) {
   const external = process.env["TEST_DATABASE_URL"];
-  let container: StartedPostgreSqlContainer | undefined;
-  let adminUrl: string;
-
-  if (external) {
-    adminUrl = external;
-  } else {
-    container = await new PostgreSqlContainer(POSTGRES_IMAGE).start();
-    adminUrl = container.getConnectionUri();
-  }
-
   const prefix = `igs_test_${randomUUID().replaceAll("-", "").slice(0, 8)}`;
-  const template = `${prefix}_template`;
-  const shared = `${prefix}_shared`;
+  let container: StartedPostgreSqlContainer | undefined;
+  let admin: postgres.Sql | undefined;
 
-  const admin = postgres(adminUrl, { max: 1, onnotice: () => {} });
-  await admin.unsafe(`CREATE DATABASE "${template}"`);
-  await applyMigrations(withDatabase(adminUrl, template));
-  await admin.unsafe(`CREATE DATABASE "${shared}" TEMPLATE "${template}"`);
-
-  provide("igsTestAdminUrl", adminUrl);
-  provide("igsTestTemplateDb", template);
-  provide("igsTestSharedDb", shared);
-  provide("igsTestPrefix", prefix);
-
-  return async () => {
+  // Used for teardown AND when setup itself fails: never leak the container, the admin
+  // connection or half-created databases (a leaked handle keeps Vitest from exiting).
+  const cleanup = async () => {
     try {
-      if (!container) {
-        // external server: remove everything this run created (the container just gets stopped)
+      if (admin && !container) {
+        // external server: remove everything this run created (a container is simply stopped)
         const rows = await admin<{ datname: string }[]>`
           SELECT datname FROM pg_database WHERE datname LIKE ${`${prefix}\\_%`}`;
         for (const { datname } of rows) {
@@ -69,8 +51,40 @@ export default async function setup({ provide }: GlobalSetupContext) {
         }
       }
     } finally {
-      await admin.end({ timeout: 5 });
-      await container?.stop();
+      try {
+        await admin?.end({ timeout: 5 });
+      } finally {
+        await container?.stop();
+      }
     }
   };
+
+  try {
+    let adminUrl: string;
+    if (external) {
+      adminUrl = external;
+    } else {
+      container = await new PostgreSqlContainer(POSTGRES_IMAGE).start();
+      adminUrl = container.getConnectionUri();
+    }
+
+    const template = `${prefix}_template`;
+    const shared = `${prefix}_shared`;
+
+    admin = postgres(adminUrl, { max: 1, onnotice: () => {} });
+    await admin.unsafe(`CREATE DATABASE "${template}"`);
+    await applyMigrations(withDatabase(adminUrl, template));
+    await admin.unsafe(`CREATE DATABASE "${shared}" TEMPLATE "${template}"`);
+
+    provide("igsTestAdminUrl", adminUrl);
+    provide("igsTestTemplateDb", template);
+    provide("igsTestSharedDb", shared);
+    provide("igsTestPrefix", prefix);
+  } catch (error) {
+    // best effort: the original error is the one worth reporting
+    await cleanup().catch(() => {});
+    throw error;
+  }
+
+  return cleanup;
 }
