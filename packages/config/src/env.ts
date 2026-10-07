@@ -30,6 +30,11 @@ export const observabilityEnv = z.object({
   SENTRY_DSN: z.string().url().optional(),
 });
 
+/** Audit module (T-006): keyed hash of IP / user agent. Runtime-only secret (D-023); KMS-wrapped in B-04. */
+export const auditEnv = z.object({
+  AUDIT_HMAC_KEY: z.string().min(32).describe("HMAC key for audit ip/ua hashes (≥32 chars)"),
+});
+
 export const featureFlagsEnv = z.object({
   NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS: z
     .enum(["true", "false"])

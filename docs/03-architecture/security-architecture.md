@@ -129,7 +129,8 @@ modules (patients, prescriptions, messaging) at Phase 2. Threat model reviewed e
   - **Flood guard:** per-process token bucket, 60 logged reports/minute; further reports are still
     counted but not logged, and the drops are reported at most once per minute as a
     `security.csp.report_dropped` increment **and** one `warn` line `{ dropped: n }` (visible in the
-    logs while metrics are a no-op). Real rate limiting is B-10.
+    logs while metrics are a no-op). The summary is emitted lazily: by the first report that arrives
+    after the minute has passed, so a burst followed by silence is summarised only when traffic resumes. Real rate limiting is B-10.
   - Browsers send reports to the HTTPS origin: on plain-HTTP `localhost`, `upgrade-insecure-requests`
     upgrades the report request, so test delivery behind TLS (verified with Chromium for T-013).
     `pnpm check:csp` covers the headers, both formats (204), 413 and 415 on both apps, and that the

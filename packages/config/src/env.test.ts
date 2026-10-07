@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   appEnv,
+  auditEnv,
   authEnv,
   cspEnv,
   cspReportingEnabled,
@@ -96,5 +97,15 @@ describe("CSP_REPORTING (T-013)", () => {
 
   it("rejects anything but on/off", () => {
     expect(() => enabled({ CSP_REPORTING: "yes" })).toThrow(/CSP_REPORTING/);
+  });
+});
+
+describe("auditEnv", () => {
+  it("requires AUDIT_HMAC_KEY of at least 32 chars", () => {
+    expect(() => parseEnvFor(auditEnv, {})).toThrow(/AUDIT_HMAC_KEY/);
+    expect(() => parseEnvFor(auditEnv, { AUDIT_HMAC_KEY: "short" })).toThrow(/AUDIT_HMAC_KEY/);
+    expect(parseEnvFor(auditEnv, { AUDIT_HMAC_KEY: "k".repeat(32) }).AUDIT_HMAC_KEY).toHaveLength(
+      32,
+    );
   });
 });
