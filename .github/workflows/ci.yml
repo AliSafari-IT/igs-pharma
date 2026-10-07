@@ -143,10 +143,6 @@ jobs:
           push: false
           load: true
           tags: igs-${{ matrix.image }}:ci
-          build-args: |
-            DATABASE_URL=${{ env.DATABASE_URL }}
-            AUTH_SECRET=${{ env.AUTH_SECRET }}
-            AUTH_URL=${{ env.AUTH_URL }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
       - name: Image size and user
@@ -155,6 +151,16 @@ jobs:
           user=$(docker image inspect igs-${{ matrix.image }}:ci --format '{{.Config.User}}')
           echo "igs-${{ matrix.image }}: $((size / 1024 / 1024)) MiB, runs as '$user'" | tee -a "$GITHUB_STEP_SUMMARY"
           test -n "$user" && test "$user" != "root"
+      - name: No secrets baked into the final image (D-023)
+        run: |
+          if docker history --no-trunc igs-${{ matrix.image }}:ci | grep -Eq "AUTH_SECRET|DATABASE_URL|AUTH_URL"; then
+            echo "::error::final image history mentions build/runtime secrets"
+            exit 1
+          fi
+          if docker image inspect igs-${{ matrix.image }}:ci --format '{{json .Config.Env}}' | grep -Eq "AUTH_SECRET|DATABASE_URL|AUTH_URL"; then
+            echo "::error::final image ENV contains secrets"
+            exit 1
+          fi
       - name: Worker smoke test
         if: matrix.image == 'worker'
         run: |
