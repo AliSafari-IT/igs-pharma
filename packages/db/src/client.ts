@@ -5,10 +5,8 @@ import postgres from "postgres";
 
 import { getEnv } from "@igs/config/env";
 
-import * as schema from "./schema/index";
-
 let _sql: postgres.Sql | undefined;
-let _db: ReturnType<typeof drizzle<typeof schema>> | undefined;
+let _db: ReturnType<typeof drizzle> | undefined;
 
 /**
  * Returns the singleton Drizzle client.
@@ -23,7 +21,7 @@ export function getDb() {
       connect_timeout: 10,
       ssl: env.NODE_ENV === "production" ? "require" : false,
     });
-    _db = drizzle(_sql, { schema, logger: env.NODE_ENV === "development" });
+    _db = drizzle(_sql, { logger: env.NODE_ENV === "development" });
   }
   return _db;
 }

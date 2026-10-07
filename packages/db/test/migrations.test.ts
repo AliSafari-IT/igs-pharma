@@ -15,11 +15,11 @@ describe("migrations", () => {
 
     const tables = await empty.sql<{ table_schema: string; table_name: string }[]>`
       SELECT table_schema, table_name FROM information_schema.tables
-      WHERE table_schema IN ('public', 'identity') ORDER BY 1, 2`;
+      WHERE table_schema IN ('public', 'identity', 'system') ORDER BY 1, 2`;
     const names = tables.map((t) => `${t.table_schema}.${t.table_name}`);
     expect(names).toEqual(
       expect.arrayContaining([
-        "public.idempotency_keys",
+        "system.idempotency_keys",
         "identity.users",
         "identity.sessions",
         "identity.accounts",
@@ -31,6 +31,12 @@ describe("migrations", () => {
 
     const [ext] = await empty.sql`SELECT 1 AS ok FROM pg_extension WHERE extname = 'citext'`;
     expect(ext).toBeDefined();
+  });
+
+  it("idempotency_keys lives in the kernel's `system` schema only (D-017)", async () => {
+    const rows = await empty.sql<{ table_schema: string }[]>`
+      SELECT table_schema FROM information_schema.tables WHERE table_name = 'idempotency_keys'`;
+    expect(rows.map((r) => r.table_schema)).toEqual(["system"]);
   });
 
   it("re-applying is a no-op", async () => {

@@ -5,22 +5,10 @@ import postgres from "postgres";
 import type { GlobalSetupContext } from "vitest/node";
 
 import { applyMigrations, withDatabase } from "./migrate";
+import type {} from "./provided-context";
 
 /** Same major as docker-compose.yml and production (architect, T-004). */
 export const POSTGRES_IMAGE = "postgres:17-alpine";
-
-declare module "vitest" {
-  export interface ProvidedContext {
-    /** Connection URL (superuser) to the throw-away Postgres server for this test run. */
-    igsTestAdminUrl: string;
-    /** Name of the migrated template database (per-file databases are cloned from it). */
-    igsTestTemplateDb: string;
-    /** Name of the shared, migrated database used by `withTestTx()`. */
-    igsTestSharedDb: string;
-    /** Prefix of every database created in this run (used for cleanup). */
-    igsTestPrefix: string;
-  }
-}
 
 /**
  * Vitest global setup — one Postgres per test run, shared by every test file.
