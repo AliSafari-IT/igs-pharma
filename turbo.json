@@ -24,14 +24,35 @@
       "persistent": true
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "DATABASE_MAX_CONNECTIONS",
+        "AUTH_SECRET",
+        "AUTH_URL",
+        "NODE_ENV"
+      ]
     },
     "db:generate": {
-      "outputs": ["drizzle/**"]
+      "outputs": ["drizzle/**"],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "DATABASE_MAX_CONNECTIONS",
+        "AUTH_SECRET",
+        "AUTH_URL",
+        "NODE_ENV"
+      ]
     },
     "db:studio": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "DATABASE_MAX_CONNECTIONS",
+        "AUTH_SECRET",
+        "AUTH_URL",
+        "NODE_ENV"
+      ]
     },
     "clean": {
       "cache": false

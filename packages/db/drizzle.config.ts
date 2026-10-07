@@ -5,7 +5,8 @@ import { parseEnv } from "@igs/config/env";
 const env = parseEnv();
 
 export default {
-  schema: "./src/schema/index.ts",
+  // Aggregated by path glob only — packages/db never imports modules (D-001).
+  schema: ["./src/schema/shared.ts", "../modules/*/src/schema.ts"],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

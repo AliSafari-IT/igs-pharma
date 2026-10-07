@@ -18,17 +18,21 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/passkey": "1.7.7",
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
+    "@igs/module-identity": "workspace:*",
     "better-auth": "1.7.7",
     "server-only": "0.0.1"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
     "@types/node": "24.19.1",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   }
 }
