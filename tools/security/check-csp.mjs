@@ -86,12 +86,28 @@ async function check(app, url, previousNonces) {
   return csp;
 }
 
+/** API routes skip the proxy (no locale redirect, no CSP) but keep nosniff from next.config.ts. */
+async function checkApi(url) {
+  const res = await fetch(url, { redirect: "manual" });
+  assert.notEqual(res.status, 307, `${url}: redirected to ${res.headers.get("location")}`);
+  assert.ok([200, 503].includes(res.status), `${url}: unexpected status ${res.status}`);
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff", `${url}: nosniff`);
+  console.info(`ok ${url} (${res.status}, not routed through next-intl)`);
+}
+
 const servers = apps.map(start);
 let failed = false;
 try {
   const nonces = new Set();
   for (const { app, port, paths } of apps) {
     await waitFor(`http://localhost:${port}/api/health`);
+    if (app === "web") {
+      await checkApi(`http://localhost:${port}/api/health`);
+      // only /api and /api/* skip the proxy: a slug that merely starts with "api" is still localized
+      const res = await fetch(`http://localhost:${port}/apixaban`, { redirect: "manual" });
+      assert.equal(res.headers.get("location"), "/nl/apixaban", "/apixaban: locale redirect");
+      console.info("ok /apixaban -> /nl/apixaban (locale redirect kept)");
+    }
     for (const p of paths) {
       const csp = await check(app, `http://localhost:${port}${p}`, nonces);
       if (p === paths[0]) console.info(`  ${app} CSP: ${csp}`);

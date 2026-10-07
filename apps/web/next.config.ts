@@ -16,7 +16,8 @@ const config: NextConfig = {
         source: "/(.*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-DNS-Prefetch-Control", value: "on" },
+          // off: prefetching leaks which links a visitor saw to DNS resolvers (health-related site)
+          { key: "X-DNS-Prefetch-Control", value: "off" },
         ],
       },
     ];
