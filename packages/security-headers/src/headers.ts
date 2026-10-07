@@ -1,7 +1,6 @@
 /**
  * Security headers for the Next.js apps (T-011, D-031; security-architecture.md §5).
- * Pure: no Next import, no in-repo import, no runtime dependency. Both apps' proxy.ts call it once
- * per request with a fresh nonce.
+ * No Next import, no in-repo import. Both apps' proxy.ts call it once per request with a fresh nonce.
  */
 
 export type SecurityHeadersApp = "web" | "platform";
@@ -12,7 +11,21 @@ export interface SecurityHeadersOptions {
   app: SecurityHeadersApp;
   /** `next dev`: allows what the dev server needs, drops HSTS and upgrade-insecure-requests. */
   isDev: boolean;
+  /**
+   * Same-origin path of the violation sink (usually CSP_REPORT_PATH). Set → `report-uri` (Firefox),
+   * `report-to csp` (Chromium) and `Reporting-Endpoints`; omitted → no reporting (T-013).
+   */
+  reportPath?: string;
 }
+
+/** Route both apps serve the CSP violation sink on (`app/api/csp-report/route.ts`). */
+export const CSP_REPORT_PATH = "/api/csp-report";
+
+/** Reporting API endpoint name used by `report-to` and `Reporting-Endpoints`. */
+const REPORT_GROUP = "csp";
+
+/** The path ends up in two headers: a plain same-origin path only. */
+const REPORT_PATH_PATTERN = /^\/[A-Za-z0-9/_-]*$/;
 
 /** base64 alphabet only: the nonce is interpolated into a header and into HTML attributes. */
 const NONCE_PATTERN = /^[A-Za-z0-9+/]{16,}={0,2}$/;
@@ -23,7 +36,11 @@ export function generateNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-export function buildContentSecurityPolicy({ nonce, isDev }: SecurityHeadersOptions): string {
+export function buildContentSecurityPolicy({
+  nonce,
+  isDev,
+  reportPath,
+}: SecurityHeadersOptions): string {
   if (!NONCE_PATTERN.test(nonce)) {
     throw new Error("security-headers: nonce must be base64 from generateNonce()");
   }
@@ -43,6 +60,12 @@ export function buildContentSecurityPolicy({ nonce, isDev }: SecurityHeadersOpti
     ["frame-ancestors", "'none'"],
   ];
   if (!isDev) directives.push(["upgrade-insecure-requests"]);
+  if (reportPath !== undefined) {
+    if (!REPORT_PATH_PATTERN.test(reportPath)) {
+      throw new Error("security-headers: reportPath must be a plain same-origin path");
+    }
+    directives.push(["report-uri", reportPath], ["report-to", REPORT_GROUP]);
+  }
   return directives.map((d) => d.join(" ")).join("; ");
 }
 
@@ -67,6 +90,9 @@ export function buildSecurityHeaders(options: SecurityHeadersOptions): Record<st
     // legacy, alongside frame-ancestors 'none'
     "x-frame-options": "DENY",
   };
+  if (options.reportPath !== undefined) {
+    headers["reporting-endpoints"] = `${REPORT_GROUP}="${options.reportPath}"`;
+  }
   if (!options.isDev) {
     headers["strict-transport-security"] = "max-age=63072000; includeSubDomains; preload";
   }

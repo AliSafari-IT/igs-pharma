@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { auditEnv, authEnv, parseEnv, parseEnvFor, workerEnv } from "./env";
+import {
+  appEnv,
+  auditEnv,
+  authEnv,
+  cspEnv,
+  cspReportingEnabled,
+  parseEnv,
+  parseEnvFor,
+  workerEnv,
+} from "./env";
 
 const valid = {
   DATABASE_URL: "postgresql://igs:igs@localhost:5432/igs_pharma",
@@ -66,6 +75,28 @@ describe("parseEnvFor (per-process schemas)", () => {
 
   it("composes arbitrary schemas", () => {
     expect(() => parseEnvFor(authEnv, {})).toThrow(/AUTH_URL/);
+  });
+});
+
+describe("CSP_REPORTING (T-013)", () => {
+  const schema = appEnv.extend(cspEnv.shape);
+  const enabled = (env: NodeJS.ProcessEnv) => cspReportingEnabled(parseEnvFor(schema, env));
+
+  it("defaults to on in production and off elsewhere", () => {
+    expect(enabled({ NODE_ENV: "production" })).toBe(true);
+    expect(enabled({ NODE_ENV: "development" })).toBe(false);
+    expect(enabled({ NODE_ENV: "test" })).toBe(false);
+    expect(enabled({})).toBe(false);
+    expect(enabled({ NODE_ENV: "production", CSP_REPORTING: "" })).toBe(true); // empty = unset
+  });
+
+  it("an explicit on/off wins", () => {
+    expect(enabled({ NODE_ENV: "production", CSP_REPORTING: "off" })).toBe(false);
+    expect(enabled({ NODE_ENV: "development", CSP_REPORTING: "on" })).toBe(true);
+  });
+
+  it("rejects anything but on/off", () => {
+    expect(() => enabled({ CSP_REPORTING: "yes" })).toThrow(/CSP_REPORTING/);
   });
 });
 

@@ -59,6 +59,9 @@ importers:
       next:
         specifier: 16.0.11
         version: 16.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      pino:
+        specifier: 9.5.0
+        version: 9.5.0
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -120,6 +123,9 @@ importers:
       next-intl:
         specifier: 4.14.9
         version: 4.14.9(@types/react@19.2.18)(next@16.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
+      pino:
+        specifier: 9.5.0
+        version: 9.5.0
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -459,6 +465,10 @@ importers:
         version: 5.7.2
 
   packages/security-headers:
+    dependencies:
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@igs/tsconfig':
         specifier: workspace:*

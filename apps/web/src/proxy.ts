@@ -1,10 +1,18 @@
 import createMiddleware from "next-intl/middleware";
 import type { NextRequest } from "next/server";
 
+import { appEnv, cspEnv, cspReportingEnabled, parseEnvFor } from "@igs/config";
 import { routing } from "@igs/i18n/routing";
-import { buildSecurityHeaders, generateNonce } from "@igs/security-headers";
+import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "@igs/security-headers";
 
 const handleI18nRouting = createMiddleware(routing);
+
+/** CSP_REPORTING (T-013): parsed once per process; reporting is off in `next dev` by default. */
+let reporting: boolean | undefined;
+function reportOptions(): { reportPath?: string } {
+  reporting ??= cspReportingEnabled(parseEnvFor(appEnv.extend(cspEnv.shape)));
+  return reporting ? { reportPath: CSP_REPORT_PATH } : {};
+}
 
 /**
  * Next 16 proxy: per-request CSP nonce + security headers (T-011, D-031), then next-intl locale routing.
@@ -18,6 +26,7 @@ export default function proxy(request: NextRequest) {
     nonce,
     app: "web",
     isDev: process.env.NODE_ENV === "development",
+    ...reportOptions(),
   });
 
   // next-intl copies request.headers into the request it forwards (next/rewrite)
