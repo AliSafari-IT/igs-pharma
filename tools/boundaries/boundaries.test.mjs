@@ -71,6 +71,58 @@ mustFail(
   "boundaries/element-types",
 );
 
+// --- the kernel (T-005a) ------------------------------------------------------------------------
+mustFail(
+  "kernel -> module",
+  "packages/kernel/src/x.ts",
+  'import { identitySchema } from "@igs/module-identity";\nconsole.log(identitySchema);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "kernel -> app",
+  "packages/kernel/src/x.ts",
+  'import page from "../../../apps/web/src/app/[locale]/page";\nconsole.log(page);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "module src -> @igs/kernel/testing (A8)",
+  "packages/modules/identity/src/x.ts",
+  'import { actors } from "@igs/kernel/testing";\nconsole.log(actors);\n',
+  "boundaries/entry-point",
+);
+mustFail(
+  "app src -> @igs/kernel/testing (A8)",
+  "apps/web/src/app/x.ts",
+  'import { actors } from "@igs/kernel/testing";\nconsole.log(actors);\n',
+  "boundaries/entry-point",
+);
+mustFail(
+  "module src -> @igs/kernel/schema (system tables are reached through commands)",
+  "packages/modules/identity/src/x.ts",
+  'import { idempotencyKeys } from "@igs/kernel/schema";\nconsole.log(idempotencyKeys);\n',
+  "boundaries/entry-point",
+);
+mustPass(
+  "module test/ file -> @igs/kernel/testing",
+  "packages/modules/identity/test/x.ts",
+  'import { actors } from "@igs/kernel/testing";\nconsole.log(actors);\n',
+);
+mustPass(
+  "*.test.ts -> @igs/kernel/testing",
+  "packages/modules/identity/src/x.test.ts",
+  'import { actors } from "@igs/kernel/testing";\nconsole.log(actors);\n',
+);
+mustPass(
+  "module -> @igs/kernel public entry",
+  "packages/modules/identity/src/x.ts",
+  'import { command } from "@igs/kernel";\nconsole.log(command);\n',
+);
+mustPass(
+  "kernel -> auth/permissions, observability, db/client",
+  "packages/kernel/src/x.ts",
+  'import { hasPermission } from "@igs/auth/permissions";\nimport { logger } from "@igs/observability/logger";\nimport { getDb } from "@igs/db/client";\nconsole.log(hasPermission, logger, getDb);\n',
+);
+
 // --- sanity: legitimate imports stay legal --------------------------------------------------
 mustPass(
   "auth -> module-identity public entry (D-011 exception)",
@@ -90,9 +142,9 @@ mustFail(
   "boundaries/entry-point",
 );
 mustFail(
-  "apps/platform -> @igs/db/schema (D-015)",
+  "apps/platform -> @igs/db/ids (D-015)",
   "apps/platform/src/app/x.ts",
-  'import { idempotencyKeys } from "@igs/db/schema";\nconsole.log(idempotencyKeys);\n',
+  'import { newId } from "@igs/db/ids";\nconsole.log(newId);\n',
   "boundaries/entry-point",
 );
 mustFail(
