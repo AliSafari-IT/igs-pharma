@@ -8,11 +8,11 @@ implement kernel *ports* (e.g. `AuditPort`) and each app wires them in.
 ## Execution order (the invariant)
 
 ```
-span start → parse input (Zod) → authorize → open ONE transaction
+span start → authorize → parse input (Zod) → open ONE transaction
            → idempotency check → handler → audit guard → output parse → commit → span end
 ```
 
-- Parsing and authorization happen **before the transaction opens**: a rejected call does no database work.
+- Authorization and parsing happen **before the transaction opens**: a rejected call does no database work. **Authorization comes first (K1)**, so an unauthorised caller gets `kernel.forbidden` and learns nothing about the input schema (no field paths).
 - Everything in the handler — your writes, the audit entry, the outbox event — commits or rolls back **together**.
 - Any throw inside the transaction (a `DomainError` or anything else) rolls it back and is re-thrown.
 - Default isolation `READ COMMITTED`; use optimistic `version` checks in handlers. On `40001` (serialization failure) or `40P01` (deadlock) the kernel **retries the whole execution** (default: up to 3 retries, exponential backoff with jitter) and records the metric `kernel.tx.retry`. Retrying is safe only because of the next rule.
@@ -23,6 +23,8 @@ span start → parse input (Zod) → authorize → open ONE transaction
 2. **No PII or health data** in audit `data`, idempotent outputs, outbox payloads, spans or logs (D-020). Carry identifiers and status.
 3. **Don't call another command's function directly** inside a handler: it throws `kernel.nested_command`. Use `ctx.run(otherCommand, input)`, which joins your transaction (authorization and audit are enforced per command). Queries can't be called from inside a handler either; read through `ctx.tx`.
 4. Use `ctx.can(permission)` for resource-level checks (ownership, location). The command-level permission is already enforced.
+5. **`.own` permissions need an ownership check (K3).** `orders.read.own` (customers) means "my own orders": a handler using it must verify the resource belongs to `ctx.actor.id`. `orders.read` is the staff-wide permission. B-02 generalises `.own`/`.any` scopes.
+6. **Pharmacist-only permissions (K2, D-030).** `orders.review.decide` is never implied by `owner` or an administrative role; someone who is both owner and pharmacist holds both roles.
 
 ## Defining a command
 
@@ -112,8 +114,11 @@ At the edge: `const { status, code, details, fields } = toErrorResponse(error)` 
 - rows expire after 24 h (an expired key is reclaimed and the command runs again; purge of old rows comes with B-03).
 
 **A4 — the stored response is plaintext:** an idempotent command's `output` schema carries **identifiers and
-status only** (the schema strips everything else). **Known limitation:** reusing a key with a *different*
-input replays the first response — callers must generate a fresh key per logical request.
+status only** (the schema strips everything else). **Request hash (K4):** the key row stores
+`sha256(canonical JSON of the parsed input)`; replaying a key with a *different* input is rejected with
+`Conflict("kernel.idempotency_key_reused")` and the handler does not run. An idempotent command whose output
+serialises to `undefined` is rejected (`kernel.idempotent_output_undefined`) and rolled back, because it would
+leave the key "in progress" forever.
 
 ## Wiring (composition root)
 
@@ -176,7 +181,7 @@ The worker calls `startOutboxRelay({ queue: boss })` (the worker imports only `@
 2. per row, inside a savepoint: `boss.send(topic, envelope, { singletonKey: outbox.id, db: pgBossExecutor(tx) })` and sets `published_at`. Because pg-boss writes through *our* transaction, **the job and `published_at` commit or roll back together** (tested). `singletonKey` is defence in depth;
 3. on failure: `attempts + 1`, `last_error`, `next_attempt_at = now + base·2^(attempts-1)` (cap 5 min, +≤20 % jitter); after `maxAttempts` (default 10) the row is **dead-lettered** (`dead_at`), logged as `kernel.outbox.dead` and counted.
 
-The job `data` is `{ eventId, topic, schemaVersion, payload }`; the pg-boss queue is named after the topic (created on first use). Metrics: `kernel.outbox.published|failed|dead` counters and the gauge `kernel.outbox.lag_seconds` (age of the oldest undelivered event — the ops alert fires above 5 minutes). Delivery to subscribers is **at-least-once**.
+The job `data` is `{ eventId, topic, schemaVersion, payload }`; the pg-boss queue is named after the topic (created on first use). Metrics: `kernel.outbox.published|failed|dead` counters and the gauge `kernel.outbox.lag_seconds` (age of the oldest undelivered event — the ops alert fires above 5 minutes). Delivery to subscribers is **at-least-once**, and **ordering across events is not guaranteed** (K5c): consumers must be order-independent or compare the aggregate `version`.
 
 ### Subscribers: `handleOnce`
 
@@ -188,6 +193,10 @@ boss.work("pharmacy.review.approved", async ([job]) => {
 ```
 
 `handleOnce(eventId, subscriber, fn)` claims `event:{id}:{subscriber}` in `system.idempotency_keys` and runs `fn` in the **same** transaction: duplicates return `undefined`, a failing `fn` rolls the claim back so the retry runs. Sending the e-mail itself is a *separate* job enqueued through the outbox, never a call inside `fn` (D-019).
+
+### Housekeeping (`purgeExpired`, K5)
+
+`purgeExpired()` deletes outbox rows published more than 7 days ago and expired `system.idempotency_keys` (command responses and `handleOnce` claims). Dead-lettered and unpublished outbox rows are kept. The worker schedules it daily (03:17 Europe/Brussels) as the pg-boss job `kernel.maintenance.purge`; it needs only DML rights. Counters are emitted by value: `metrics.increment(name, labels, value)`; labels must stay low-cardinality (never a count or an id).
 
 ### pg-boss's own schema (A6, D-021)
 

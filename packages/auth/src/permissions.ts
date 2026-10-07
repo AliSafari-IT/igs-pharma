@@ -5,7 +5,10 @@
 
 export const PERMISSIONS = {
   orders: {
+    /** Staff-wide access to orders. Customers hold `readOwn` instead (B-02 generalises `.own`/`.any`). */
     read: "orders.read",
+    /** Customer access to their OWN orders: handlers must check ownership against `ctx.actor.id`. */
+    readOwn: "orders.read.own",
     create: "orders.create",
     reviewDecide: "orders.review.decide",
   },
@@ -36,8 +39,14 @@ const ALL: readonly Permission[] = Object.values(PERMISSIONS).flatMap((group) =>
   Object.values(group),
 );
 
+/**
+ * Pharmacist-only permissions (REQ-PHC-01/05): never implied by `owner` or any administrative
+ * role. A person who is both owner and pharmacist simply holds both roles (D-030).
+ */
+const PHARMACIST_ONLY: readonly Permission[] = [PERMISSIONS.orders.reviewDecide];
+
 const ROLE_PERMISSIONS: Readonly<Record<string, readonly Permission[]>> = {
-  owner: ALL,
+  owner: ALL.filter((permission) => !PHARMACIST_ONLY.includes(permission)),
   pharmacist_titular: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
@@ -47,7 +56,7 @@ const ROLE_PERMISSIONS: Readonly<Record<string, readonly Permission[]>> = {
   pharmacy_assistant: [PERMISSIONS.orders.read, PERMISSIONS.catalog.read],
   customer_service: [PERMISSIONS.orders.read],
   content_editor: [PERMISSIONS.catalog.read, PERMISSIONS.catalog.manage],
-  customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.read, PERMISSIONS.catalog.read],
+  customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
 };
 
 /** True when at least one of `roles` grants `permission`. Unknown roles grant nothing. */

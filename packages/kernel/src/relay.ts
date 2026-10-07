@@ -159,9 +159,9 @@ export function createOutboxRelay(options: OutboxRelayOptions): OutboxProcessor 
       }
     });
 
-    if (published) metrics.increment("kernel.outbox.published", { count: String(published) });
-    if (failed) metrics.increment("kernel.outbox.failed", { count: String(failed) });
-    if (dead) metrics.increment("kernel.outbox.dead", { count: String(dead) });
+    if (published) metrics.increment("kernel.outbox.published", {}, published);
+    if (failed) metrics.increment("kernel.outbox.failed", {}, failed);
+    if (dead) metrics.increment("kernel.outbox.dead", {}, dead);
     await reportLag(now);
     return { published, failed, dead };
   }
