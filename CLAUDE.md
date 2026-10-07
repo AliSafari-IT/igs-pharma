@@ -27,7 +27,9 @@ docker compose up -d
 
 ```bash
 pnpm run typecheck          # all packages and apps
-pnpm run lint               # Biome check + turbo lint
+pnpm run lint               # Biome check
+pnpm run lint:boundaries    # architecture boundaries (ESLint, boundaries only) + package cycle check
+pnpm run test:boundaries    # negative tests proving forbidden imports are rejected
 pnpm run format             # Biome auto-format
 ```
 
@@ -84,7 +86,7 @@ e2e/             # Playwright tests
 
 - Apps may import packages; packages may import other packages.
 - Packages must NOT import from apps, and no circular deps between packages.
-- `eslint-plugin-boundaries` is to enforce this in CI (wired in T-003; not yet active).
+- `eslint-plugin-boundaries` enforces this in CI (`pnpm lint:boundaries`; rules in `eslint.config.mjs`, negative tests via `pnpm test:boundaries`). Module naming/structure/rules: `docs/06-engineering/module-anatomy.md`.
 - Within a package, only import from the public `index.ts` (or named exports in `package.json#exports`) — never deep-import into another package's `src/`.
 
 ### Environment

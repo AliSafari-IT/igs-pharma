@@ -17,7 +17,9 @@
     "db:migrate": "turbo run db:migrate --filter=@igs/db",
     "db:generate": "turbo run db:generate --filter=@igs/db",
     "db:studio": "turbo run db:studio --filter=@igs/db",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "lint:boundaries": "eslint . && node tools/boundaries/check-cycles.mjs",
+    "test:boundaries": "node --test tools/boundaries/boundaries.test.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
