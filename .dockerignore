@@ -1,0 +1,15 @@
+# Keep the build context small and never leak host artifacts/secrets into an image.
+.git
+.github
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/test-results
+**/playwright-report
+.env
+.env.*
+!.env.example
+*.log
+docs

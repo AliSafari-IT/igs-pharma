@@ -60,6 +60,9 @@ pnpm db:check               # drift check: schema changed without a committed mi
 ```bash
 pnpm run build              # all apps (Next.js standalone + worker dist)
 pnpm --filter=@igs/web run build    # single app
+# worker: tsup bundles apps/worker (workspace packages inlined, D-007) into dist/index.js
+pnpm --filter=@igs/worker run build && pnpm --filter=@igs/worker run start
+# images (CI builds all three): docker build -f infra/docker/worker.Dockerfile .
 ```
 
 ## Architecture
