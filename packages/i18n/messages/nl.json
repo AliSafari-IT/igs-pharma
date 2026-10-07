@@ -11,5 +11,9 @@
   },
   "health": {
     "pageTitle": "Gezondheid & welzijn"
+  },
+  "notFound": {
+    "title": "Pagina niet gevonden",
+    "backHome": "Terug naar de startpagina"
   }
 }

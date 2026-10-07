@@ -44,6 +44,9 @@ importers:
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@igs/security-headers':
+        specifier: workspace:*
+        version: link:../../packages/security-headers
       '@igs/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -93,6 +96,9 @@ importers:
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@igs/security-headers':
+        specifier: workspace:*
+        version: link:../../packages/security-headers
       '@igs/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -396,6 +402,21 @@ importers:
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+
+  packages/security-headers:
+    devDependencies:
+      '@igs/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: 5.7.2
+        version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@24.19.1)
 
   packages/tsconfig: {}
 

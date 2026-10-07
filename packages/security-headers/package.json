@@ -1,0 +1,22 @@
+{
+  "name": "@igs/security-headers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "@types/node": "24.19.1",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

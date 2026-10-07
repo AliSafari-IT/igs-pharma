@@ -11,5 +11,9 @@
   },
   "health": {
     "pageTitle": "Santé & bien-être"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "backHome": "Retour à l'accueil"
   }
 }
