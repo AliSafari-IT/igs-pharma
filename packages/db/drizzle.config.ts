@@ -7,7 +7,8 @@ const { DATABASE_URL } = z.object({ DATABASE_URL: z.string().url() }).parse(proc
 export default {
   // Aggregated by path glob only — packages/db never imports modules (D-001).
   schema: ["./src/schema/shared.ts", "../modules/*/src/schema.ts"],
-  out: "./drizzle",
+  // DRIZZLE_OUT lets the drift check generate into a scratch copy (tools/db/check-drift.mjs)
+  out: process.env["DRIZZLE_OUT"] ?? "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
     url: DATABASE_URL,
