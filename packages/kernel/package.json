@@ -1,0 +1,40 @@
+{
+  "name": "@igs/kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./schema": {
+      "types": "./src/schema.ts",
+      "default": "./src/schema.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@igs/auth": "workspace:*",
+    "@igs/config": "workspace:*",
+    "@igs/db": "workspace:*",
+    "@igs/observability": "workspace:*",
+    "drizzle-orm": "0.38.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@igs/tsconfig": "workspace:*",
+    "@testcontainers/postgresql": "12.2.0",
+    "@types/node": "24.19.1",
+    "postgres": "3.4.5",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}
