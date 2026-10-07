@@ -11,5 +11,9 @@
   },
   "health": {
     "pageTitle": "Health & wellness"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "backHome": "Back to the home page"
   }
 }

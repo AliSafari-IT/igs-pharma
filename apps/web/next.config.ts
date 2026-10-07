@@ -8,22 +8,14 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const config: NextConfig = {
   output: "standalone",
 
-  // Security headers
+  // HTML responses get the full policy (CSP nonce, HSTS, …) from src/proxy.ts (T-011). This only
+  // covers what the proxy matcher skips (_next/static, files with an extension).
   async headers() {
     return [
       {
         source: "/(.*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
-          {
-            key: "Referrer-Policy",
-            value: "strict-origin-when-cross-origin",
-          },
-          { key: "X-Frame-Options", value: "DENY" },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
           { key: "X-DNS-Prefetch-Control", value: "on" },
         ],
       },

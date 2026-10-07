@@ -20,7 +20,8 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "lint:boundaries": "eslint . && node tools/boundaries/check-cycles.mjs",
     "test:boundaries": "node --test tools/boundaries/boundaries.test.mjs",
-    "db:check": "node tools/db/check-drift.mjs"
+    "db:check": "node tools/db/check-drift.mjs",
+    "check:csp": "node tools/security/check-csp.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

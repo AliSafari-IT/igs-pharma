@@ -68,8 +68,41 @@ modules (patients, prescriptions, messaging) at Phase 2. Threat model reviewed e
 
 ## 5. Application security controls
 
-- **Headers:** CSP (nonce-based, `strict-dynamic`), HSTS (preload), `X-Content-Type-Options`,
-  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `frame-ancestors 'none'`.
+- **Headers (T-011, D-031):** one policy for both apps in `@igs/security-headers`
+  (`packages/security-headers`), applied per request by `apps/web/src/proxy.ts` (composed with the
+  next-intl locale routing) and `apps/platform/src/proxy.ts`. Each request gets a fresh 128-bit
+  base64 nonce; the proxy passes it to Next on the request's `Content-Security-Policy` header (Next
+  stamps it on its own `<script>`/`<style>` tags) and as `x-nonce` for server components.
+  - **CSP** (production):
+
+    ```
+    default-src 'self'; script-src 'self' 'nonce-<n>' 'strict-dynamic'; style-src 'self' 'nonce-<n>';
+    img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none';
+    base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+    ```
+
+    No `'unsafe-inline'` anywhere: Tailwind v4 and `next/font` ship stylesheet files, and Next nonces
+    its inline scripts/styles. Inline `style="…"` attributes are therefore blocked — use classes.
+  - **Dev exceptions** (`next dev` only): `script-src` adds `'unsafe-eval'` (React dev build / HMR),
+    `connect-src` adds `ws: wss:` (HMR websocket); no `upgrade-insecure-requests`, no HSTS. Next's
+    dev-tools overlay injects un-nonced `<style>` tags, so it renders unstyled in dev (known, dev only).
+  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (production only),
+    `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
+    `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()`
+    (a PSP payment iframe will be allowed explicitly when payments land),
+    `Cross-Origin-Opener-Policy: same-origin`, `X-Frame-Options: DENY` (legacy, alongside
+    `frame-ancestors 'none'`).
+  - **platform only:** `X-Robots-Tag: noindex, nofollow`, `Cache-Control: no-store`.
+  - The proxy matcher skips `_next/static`, `_next/image` and files with an extension; those only get
+    `X-Content-Type-Options: nosniff` from `next.config.ts`.
+  - **Trade-off: every CSP-protected page renders dynamically** (root layouts set
+    `dynamic = "force-dynamic"`): prerendered HTML would carry no nonce and its scripts would be
+    blocked. Acceptable while Cache Components are off (D-008); revisit with the storefront caching
+    design. The web 404 is rendered by `[locale]/not-found.tsx` (catch-all `[locale]/[...rest]`) for
+    the same reason.
+  - Verified by unit tests (`packages/security-headers`) and `pnpm check:csp` (after `pnpm build`:
+    starts both apps and checks every header and that every `<script>`/`<style>` carries the
+    response nonce).
 - **CSRF:** Server Actions' built-in origin checks + SameSite=Lax cookies; explicit tokens for route handlers.
 - **Input validation:** Zod at every boundary (Server Actions, route handlers, job payloads, webhooks).
 - **Rate limiting:** edge (WAF) + app-level (Postgres-backed token bucket or provider limiter) on

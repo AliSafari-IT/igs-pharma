@@ -11,5 +11,9 @@
   },
   "health": {
     "pageTitle": "Gesundheit & Wohlbefinden"
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "backHome": "Zur Startseite"
   }
 }

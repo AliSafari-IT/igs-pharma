@@ -13,6 +13,7 @@
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/observability": "workspace:*",
+    "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",
     "next": "16.0.11",
     "react": "19.2.8",

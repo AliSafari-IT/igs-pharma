@@ -40,6 +40,7 @@ igs-pharma/
 │   ├── observability/          # OTel setup, logger (PII-scrubbing), error reporting
 │   ├── config/                 # Typed env (Zod), feature flags
 │   ├── crypto/                 # Envelope encryption helpers (KMS), hashing
+│   ├── security-headers/       # CSP nonce + security headers for both apps' proxy.ts (pure, no deps)
 │   └── tsconfig/ eslint-config/ # Shared tooling config
 ├── infra/
 │   ├── tofu/                   # OpenTofu/Terraform: network, DB, buckets, containers, DNS
