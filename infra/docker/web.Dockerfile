@@ -6,28 +6,15 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-# ── deps ──────────────────────────────────────────────────────────────────────
-FROM base AS deps
-WORKDIR /repo
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/web/package.json                apps/web/
-COPY packages/tsconfig/package.json       packages/tsconfig/
-COPY packages/config/package.json         packages/config/
-COPY packages/db/package.json             packages/db/
-COPY packages/auth/package.json           packages/auth/
-COPY packages/crypto/package.json         packages/crypto/
-COPY packages/observability/package.json  packages/observability/
-COPY packages/ui/package.json             packages/ui/
-COPY packages/i18n/package.json           packages/i18n/
-
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile
-
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM base AS builder
 WORKDIR /repo
-COPY --from=deps /repo/node_modules ./node_modules
+# Whole workspace: pnpm's frozen-lockfile check needs every workspace project's manifest, and
+# keeping a hand-maintained COPY list in sync breaks whenever a package is added.
 COPY . .
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
 ARG DATABASE_URL
 ARG AUTH_SECRET

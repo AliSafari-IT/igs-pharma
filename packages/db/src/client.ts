@@ -28,4 +28,12 @@ export function getDb() {
   return _db;
 }
 
+/** Closes the connection pool (graceful shutdown). A later `getDb()` opens a new one. */
+export async function closeDb(): Promise<void> {
+  const sql = _sql;
+  _sql = undefined;
+  _db = undefined;
+  await sql?.end({ timeout: 5 });
+}
+
 export type Db = ReturnType<typeof getDb>;

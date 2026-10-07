@@ -109,6 +109,84 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build
 
+  # ── 5b. Container images (build only, never pushed) ─────────────────────────────
+  # worker: build + smoke test (starts, logs JSON, exits 0 on SIGTERM; invalid env exits non-zero).
+  # web/platform: confirm the Next standalone images still build.
+  docker:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [worker, web, platform]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/${{ matrix.image }}.Dockerfile
+          push: false
+          load: true
+          tags: igs-${{ matrix.image }}:ci
+          build-args: |
+            DATABASE_URL=${{ env.DATABASE_URL }}
+            AUTH_SECRET=${{ env.AUTH_SECRET }}
+            AUTH_URL=${{ env.AUTH_URL }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Image size and user
+        run: |
+          size=$(docker image inspect igs-${{ matrix.image }}:ci --format '{{.Size}}')
+          user=$(docker image inspect igs-${{ matrix.image }}:ci --format '{{.Config.User}}')
+          echo "igs-${{ matrix.image }}: $((size / 1024 / 1024)) MiB, runs as '$user'" | tee -a "$GITHUB_STEP_SUMMARY"
+          test -n "$user" && test "$user" != "root"
+      - name: Worker smoke test
+        if: matrix.image == 'worker'
+        run: |
+          set -u
+          # 1. invalid environment: non-zero exit and the readable Zod message
+          set +e
+          out=$(docker run --rm igs-worker:ci 2>&1); code=$?
+          set -e
+          echo "$out"
+          test "$code" -ne 0
+          echo "$out" | grep -q "Invalid environment configuration"
+          # 2. valid environment: structured JSON log, stays up, clean exit on SIGTERM.
+          # NODE_ENV=test only because this CI Postgres has no TLS (production forces TLS).
+          docker run -d --name worker --network host \
+            -e NODE_ENV=test \
+            -e DATABASE_URL="$DATABASE_URL" -e AUTH_SECRET="$AUTH_SECRET" -e AUTH_URL="$AUTH_URL" \
+            igs-worker:ci
+          for i in $(seq 1 30); do
+            docker logs worker 2>&1 | grep -q "waiting for jobs" && break
+            sleep 1
+          done
+          docker logs worker
+          docker logs worker 2>&1 | head -1 | jq -e '.msg == "Worker starting"'
+          test "$(docker inspect -f '{{.State.Running}}' worker)" = "true"
+          docker stop -t 15 worker
+          test "$(docker inspect -f '{{.State.ExitCode}}' worker)" = "0"
+      - name: Final image has no devDependencies
+        if: matrix.image == 'worker'
+        run: |
+          docker run --rm --entrypoint sh igs-worker:ci -c \
+            '! ls node_modules/.pnpm 2>/dev/null | grep -Eq "^(typescript|vitest|tsup|esbuild|tsx|@biomejs)"'
+
   # ── 6. Secret scanning ────────────────────────────────────────────────────────
   secrets-scan:
     runs-on: ubuntu-latest

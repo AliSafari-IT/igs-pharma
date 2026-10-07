@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+
 import { pino } from "pino";
 
 /**
@@ -39,11 +41,21 @@ function redactPii(obj: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
-const isDev = process.env["NODE_ENV"] !== "production";
+/** pino-pretty is an optional dev nicety (not a declared dependency): fall back to JSON without it. */
+function prettyAvailable(): boolean {
+  try {
+    createRequire(import.meta.url).resolve("pino-pretty");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const usePretty = process.env["NODE_ENV"] !== "production" && prettyAvailable();
 
 export const logger = pino({
   level: process.env["LOG_LEVEL"] ?? "info",
-  ...(isDev ? { transport: { target: "pino-pretty", options: { colorize: true } } } : {}),
+  ...(usePretty ? { transport: { target: "pino-pretty", options: { colorize: true } } } : {}),
   serializers: {
     req: (req: Record<string, unknown>) => redactPii(req),
   },
