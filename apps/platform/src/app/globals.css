@@ -1,0 +1,9 @@
+/*
+ * The app's single CSS entry (T-015). Order (CLAUDE.md): tokens, then global.
+ * tokens.css brings in Tailwind (`@import "tailwindcss"`) and the @theme design tokens.
+ */
+@import "@igs/ui/styles/tokens.css";
+@import "@igs/ui/styles/global.css";
+
+/* Tailwind scans this app automatically; shared components live in packages/ui. */
+@source "../../../../packages/ui/src";

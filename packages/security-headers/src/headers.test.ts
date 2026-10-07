@@ -60,7 +60,7 @@ describe("buildSecurityHeaders", () => {
     );
   });
 
-  it("embeds the nonce in script-src and style-src, never 'unsafe-inline'", () => {
+  it("production: nonce in script-src and style-src, never 'unsafe-inline'", () => {
     const policy = csp(prod("web"));
     expect(policy.get("script-src")).toContain(`'nonce-${nonce}'`);
     expect(policy.get("style-src")).toContain(`'nonce-${nonce}'`);
@@ -148,4 +148,36 @@ describe("violation reporting (T-013)", () => {
       ).toThrow(/reportPath/);
     },
   );
+});
+
+describe("dev style-src (T-015)", () => {
+  it("dev: style-src 'self' 'unsafe-inline' without the nonce (the dev overlay injects <style>)", () => {
+    const policy = csp(dev("web"));
+    expect(policy.get("style-src")).toEqual(["'self'", "'unsafe-inline'"]);
+    // scripts keep the nonce and strict-dynamic in dev
+    expect(policy.get("script-src")).toEqual([
+      "'self'",
+      `'nonce-${nonce}'`,
+      "'strict-dynamic'",
+      "'unsafe-eval'",
+    ]);
+  });
+
+  it.each(["web", "platform"] as const)("%s: production policy stays byte-identical", (app) => {
+    expect(prod(app)["content-security-policy"]).toBe(
+      [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+        `style-src 'self' 'nonce-${nonce}'`,
+        "img-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+        "upgrade-insecure-requests",
+      ].join("; "),
+    );
+  });
 });

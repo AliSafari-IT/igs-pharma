@@ -117,7 +117,7 @@ The storefront (`apps/web`) uses `next-intl` with locale-prefixed URLs (`/nl/`, 
 
 ### Styling
 
-Tailwind CSS v4 with CSS-native `@theme {}` design tokens defined in `packages/ui/src/styles/tokens.css`. All color/spacing/font tokens live there — do not add raw hex values in component code, use `var(--color-primary)` etc. Import order in layouts: `tokens.css` then `global.css`.
+Tailwind CSS v4 with CSS-native `@theme {}` design tokens defined in `packages/ui/src/styles/tokens.css`. All color/spacing/font tokens live there — do not add raw hex values in component code, use `var(--color-primary)` etc. Each app has one CSS entry, `src/app/globals.css` (imported by the root layout): `@igs/ui/styles/tokens.css` (which brings in Tailwind) then `global.css`, plus `@source` for `packages/ui/src`; Tailwind runs through `@tailwindcss/postcss` (`postcss.config.mjs`). See `packages/ui/README.md`.
 
 ### TypeScript
 

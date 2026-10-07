@@ -94,8 +94,25 @@ async function check(app, url, previousNonces) {
   for (const tag of tags) {
     assert.ok(tag.includes(`nonce="${nonce}"`), `${url}: tag without the response nonce: ${tag}`);
   }
+  // 404s stream their stylesheet via the RSC payload (no <link> in the HTML): check real pages only
+  if (res.status === 200) await checkStylesheet(url, html);
   console.info(`ok ${url} (${res.status}, ${tags.length} script/style tags carry the nonce)`);
   return csp;
+}
+
+/** T-015: Tailwind actually ran — the page's stylesheet contains generated utilities and tokens. */
+async function checkStylesheet(url, html) {
+  const hrefs = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)].map(
+    (m) => m[1],
+  );
+  assert.ok(hrefs.length > 0, `${url}: no stylesheet linked`);
+  const css = (
+    await Promise.all(hrefs.map(async (h) => (await fetch(new URL(h, url))).text()))
+  ).join("\n");
+  for (const needle of [".min-h-screen{", ".flex{", ".font-sans{", "--color-primary:"]) {
+    assert.ok(css.includes(needle), `${url}: stylesheet lacks ${needle} (Tailwind not wired?)`);
+  }
+  assert.ok(!css.includes("@theme"), `${url}: raw @theme in the stylesheet (Tailwind not run)`);
 }
 
 /**

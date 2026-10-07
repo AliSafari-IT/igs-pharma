@@ -59,7 +59,17 @@ const entryPoint = (dbRules, kernelAllow = "src/index.ts") => [
 ];
 
 export default [
-  { ignores: ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/drizzle/**", "**/.turbo/**"] },
+  {
+    // e2e is not a workspace package under the boundary rules (its *.spec.ts would hit the test block)
+    ignores: [
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/dist/**",
+      "**/drizzle/**",
+      "**/.turbo/**",
+      "e2e/**",
+    ],
+  },
   {
     files: ["apps/**/*.{ts,tsx,mts}", "packages/**/*.{ts,tsx,mts}"],
     languageOptions: { parser: tsParser, ecmaVersion: "latest", sourceType: "module" },

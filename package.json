@@ -34,6 +34,10 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp"],
-    "ignoredBuiltDependencies": ["@parcel/watcher", "@swc/core"]
+    "ignoredBuiltDependencies": ["@parcel/watcher", "@swc/core"],
+    "overrides": {
+      "@tailwindcss/node": "4.0.0",
+      "@tailwindcss/oxide": "4.0.0"
+    }
   }
 }
