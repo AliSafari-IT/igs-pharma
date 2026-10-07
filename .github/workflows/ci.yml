@@ -106,6 +106,10 @@ jobs:
   # ── 6. Secret scanning ────────────────────────────────────────────────────────
   secrets-scan:
     runs-on: ubuntu-latest
+    # gitleaks-action lists the PR's commits via the API (403 without pull-requests: read)
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
