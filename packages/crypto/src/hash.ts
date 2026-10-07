@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 /** SHA-256 of a string, returned as hex. */
 export function sha256Hex(input: string): string {
@@ -11,4 +11,9 @@ export function safeEqual(a: string, b: string): boolean {
   const bBytes = Buffer.from(b, "utf8");
   if (aBytes.length !== bBytes.length) return false;
   return timingSafeEqual(aBytes, bBytes);
+}
+
+/** HMAC-SHA256 of `value` under `key`, returned as hex (keyed hashing of IP / user agent). */
+export function hmacSha256Hex(key: string, value: string): string {
+  return createHmac("sha256", key).update(value, "utf8").digest("hex");
 }
