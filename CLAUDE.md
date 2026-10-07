@@ -76,7 +76,8 @@ apps/worker/     # Background jobs (Node.js, pg-boss)
 packages/
   tsconfig/      # Shared TypeScript configs (base/nextjs/node)
   config/        # Typed env vars (Zod) + feature flags
-  db/            # Drizzle client, shared tables, UUIDv7 helper, migrations
+  db/            # Drizzle client, UUIDv7 helper, test harness, migrations (owns no tables)
+  kernel/        # command()/query() pipeline, typed domain errors, `system` schema (D-004, D-017)
   modules/       # Domain modules (@igs/module-*), each owning its schema
   auth/          # Better Auth instance + RBAC permissions
   crypto/        # sha256, envelope encryption stubs
@@ -100,7 +101,11 @@ All env vars are typed and validated at startup via `packages/config/src/env.ts`
 
 ### Database schema
 
-Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). `packages/db` provides the client, the shared tables (`idempotency_keys`), the `newId()` UUIDv7 helper (`@igs/db/ids`) and aggregates module schemas for drizzle-kit **by path glob only — it never imports modules**. See `packages/db/README.md` and `docs/06-engineering/migrations.md` (migration policy, `@igs/db/testing` harness). Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
+Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). The **kernel owns `pgSchema("system")`** (`system.idempotency_keys`, later `system.outbox`; D-017), so `packages/db` owns **no tables**: it provides the client, the `newId()` UUIDv7 helper (`@igs/db/ids`) and the test harness, and drizzle-kit aggregates module + kernel schemas **by path glob only — db never imports modules**. See `packages/db/README.md` and `docs/06-engineering/migrations.md` (migration policy, `@igs/db/testing` harness). Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
+
+### Kernel
+
+Every Server Action, route handler and job goes through `@igs/kernel` (`docs/06-engineering/kernel.md`): `command({ name, input, output?, permission, handler })` → authorize/validate → ONE transaction (handler + audit) → commit, with typed `DomainError`s (stable codes, no user-facing text), idempotency keys, retries on 40001/40P01, and an explicit `Actor`. **No external I/O inside handlers** (D-019). Each app calls `configureKernel({ audit })` once in its composition root. `@igs/kernel/testing` is test-only.
 
 ### Auth
 

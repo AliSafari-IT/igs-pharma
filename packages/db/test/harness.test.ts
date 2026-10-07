@@ -1,26 +1,25 @@
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { idempotencyKeys } from "../src/schema/index";
 import { createIsolatedDatabase, getTestDatabase, withTestTx } from "../src/testing";
 
-const expires = () => new Date(Date.now() + 60_000);
+// packages/db owns no tables (D-017), so the harness is exercised with plain SQL against the
+// kernel's `system.idempotency_keys` (reached by name — no import, `db ↛ kernel`).
+const insertKey = (key: string, response?: string) =>
+  sql`INSERT INTO system.idempotency_keys (key, expires_at, response)
+      VALUES (${key}, now() + interval '1 minute', ${response ?? null})
+      ON CONFLICT DO NOTHING RETURNING key`;
 
 describe("idempotency_keys", () => {
   it("ON CONFLICT DO NOTHING keeps the first response", async () => {
     await withTestTx(async (tx) => {
-      const insert = (response: string) =>
-        tx
-          .insert(idempotencyKeys)
-          .values({ key: "k-1", expiresAt: expires(), response })
-          .onConflictDoNothing()
-          .returning({ key: idempotencyKeys.key });
+      expect(await tx.execute(insertKey("k-1", "first"))).toHaveLength(1);
+      expect(await tx.execute(insertKey("k-1", "second"))).toHaveLength(0);
 
-      expect(await insert("first")).toHaveLength(1);
-      expect(await insert("second")).toHaveLength(0);
-
-      const [row] = await tx.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, "k-1"));
-      expect(row?.response).toBe("first");
+      const rows = await tx.execute(
+        sql`SELECT response FROM system.idempotency_keys WHERE key = 'k-1'`,
+      );
+      expect(rows[0]?.["response"]).toBe("first");
     });
   });
 });
@@ -28,10 +27,10 @@ describe("idempotency_keys", () => {
 describe("withTestTx", () => {
   it("rolls back everything at the end of the test", async () => {
     await withTestTx(async (tx) => {
-      await tx.insert(idempotencyKeys).values({ key: "k-rollback", expiresAt: expires() });
+      await tx.execute(insertKey("k-rollback"));
     });
     const rows = await getTestDatabase().db.execute(
-      sql`SELECT 1 FROM idempotency_keys WHERE key = 'k-rollback'`,
+      sql`SELECT 1 FROM system.idempotency_keys WHERE key = 'k-rollback'`,
     );
     expect(rows).toHaveLength(0);
   });

@@ -16,10 +16,6 @@
       "types": "./src/health.ts",
       "default": "./src/health.ts"
     },
-    "./schema": {
-      "types": "./src/schema/index.ts",
-      "default": "./src/schema/index.ts"
-    },
     "./ids": {
       "types": "./src/ids.ts",
       "default": "./src/ids.ts"

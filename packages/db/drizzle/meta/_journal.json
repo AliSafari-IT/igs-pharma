@@ -15,6 +15,13 @@
       "when": 1791390559429,
       "tag": "0001_lethal_human_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791395407466,
+      "tag": "0002_funny_proteus",
+      "breakpoints": true
     }
   ]
 }

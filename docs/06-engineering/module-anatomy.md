@@ -48,7 +48,8 @@ package is consumed straight from `src/`.
    Every other `@igs/db` entry (`.`, `/client`, `/schema`, `/ids`) imported from an app is an error that cites D-015.
 8. **`@igs/db/testing` and `@igs/db/testing/global-setup` are test-only.** They may be imported only from test code: `**/*.test.ts(x)`, `**/*.spec.ts(x)`, `**/test/**` and `**/vitest.config.ts`. Runtime code (modules, apps, packages) must never import them. Test code is not a production data path, so it may also use the rest of `@igs/db`.
 9. **No cycles between workspace packages** (`tools/boundaries/check-cycles.mjs`, D-014). *Covered:* circular dependencies between `apps/*`, `packages/*` and `packages/modules/*` as declared in their `package.json` files (e.g. `auth` ↔ `module-identity`). *Not covered:* circular imports between files inside a single package — those are a code-quality matter that TS/ESM tolerates; we revisit only if one ever causes a problem.
-10. Authorization lives in the command/query layer only (D-005); user-facing text is mapped at the edge via i18n (D-006). Server-only code carries `import "server-only"`.
+10. **The kernel (`@igs/kernel`, D-004/D-017).** Modules and apps import only its public entry point (`@igs/kernel`); `@igs/kernel/testing` is test-only (same rule as `@igs/db/testing`) and `@igs/kernel/schema` exists solely for drizzle-kit (`system.*` tables are reached through commands). The kernel itself imports only `db`, `auth`, `observability`, `config` — never a module or an app; modules implement its ports (e.g. `AuditPort`) and apps wire them in. See `kernel.md`.
+11. Authorization lives in the command/query layer only (D-005); user-facing text is mapped at the edge via i18n (D-006). Server-only code carries `import "server-only"`.
 
 ## How it is enforced
 

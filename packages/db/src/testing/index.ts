@@ -17,12 +17,12 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { inject } from "vitest";
 
-import * as schema from "../schema/index";
 import { withDatabase } from "./migrate";
+import type {} from "./provided-context";
 
 export { applyMigrations } from "./migrate";
 
-export type TestDb = ReturnType<typeof drizzle<typeof schema>>;
+export type TestDb = ReturnType<typeof drizzle>;
 
 const ROLLBACK = Symbol("igs-test-rollback");
 
@@ -30,7 +30,7 @@ type Handle = { url: string; sql: postgres.Sql; db: TestDb };
 
 function connect(url: string): Handle {
   const sql = postgres(url, { max: 5, onnotice: () => {} });
-  return { url, sql, db: drizzle(sql, { schema }) };
+  return { url, sql, db: drizzle(sql) };
 }
 
 let shared: Handle | undefined;

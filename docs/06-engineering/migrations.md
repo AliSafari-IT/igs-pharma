@@ -31,7 +31,7 @@ A migration that works in one works in the other; if they ever disagree, the jou
 ## Workflow
 
 ```bash
-# 1. edit packages/modules/<m>/src/schema.ts (or packages/db/src/schema/shared.ts)
+# 1. edit packages/modules/<m>/src/schema.ts (or packages/kernel/src/schema.ts for system.*)
 pnpm db:generate     # 2. creates packages/db/drizzle/NNNN_*.sql + meta/ snapshot — commit both
 pnpm db:migrate      # 3. apply to DATABASE_URL (local docker compose Postgres)
 pnpm db:check        # 4. drift check: fails if the schema differs from the committed migrations

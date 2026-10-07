@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { inject } from "vitest";
 
 import setup from "../src/testing/global-setup";
+import { applyMigrations } from "../src/testing/migrate";
 
 // A broken migration chain (e.g. missing meta/_journal.json) must fail setup loudly AND leave
 // nothing behind — a leaked container/connection is what made Vitest hang in CI (T-004 R2).
@@ -29,12 +30,16 @@ describe("global setup failure", () => {
     );
     expect(provided).toEqual([]);
 
+    // The exact template database this failed run created (the migrator received its URL) must be
+    // gone. Checked by name, not by counting databases: other packages' runs may share the server.
+    const attempted = vi.mocked(applyMigrations).mock.calls.at(-1)?.[0];
+    expect(attempted).toBeDefined();
+    const templateName = new URL(attempted as string).pathname.slice(1);
     const probe = postgres(inject("igsTestAdminUrl"), { max: 1 });
     try {
-      // this run's own databases (prefix igs_test_<run>) survive; a failed setup's must not
       const rows = await probe<{ datname: string }[]>`
-        SELECT datname FROM pg_database WHERE datname LIKE 'igs\_test\_%\_template'`;
-      expect(rows.map((r) => r.datname)).toEqual([inject("igsTestTemplateDb")]);
+        SELECT datname FROM pg_database WHERE datname = ${templateName}`;
+      expect(rows).toEqual([]);
     } finally {
       await probe.end({ timeout: 5 });
     }

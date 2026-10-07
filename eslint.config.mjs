@@ -22,8 +22,14 @@ const TEST_FILES = [
 const TESTING_MESSAGE =
   "@igs/db/testing is test-only: import it from test code only (**/*.test.ts, **/test/**, **/vitest.config.ts)";
 
-/** entry-point options; `dbRules` decides what may be imported from @igs/db. */
-const entryPoint = (dbRules) => [
+const KERNEL_MESSAGE =
+  "@igs/kernel exposes only its public entry point (@igs/kernel); @igs/kernel/testing is test-only (**/*.test.ts, **/test/**, **/vitest.config.ts) and system.* tables are reached through commands (D-015, D-017)";
+
+/**
+ * entry-point options. `dbRules` decides what may be imported from @igs/db; `kernelAllow` which
+ * kernel entries are importable (test code additionally gets `src/testing/**`, A8).
+ */
+const entryPoint = (dbRules, kernelAllow = "src/index.ts") => [
   "error",
   {
     default: "disallow",
@@ -31,7 +37,12 @@ const entryPoint = (dbRules) => [
     rules: [
       // modules expose src/index.ts only; infra packages expose their package.json#exports
       { target: "module", allow: "src/index.ts" },
-      { target: [...infra.filter((name) => name !== "db"), "app"], allow: "**" },
+      {
+        target: [...infra.filter((name) => name !== "db" && name !== "kernel"), "app"],
+        allow: "**",
+      },
+      { target: "kernel", disallow: "**", message: KERNEL_MESSAGE },
+      { target: "kernel", allow: kernelAllow },
       ...dbRules,
     ],
   },
@@ -135,11 +146,16 @@ export default [
     },
   })),
 
-  // --- @igs/db/testing is test-only -----------------------------------------------------------------
+  // --- @igs/db/testing and @igs/kernel/testing are test-only -----------------------------------------------------------------
   // Test code may use the harness (and, being non-production, the rest of @igs/db). Listed last so
   // it overrides the app blocks above for test files.
   {
     files: TEST_FILES,
-    rules: { "boundaries/entry-point": entryPoint([{ target: "db", allow: "**" }]) },
+    rules: {
+      "boundaries/entry-point": entryPoint(
+        [{ target: "db", allow: "**" }],
+        ["src/index.ts", "src/testing/**"],
+      ),
+    },
   },
 ];
