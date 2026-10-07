@@ -1,8 +1,14 @@
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { command } from "@igs/kernel";
 import { actors, configureKernelForTests, resetKernelForTests } from "@igs/kernel/testing";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -378,8 +384,8 @@ describe("partitions (D-029)", () => {
     await iso.sql.begin(async (sql) => {
       await sql.unsafe("SET LOCAL TimeZone = 'Europe/Brussels'");
       // two daily-job runs in consecutive months (the `from_month` seam simulates the clock)
-      await sql`SELECT audit.ensure_partitions(3, '2040-10-15 12:00+00')`;
-      await sql`SELECT audit.ensure_partitions(3, '2040-11-15 12:00+00')`; // overlapped before the fix
+      await sql`SELECT audit.ensure_partitions(3, '2040-10-15'::date)`;
+      await sql`SELECT audit.ensure_partitions(3, '2040-11-15'::date)`; // overlapped before the fix
     });
     const stored = await bounds();
     expect(stored.map((r) => r.name)).toEqual([
@@ -406,6 +412,102 @@ describe("partitions (D-029)", () => {
       return [a[0]?.n, b[0]?.n];
     });
     expect(brussels).toBe(utc);
+  });
+});
+
+describe("0006: pinned functions, grants, alignment assertion (T-014)", () => {
+  it("grants survive the function replacement", async () => {
+    const [row] = await iso.sql<
+      { app_future: boolean; app_ensure: boolean; app_assert: boolean; public_ensure: boolean }[]
+    >`SELECT
+        has_function_privilege('igs_app', 'audit.future_partitions()', 'EXECUTE') AS app_future,
+        has_function_privilege('igs_app', 'audit.ensure_partitions(integer, date)', 'EXECUTE') AS app_ensure,
+        has_function_privilege('igs_app', 'audit.assert_partitions_aligned()', 'EXECUTE') AS app_assert,
+        coalesce((SELECT bool_or(a.grantee = 0) FROM pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          WHERE p.oid = 'audit.ensure_partitions(integer, date)'::regprocedure), false) AS public_ensure`;
+    expect(row).toEqual({
+      app_future: true,
+      app_ensure: false,
+      app_assert: false,
+      public_ensure: false,
+    });
+  });
+
+  it("functions carry the pinned settings", async () => {
+    const rows = await iso.sql<{ proname: string; proconfig: string[] | null }[]>`
+      SELECT p.proname, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'audit' ORDER BY p.proname`;
+    const byName = Object.fromEntries(rows.map((r) => [r.proname, r.proconfig ?? []]));
+    for (const name of ["ensure_partitions", "future_partitions", "assert_partitions_aligned"]) {
+      expect(byName[name], name).toEqual(
+        expect.arrayContaining(["TimeZone=UTC", "search_path=pg_catalog, audit"]),
+      );
+    }
+    expect(byName["reject_mutation"]).toEqual(
+      expect.arrayContaining(["search_path=pg_catalog, audit"]),
+    );
+  });
+
+  it("assert_partitions_aligned passes on a fresh database and rejects a misaligned partition", async () => {
+    const aligned = async () =>
+      (await iso.sql<{ n: number }[]>`SELECT audit.assert_partitions_aligned() AS n`)[0]?.n;
+    expect(await aligned()).toBe(4); // current month + 3
+    // a partition on 01:00 UTC bounds (what the TimeZone bug produced)
+    await iso.sql`CREATE TABLE audit.events_y2039m01 PARTITION OF audit.events
+      FOR VALUES FROM ('2039-01-01 01:00:00+00') TO ('2039-02-01 01:00:00+00')`;
+    await expect(aligned()).rejects.toThrow(/events_y2039m01 is not aligned to UTC month starts/);
+  });
+
+  it("upgrading a 0005 database with misaligned partitions fails the migration; an aligned one upgrades", async () => {
+    const folder = fileURLToPath(new URL("../../../db/drizzle", import.meta.url));
+    const upTo5 = mkdtempSync(join(tmpdir(), "igs-mig-"));
+    cpSync(folder, upTo5, { recursive: true });
+    const journalFile = join(upTo5, "meta", "_journal.json");
+    const journal = JSON.parse(readFileSync(journalFile, "utf8")) as { entries: { tag: string }[] };
+    journal.entries = journal.entries.filter((e) => e.tag <= "0005_audit");
+    writeFileSync(journalFile, JSON.stringify(journal));
+
+    const migrateTo = async (db: IsolatedDatabase, dir: string) => {
+      const client = postgres(db.url, { max: 1, onnotice: () => {} });
+      try {
+        await migrate(drizzle(client), { migrationsFolder: dir });
+      } finally {
+        await client.end({ timeout: 5 });
+      }
+    };
+    const old = await createIsolatedDatabase({ migrated: false });
+    const old2 = await createIsolatedDatabase({ migrated: false });
+    try {
+      // misaligned: the 0005 function run from a Brussels session (the reproduced bug)
+      await migrateTo(old, upTo5);
+      await old.sql.begin(async (sql) => {
+        await sql.unsafe("SET LOCAL TimeZone = 'Europe/Brussels'");
+        await sql`SELECT audit.ensure_partitions(14)`;
+      });
+      await expect(migrateTo(old, folder)).rejects.toThrow(/not aligned to UTC month starts/);
+
+      // aligned: upgrades, and the new function replaced the old overload
+      await migrateTo(old2, upTo5);
+      await migrateTo(old2, folder);
+      const [fn] = await old2.sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace
+        WHERE ns.nspname = 'audit' AND p.proname = 'ensure_partitions'`;
+      expect(fn?.n).toBe(1);
+    } finally {
+      await old.drop();
+      await old2.drop();
+      rmSync(upTo5, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("record maps untranslatable data to audit.invalid_data (N3)", () => {
+  it("a NUL character is rejected as invalid data, not a raw Postgres error", async () => {
+    registerAuditAction("orders.order.noted", z.object({ ref: z.string() }));
+    await expect(
+      append({ ...decided(), action: "orders.order.noted", data: { ref: "a\u0000b" } }),
+    ).rejects.toMatchObject({ code: "audit.invalid_data" });
+    expect((await rows()).length).toBe(0);
   });
 });
 

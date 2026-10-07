@@ -55,6 +55,8 @@ Rule: edit only the *SQL* of a freshly generated migration, say why in a header 
 `meta/`. Roles are cluster-wide, so the migration creates `igs_app` only if missing; where the
 migrator may not create roles (production), the DBA creates `igs_app` NOLOGIN beforehand (B-08).
 
+`0006_audit_utc_partitions.sql` is a *custom* migration (`drizzle-kit generate --custom`): it replaces functions only, so its snapshot equals 0005's. Rule: **never edit an applied migration**; fix functions with an additive `CREATE OR REPLACE` (and `DROP FUNCTION` when the signature changes), as 0006 does for the 0005 partition functions.
+
 ## Kernel tables and housekeeping
 
 `system.idempotency_keys` gained `request_hash` (migration `0004`, nullable: `handleOnce` claims have none). Old rows are removed by the worker's daily `purgeExpired` job (published outbox > 7 days, expired idempotency keys), which runs with the app role (DML only); no retention work is done by migrations.

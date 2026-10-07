@@ -123,7 +123,7 @@ object-lock storage) closes.
 
 ## Partitions (D-029)
 
-Monthly by UTC month, named `audit.events_yYYYYmMM`. The functions are pinned to `TimeZone = 'UTC'` and `search_path = pg_catalog, audit`: `timestamptz` month arithmetic otherwise runs in the *session* zone (Europe/Brussels shifts the bounds by an hour and the next run would create an overlapping partition). `ensure_partitions(months_ahead, from_month DEFAULT now())`: `from_month` is a test seam that simulates the clock. `audit.ensure_partitions(months_ahead)` creates
+Monthly by UTC month, named `audit.events_yYYYYmMM`. The functions are pinned to `TimeZone = 'UTC'` and `search_path = pg_catalog, audit`: `timestamptz` month arithmetic otherwise runs in the *session* zone (Europe/Brussels shifts the bounds by an hour and the next run would create an overlapping partition). Migration `0006` (T-014) replaced the 0005 versions: month arithmetic is done on timezone-less timestamps and the functions are pinned. `ensure_partitions(months_ahead, from_month date DEFAULT NULL)`: `from_month` is a test seam that simulates a run in a later month. `audit.assert_partitions_aligned()` verifies every partition sits on exact UTC month starts (0006 runs it first and aborts otherwise: pre-production a misaligned database is reset, D-018); it can also be run as a periodic check. `audit.ensure_partitions(months_ahead)` creates
 missing ones (idempotent, 0–24); the migration creates the current month + 3. There is **no DEFAULT
 partition**: an event outside every partition **fails** (fail closed — a missing partition must
 page someone, not silently lose or misplace audit data). `audit.future_partitions()` returns how many

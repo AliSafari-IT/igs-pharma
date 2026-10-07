@@ -36,8 +36,7 @@ CREATE INDEX "events_seq_idx" ON "audit"."events" USING btree ("seq");--> statem
 CREATE INDEX "events_entity_idx" ON "audit"."events" USING btree ("entity_type","entity_id");--> statement-breakpoint
 -- Append-only, defence in depth (D-027): grants below are the first line, this trigger the second
 -- (grants do not bind the table owner; the trigger does).
-CREATE FUNCTION "audit"."reject_mutation"() RETURNS trigger LANGUAGE plpgsql
-  SET search_path = pg_catalog, audit AS $$
+CREATE FUNCTION "audit"."reject_mutation"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION '% on %.% is not allowed: the audit log is append-only', TG_OP, TG_TABLE_SCHEMA, TG_TABLE_NAME
     USING ERRCODE = 'insufficient_privilege';
@@ -56,12 +55,9 @@ CREATE TRIGGER "chain_head_no_delete" BEFORE DELETE OR TRUNCATE ON "audit"."chai
 --> statement-breakpoint
 -- Monthly partitions by UTC month (D-029). No DEFAULT partition: an event outside every partition
 -- fails closed. Needs DDL rights: run by the migration/maintenance role, never by the app role.
-CREATE FUNCTION "audit"."ensure_partitions"(months_ahead integer, from_month timestamptz DEFAULT now()) RETURNS integer LANGUAGE plpgsql
-  -- timestamptz month arithmetic runs in the session TimeZone: pin UTC or a Brussels session shifts
-  -- the bounds by an hour and the next run creates an overlapping partition (architect R1)
-  SET TimeZone = 'UTC' SET search_path = pg_catalog, audit AS $$
+CREATE FUNCTION "audit"."ensure_partitions"(months_ahead integer) RETURNS integer LANGUAGE plpgsql AS $$
 DECLARE
-  first_month timestamptz := date_trunc('month', from_month AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
+  first_month timestamptz := date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC';
   created integer := 0;
   part_start timestamptz;
   part_end timestamptz;
@@ -91,8 +87,7 @@ END;
 $$;
 --> statement-breakpoint
 -- How many whole months AFTER the current one already have a partition (alert when < 2).
-CREATE FUNCTION "audit"."future_partitions"() RETURNS integer LANGUAGE sql STABLE
-  SET TimeZone = 'UTC' SET search_path = pg_catalog, audit AS $$
+CREATE FUNCTION "audit"."future_partitions"() RETURNS integer LANGUAGE sql STABLE AS $$
   SELECT count(*)::integer
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -115,7 +110,7 @@ REVOKE ALL ON SCHEMA "audit" FROM PUBLIC;
 --> statement-breakpoint
 REVOKE ALL ON ALL TABLES IN SCHEMA "audit" FROM PUBLIC;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION "audit"."ensure_partitions"(integer, timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "audit"."ensure_partitions"(integer) FROM PUBLIC;
 --> statement-breakpoint
 GRANT USAGE ON SCHEMA "audit" TO "igs_app";
 --> statement-breakpoint
