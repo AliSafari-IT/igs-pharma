@@ -19,6 +19,12 @@ import {
  *
  * Better Auth resolves tables by model name, so `usePlural: true` is set on the adapter and
  * the exported keys below are the plural model names (users, sessions, accounts, …).
+ *
+ * Generated from Better Auth 1.7.7 (`npx auth@1.7.7 generate`, then adapted). When upgrading
+ * better-auth or its plugins, re-run the generator and diff against this file.
+ *
+ * Boundary (D-011): `@igs/auth` imports this module (adapter schema). This module must NEVER
+ * import `@igs/auth` — it owns tables only; the reverse would create a dependency cycle.
  */
 export const identity = pgSchema("identity");
 
