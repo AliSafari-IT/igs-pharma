@@ -86,15 +86,19 @@ modules (patients, prescriptions, messaging) at Phase 2. Threat model reviewed e
   - **Dev exceptions** (`next dev` only): `script-src` adds `'unsafe-eval'` (React dev build / HMR),
     `connect-src` adds `ws: wss:` (HMR websocket); no `upgrade-insecure-requests`, no HSTS. Next's
     dev-tools overlay injects un-nonced `<style>` tags, so it renders unstyled in dev (known, dev only).
-  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (production only),
+  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (production only;
+    **submitting** the domain to the HSTS preload list is a deliberate B-08 step once the final
+    domains and subdomains are known — it is hard to undo),
     `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
     `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()`
     (a PSP payment iframe will be allowed explicitly when payments land),
     `Cross-Origin-Opener-Policy: same-origin`, `X-Frame-Options: DENY` (legacy, alongside
     `frame-ancestors 'none'`).
   - **platform only:** `X-Robots-Tag: noindex, nofollow`, `Cache-Control: no-store`.
-  - The proxy matcher skips `_next/static`, `_next/image` and files with an extension; those only get
-    `X-Content-Type-Options: nosniff` from `next.config.ts`.
+  - The proxy matcher skips `_next/static`, `_next/image`, files with an extension and (web) `/api`
+    and `/api/*`; those only get `X-Content-Type-Options: nosniff` from `next.config.ts` (JSON needs
+    no CSP). Web also sends `X-DNS-Prefetch-Control: off` (prefetching leaks visited links to
+    resolvers).
   - **Trade-off: every CSP-protected page renders dynamically** (root layouts set
     `dynamic = "force-dynamic"`): prerendered HTML would carry no nonce and its scripts would be
     blocked. Acceptable while Cache Components are off (D-008); revisit with the storefront caching

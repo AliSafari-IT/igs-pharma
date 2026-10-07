@@ -86,12 +86,35 @@ async function check(app, url, previousNonces) {
   return csp;
 }
 
+/**
+ * /api/health must reach its route handler at its own path (no locale redirect). The status is 200
+ * with a reachable database and 503 "degraded" without one (this check runs without a database);
+ * either way the handler's JSON proves the route was not rerouted. No CSP needed on JSON.
+ */
+async function checkApi(url) {
+  const res = await fetch(url, { redirect: "manual" });
+  assert.equal(res.headers.get("location"), null, `${url}: redirected`);
+  assert.ok([200, 503].includes(res.status), `${url}: unexpected status ${res.status}`);
+  const body = await res.json();
+  const expected = res.status === 200 ? "ok" : "degraded";
+  assert.equal(body.status, expected, `${url}: health status mismatch (HTTP ${res.status})`);
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff", `${url}: nosniff`);
+  console.info(`ok ${url} (${res.status} ${body.status}, served by the route handler)`);
+}
+
 const servers = apps.map(start);
 let failed = false;
 try {
   const nonces = new Set();
   for (const { app, port, paths } of apps) {
     await waitFor(`http://localhost:${port}/api/health`);
+    await checkApi(`http://localhost:${port}/api/health`);
+    if (app === "web") {
+      // only /api and /api/* skip the proxy: a slug that merely starts with "api" is still localized
+      const res = await fetch(`http://localhost:${port}/apixaban`, { redirect: "manual" });
+      assert.equal(res.headers.get("location"), "/nl/apixaban", "/apixaban: locale redirect");
+      console.info("ok /apixaban -> /nl/apixaban (locale redirect kept)");
+    }
     for (const p of paths) {
       const csp = await check(app, `http://localhost:${port}${p}`, nonces);
       if (p === paths[0]) console.info(`  ${app} CSP: ${csp}`);

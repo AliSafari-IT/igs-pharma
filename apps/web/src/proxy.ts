@@ -30,6 +30,7 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Match all paths except Next.js internals and static files
-  matcher: ["/((?!_next|_vercel|.*\\..*).*)"],
+  // Match all paths except API routes, Next.js internals and static files. `api(?:/|$)`, not a bare
+  // `api` prefix, so unprefixed slugs such as /apixaban still get the locale redirect.
+  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)"],
 };
