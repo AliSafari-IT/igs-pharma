@@ -28,8 +28,7 @@ export const AUDIT_JOBS = {
   retryDelaySeconds: 60,
 } as const;
 
-/** Months of partitions kept ahead; an alarm fires when fewer than `MIN_FUTURE_PARTITIONS` exist. */
-export const PARTITION_MONTHS_AHEAD = 3;
+/** Months of partitions kept ahead are fixed inside `audit.maintain_partitions()` (3); an alarm fires when fewer than `MIN_FUTURE_PARTITIONS` exist. */
 export const MIN_FUTURE_PARTITIONS = 2;
 export const VERIFY_WINDOW_HOURS = 48;
 
@@ -39,8 +38,9 @@ export interface PartitionMaintenanceResult {
 }
 
 /**
- * Daily: `audit.ensure_partitions(3)` (a narrow SECURITY DEFINER function, executable by the worker
- * role only: no DDL credential in the worker), then checks the horizon. Fewer than 2 future months
+ * Daily: `audit.maintain_partitions()` (a zero-argument SECURITY DEFINER wrapper around
+ * `ensure_partitions(3)`, executable by the worker role only: no DDL credential in the worker and
+ * nothing parametric to abuse), then checks the horizon. Fewer than 2 future months
  * → error log + counter `audit.partitions.low`.
  */
 export async function runPartitionMaintenance(
@@ -48,9 +48,7 @@ export async function runPartitionMaintenance(
 ): Promise<PartitionMaintenanceResult> {
   const { created, future } = await runtime.db.transaction(async (tx) => {
     const ensured = Array.from(
-      await tx.execute<{ n: number }>(
-        sql`SELECT audit.ensure_partitions(${PARTITION_MONTHS_AHEAD}::integer) AS n`,
-      ),
+      await tx.execute<{ n: number }>(sql`SELECT audit.maintain_partitions() AS n`),
     );
     const horizon = Array.from(
       await tx.execute<{ n: number }>(sql`SELECT audit.future_partitions() AS n`),

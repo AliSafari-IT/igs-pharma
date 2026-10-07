@@ -16,9 +16,10 @@ export async function closeDatabase(): Promise<void> {
 
 /**
  * What a background job handler needs, taken from the configured kernel: the database, the metrics
- * sink, the logger and the clock. Module job handlers (e.g. `@igs/module-audit`) receive this from
- * the app's composition root, so apps never import `@igs/db` (D-015). It is **not** for request
- * handling, which always goes through `command()` / `query()`.
+ * sink, the logger and the clock. For **modules** that register background jobs (e.g.
+ * `@igs/module-audit`): they call it inside their own `register…Jobs(boss)`, so app code never holds
+ * a database handle (D-015). Apps must not call it; it is **not** for request handling, which always
+ * goes through `command()` / `query()`.
  */
 export interface KernelRuntime {
   readonly db: Pick<Db, "transaction">;

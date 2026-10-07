@@ -4,7 +4,6 @@ import {
   checkDatabase,
   closeDatabase,
   configureKernel,
-  getKernelRuntime,
   purgeExpired,
   startOutboxRelay,
 } from "@igs/kernel";
@@ -66,7 +65,7 @@ async function main() {
   });
   // Audit module (T-006b): daily partition maintenance (04:47) and chain verification (03:37,
   // Europe/Brussels), with pg-boss retries and dead-letter alarms. Brussels 02:xx is avoided (DST).
-  await registerAuditJobs(boss as unknown as JobScheduler, getKernelRuntime());
+  await registerAuditJobs(boss as unknown as JobScheduler);
   // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.
 
   // pg-boss's timers keep the loop alive, but hold the process open ourselves too so a stopped

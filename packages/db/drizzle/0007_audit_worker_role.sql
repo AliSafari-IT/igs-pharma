@@ -1,11 +1,11 @@
--- T-006b (architect Q3): the daily partition job must not need a DDL credential in the worker.
--- Instead of a second connection with CREATE rights, `audit.ensure_partitions` becomes a narrow
--- SECURITY DEFINER function owned by the migrator (who owns audit.events), executable only by the
--- worker role. Custom migration; `meta/` from `drizzle-kit generate --custom` (D-016).
+-- T-006b (architect Q3 + R1): the daily partition job must not need a DDL credential in the worker,
+-- and the grant must give the worker EXACTLY the daily action, nothing parametric.
 --
--- What a caller can do with it is bounded: months_ahead is limited to 0..24 inside the function,
--- it only creates monthly partitions of audit.events, and the partitions stay owned by the owner.
--- `igs_app` (web / platform) still cannot execute it (42501).
+-- `audit.ensure_partitions(integer, date)` stays SECURITY INVOKER and executable only by its owner
+-- (as after 0006): it is the testable workhorse. The worker gets a zero-argument SECURITY DEFINER
+-- wrapper, `audit.maintain_partitions()`, which calls it with fixed arguments (3 months ahead, from
+-- now): no `from_month`, no `months_ahead` for the caller to choose. Custom migration; `meta/` from
+-- `drizzle-kit generate --custom` (D-016). `igs_app` (web / platform) cannot execute it (42501).
 
 DO $$
 BEGIN
@@ -17,16 +17,19 @@ BEGIN
 END
 $$;
 --> statement-breakpoint
--- search_path last-entry hardening for definer functions: pg_temp goes LAST so a caller cannot
--- shadow pg_catalog / audit objects with temporary ones. TimeZone = 'UTC' (0006) is kept.
-ALTER FUNCTION "audit"."ensure_partitions"(integer, date)
-  SECURITY DEFINER SET search_path = pg_catalog, audit, pg_temp;
+-- A new name, not an overload: `ensure_partitions(3)` would become ambiguous against the defaulted
+-- two-argument form. pg_temp goes LAST in the search_path (definer-function hardening); TimeZone
+-- is pinned like every audit function (0006).
+CREATE FUNCTION "audit"."maintain_partitions"() RETURNS integer LANGUAGE sql
+  SECURITY DEFINER SET search_path = pg_catalog, audit, pg_temp SET TimeZone = 'UTC' AS $$
+  SELECT audit.ensure_partitions(3, NULL)
+$$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION "audit"."ensure_partitions"(integer, date) FROM PUBLIC;
+REVOKE ALL ON FUNCTION "audit"."maintain_partitions"() FROM PUBLIC;
 --> statement-breakpoint
 GRANT USAGE ON SCHEMA "audit" TO "igs_worker";
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION "audit"."ensure_partitions"(integer, date) TO "igs_worker";
+GRANT EXECUTE ON FUNCTION "audit"."maintain_partitions"() TO "igs_worker";
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION "audit"."future_partitions"() TO "igs_worker";
 --> statement-breakpoint

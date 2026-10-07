@@ -57,7 +57,7 @@ migrator may not create roles (production), the DBA creates `igs_app` NOLOGIN be
 
 `0006_audit_utc_partitions.sql` is a *custom* migration (`drizzle-kit generate --custom`): it replaces functions only, so its snapshot equals 0005's. Rule: **never edit an applied migration**; fix functions with an additive `CREATE OR REPLACE` (and `DROP FUNCTION` when the signature changes), as 0006 does for the 0005 partition functions.
 
-`0007_audit_worker_role.sql` (custom) creates the `igs_worker` NOLOGIN role and turns `audit.ensure_partitions` into a narrow `SECURITY DEFINER` function, so the worker needs no DDL credential (`audit-log.md`). Like `igs_app`, `igs_worker` is created `IF NOT EXISTS`; where the migrator may not create roles, the DBA creates both NOLOGIN beforehand (B-08).
+`0007_audit_worker_role.sql` (custom) creates the `igs_worker` NOLOGIN role and a zero-argument `SECURITY DEFINER` wrapper `audit.maintain_partitions()` (the worker's only entry point; `ensure_partitions` stays invoker-only), so the worker needs no DDL credential (`audit-log.md`). Like `igs_app`, `igs_worker` is created `IF NOT EXISTS`; where the migrator may not create roles, the DBA creates both NOLOGIN beforehand (B-08).
 
 ## Kernel tables and housekeeping
 

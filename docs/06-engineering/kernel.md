@@ -164,7 +164,7 @@ See `docs/06-engineering/migrations.md` for the real-Postgres harness.
 - `validate` makes an unregistered action or invalid `data` fail **in the handler's stack**; the flush validates again (cheap, covers custom ports).
 - **`CallOptions.origin`** (`{ ip?, userAgent? }`) is set only by the edge adapter. The kernel forwards it to the port, which hashes it (keyed). It is **never** in `Ctx`, spans, logs or the idempotency request hash, so handlers can't leak it.
 - Wiring: each app's composition root calls the auditing modules' `registerAuditActions()` and then `configureKernel({ audit: createAuditPort(...) })`. The worker holds no HMAC key (its actors never have an `origin`); web / platform parse `auditEnv` inside `ensureKernelConfigured()`.
-- Job handlers of modules receive `getKernelRuntime()` (`db`, `metrics`, `logger`, `now`) from the composition root, so apps never import `@igs/db`. It is not for request handling.
+- Modules that register background jobs call `getKernelRuntime()` (`db`, `metrics`, `logger`, `now`) **inside their own `register…Jobs(boss)`**, so app code never holds a database handle (D-015). Apps must not call it; it is not for request handling.
 
 ## Events and the outbox
 

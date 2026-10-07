@@ -410,6 +410,9 @@ importers:
       '@types/node':
         specifier: 24.19.1
         version: 24.19.1
+      pg-boss:
+        specifier: 10.1.6
+        version: 10.1.6
       postgres:
         specifier: 3.4.5
         version: 3.4.5

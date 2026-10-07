@@ -438,13 +438,13 @@ describe("0006: pinned functions, grants, alignment assertion (T-014)", () => {
       SELECT p.proname, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'audit' ORDER BY p.proname`;
     const byName = Object.fromEntries(rows.map((r) => [r.proname, r.proconfig ?? []]));
-    for (const name of ["future_partitions", "assert_partitions_aligned"]) {
+    for (const name of ["ensure_partitions", "future_partitions", "assert_partitions_aligned"]) {
       expect(byName[name], name).toEqual(
         expect.arrayContaining(["TimeZone=UTC", "search_path=pg_catalog, audit"]),
       );
     }
-    // 0007: definer function, pg_temp last
-    expect(byName["ensure_partitions"]).toEqual(
+    // 0007: the zero-argument definer wrapper, pg_temp last
+    expect(byName["maintain_partitions"]).toEqual(
       expect.arrayContaining(["TimeZone=UTC", "search_path=pg_catalog, audit, pg_temp"]),
     );
     expect(byName["reject_mutation"]).toEqual(
@@ -505,44 +505,66 @@ describe("0006: pinned functions, grants, alignment assertion (T-014)", () => {
   });
 });
 
-describe("0007: ensure_partitions as a narrow SECURITY DEFINER for igs_worker (Q3)", () => {
+describe("0007: maintain_partitions as the worker's only definer entry point (Q3, R1)", () => {
   const asRole = (role: string) =>
     postgres(iso.url, { max: 1, onnotice: () => {}, connection: { role } });
 
-  it("privilege matrix", async () => {
+  it("privilege matrix: exactly the daily action, nothing parametric", async () => {
     const [row] = await iso.sql<Record<string, boolean>[]>`SELECT
+      has_function_privilege('igs_worker', 'audit.maintain_partitions()', 'EXECUTE') AS worker_maintain,
       has_function_privilege('igs_worker', 'audit.ensure_partitions(integer, date)', 'EXECUTE') AS worker_ensure,
       has_function_privilege('igs_worker', 'audit.future_partitions()', 'EXECUTE') AS worker_future,
+      has_function_privilege('igs_app', 'audit.maintain_partitions()', 'EXECUTE') AS app_maintain,
       has_function_privilege('igs_app', 'audit.ensure_partitions(integer, date)', 'EXECUTE') AS app_ensure,
       has_function_privilege('igs_app', 'audit.future_partitions()', 'EXECUTE') AS app_future,
       has_table_privilege('igs_worker', 'audit.events', 'SELECT') AS worker_select,
       has_table_privilege('igs_worker', 'audit.events', 'INSERT') AS worker_insert,
       has_table_privilege('igs_worker', 'audit.chain_head', 'UPDATE') AS worker_head_update,
       has_schema_privilege('igs_worker', 'audit', 'CREATE') AS worker_create,
-      (SELECT p.prosecdef FROM pg_proc p WHERE p.oid = 'audit.ensure_partitions(integer, date)'::regprocedure) AS definer`;
+      (SELECT p.prosecdef FROM pg_proc p WHERE p.oid = 'audit.maintain_partitions()'::regprocedure) AS maintain_definer,
+      (SELECT p.prosecdef FROM pg_proc p WHERE p.oid = 'audit.ensure_partitions(integer, date)'::regprocedure) AS ensure_definer`;
     expect(row).toEqual({
-      worker_ensure: true,
+      worker_maintain: true,
+      worker_ensure: false,
       worker_future: true,
+      app_maintain: false,
       app_ensure: false,
       app_future: true,
       worker_select: true,
       worker_insert: false,
       worker_head_update: false,
       worker_create: false,
-      definer: true,
+      maintain_definer: true,
+      ensure_definer: false, // the parametric workhorse stays SECURITY INVOKER
     });
   });
 
-  it("igs_worker can create partitions without any DDL right; they belong to the function owner", async () => {
+  it("igs_worker heals missing months without any DDL right; partitions belong to the function owner", async () => {
+    const missing = await iso.sql<{ relname: string }[]>`
+      SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'audit' AND c.relkind = 'r' AND c.relname ~ '^events_y[0-9]{4}m[0-9]{2}$'
+      ORDER BY c.relname DESC LIMIT 2`;
+    for (const { relname } of missing) await iso.sql.unsafe(`DROP TABLE audit."${relname}"`);
+
     const conn = asRole("igs_worker");
     try {
-      const [created] = await conn<{ n: number }[]>`SELECT audit.ensure_partitions(6) AS n`;
-      expect(created?.n).toBe(3); // migration made current + 3; now current + 6
+      const [created] = await conn<{ n: number }[]>`SELECT audit.maintain_partitions() AS n`;
+      expect(created?.n).toBe(2);
+      const [again] = await conn<{ n: number }[]>`SELECT audit.maintain_partitions() AS n`;
+      expect(again?.n).toBe(0); // idempotent
+      // nothing else is reachable
+      await expect(conn`SELECT audit.ensure_partitions(1)`).rejects.toMatchObject({
+        code: "42501",
+      });
+      await expect(
+        conn`SELECT audit.ensure_partitions(1, '2050-03-15'::date)`,
+      ).rejects.toMatchObject({
+        code: "42501",
+      });
       await expect(conn`CREATE TABLE audit.evil (x int)`).rejects.toMatchObject({ code: "42501" });
       await expect(conn`INSERT INTO audit.chain_head VALUES (2, 0, 'x')`).rejects.toMatchObject({
         code: "42501",
       });
-      await expect(conn`SELECT audit.ensure_partitions(25)`).rejects.toThrow(/between 0 and 24/);
     } finally {
       await conn.end({ timeout: 5 });
     }
@@ -551,14 +573,30 @@ describe("0007: ensure_partitions as a narrow SECURITY DEFINER for igs_worker (Q
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, pg_class t
       WHERE n.nspname = 'audit' AND c.relkind = 'r' AND c.relname ~ '^events_y[0-9]{4}m[0-9]{2}$'
         AND t.oid = 'audit.events'::regclass`;
-    expect(owners.length).toBe(7);
+    expect(owners.length).toBe(4);
     for (const row of owners) expect(row.owner).toBe(row.table_owner);
-    expect(await iso.sql`SELECT audit.assert_partitions_aligned() AS n`).toMatchObject([{ n: 7 }]);
+    expect(await iso.sql`SELECT audit.assert_partitions_aligned() AS n`).toMatchObject([{ n: 4 }]);
   });
 
-  it("igs_app still cannot execute it (42501)", async () => {
+  it("maintain_partitions is independent of the session TimeZone (Brussels)", async () => {
+    const missing = await iso.sql<{ relname: string }[]>`
+      SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'audit' AND c.relkind = 'r' AND c.relname ~ '^events_y[0-9]{4}m[0-9]{2}$'
+      ORDER BY c.relname DESC LIMIT 1`;
+    for (const { relname } of missing) await iso.sql.unsafe(`DROP TABLE audit."${relname}"`);
+    await iso.sql.begin(async (sql) => {
+      await sql.unsafe("SET LOCAL TimeZone = 'Europe/Brussels'");
+      await sql`SELECT audit.maintain_partitions()`;
+    });
+    expect(await iso.sql`SELECT audit.assert_partitions_aligned() AS n`).toMatchObject([{ n: 4 }]);
+  });
+
+  it("igs_app cannot execute either function (42501)", async () => {
     const conn = asRole("igs_app");
     try {
+      await expect(conn`SELECT audit.maintain_partitions()`).rejects.toMatchObject({
+        code: "42501",
+      });
       await expect(conn`SELECT audit.ensure_partitions(1)`).rejects.toMatchObject({
         code: "42501",
       });
