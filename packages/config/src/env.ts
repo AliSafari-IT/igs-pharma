@@ -11,15 +11,10 @@ const envSchema = z.object({
 
   // Application
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  LOG_LEVEL: z
-    .enum(["trace", "debug", "info", "warn", "error", "fatal"])
-    .default("info"),
+  LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
 
   // Crypto
-  KMS_KEY_ID: z
-    .string()
-    .optional()
-    .describe("Cloud KMS key ID for envelope encryption"),
+  KMS_KEY_ID: z.string().optional().describe("Cloud KMS key ID for envelope encryption"),
   ENCRYPTION_KEY: z
     .string()
     .length(64)
@@ -46,9 +41,7 @@ export type Env = z.infer<typeof envSchema>;
 export function parseEnv(input: NodeJS.ProcessEnv = process.env): Env {
   const result = envSchema.safeParse(input);
   if (!result.success) {
-    const issues = result.error.issues
-      .map((i) => `  ${i.path.join(".")}: ${i.message}`)
-      .join("\n");
+    const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   return result.data;

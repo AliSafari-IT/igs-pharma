@@ -2,9 +2,16 @@
   "name": "@igs/crypto",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "exports": {
-    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
-    "./hash": { "types": "./src/hash.ts", "default": "./src/hash.ts" },
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./hash": {
+      "types": "./src/hash.ts",
+      "default": "./src/hash.ts"
+    },
     "./envelope": {
       "types": "./src/envelope.ts",
       "default": "./src/envelope.ts"

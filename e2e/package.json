@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "playwright test",
+    "e2e": "playwright test",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"
   },

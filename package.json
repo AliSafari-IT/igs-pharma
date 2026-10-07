@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "typecheck": "turbo run typecheck",
-    "lint": "biome check . && turbo run lint",
+    "lint": "biome check .",
     "format": "biome format --write .",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
@@ -27,5 +27,9 @@
     "eslint-plugin-boundaries": "5.0.1",
     "@typescript-eslint/eslint-plugin": "8.18.0",
     "@typescript-eslint/parser": "8.18.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp"],
+    "ignoredBuiltDependencies": ["@parcel/watcher", "@swc/core"]
   }
 }

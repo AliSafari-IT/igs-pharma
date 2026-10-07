@@ -1,3 +1,3 @@
-export { getDb, type Db } from "./client.js";
-export { dbHealthCheck } from "./health.js";
-export * from "./schema/index.js";
+export { getDb, type Db } from "./client";
+export { dbHealthCheck } from "./health";
+export * from "./schema/index";

@@ -5,7 +5,7 @@ import postgres from "postgres";
 
 import { getEnv } from "@igs/config/env";
 
-import * as schema from "./schema/index.js";
+import * as schema from "./schema/index";
 
 let _sql: postgres.Sql | undefined;
 let _db: ReturnType<typeof drizzle<typeof schema>> | undefined;

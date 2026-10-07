@@ -6,8 +6,7 @@
     "dev": "next dev --turbopack --port 3000",
     "build": "next build",
     "start": "next start --port 3000",
-    "typecheck": "tsc --noEmit",
-    "lint": "next lint"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@igs/auth": "workspace:*",
@@ -16,16 +15,16 @@
     "@igs/i18n": "workspace:*",
     "@igs/observability": "workspace:*",
     "@igs/ui": "workspace:*",
-    "next": "16.0.0",
-    "next-intl": "3.26.3",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "next": "16.0.11",
+    "next-intl": "4.14.9",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
     "@types/node": "22.10.2",
-    "@types/react": "19.0.2",
-    "@types/react-dom": "19.0.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
     "tailwindcss": "4.0.0",
     "typescript": "5.7.2"
   }
