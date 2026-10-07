@@ -8,3 +8,4 @@ A healthcare-grade online pharmacy for Belgium, coupled with a pharmacy manageme
 Stack: Next.js (App Router) · TypeScript · PostgreSQL · Drizzle · Better Auth · pnpm/Turborepo — EU-hosted.
 
 📚 **Start here: [docs/README.md](docs/README.md)** — the complete plan (strategy, compliance, architecture, design system, roadmap).
+-------
