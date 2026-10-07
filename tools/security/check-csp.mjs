@@ -86,13 +86,19 @@ async function check(app, url, previousNonces) {
   return csp;
 }
 
-/** API routes skip the proxy (no locale redirect, no CSP) but keep nosniff from next.config.ts. */
+/**
+ * /api/health must reach its route handler at its own path (no locale redirect). The status is 200
+ * with a reachable database and 503 "degraded" without one (this check runs without a database);
+ * either way the handler's JSON proves the route was not rerouted. No CSP needed on JSON.
+ */
 async function checkApi(url) {
   const res = await fetch(url, { redirect: "manual" });
-  assert.notEqual(res.status, 307, `${url}: redirected to ${res.headers.get("location")}`);
+  assert.equal(res.headers.get("location"), null, `${url}: redirected`);
   assert.ok([200, 503].includes(res.status), `${url}: unexpected status ${res.status}`);
+  const body = await res.json();
+  assert.ok(["ok", "degraded"].includes(body.status), `${url}: not the health handler`);
   assert.equal(res.headers.get("x-content-type-options"), "nosniff", `${url}: nosniff`);
-  console.info(`ok ${url} (${res.status}, not routed through next-intl)`);
+  console.info(`ok ${url} (${res.status} ${body.status}, served by the route handler)`);
 }
 
 const servers = apps.map(start);
@@ -101,8 +107,8 @@ try {
   const nonces = new Set();
   for (const { app, port, paths } of apps) {
     await waitFor(`http://localhost:${port}/api/health`);
+    await checkApi(`http://localhost:${port}/api/health`);
     if (app === "web") {
-      await checkApi(`http://localhost:${port}/api/health`);
       // only /api and /api/* skip the proxy: a slug that merely starts with "api" is still localized
       const res = await fetch(`http://localhost:${port}/apixaban`, { redirect: "manual" });
       assert.equal(res.headers.get("location"), "/nl/apixaban", "/apixaban: locale redirect");
