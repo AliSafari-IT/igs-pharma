@@ -96,7 +96,8 @@ async function checkApi(url) {
   assert.equal(res.headers.get("location"), null, `${url}: redirected`);
   assert.ok([200, 503].includes(res.status), `${url}: unexpected status ${res.status}`);
   const body = await res.json();
-  assert.ok(["ok", "degraded"].includes(body.status), `${url}: not the health handler`);
+  const expected = res.status === 200 ? "ok" : "degraded";
+  assert.equal(body.status, expected, `${url}: health status mismatch (HTTP ${res.status})`);
   assert.equal(res.headers.get("x-content-type-options"), "nosniff", `${url}: nosniff`);
   console.info(`ok ${url} (${res.status} ${body.status}, served by the route handler)`);
 }
