@@ -7,7 +7,13 @@ import type { z } from "zod";
 
 import type { Actor } from "./actor";
 import { requestHash } from "./canonical";
-import { type AuditEntry, type KernelConfig, type Tx, getKernelConfig } from "./config";
+import {
+  type AuditEntry,
+  type KernelConfig,
+  type Origin,
+  type Tx,
+  getKernelConfig,
+} from "./config";
 import {
   type FieldIssue,
   conflict,
@@ -30,7 +36,11 @@ export interface Ctx {
   readonly actor: Actor;
   /** Injected clock value for this attempt. */
   readonly now: Date;
-  /** Written inside `tx`; commits or rolls back with the handler. */
+  /**
+   * Buffered, then written right before commit inside `tx` (D-026): the audit chain lock is held
+   * only for the flush, and the entry commits or rolls back with the handler. Validated at call
+   * time when the configured `AuditPort` has `validate`.
+   */
   readonly audit: { record(entry: AuditEntry): Promise<void> };
   /**
    * Transactional outbox: the event row is inserted in `tx`, so it commits or rolls back with the
@@ -74,6 +84,12 @@ export interface CommandSpec<I, O> {
 export interface CallOptions {
   /** Replays the stored response for the same (command, actor, key) within the TTL. */
   readonly idempotencyKey?: string;
+  /**
+   * Raw IP / user agent of the caller, set **only by the edge adapter**. Forwarded to the
+   * `AuditPort` (which hashes it); never exposed to handlers, spans, logs or the idempotency
+   * request hash.
+   */
+  readonly origin?: Origin;
 }
 
 export type Command<I, O> = ((
@@ -187,12 +203,16 @@ async function inTransaction<T>(
   }
 }
 
+/** Audit entries buffered during one execution (shared with nested `ctx.run` commands). */
+type AuditBuffer = AuditEntry[];
+
 function buildCtx(
   config: KernelConfig,
   tx: Tx,
   actor: Actor,
   now: Date,
   audited: { n: number },
+  buffer: AuditBuffer,
 ): Ctx {
   const ctx: Ctx = {
     tx,
@@ -200,8 +220,9 @@ function buildCtx(
     now,
     audit: {
       async record(entry) {
+        config.audit.validate?.(entry); // fail in the handler's stack, before anything is buffered
         audited.n++;
-        await config.audit.record(entry, { actor, tx, at: now });
+        buffer.push(entry);
       },
     },
     outbox: {
@@ -222,7 +243,7 @@ function buildCtx(
       },
     },
     can: (permission) => canDo(actor, permission),
-    run: (cmd, rawInput) => runJoined(config, cmd, rawInput, tx, actor, now),
+    run: (cmd, rawInput) => runJoined(config, cmd, rawInput, tx, actor, now, buffer),
   };
   return ctx;
 }
@@ -235,9 +256,13 @@ async function runHandler<I, O>(
   tx: Tx,
   actor: Actor,
   now: Date,
+  buffer: AuditBuffer,
 ): Promise<O> {
   const audited = { n: 0 };
-  const output = await spec.handler({ input, ctx: buildCtx(config, tx, actor, now, audited) });
+  const output = await spec.handler({
+    input,
+    ctx: buildCtx(config, tx, actor, now, audited, buffer),
+  });
   if ((spec.audit ?? "required") === "required" && audited.n === 0) {
     throw invariant("kernel.audit_missing", { command: spec.name });
   }
@@ -252,13 +277,37 @@ function runJoined<I, O>(
   tx: Tx,
   actor: Actor,
   now: Date,
+  buffer: AuditBuffer,
 ): Promise<O> {
   const spec = cmd.spec;
   return traced(config, spec.name, actor, async () => {
     authorize(spec.permission, actor);
     const input = parseInput(spec.input, rawInput);
-    return runHandler(config, spec, input, tx, actor, now);
+    return runHandler(config, spec, input, tx, actor, now, buffer);
   });
+}
+
+/**
+ * Writes the buffered audit entries to the port, in call order, inside the transaction and right
+ * before commit (D-026). A failure propagates, so the whole execution rolls back.
+ */
+async function flushAudit(
+  config: KernelConfig,
+  buffer: AuditBuffer,
+  tx: Tx,
+  actor: Actor,
+  now: Date,
+  origin: Origin | undefined,
+): Promise<void> {
+  for (const entry of buffer) {
+    config.audit.validate?.(entry);
+    await config.audit.record(entry, {
+      actor,
+      tx,
+      at: now,
+      ...(origin ? { origin } : {}),
+    });
+  }
 }
 
 type Claim<O> = { replayed: false } | { replayed: true; value: O };
@@ -342,7 +391,9 @@ export function command<I, O>(spec: CommandSpec<I, O>): Command<I, O> {
             );
             if (claimed.replayed) return claimed.value;
           }
-          const output = await runHandler(config, spec, input, tx, actor, now);
+          const buffer: AuditBuffer = []; // per attempt: a retried execution starts clean
+          const output = await runHandler(config, spec, input, tx, actor, now, buffer);
+          await flushAudit(config, buffer, tx, actor, now, options.origin);
           if (storageKey !== undefined) {
             const response = JSON.stringify(output);
             if (response === undefined) {

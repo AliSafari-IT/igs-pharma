@@ -128,7 +128,24 @@ missing ones (idempotent, 0–24); the migration creates the current month + 3. 
 partition**: an event outside every partition **fails** (fail closed — a missing partition must
 page someone, not silently lose or misplace audit data). `audit.future_partitions()` returns how many
 whole months after the current one exist; alert when it is below **2**. A daily job under the
-maintenance role calls `ensure_partitions(3)` (T-006b; the maintenance credentials come with B-08).
+worker calls `audit.maintain_partitions()` (T-006b): no maintenance credential is needed.
+
+## Roles, wiring and background jobs (T-006b)
+
+**Roles.** `igs_app` (web / platform): `SELECT, INSERT` on events, `SELECT, UPDATE` on the head. `igs_worker` (migration `0007`, NOLOGIN, additive to `igs_app`; B-08 makes the worker's login role a member of both): `SELECT` on events and head, `USAGE` on the schema, `EXECUTE` on `audit.maintain_partitions()` and `audit.future_partitions()` (and nothing else). `audit.ensure_partitions(months_ahead, from_month)` stays **SECURITY INVOKER**, executable by its owner only (the testable workhorse). The worker gets exactly the daily action: a zero-argument **`audit.maintain_partitions()`**, `SECURITY DEFINER` (owned by the migrator, `search_path = pg_catalog, audit, pg_temp`, `TimeZone = 'UTC'`), which calls `ensure_partitions(3, NULL)`. So the worker needs **no DDL credential and nothing parametric** (no `from_month`, no `months_ahead`); `igs_app` gets `42501` on both functions. Created partitions are owned by the function owner.
+
+**Wiring.** The kernel flushes buffered entries right before commit (see `kernel.md`). Web / platform: `ensureKernelConfigured()` parses `auditEnv` (`AUDIT_HMAC_KEY`) and builds `createAuditPort({ hmacKey })`; a missing key makes the first command fail closed. Worker: `createAuditPort()` **without a key** (it never has an `origin`); an entry with an `origin` and no key throws `audit.origin_without_key`. Every auditing module exports `registerAuditActions()`, called in the composition root before `configureKernel`.
+
+**Jobs** (pg-boss, `Europe/Brussels`; handlers in `@igs/module-audit`, registered by the worker via `registerAuditJobs`; **never 02:00–02:59**, the DST hour):
+
+| job | schedule | what | alarms (each also an `error` log) |
+|---|---|---|---|
+| `audit.partitions.ensure` | daily 04:47 | `audit.maintain_partitions()`, then `future_partitions()` | `audit.partitions.low` (< 2 future months); `audit.partitions.ensure_failed` (dead-letter) |
+| `audit.chain.verify` | daily 03:37 | `verifyChainSnapshot` over the last 48 h | `audit.chain.mismatch` immediately on `ok: false` (a broken chain is deterministic, never retried); `audit.chain.verify_failed` (dead-letter) |
+
+`registerAuditJobs(boss)` runs on every worker boot: `createQueue` / `schedule` are idempotent in pg-boss 10 (a real-pg-boss test proves a restart neither throws nor changes the retry / dead-letter options). Changing a queue's options later is an `updateQueue` concern: `createQueue` leaves existing queues alone. The kernel runtime (database, metrics, logger) is taken inside the module, so apps never hold a database handle.
+
+Thrown errors (connection, lock timeout) are retried by pg-boss (`retryLimit` 2, `retryDelay` 60 s); after the last failure the job lands in its dead-letter queue, whose handler raises the `*_failed` alarm — a verifier that never runs is an integrity gap. The mismatch log carries only `seq` and the reason, never event data. Gauges (`audit.partitions.future`, `audit.chain.checked`) are metric-only.
 
 ## Retention classes (gdpr-and-privacy §5)
 

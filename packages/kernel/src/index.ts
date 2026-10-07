@@ -18,6 +18,7 @@ export {
   type KernelConfig,
   type KernelLogger,
   type KernelOptions,
+  type Origin,
   type Metrics,
   type Tracer,
   type Tx,
@@ -52,6 +53,6 @@ export {
   createOutboxRelay,
   startOutboxRelay,
 } from "./relay";
-export { checkDatabase, closeDatabase } from "./lifecycle";
+export { type KernelRuntime, checkDatabase, closeDatabase, getKernelRuntime } from "./lifecycle";
 export { type PurgeOptions, type PurgeResult, purgeExpired } from "./maintenance";
 export { canonicalJson, requestHash } from "./canonical";

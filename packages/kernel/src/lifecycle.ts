@@ -1,5 +1,8 @@
+import type { Db } from "@igs/db";
 import { closeDb, getDb } from "@igs/db/client";
 import { sql } from "drizzle-orm";
+
+import { type KernelLogger, type Metrics, getKernelConfig } from "./config";
 
 /** Fails if the database is unreachable (worker start-up check). */
 export async function checkDatabase(): Promise<void> {
@@ -9,4 +12,23 @@ export async function checkDatabase(): Promise<void> {
 /** Closes the connection pool on graceful shutdown. */
 export async function closeDatabase(): Promise<void> {
   await closeDb();
+}
+
+/**
+ * What a background job handler needs, taken from the configured kernel: the database, the metrics
+ * sink, the logger and the clock. For **modules** that register background jobs (e.g.
+ * `@igs/module-audit`): they call it inside their own `register…Jobs(boss)`, so app code never holds
+ * a database handle (D-015). Apps must not call it; it is **not** for request handling, which always
+ * goes through `command()` / `query()`.
+ */
+export interface KernelRuntime {
+  readonly db: Pick<Db, "transaction">;
+  readonly metrics: Metrics;
+  readonly logger: KernelLogger;
+  readonly now: () => Date;
+}
+
+export function getKernelRuntime(): KernelRuntime {
+  const config = getKernelConfig();
+  return { db: config.db(), metrics: config.metrics, logger: config.logger, now: config.clock };
 }
