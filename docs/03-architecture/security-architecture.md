@@ -107,6 +107,33 @@ modules (patients, prescriptions, messaging) at Phase 2. Threat model reviewed e
   - Verified by unit tests (`packages/security-headers`) and `pnpm check:csp` (after `pnpm build`:
     starts both apps and checks every header and that every `<script>`/`<style>` carries the
     response nonce).
+- **CSP violation reporting (T-013, extends D-031):**
+  - **Policy:** when reporting is on, the CSP ends with `report-uri /api/csp-report` (Firefox) and
+    `report-to csp` (Chromium), and responses carry `Reporting-Endpoints: csp="/api/csp-report"`.
+    `CSP_REPORTING=on|off` (`@igs/config` `cspEnv`); empty/unset → **on in production, off in `next dev`**
+    (the dev overlay's known violations would only be noise).
+  - **Sink:** `POST /api/csp-report` in both apps (thin `route.ts`; logic in `@igs/security-headers`
+    `handleCspReport`). Stateless: no DB, no kernel, no auth, no cookies. Accepts
+    `application/csp-report` and `application/reports+json` only (else **415**); body capped at
+    **16 KB on the stream** (`content-length` not trusted; over → **413**); Zod-parsed, unknown keys
+    stripped (malformed → **400**); accepted → **204**. Non-`csp-violation` reports in a batch are
+    ignored.
+  - **Logged** (`warn`, event `security.csp.violation`): directive (known CSP directive names, else
+    `other`), disposition, status/line/column numbers, and `document-uri`, `blocked-uri`,
+    `source-file`, `referrer` reduced to **origin + path** (non-HTTP URLs to their scheme; `blocked-uri`
+    keywords such as `inline`/`eval`/`data`/`blob` kept).
+  - **Never logged:** query strings, fragments, URL credentials, `script-sample`/`sample`,
+    `original-policy`, any other field, **IP address or user agent** (the handler never reads them).
+  - **Metrics:** `security.csp.violation` labelled by `directive` only and
+    `security.csp.report_dropped`; wired as a no-op until the OTel backend lands (Phase 1b).
+  - **Flood guard:** per-process token bucket, 60 logged reports/minute; further reports are still
+    counted but not logged, and the drops are reported at most once per minute as a
+    `security.csp.report_dropped` increment **and** one `warn` line `{ dropped: n }` (visible in the
+    logs while metrics are a no-op). Real rate limiting is B-10.
+  - Browsers send reports to the HTTPS origin: on plain-HTTP `localhost`, `upgrade-insecure-requests`
+    upgrades the report request, so test delivery behind TLS (verified with Chromium for T-013).
+    `pnpm check:csp` covers the headers, both formats (204), 413 and 415 on both apps, and that the
+    server logs contain no query string, sample or user agent.
 - **CSRF:** Server Actions' built-in origin checks + SameSite=Lax cookies; explicit tokens for route handlers.
 - **Input validation:** Zod at every boundary (Server Actions, route handlers, job payloads, webhooks).
 - **Rate limiting:** edge (WAF) + app-level (Postgres-backed token bucket or provider limiter) on

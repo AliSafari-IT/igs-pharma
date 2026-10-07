@@ -1,6 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { buildSecurityHeaders, generateNonce } from "@igs/security-headers";
+import { appEnv, cspEnv, cspReportingEnabled, parseEnvFor } from "@igs/config";
+import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "@igs/security-headers";
+
+/** CSP_REPORTING (T-013): parsed once per process; reporting is off in `next dev` by default. */
+let reporting: boolean | undefined;
+function reportOptions(): { reportPath?: string } {
+  reporting ??= cspReportingEnabled(parseEnvFor(appEnv.extend(cspEnv.shape)));
+  return reporting ? { reportPath: CSP_REPORT_PATH } : {};
+}
 
 /**
  * Next 16 proxy: per-request CSP nonce + security headers (T-011, D-031).
@@ -14,6 +22,7 @@ export default function proxy(request: NextRequest) {
     nonce,
     app: "platform",
     isDev: process.env.NODE_ENV === "development",
+    ...reportOptions(),
   });
 
   const requestHeaders = new Headers(request.headers);

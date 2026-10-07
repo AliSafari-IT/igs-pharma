@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSecurityHeaders, generateNonce } from "./index";
+import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "./index";
 
 const nonce = generateNonce();
 const prod = (app: "web" | "platform") => buildSecurityHeaders({ nonce, app, isDev: false });
@@ -106,4 +106,46 @@ describe("buildSecurityHeaders", () => {
   it.each(["", "abc", "x'; script-src *", '"><script>'])("rejects a malformed nonce %j", (bad) => {
     expect(() => buildSecurityHeaders({ nonce: bad, app: "web", isDev: false })).toThrow(/nonce/);
   });
+});
+
+describe("violation reporting (T-013)", () => {
+  const reporting = (app: "web" | "platform", isDev = false) =>
+    buildSecurityHeaders({ nonce, app, isDev, reportPath: CSP_REPORT_PATH });
+
+  it.each(["web", "platform"] as const)(
+    "%s: report-uri, report-to and Reporting-Endpoints",
+    (app) => {
+      const headers = reporting(app);
+      const policy = csp(headers);
+      expect(policy.get("report-uri")).toEqual(["/api/csp-report"]);
+      expect(policy.get("report-to")).toEqual(["csp"]);
+      expect(headers["reporting-endpoints"]).toBe('csp="/api/csp-report"');
+    },
+  );
+
+  it("leaves the rest of the policy unchanged", () => {
+    const withReporting = reporting("web")["content-security-policy"] ?? "";
+    expect(withReporting).toBe(
+      `${prod("web")["content-security-policy"]}; report-uri /api/csp-report; report-to csp`,
+    );
+    const { "content-security-policy": _a, "reporting-endpoints": _b, ...rest } = reporting("web");
+    const { "content-security-policy": _c, ...base } = prod("web");
+    expect(rest).toEqual(base);
+  });
+
+  it("no reportPath → no reporting directives or header (prod and dev)", () => {
+    for (const headers of [prod("web"), prod("platform"), dev("web"), dev("platform")]) {
+      expect(headers["content-security-policy"]).not.toMatch(/report-(uri|to)/);
+      expect(headers["reporting-endpoints"]).toBeUndefined();
+    }
+  });
+
+  it.each(["api/csp-report", "https://evil.example/r", '/x"; y', "/a b"])(
+    "rejects an unsafe reportPath %j",
+    (bad) => {
+      expect(() =>
+        buildSecurityHeaders({ nonce, app: "web", isDev: false, reportPath: bad }),
+      ).toThrow(/reportPath/);
+    },
+  );
 });

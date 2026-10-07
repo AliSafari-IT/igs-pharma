@@ -37,6 +37,22 @@ export const featureFlagsEnv = z.object({
     .transform((v) => v === "true"),
 });
 
+/**
+ * CSP violation reporting (T-013): `on|off`; unset → on in production only (Next's dev overlay
+ * produces known violations). Resolve with `cspReportingEnabled()`.
+ */
+export const cspEnv = z.object({
+  // empty (`CSP_REPORTING=` in .env) counts as unset
+  CSP_REPORTING: z.preprocess((v) => (v === "" ? undefined : v), z.enum(["on", "off"]).optional()),
+});
+
+/** Whether the apps send report-uri / report-to and Reporting-Endpoints. */
+export function cspReportingEnabled(
+  env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof cspEnv>,
+): boolean {
+  return env.CSP_REPORTING ? env.CSP_REPORTING === "on" : env.NODE_ENV === "production";
+}
+
 /** Full set used by `web` / `platform` (and `getEnv()`). */
 const envSchema = z.object({
   ...dbEnv.shape,
@@ -45,6 +61,7 @@ const envSchema = z.object({
   ...cryptoEnv.shape,
   ...observabilityEnv.shape,
   ...featureFlagsEnv.shape,
+  ...cspEnv.shape,
 });
 
 /** What the worker needs: no `AUTH_*`, no feature flags. */

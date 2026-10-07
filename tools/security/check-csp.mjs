@@ -23,6 +23,8 @@ const COMMON = {
   "cross-origin-opener-policy": "same-origin",
   "x-frame-options": "DENY",
   "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+  // T-013: violation reporting is on in production
+  "reporting-endpoints": 'csp="/api/csp-report"',
 };
 
 function start({ app, port }) {
@@ -34,12 +36,18 @@ function start({ app, port }) {
     ...process.env,
     NODE_ENV: "production",
   };
-  return spawn("pnpm", ["--filter", `@igs/${app}`, "exec", "next", "start", "--port", `${port}`], {
-    cwd: root,
-    env,
-    stdio: ["ignore", "inherit", "inherit"],
-    detached: true,
+  const server = spawn(
+    "pnpm",
+    ["--filter", `@igs/${app}`, "exec", "next", "start", "--port", `${port}`],
+    { cwd: root, env, stdio: ["ignore", "pipe", "inherit"], detached: true },
+  );
+  // keep the server's stdout (the pino logs) to check what the CSP sink logged
+  server.output = "";
+  server.stdout.on("data", (chunk) => {
+    server.output += chunk;
+    process.stdout.write(chunk);
   });
+  return server;
 }
 
 async function waitFor(url) {
@@ -70,6 +78,10 @@ async function check(app, url, previousNonces) {
   assert.ok(nonce, `${url}: no nonce in script-src: ${csp}`);
   assert.ok(csp.includes(`style-src 'self' 'nonce-${nonce}'`), `${url}: style-src nonce`);
   assert.ok(!/unsafe-(eval|inline)/.test(csp), `${url}: unsafe-* in production CSP`);
+  assert.ok(
+    csp.endsWith("; report-uri /api/csp-report; report-to csp"),
+    `${url}: report-uri/report-to`,
+  );
   assert.ok(!previousNonces.has(nonce), `${url}: nonce reused`);
   previousNonces.add(nonce);
 
@@ -102,6 +114,50 @@ async function checkApi(url) {
   console.info(`ok ${url} (${res.status} ${body.status}, served by the route handler)`);
 }
 
+/** T-013: the violation sink accepts both report formats and enforces the 16 KB cap. */
+async function checkReportSink(base, server) {
+  const url = `${base}/api/csp-report`;
+  const send = (type, body) =>
+    fetch(url, { method: "POST", headers: { "content-type": type }, body, redirect: "manual" });
+  const legacy = {
+    "csp-report": {
+      "document-uri": `${base}/nl?token=check`,
+      "effective-directive": "script-src-elem",
+      "blocked-uri": "inline",
+      "script-sample": "check",
+    },
+  };
+  const reportingApi = [
+    {
+      type: "csp-violation",
+      body: { documentURL: `${base}/`, effectiveDirective: "style-src-elem" },
+    },
+  ];
+  const cases = [
+    ["legacy application/csp-report", "application/csp-report", JSON.stringify(legacy), 204],
+    ["Reporting API", "application/reports+json", JSON.stringify(reportingApi), 204],
+    [
+      "oversized",
+      "application/csp-report",
+      JSON.stringify({ "csp-report": { x: "y".repeat(17_000) } }),
+      413,
+    ],
+    ["wrong media type", "application/json", JSON.stringify(legacy), 415],
+  ];
+  for (const [name, type, body, expected] of cases) {
+    const res = await send(type, body);
+    assert.equal(res.status, expected, `${url} ${name}`);
+  }
+  // the sink logged both violations, sanitised (no query string, sample or user agent)
+  await new Promise((r) => setTimeout(r, 300));
+  const logged = server.output.split("\n").filter((l) => l.includes("security.csp.violation"));
+  assert.equal(logged.length, 2, `${url}: expected 2 violation log lines`);
+  for (const secret of ["token=check", "script-sample", '"check"', "user_agent", "Mozilla"]) {
+    assert.ok(!logged.some((l) => l.includes(secret)), `${url}: log contains ${secret}`);
+  }
+  console.info(`ok ${url} (204 legacy + Reporting API, 413 oversized, 415 wrong type)`);
+}
+
 const servers = apps.map(start);
 let failed = false;
 try {
@@ -109,6 +165,10 @@ try {
   for (const { app, port, paths } of apps) {
     await waitFor(`http://localhost:${port}/api/health`);
     await checkApi(`http://localhost:${port}/api/health`);
+    await checkReportSink(
+      `http://localhost:${port}`,
+      servers[apps.findIndex((a) => a.app === app)],
+    );
     if (app === "web") {
       // only /api and /api/* skip the proxy: a slug that merely starts with "api" is still localized
       const res = await fetch(`http://localhost:${port}/apixaban`, { redirect: "manual" });
