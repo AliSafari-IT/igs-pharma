@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { authEnv, parseEnv, parseEnvFor, workerEnv } from "./env";
+import { auditEnv, authEnv, parseEnv, parseEnvFor, workerEnv } from "./env";
 
 const valid = {
   DATABASE_URL: "postgresql://igs:igs@localhost:5432/igs_pharma",
@@ -66,5 +66,15 @@ describe("parseEnvFor (per-process schemas)", () => {
 
   it("composes arbitrary schemas", () => {
     expect(() => parseEnvFor(authEnv, {})).toThrow(/AUTH_URL/);
+  });
+});
+
+describe("auditEnv", () => {
+  it("requires AUDIT_HMAC_KEY of at least 32 chars", () => {
+    expect(() => parseEnvFor(auditEnv, {})).toThrow(/AUDIT_HMAC_KEY/);
+    expect(() => parseEnvFor(auditEnv, { AUDIT_HMAC_KEY: "short" })).toThrow(/AUDIT_HMAC_KEY/);
+    expect(parseEnvFor(auditEnv, { AUDIT_HMAC_KEY: "k".repeat(32) }).AUDIT_HMAC_KEY).toHaveLength(
+      32,
+    );
   });
 });

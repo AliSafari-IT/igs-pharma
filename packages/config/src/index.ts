@@ -4,6 +4,7 @@ export {
   getEnv,
   type Env,
   appEnv,
+  auditEnv,
   authEnv,
   cryptoEnv,
   dbEnv,
