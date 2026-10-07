@@ -1,5 +1,6 @@
-import type { Tx } from "@igs/kernel";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import type { Db } from "@igs/db";
+import { type Tx, invariant } from "@igs/kernel";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { GENESIS_HASH, computeHash } from "./chain";
 import { events, chainHead } from "./schema";
@@ -39,13 +40,34 @@ export interface VerifyRange {
 
 const BATCH = 1000;
 
-type Reader = Pick<Tx, "select">;
+type Reader = Pick<Tx, "select" | "execute">;
 
 /**
  * Walks the chain and recomputes every hash. Detects altered rows, broken links, gaps/duplicates
  * and removal of the newest events (via the head row). Reads only; safe to run on the app role.
+ *
+ * **Must run in ONE snapshot.** The walk, the head read and the newest-row read are separate
+ * statements; under READ COMMITTED each would see a new snapshot, and a `record` committing in
+ * between (normal traffic) would produce a false `head_mismatch`: an integrity alarm that cries
+ * wolf. So the transaction must be REPEATABLE READ or SERIALIZABLE, otherwise this throws
+ * `audit.verify_requires_snapshot`. Caller pattern (readers neither block nor are blocked by writers):
+ *
+ *     db.transaction((tx) => verifyChain(tx, range), {
+ *       isolationLevel: "repeatable read",
+ *       accessMode: "read only",
+ *     });
+ *
+ * (`verifyChainSnapshot` does exactly that.)
  */
 export async function verifyChain(db: Reader, range: VerifyRange = {}): Promise<ChainVerification> {
+  const isolation = await db.execute<{ level: string }>(
+    sql`SELECT current_setting('transaction_isolation') AS level`,
+  );
+  const level = Array.from(isolation)[0]?.level;
+  if (level !== "repeatable read" && level !== "serializable") {
+    throw invariant("audit.verify_requires_snapshot", { isolation: level ?? "unknown" });
+  }
+
   // ── where to start ──────────────────────────────────────────────────────────────────────────
   let nextSeq = 1;
   let expectedPrev = GENESIS_HASH;
@@ -133,4 +155,15 @@ export async function verifyChain(db: Reader, range: VerifyRange = {}): Promise<
 
 function fail(checked: number, firstBadSeq: number, reason: VerifyFailure): ChainVerification {
   return { ok: false, checked, firstBadSeq, reason };
+}
+
+/** `verifyChain` in its own REPEATABLE READ, read-only transaction (the snapshot it requires). */
+export function verifyChainSnapshot(
+  db: Pick<Db, "transaction">,
+  range: VerifyRange = {},
+): Promise<ChainVerification> {
+  return db.transaction((tx) => verifyChain(tx, range), {
+    isolationLevel: "repeatable read",
+    accessMode: "read only",
+  });
 }
