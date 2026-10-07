@@ -3,7 +3,10 @@ import "server-only";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { getEnv } from "@igs/config/env";
+import { appEnv, dbEnv, parseEnvFor } from "@igs/config/env";
+
+// Only what the database needs: processes without AUTH_* (the worker) can open a pool.
+const clientEnv = dbEnv.extend(appEnv.shape);
 
 let _sql: postgres.Sql | undefined;
 let _db: ReturnType<typeof drizzle> | undefined;
@@ -14,14 +17,16 @@ let _db: ReturnType<typeof drizzle> | undefined;
  */
 export function getDb() {
   if (!_db) {
-    const env = getEnv();
+    const env = parseEnvFor(clientEnv);
     _sql = postgres(env.DATABASE_URL, {
       max: env.DATABASE_MAX_CONNECTIONS,
       idle_timeout: 30,
       connect_timeout: 10,
       ssl: env.NODE_ENV === "production" ? "require" : false,
     });
-    _db = drizzle(_sql, { logger: env.NODE_ENV === "development" });
+    _db = drizzle(_sql, {
+      logger: env.NODE_ENV === "development" && ["debug", "trace"].includes(env.LOG_LEVEL),
+    });
   }
   return _db;
 }

@@ -1,15 +1,16 @@
-import { getEnv } from "@igs/config/env";
-import { closeDb, getDb } from "@igs/db/client";
-import { sql } from "drizzle-orm";
+import { parseEnvFor, workerEnv } from "@igs/config/env";
+import { type JobQueue, checkDatabase, closeDatabase, startOutboxRelay } from "@igs/kernel";
+import PgBoss from "pg-boss";
 
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function main() {
   // Validate configuration first; fail fast with a readable message and a non-zero exit code.
-  let env: ReturnType<typeof getEnv>;
+  // The worker parses only what it uses: no AUTH_* (T-005b).
+  let env: ReturnType<typeof parseEnvFor<typeof workerEnv>>;
   try {
-    env = getEnv();
+    env = parseEnvFor(workerEnv);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);
@@ -20,17 +21,31 @@ async function main() {
   logger.info({ nodeEnv: env.NODE_ENV }, "Worker starting");
 
   // Phase 0: verify DB connectivity
-  const db = getDb();
-  await db.execute(sql`SELECT 1`);
+  await checkDatabase();
   logger.info("Database connection verified");
 
-  // Phase 1: register pg-boss jobs here (T-005 outbox relay)
-  // const boss = new PgBoss(env.DATABASE_URL);
-  // await boss.start();
-  // boss.work("catalog.import", handlers.catalogImport);
+  // pg-boss owns its own `pgboss` schema. In production the worker role has no DDL rights, so
+  // pg-boss must NOT migrate itself: its install/upgrade is a step of the migration job (D-021,
+  // docs/06-engineering/migrations.md). In dev/test auto-migrating is fine.
+  const boss = new PgBoss({
+    connectionString: env.DATABASE_URL,
+    max: 4,
+    migrate: env.NODE_ENV !== "production",
+    // mirrors @igs/db's `ssl: "require"`; explicit DATABASE_SSL handling arrives with B-08
+    ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  });
+  boss.on("error", (err) => logger.error({ err }, "pg-boss error"));
+  await boss.start();
 
-  // Until pg-boss is wired nothing else keeps the event loop alive (the pool closes idle
-  // connections), so hold the process open ourselves; cleared on shutdown.
+  // Transactional outbox → pg-boss (at-least-once; subscribers use handleOnce).
+  const relay = startOutboxRelay({
+    queue: boss as unknown as JobQueue,
+    logger,
+  });
+  // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.
+
+  // pg-boss's timers keep the loop alive, but hold the process open ourselves too so a stopped
+  // relay can never exit silently; cleared on shutdown.
   const keepAlive = setInterval(() => {}, 1 << 30);
 
   let shuttingDown = false;
@@ -41,8 +56,9 @@ async function main() {
     setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS).unref();
     clearInterval(keepAlive);
     try {
-      // Phase 1: stop accepting jobs first — await boss.stop({ graceful: true });
-      await closeDb();
+      await relay.stop();
+      await boss.stop({ graceful: true, wait: true, timeout: SHUTDOWN_TIMEOUT_MS / 2 });
+      await closeDatabase();
       logger.info("Worker stopped");
       process.exit(0);
     } catch (err) {

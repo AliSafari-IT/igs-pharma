@@ -13,13 +13,13 @@ span start → parse input (Zod) → authorize → open ONE transaction
 ```
 
 - Parsing and authorization happen **before the transaction opens**: a rejected call does no database work.
-- Everything in the handler — your writes, the audit entry, (from T-005b) the outbox event — commits or rolls back **together**.
+- Everything in the handler — your writes, the audit entry, the outbox event — commits or rolls back **together**.
 - Any throw inside the transaction (a `DomainError` or anything else) rolls it back and is re-thrown.
 - Default isolation `READ COMMITTED`; use optimistic `version` checks in handlers. On `40001` (serialization failure) or `40P01` (deadlock) the kernel **retries the whole execution** (default: up to 3 retries, exponential backoff with jitter) and records the metric `kernel.tx.retry`. Retrying is safe only because of the next rule.
 
 ## Rules for handlers
 
-1. **No external I/O inside a handler (D-019)**: no HTTP, PSP, e-mail or file-storage calls. Side effects leave through the outbox (T-005b), which is what makes retries and rollbacks safe.
+1. **No external I/O inside a handler (D-019)**: no HTTP, PSP, e-mail or file-storage calls. Side effects leave through the outbox (below), which is what makes retries and rollbacks safe.
 2. **No PII or health data** in audit `data`, idempotent outputs, outbox payloads, spans or logs (D-020). Carry identifiers and status.
 3. **Don't call another command's function directly** inside a handler: it throws `kernel.nested_command`. Use `ctx.run(otherCommand, input)`, which joins your transaction (authorization and audit are enforced per command). Queries can't be called from inside a handler either; read through `ctx.tx`.
 4. Use `ctx.can(permission)` for resource-level checks (ownership, location). The command-level permission is already enforced.
@@ -150,6 +150,49 @@ expect(kernel.inMemoryAudit.entries[0]?.action).toBe("pharmacy.review.decided");
 `AuditPort` to test atomicity, see `packages/kernel/test/command.test.ts`), `resetKernelForTests()`.
 See `docs/06-engineering/migrations.md` for the real-Postgres harness.
 
-## Not yet (T-005b)
+## Events and the outbox
 
-`system.outbox`, `defineEvent` / `ctx.outbox.publish`, the pg-boss relay in the worker and `handleOnce`.
+An owning module declares its events and registers them at start-up:
+
+```ts
+import { defineEvent, registerEvents } from "@igs/kernel";
+
+// topic = <module>.<entity>.<past_tense>; bump the version on incompatible payload changes
+export const ReviewApproved = defineEvent("pharmacy.review.approved", 1, z.object({ reviewId: z.string() }));
+registerEvents(ReviewApproved);   // idempotent; the kernel only holds the registry mechanism
+
+// inside a handler: inserted into system.outbox in the command's transaction
+await ctx.outbox.publish(ReviewApproved, { reviewId });
+```
+
+- The payload is validated against the event schema (`kernel.invalid_event_payload`), the event must be registered (`kernel.event_not_registered`). **Payloads carry identifiers and status only — never personal or health data (D-020, A5)**; subscribers load what they need. `system.outbox.schema_version` records the event version.
+- `system.outbox`: `id` (UUIDv7), `topic`, `schema_version`, `payload`, `created_at`, `published_at`, `attempts`, `last_error`, `next_attempt_at`, `dead_at`. Partial index on rows still to be delivered. `last_error` holds only the error class (and SQL code), never a message that could echo data.
+
+### The relay (`startOutboxRelay`)
+
+The worker calls `startOutboxRelay({ queue: boss })` (the worker imports only `@igs/kernel` for this; D-015/A7). Every `intervalMs` (default 1 s) it, **in one transaction**:
+
+1. selects due rows `FOR UPDATE SKIP LOCKED` (several relays can run; none handles the same row);
+2. per row, inside a savepoint: `boss.send(topic, envelope, { singletonKey: outbox.id, db: pgBossExecutor(tx) })` and sets `published_at`. Because pg-boss writes through *our* transaction, **the job and `published_at` commit or roll back together** (tested). `singletonKey` is defence in depth;
+3. on failure: `attempts + 1`, `last_error`, `next_attempt_at = now + base·2^(attempts-1)` (cap 5 min, +≤20 % jitter); after `maxAttempts` (default 10) the row is **dead-lettered** (`dead_at`), logged as `kernel.outbox.dead` and counted.
+
+The job `data` is `{ eventId, topic, schemaVersion, payload }`; the pg-boss queue is named after the topic (created on first use). Metrics: `kernel.outbox.published|failed|dead` counters and the gauge `kernel.outbox.lag_seconds` (age of the oldest undelivered event — the ops alert fires above 5 minutes). Delivery to subscribers is **at-least-once**.
+
+### Subscribers: `handleOnce`
+
+```ts
+boss.work("pharmacy.review.approved", async ([job]) => {
+  const { eventId, payload } = job.data as OutboxEnvelope;
+  await handleOnce(eventId, "notifications.review-approved", async (tx) => { /* writes via tx; no external I/O */ });
+});
+```
+
+`handleOnce(eventId, subscriber, fn)` claims `event:{id}:{subscriber}` in `system.idempotency_keys` and runs `fn` in the **same** transaction: duplicates return `undefined`, a failing `fn` rolls the claim back so the retry runs. Sending the e-mail itself is a *separate* job enqueued through the outbox, never a call inside `fn` (D-019).
+
+### pg-boss's own schema (A6, D-021)
+
+pg-boss manages the `pgboss` schema itself. The worker passes `migrate: false` when `NODE_ENV=production` (it has no DDL rights there) and `migrate: true` otherwise. The production install/upgrade is an explicit step of the migration job (B-08); see `migrations.md`.
+
+### Per-process environment
+
+`@igs/config` exposes composable schemas (`dbEnv`, `authEnv`, `appEnv`, `cryptoEnv`, `observabilityEnv`, `workerEnv`) and `parseEnvFor(schema)`. The worker parses `workerEnv` and does not need `AUTH_SECRET`/`AUTH_URL`; `web`/`platform` keep `getEnv()` (the full set).

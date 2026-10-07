@@ -129,7 +129,7 @@ mustPass(
   "packages/auth/src/x.ts",
   'import { identitySchema } from "@igs/module-identity";\nconsole.log(identitySchema);\n',
 );
-// --- D-015: apps reach data only via @igs/db/health (worker: /client until T-005) -----------------
+// --- D-015: apps reach data only via @igs/db/health (worker: only the kernel, since T-005b) -----------------
 mustPass(
   "apps/web -> @igs/db/health (D-015)",
   "apps/web/src/app/x.ts",
@@ -153,10 +153,16 @@ mustFail(
   'import { getDb } from "@igs/db";\nconsole.log(getDb);\n',
   "boundaries/entry-point",
 );
-mustPass(
-  "apps/worker -> @igs/db/client (temporary exemption, T-005)",
+mustFail(
+  "apps/worker -> @igs/db/client (exemption removed in T-005b, A7)",
   "apps/worker/src/x.ts",
   'import { getDb } from "@igs/db/client";\nconsole.log(getDb);\n',
+  "boundaries/entry-point",
+);
+mustPass(
+  "apps/worker -> @igs/kernel (A7)",
+  "apps/worker/src/x.ts",
+  'import { startOutboxRelay } from "@igs/kernel";\nconsole.log(startOutboxRelay);\n',
 );
 
 // --- @igs/db/testing is test-only -----------------------------------------------------------------

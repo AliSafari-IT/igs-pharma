@@ -38,3 +38,18 @@ export {
   toErrorResponse,
   validationFailed,
 } from "./errors";
+export { type EventDef, defineEvent, registerEvents } from "./events";
+export { handleOnce } from "./handle-once";
+export { type JobExecutor, pgBossExecutor } from "./pgboss";
+export {
+  type JobQueue,
+  type OutboxEnvelope,
+  type OutboxProcessor,
+  type OutboxRelay,
+  type OutboxRelayOptions,
+  type RelayRunStats,
+  backoffMs,
+  createOutboxRelay,
+  startOutboxRelay,
+} from "./relay";
+export { checkDatabase, closeDatabase } from "./lifecycle";
