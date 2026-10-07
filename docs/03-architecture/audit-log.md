@@ -130,6 +130,21 @@ page someone, not silently lose or misplace audit data). `audit.future_partition
 whole months after the current one exist; alert when it is below **2**. A daily job under the
 maintenance role calls `ensure_partitions(3)` (T-006b; the maintenance credentials come with B-08).
 
+## Roles, wiring and background jobs (T-006b)
+
+**Roles.** `igs_app` (web / platform): `SELECT, INSERT` on events, `SELECT, UPDATE` on the head. `igs_worker` (migration `0007`, NOLOGIN, additive to `igs_app`; B-08 makes the worker's login role a member of both): `SELECT` on events and head, `USAGE` on the schema, `EXECUTE` on `audit.ensure_partitions` and `audit.future_partitions`. `audit.ensure_partitions` is `SECURITY DEFINER` (owned by the migrator, `search_path = pg_catalog, audit, pg_temp`, `TimeZone = 'UTC'`), so the worker needs **no DDL credential**; `igs_app` still gets `42501`. What a caller can do with it is bounded: `months_ahead` 0–24, only monthly partitions of `audit.events`, owned by the owner.
+
+**Wiring.** The kernel flushes buffered entries right before commit (see `kernel.md`). Web / platform: `ensureKernelConfigured()` parses `auditEnv` (`AUDIT_HMAC_KEY`) and builds `createAuditPort({ hmacKey })`; a missing key makes the first command fail closed. Worker: `createAuditPort()` **without a key** (it never has an `origin`); an entry with an `origin` and no key throws `audit.origin_without_key`. Every auditing module exports `registerAuditActions()`, called in the composition root before `configureKernel`.
+
+**Jobs** (pg-boss, `Europe/Brussels`; handlers in `@igs/module-audit`, registered by the worker via `registerAuditJobs`; **never 02:00–02:59**, the DST hour):
+
+| job | schedule | what | alarms (each also an `error` log) |
+|---|---|---|---|
+| `audit.partitions.ensure` | daily 04:47 | `audit.ensure_partitions(3)` via the definer function, then `future_partitions()` | `audit.partitions.low` (< 2 future months); `audit.partitions.ensure_failed` (dead-letter) |
+| `audit.chain.verify` | daily 03:37 | `verifyChainSnapshot` over the last 48 h | `audit.chain.mismatch` immediately on `ok: false` (a broken chain is deterministic, never retried); `audit.chain.verify_failed` (dead-letter) |
+
+Thrown errors (connection, lock timeout) are retried by pg-boss (`retryLimit` 2, `retryDelay` 60 s); after the last failure the job lands in its dead-letter queue, whose handler raises the `*_failed` alarm — a verifier that never runs is an integrity gap. The mismatch log carries only `seq` and the reason, never event data. Gauges (`audit.partitions.future`, `audit.chain.checked`) are metric-only.
+
 ## Retention classes (gdpr-and-privacy §5)
 
 | class | retention |

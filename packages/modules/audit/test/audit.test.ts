@@ -438,11 +438,15 @@ describe("0006: pinned functions, grants, alignment assertion (T-014)", () => {
       SELECT p.proname, p.proconfig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'audit' ORDER BY p.proname`;
     const byName = Object.fromEntries(rows.map((r) => [r.proname, r.proconfig ?? []]));
-    for (const name of ["ensure_partitions", "future_partitions", "assert_partitions_aligned"]) {
+    for (const name of ["future_partitions", "assert_partitions_aligned"]) {
       expect(byName[name], name).toEqual(
         expect.arrayContaining(["TimeZone=UTC", "search_path=pg_catalog, audit"]),
       );
     }
+    // 0007: definer function, pg_temp last
+    expect(byName["ensure_partitions"]).toEqual(
+      expect.arrayContaining(["TimeZone=UTC", "search_path=pg_catalog, audit, pg_temp"]),
+    );
     expect(byName["reject_mutation"]).toEqual(
       expect.arrayContaining(["search_path=pg_catalog, audit"]),
     );
@@ -498,6 +502,155 @@ describe("0006: pinned functions, grants, alignment assertion (T-014)", () => {
       await old2.drop();
       rmSync(upTo5, { recursive: true, force: true });
     }
+  });
+});
+
+describe("0007: ensure_partitions as a narrow SECURITY DEFINER for igs_worker (Q3)", () => {
+  const asRole = (role: string) =>
+    postgres(iso.url, { max: 1, onnotice: () => {}, connection: { role } });
+
+  it("privilege matrix", async () => {
+    const [row] = await iso.sql<Record<string, boolean>[]>`SELECT
+      has_function_privilege('igs_worker', 'audit.ensure_partitions(integer, date)', 'EXECUTE') AS worker_ensure,
+      has_function_privilege('igs_worker', 'audit.future_partitions()', 'EXECUTE') AS worker_future,
+      has_function_privilege('igs_app', 'audit.ensure_partitions(integer, date)', 'EXECUTE') AS app_ensure,
+      has_function_privilege('igs_app', 'audit.future_partitions()', 'EXECUTE') AS app_future,
+      has_table_privilege('igs_worker', 'audit.events', 'SELECT') AS worker_select,
+      has_table_privilege('igs_worker', 'audit.events', 'INSERT') AS worker_insert,
+      has_table_privilege('igs_worker', 'audit.chain_head', 'UPDATE') AS worker_head_update,
+      has_schema_privilege('igs_worker', 'audit', 'CREATE') AS worker_create,
+      (SELECT p.prosecdef FROM pg_proc p WHERE p.oid = 'audit.ensure_partitions(integer, date)'::regprocedure) AS definer`;
+    expect(row).toEqual({
+      worker_ensure: true,
+      worker_future: true,
+      app_ensure: false,
+      app_future: true,
+      worker_select: true,
+      worker_insert: false,
+      worker_head_update: false,
+      worker_create: false,
+      definer: true,
+    });
+  });
+
+  it("igs_worker can create partitions without any DDL right; they belong to the function owner", async () => {
+    const conn = asRole("igs_worker");
+    try {
+      const [created] = await conn<{ n: number }[]>`SELECT audit.ensure_partitions(6) AS n`;
+      expect(created?.n).toBe(3); // migration made current + 3; now current + 6
+      await expect(conn`CREATE TABLE audit.evil (x int)`).rejects.toMatchObject({ code: "42501" });
+      await expect(conn`INSERT INTO audit.chain_head VALUES (2, 0, 'x')`).rejects.toMatchObject({
+        code: "42501",
+      });
+      await expect(conn`SELECT audit.ensure_partitions(25)`).rejects.toThrow(/between 0 and 24/);
+    } finally {
+      await conn.end({ timeout: 5 });
+    }
+    const owners = await iso.sql<{ owner: string; table_owner: string }[]>`
+      SELECT pg_get_userbyid(c.relowner) AS owner, pg_get_userbyid(t.relowner) AS table_owner
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, pg_class t
+      WHERE n.nspname = 'audit' AND c.relkind = 'r' AND c.relname ~ '^events_y[0-9]{4}m[0-9]{2}$'
+        AND t.oid = 'audit.events'::regclass`;
+    expect(owners.length).toBe(7);
+    for (const row of owners) expect(row.owner).toBe(row.table_owner);
+    expect(await iso.sql`SELECT audit.assert_partitions_aligned() AS n`).toMatchObject([{ n: 7 }]);
+  });
+
+  it("igs_app still cannot execute it (42501)", async () => {
+    const conn = asRole("igs_app");
+    try {
+      await expect(conn`SELECT audit.ensure_partitions(1)`).rejects.toMatchObject({
+        code: "42501",
+      });
+    } finally {
+      await conn.end({ timeout: 5 });
+    }
+  });
+});
+
+describe("createAuditPort without a key (Q2)", () => {
+  const registerNoted = () => registerAuditAction("orders.order.noted", z.object({}));
+
+  it("records a system event without a key (the worker's port)", async () => {
+    registerNoted();
+    const kernel = configureKernelForTests({ db: iso.db, audit: createAuditPort() });
+    kernel.clock.set(new Date());
+    const job = command({
+      name: "orders.order.note",
+      input: z.object({}),
+      permission: "orders.review.decide",
+      async handler({ ctx }) {
+        await ctx.audit.record({ action: "orders.order.noted" });
+        return {};
+      },
+    });
+    await job({}, actors.system({ roles: ["pharmacist"] }));
+    const stored = await rows();
+    expect(stored.length).toBe(1);
+    expect(stored[0]?.ip_hash).toBeNull();
+  });
+
+  it("fails closed with audit.origin_without_key when an origin arrives, writing nothing", async () => {
+    registerNoted();
+    const kernel = configureKernelForTests({ db: iso.db, audit: createAuditPort() });
+    kernel.clock.set(new Date());
+    const job = command({
+      name: "orders.order.note2",
+      input: z.object({}),
+      permission: "orders.review.decide",
+      async handler({ ctx }) {
+        await ctx.audit.record({ action: "orders.order.noted" });
+        return {};
+      },
+    });
+    await expect(
+      job({}, actors.user({ roles: ["pharmacist"] }), { origin: { ip: "203.0.113.7" } }),
+    ).rejects.toMatchObject({ code: "audit.origin_without_key" });
+    expect((await rows()).length).toBe(0);
+  });
+
+  it("with a key, origin flows kernel → port → keyed hash (never raw)", async () => {
+    registerNoted();
+    const kernel = configureKernelForTests({
+      db: iso.db,
+      audit: createAuditPort({ hmacKey: KEY }),
+    });
+    kernel.clock.set(new Date());
+    const job = command({
+      name: "orders.order.note3",
+      input: z.object({}),
+      permission: "orders.review.decide",
+      async handler({ ctx }) {
+        await ctx.audit.record({ action: "orders.order.noted" });
+        return {};
+      },
+    });
+    await job({}, actors.user({ roles: ["pharmacist"] }), {
+      origin: { ip: "203.0.113.7", userAgent: "UA/1.0" },
+    });
+    const [row] = await rows();
+    expect(row?.ip_hash).toMatch(/^v1:[0-9a-f]{64}$/);
+    expect(row?.ua_hash).toMatch(/^v1:[0-9a-f]{64}$/);
+    expect(JSON.stringify(await iso.sql`SELECT * FROM audit.events`)).not.toContain("203.0.113.7");
+  });
+
+  it("an unregistered action fails in the handler's stack (validate), before any flush", async () => {
+    configureKernelForTests({ db: iso.db, audit: createAuditPort() });
+    let after = false;
+    const job = command({
+      name: "orders.order.note4",
+      input: z.object({}),
+      permission: "orders.review.decide",
+      async handler({ ctx }) {
+        await ctx.audit.record({ action: "orders.order.unknown" });
+        after = true;
+        return {};
+      },
+    });
+    await expect(job({}, actors.user({ roles: ["pharmacist"] }))).rejects.toMatchObject({
+      code: "audit.unknown_action",
+    });
+    expect(after).toBe(false);
   });
 });
 

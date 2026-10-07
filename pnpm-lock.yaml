@@ -41,6 +41,12 @@ importers:
       '@igs/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@igs/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@igs/module-audit':
+        specifier: workspace:*
+        version: link:../../packages/modules/audit
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -93,6 +99,12 @@ importers:
       '@igs/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@igs/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
+      '@igs/module-audit':
+        specifier: workspace:*
+        version: link:../../packages/modules/audit
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -145,6 +157,9 @@ importers:
       '@igs/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@igs/module-audit':
+        specifier: workspace:*
+        version: link:../../packages/modules/audit
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability

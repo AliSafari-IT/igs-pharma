@@ -11,6 +11,7 @@ import {
   type AuditEntry,
   type AuditPort,
   type KernelConfig,
+  type Origin,
   configureKernel,
   resetKernelConfig,
 } from "../config";
@@ -71,14 +72,18 @@ export const actors = {
 export interface CapturedAuditEntry extends AuditEntry {
   readonly actor: Actor;
   readonly at: Date;
+  readonly origin?: Origin | undefined;
 }
 
 /** `AuditPort` that keeps entries in memory (they do NOT roll back with the transaction). */
 export class InMemoryAudit implements AuditPort {
   readonly entries: CapturedAuditEntry[] = [];
 
-  async record(entry: AuditEntry, context: { actor: Actor; at: Date }): Promise<void> {
-    this.entries.push({ ...entry, actor: context.actor, at: context.at });
+  async record(
+    entry: AuditEntry,
+    context: { actor: Actor; at: Date; origin?: Origin },
+  ): Promise<void> {
+    this.entries.push({ ...entry, actor: context.actor, at: context.at, origin: context.origin });
   }
 
   clear(): void {

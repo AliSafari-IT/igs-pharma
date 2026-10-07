@@ -9,7 +9,7 @@ implement kernel *ports* (e.g. `AuditPort`) and each app wires them in.
 
 ```
 span start → authorize → parse input (Zod) → open ONE transaction
-           → idempotency check → handler → audit guard → output parse → commit → span end
+           → idempotency check → handler → audit guard → output parse → flush buffered audit → commit → span end
 ```
 
 - Authorization and parsing happen **before the transaction opens**: a rejected call does no database work. **Authorization comes first (K1)**, so an unauthorised caller gets `kernel.forbidden` and learns nothing about the input schema (no field paths).
@@ -154,6 +154,17 @@ expect(kernel.inMemoryAudit.entries[0]?.action).toBe("pharmacy.review.decided");
 `actors.user/anonymous/system/webhook`, `fakeClock()`, `InMemoryAudit` (does not roll back — pass a DB-backed
 `AuditPort` to test atomicity, see `packages/kernel/test/command.test.ts`), `resetKernelForTests()`.
 See `docs/06-engineering/migrations.md` for the real-Postgres harness.
+
+## Audit: buffered, flushed right before commit (T-006b, D-026)
+
+`ctx.audit.record(entry)` does **not** write anything while the handler runs: it validates the entry (`AuditPort.validate`, if the port has one: synchronous, no database), counts it for the `kernel.audit_missing` guard and **buffers** it. After the handler, the audit guard and the output parse, the kernel flushes the buffer to `AuditPort.record(entry, { actor, tx, at, origin })` **in call order, inside the transaction, right before commit**. So the audit chain's head-row lock is held only for the flush, and a failing flush (or any later failure) rolls back the handler's writes, the audit rows and the idempotency key together.
+
+- The buffer is **per attempt**: a 40001/40P01 retry starts with an empty one.
+- Nested `ctx.run` commands append to the **same** buffer (entries keep call order across commands) and are flushed once, at the end of the outermost execution. Each command still has its own `audit_missing` guard.
+- `validate` makes an unregistered action or invalid `data` fail **in the handler's stack**; the flush validates again (cheap, covers custom ports).
+- **`CallOptions.origin`** (`{ ip?, userAgent? }`) is set only by the edge adapter. The kernel forwards it to the port, which hashes it (keyed). It is **never** in `Ctx`, spans, logs or the idempotency request hash, so handlers can't leak it.
+- Wiring: each app's composition root calls the auditing modules' `registerAuditActions()` and then `configureKernel({ audit: createAuditPort(...) })`. The worker holds no HMAC key (its actors never have an `origin`); web / platform parse `auditEnv` inside `ensureKernelConfigured()`.
+- Job handlers of modules receive `getKernelRuntime()` (`db`, `metrics`, `logger`, `now`) from the composition root, so apps never import `@igs/db`. It is not for request handling.
 
 ## Events and the outbox
 

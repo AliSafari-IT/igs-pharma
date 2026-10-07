@@ -3,9 +3,12 @@ import {
   type JobQueue,
   checkDatabase,
   closeDatabase,
+  configureKernel,
+  getKernelRuntime,
   purgeExpired,
   startOutboxRelay,
 } from "@igs/kernel";
+import { type JobScheduler, createAuditPort, registerAuditJobs } from "@igs/module-audit";
 import PgBoss from "pg-boss";
 
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
@@ -26,6 +29,11 @@ async function main() {
   // Imported after env validation so a bad environment never reaches logger setup.
   const { logger } = await import("@igs/observability/logger");
   logger.info({ nodeEnv: env.NODE_ENV }, "Worker starting");
+
+  // Kernel composition root. The worker holds NO `AUDIT_HMAC_KEY`: its actors are system/webhook and
+  // never carry an `origin`, so the port is built without a key and fails closed (audit.origin_without_key)
+  // if one ever arrives. Audit action registrations of auditing modules go here, before configureKernel.
+  configureKernel({ audit: createAuditPort(), logger });
 
   // Phase 0: verify DB connectivity
   await checkDatabase();
@@ -56,6 +64,9 @@ async function main() {
     const purged = await purgeExpired();
     logger.info(purged, "Kernel housekeeping done");
   });
+  // Audit module (T-006b): daily partition maintenance (04:47) and chain verification (03:37,
+  // Europe/Brussels), with pg-boss retries and dead-letter alarms. Brussels 02:xx is avoided (DST).
+  await registerAuditJobs(boss as unknown as JobScheduler, getKernelRuntime());
   // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.
 
   // pg-boss's timers keep the loop alive, but hold the process open ourselves too so a stopped
