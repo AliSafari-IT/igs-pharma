@@ -206,6 +206,30 @@ mustPass(
   'import { newId } from "@igs/db/ids";\nconsole.log(newId);\n',
 );
 
+// --- @igs/security-headers (T-011): pure, imports nothing in-repo; apps may use it ---------------
+mustFail(
+  "security-headers -> config",
+  "packages/security-headers/src/x.ts",
+  'import { getEnv } from "@igs/config";\nconsole.log(getEnv);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "security-headers -> app",
+  "packages/security-headers/src/x.ts",
+  'import page from "../../../apps/web/src/app/[locale]/page";\nconsole.log(page);\n',
+  "boundaries/element-types",
+);
+mustPass(
+  "apps/web -> @igs/security-headers",
+  "apps/web/src/proxy.ts",
+  'import { buildSecurityHeaders } from "@igs/security-headers";\nconsole.log(buildSecurityHeaders);\n',
+);
+mustPass(
+  "apps/platform -> @igs/security-headers",
+  "apps/platform/src/proxy.ts",
+  'import { generateNonce } from "@igs/security-headers";\nconsole.log(generateNonce);\n',
+);
+
 // --- circular dependencies between packages -------------------------------------------------
 import { findCycle, loadWorkspaceGraph } from "./check-cycles.mjs";
 

@@ -14,6 +14,7 @@
     "@igs/db": "workspace:*",
     "@igs/i18n": "workspace:*",
     "@igs/observability": "workspace:*",
+    "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",
     "next": "16.0.11",
     "next-intl": "4.14.9",

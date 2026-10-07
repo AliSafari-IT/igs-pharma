@@ -9,7 +9,17 @@ import boundaries from "eslint-plugin-boundaries";
 const require = createRequire(import.meta.url);
 const resolver = require.resolve("./tools/boundaries/resolver.cjs");
 
-const infra = ["config", "crypto", "db", "auth", "observability", "ui", "i18n", "kernel"];
+const infra = [
+  "config",
+  "crypto",
+  "db",
+  "auth",
+  "observability",
+  "ui",
+  "i18n",
+  "kernel",
+  "security-headers",
+];
 
 /** Test code: the only place `@igs/db/testing` may be imported from. */
 const TEST_FILES = [

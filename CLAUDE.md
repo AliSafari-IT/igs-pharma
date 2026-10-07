@@ -113,7 +113,7 @@ Every Server Action, route handler and job goes through `@igs/kernel` (`docs/06-
 
 ### i18n
 
-The storefront (`apps/web`) uses `next-intl` with locale-prefixed URLs (`/nl/`, `/fr/`, `/de/`, `/en/`). Default locale is `nl`. The middleware in `apps/web/src/middleware.ts` handles locale detection. Message files are in `packages/i18n/messages/*.json`. The back-office (`apps/platform`) is staff-only and uses English without URL prefixes.
+The storefront (`apps/web`) uses `next-intl` with locale-prefixed URLs (`/nl/`, `/fr/`, `/de/`, `/en/`). Default locale is `nl`. `apps/web/src/proxy.ts` (Next 16 proxy) handles locale detection and, like `apps/platform/src/proxy.ts`, sets the nonce CSP + security headers from `@igs/security-headers`. Message files are in `packages/i18n/messages/*.json`. The back-office (`apps/platform`) is staff-only and uses English without URL prefixes.
 
 ### Styling
 
