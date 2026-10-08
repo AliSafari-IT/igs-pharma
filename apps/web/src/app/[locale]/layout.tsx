@@ -3,8 +3,8 @@ import { getMessages } from "next-intl/server";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
-import "@igs/ui/styles/tokens.css";
-import "@igs/ui/styles/global.css";
+// Tailwind + @igs/ui tokens + global base styles (one entry, T-015)
+import "../globals.css";
 
 // CSP nonces are per request (src/proxy.ts, T-011): prerendered HTML would carry no nonce and its
 // scripts would be blocked, so every page renders dynamically (accepted trade-off, D-031/D-008).

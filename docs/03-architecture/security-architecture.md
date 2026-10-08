@@ -81,11 +81,15 @@ modules (patients, prescriptions, messaging) at Phase 2. Threat model reviewed e
     base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
     ```
 
-    No `'unsafe-inline'` anywhere: Tailwind v4 and `next/font` ship stylesheet files, and Next nonces
-    its inline scripts/styles. Inline `style="…"` attributes are therefore blocked — use classes.
+    No `'unsafe-inline'` in production: Tailwind v4 (PostCSS, T-015) and `next/font` ship stylesheet
+    files, and Next nonces its inline scripts/styles. Inline `style="…"` attributes are therefore
+    blocked — use classes.
   - **Dev exceptions** (`next dev` only): `script-src` adds `'unsafe-eval'` (React dev build / HMR),
-    `connect-src` adds `ws: wss:` (HMR websocket); no `upgrade-insecure-requests`, no HSTS. Next's
-    dev-tools overlay injects un-nonced `<style>` tags, so it renders unstyled in dev (known, dev only).
+    `connect-src` adds `ws: wss:` (HMR websocket); no `upgrade-insecure-requests`, no HSTS.
+    `style-src` is `'self' 'unsafe-inline'` **without** the nonce (T-015): Next's dev-tools overlay
+    injects un-nonced `<style>` tags, and CSP Level 3 browsers ignore `'unsafe-inline'` while a nonce
+    is present, so the nonce has to go in dev. Scripts keep the nonce and `'strict-dynamic'` in dev.
+    The production policy is unchanged (asserted byte-for-byte in `packages/security-headers` tests).
   - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (production only;
     **submitting** the domain to the HSTS preload list is a deliberate B-08 step once the final
     domains and subdomains are known — it is hard to undo),

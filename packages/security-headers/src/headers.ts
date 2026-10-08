@@ -6,7 +6,7 @@
 export type SecurityHeadersApp = "web" | "platform";
 
 export interface SecurityHeadersOptions {
-  /** Per-request nonce from generateNonce(); embedded in script-src and style-src. */
+  /** Per-request nonce from generateNonce(); embedded in script-src (and style-src outside dev). */
   nonce: string;
   app: SecurityHeadersApp;
   /** `next dev`: allows what the dev server needs, drops HSTS and upgrade-insecure-requests. */
@@ -47,10 +47,13 @@ export function buildContentSecurityPolicy({
   // Dev only: React's dev build and the HMR runtime evaluate code, and HMR uses a websocket.
   const devScript = isDev ? ["'unsafe-eval'"] : [];
   const devConnect = isDev ? ["ws:", "wss:"] : [];
+  // Dev only: Next's dev overlay injects un-nonced <style> tags. While a nonce is present, CSP3
+  // browsers ignore 'unsafe-inline', so dev drops the style nonce (T-015). Scripts keep theirs.
+  const styleSources = isDev ? ["'unsafe-inline'"] : [`'nonce-${nonce}'`];
   const directives: [string, ...string[]][] = [
     ["default-src", "'self'"],
     ["script-src", "'self'", `'nonce-${nonce}'`, "'strict-dynamic'", ...devScript],
-    ["style-src", "'self'", `'nonce-${nonce}'`],
+    ["style-src", "'self'", ...styleSources],
     ["img-src", "'self'", "data:", "blob:"],
     ["font-src", "'self'"],
     ["connect-src", "'self'", ...devConnect],
