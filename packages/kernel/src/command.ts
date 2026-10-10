@@ -73,7 +73,7 @@ export interface CommandSpec<I, O> {
    * health data (D-020).
    */
   readonly output?: z.ZodType<O, unknown>;
-  /** `"public"` is allowed only for operations listed in docs/06-engineering/kernel.md. */
+  /** `"public"` is allowed only for operations listed in asafarim-docs:ventures/igs-pharma/06-engineering/kernel.md. */
   readonly permission: PermissionSpec;
   /** Default `"required"`: the handler must record an audit entry or the execution rolls back. */
   readonly audit?: "required" | "none";

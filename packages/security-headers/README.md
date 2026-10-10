@@ -1,6 +1,6 @@
 # @igs/security-headers
 
-The security-header policy for both Next.js apps (T-011, D-031; `docs/03-architecture/security-architecture.md` §5).
+The security-header policy for both Next.js apps (T-011, D-031; `asafarim-docs:ventures/igs-pharma/03-architecture/security-architecture.md` §5).
 Infra package: no Next import, imports nothing in-repo (`zod` is its only runtime dependency, for report parsing).
 
 ```ts

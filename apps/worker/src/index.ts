@@ -40,7 +40,7 @@ async function main() {
 
   // pg-boss owns its own `pgboss` schema. In production the worker role has no DDL rights, so
   // pg-boss must NOT migrate itself: its install/upgrade is a step of the migration job (D-021,
-  // docs/06-engineering/migrations.md). In dev/test auto-migrating is fine.
+  // asafarim-docs:ventures/igs-pharma/06-engineering/migrations.md). In dev/test auto-migrating is fine.
   const boss = new PgBoss({
     connectionString: env.DATABASE_URL,
     max: 4,

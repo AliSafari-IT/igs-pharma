@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-IGS-Pharma is a healthcare-grade Belgian online pharmacy platform. Phase 1 is an OTC (non-prescription) webshop. Phase 2 adds prescription reservations. See `docs/` for the complete architecture, compliance requirements, and roadmap.
+IGS-Pharma is a healthcare-grade Belgian online pharmacy platform. Phase 1 is an OTC (non-prescription) webshop. Phase 2 adds prescription reservations.
+
+## Where the docs live
+
+This repo carries **no docs**. The master plan (strategy, compliance, architecture, ADRs, design system, operations, roadmap) lives in the private repo [`AliSafari-IT/asafarim-docs`](https://github.com/AliSafari-IT/asafarim-docs) under `ventures/igs-pharma/` (start at `master-plan.md`). References written as `asafarim-docs:ventures/igs-pharma/<path>` point there; add `asafarim-docs` to the session to read them. Do not add docs, ADRs, roadmaps or plans to this repo; a code change that changes documented behaviour gets a matching docs PR in `asafarim-docs`, and deploy details (server, credentials) stay out of this repo.
 
 ## Commands
 
@@ -92,7 +96,7 @@ e2e/             # Playwright tests
 
 - Apps may import packages; packages may import other packages.
 - Packages must NOT import from apps, and no circular deps between packages.
-- `eslint-plugin-boundaries` enforces this in CI (`pnpm lint:boundaries`; rules in `eslint.config.mjs`, negative tests via `pnpm test:boundaries`). Module naming/structure/rules: `docs/06-engineering/module-anatomy.md`.
+- `eslint-plugin-boundaries` enforces this in CI (`pnpm lint:boundaries`; rules in `eslint.config.mjs`, negative tests via `pnpm test:boundaries`). Module naming/structure/rules: `asafarim-docs:ventures/igs-pharma/06-engineering/module-anatomy.md`.
 - Within a package, only import from the public `index.ts` (or named exports in `package.json#exports`) — never deep-import into another package's `src/`.
 
 ### Environment
@@ -101,11 +105,11 @@ All env vars are typed and validated at startup via `packages/config/src/env.ts`
 
 ### Database schema
 
-Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). The **kernel owns `pgSchema("system")`** (`system.idempotency_keys`, later `system.outbox`; D-017), so `packages/db` owns **no tables**: it provides the client, the `newId()` UUIDv7 helper (`@igs/db/ids`) and the test harness, and drizzle-kit aggregates module + kernel schemas **by path glob only — db never imports modules**. See `packages/db/README.md` and `docs/06-engineering/migrations.md` (migration policy, `@igs/db/testing` harness). Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
+Per D-001, **table definitions live in the owning module**: `packages/modules/<name>/src/schema.ts` (Postgres schema `<name>` via `pgSchema`). The **kernel owns `pgSchema("system")`** (`system.idempotency_keys`, later `system.outbox`; D-017), so `packages/db` owns **no tables**: it provides the client, the `newId()` UUIDv7 helper (`@igs/db/ids`) and the test harness, and drizzle-kit aggregates module + kernel schemas **by path glob only — db never imports modules**. See `packages/db/README.md` and `asafarim-docs:ventures/igs-pharma/06-engineering/migrations.md` (migration policy, `@igs/db/testing` harness). Run `pnpm db:generate` after every schema change, then `pnpm db:migrate` to apply. The first migration is a custom one that enables `citext`.
 
 ### Kernel
 
-Every Server Action, route handler and job goes through `@igs/kernel` (`docs/06-engineering/kernel.md`): `command({ name, input, output?, permission, handler })` → authorize/validate → ONE transaction (handler + audit) → commit, with typed `DomainError`s (stable codes, no user-facing text), idempotency keys, retries on 40001/40P01, and an explicit `Actor`. **No external I/O inside handlers** (D-019). Each app calls `configureKernel({ audit })` once in its composition root. `@igs/kernel/testing` is test-only.
+Every Server Action, route handler and job goes through `@igs/kernel` (`asafarim-docs:ventures/igs-pharma/06-engineering/kernel.md`): `command({ name, input, output?, permission, handler })` → authorize/validate → ONE transaction (handler + audit) → commit, with typed `DomainError`s (stable codes, no user-facing text), idempotency keys, retries on 40001/40P01, and an explicit `Actor`. **No external I/O inside handlers** (D-019). Each app calls `configureKernel({ audit })` once in its composition root. `@igs/kernel/testing` is test-only.
 
 ### Auth
 

@@ -1,5 +1,5 @@
 /**
- * Canonical JSON for the audit hash chain (D-028). Specified in docs/03-architecture/audit-log.md
+ * Canonical JSON for the audit hash chain (D-028). Specified in asafarim-docs:ventures/igs-pharma/03-architecture/audit-log.md
  * and pinned by golden vectors in `test/canonical.test.ts`; any reimplementation must reproduce them.
  *
  * - UTF-8, no whitespace; object keys sorted by UTF-16 code unit;
