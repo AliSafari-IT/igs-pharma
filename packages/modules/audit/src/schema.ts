@@ -18,7 +18,7 @@ import {
  *
  * `events` is **partitioned monthly by `at`** (D-029) and append-only. Drizzle cannot express
  * partitioning, so migration `0005_*` replaces the generated `CREATE TABLE` with the partitioned
- * form (see docs/06-engineering/migrations.md); this definition is the typed view of it.
+ * form (see asafarim-docs:ventures/igs-pharma/06-engineering/migrations.md); this definition is the typed view of it.
  *
  * Never import this file from app code — drizzle-kit aggregates it by path glob.
  */

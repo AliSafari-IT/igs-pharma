@@ -1,4 +1,4 @@
-// The example from docs/06-engineering/kernel.md, executed. Keep both in sync.
+// The example from asafarim-docs:ventures/igs-pharma/06-engineering/kernel.md, executed. Keep both in sync.
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import { z } from "zod";

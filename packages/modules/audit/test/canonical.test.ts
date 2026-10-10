@@ -5,7 +5,7 @@ import { type EventCore, GENESIS_HASH, canonicalEvent, computeHash } from "../sr
 
 /**
  * GOLDEN VECTORS — produced independently (Python reference implementation of the spec in
- * docs/03-architecture/audit-log.md), not by this code. Any reimplementation of the chain must
+ * asafarim-docs:ventures/igs-pharma/03-architecture/audit-log.md), not by this code. Any reimplementation of the chain must
  * reproduce them exactly.
  */
 describe("canonicalJson golden vectors", () => {

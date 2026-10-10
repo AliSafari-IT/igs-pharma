@@ -1,6 +1,6 @@
 /**
  * ESLint is used ONLY for architectural boundaries (D-002). Style/lint is Biome's job.
- * Rules: docs/06-engineering/repository-structure.md; anatomy: docs/06-engineering/module-anatomy.md.
+ * Rules: asafarim-docs:ventures/igs-pharma/06-engineering/repository-structure.md; anatomy: module-anatomy.md (same folder).
  */
 import { createRequire } from "node:module";
 import tsParser from "@typescript-eslint/parser";
