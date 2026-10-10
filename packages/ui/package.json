@@ -3,7 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "exports": {
-    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./fonts": {
+      "types": "./src/fonts.ts",
+      "default": "./src/fonts.ts"
+    },
     "./styles/*": "./src/styles/*",
     "./button": {
       "types": "./src/components/button.tsx",
@@ -12,7 +19,8 @@
     "./tailwind": "./tailwind.config.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-slot": "1.1.1",
@@ -21,17 +29,21 @@
     "tailwind-merge": "2.5.5"
   },
   "peerDependencies": {
+    "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.0.0"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
+    "@types/node": "24.19.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
+    "next": "16.0.11",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwindcss": "4.0.0",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   }
 }

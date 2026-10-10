@@ -2,6 +2,7 @@ import { type Page, expect, test } from "@playwright/test";
 
 /**
  * T-015: the styling pipeline works in the production build and the CSP blocks nothing on the page.
+ * T-017: Inter and Fraunces are self-hosted (no request leaves the origin) and the /dev/ui gallery renders.
  * Run with `pnpm --filter @igs/e2e smoke` after `pnpm build` (see playwright.smoke.config.ts).
  */
 
@@ -19,6 +20,22 @@ async function watchCsp(page: Page): Promise<string[]> {
   return violations;
 }
 
+/** Every request the page makes; fonts included, none may leave the app's origin (T-017). */
+function watchRequests(page: Page): string[] {
+  const urls: string[] = [];
+  page.on("request", (request) => urls.push(request.url()));
+  return urls;
+}
+
+const offOrigin = (urls: string[], origin: string) => urls.filter((url) => !url.startsWith(origin));
+
+/** Font families the browser actually loaded (next/font names them "inter" / "fraunces"). */
+const loadedFonts = (page: Page) =>
+  page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family);
+  });
+
 /** --color-primary resolved by the browser, as an rgb() string. */
 const primaryColor = (page: Page) =>
   page.evaluate(() => {
@@ -32,21 +49,53 @@ const primaryColor = (page: Page) =>
 
 test("web /nl: Tailwind utilities, primary heading, Inter, no CSP violations", async ({ page }) => {
   const violations = await watchCsp(page);
+  const requests = watchRequests(page);
   await page.goto("http://localhost:3000/nl", { waitUntil: "networkidle" });
 
   const main = page.locator("main");
   await expect(main).toHaveCSS("display", "flex"); // a utility from the generated stylesheet
   await expect(main).toHaveCSS("min-height", "720px"); // min-h-screen at the default viewport
   await expect(page.locator("h1")).toHaveCSS("color", await primaryColor(page));
-  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(/^"?Inter/);
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(/^"?inter/);
+  await expect(page.locator("h1")).toHaveCSS("font-family", /^"?fraunces/);
+  expect(await loadedFonts(page)).toEqual(expect.arrayContaining(["inter", "fraunces"]));
+  expect(offOrigin(requests, "http://localhost:3000/")).toEqual([]);
   expect(violations).toEqual([]);
 });
 
-test("platform /: Tailwind utilities, primary heading, no CSP violations", async ({ page }) => {
+test("platform /: Tailwind utilities, primary heading, Inter, no CSP violations", async ({
+  page,
+}) => {
   const violations = await watchCsp(page);
+  const requests = watchRequests(page);
   await page.goto("http://localhost:3001/", { waitUntil: "networkidle" });
 
   await expect(page.locator("main")).toHaveCSS("padding", "32px"); // p-8
   await expect(page.locator("h1")).toHaveCSS("color", await primaryColor(page));
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(/^"?inter/);
+  expect(offOrigin(requests, "http://localhost:3001/")).toEqual([]);
+  expect(violations).toEqual([]);
+});
+
+test("platform /dev/ui: the component gallery renders with both fonts, no CSP violations", async ({
+  page,
+}) => {
+  const violations = await watchCsp(page);
+  const requests = watchRequests(page);
+  const res = await page.goto("http://localhost:3001/dev/ui", { waitUntil: "networkidle" });
+
+  expect(res?.status()).toBe(200);
+  await expect(page.locator("h1")).toHaveText("UI gallery");
+  await expect(page.locator("h1")).toHaveCSS("font-family", /^"?fraunces/);
+  await expect(page.getByRole("button", { name: "Primary" })).toHaveCSS(
+    "background-color",
+    await primaryColor(page),
+  );
+  await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+  await expect(page.getByLabel(/^E-mail/)).toHaveAttribute("aria-invalid", "true");
+  // (Next's route announcer is a second, empty role="alert")
+  await expect(page.getByRole("alert").filter({ hasText: "Payment failed" })).toBeVisible();
+  expect(await loadedFonts(page)).toEqual(expect.arrayContaining(["inter", "fraunces"]));
+  expect(offOrigin(requests, "http://localhost:3001/")).toEqual([]);
   expect(violations).toEqual([]);
 });

@@ -1,3 +1,4 @@
+import { fontDisplay, fontSans } from "@igs/ui/fonts";
 import type { ReactNode } from "react";
 
 // Tailwind + @igs/ui tokens + global base styles (one entry, T-015)
@@ -14,7 +15,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${fontSans.variable} ${fontDisplay.variable}`}>
       <body className="bg-[var(--color-surface)] text-[var(--color-text)] font-sans antialiased">
         {children}
       </body>

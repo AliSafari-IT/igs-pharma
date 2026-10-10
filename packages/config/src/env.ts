@@ -58,6 +58,21 @@ export function cspReportingEnabled(
   return env.CSP_REPORTING ? env.CSP_REPORTING === "on" : env.NODE_ENV === "production";
 }
 
+/**
+ * Component gallery at platform `/dev/ui` (T-017): `on|off`; unset → on outside production only.
+ * Production images never set it; the smoke/axe run sets `on` to test the production build.
+ */
+export const uiGalleryEnv = z.object({
+  UI_GALLERY: z.preprocess((v) => (v === "" ? undefined : v), z.enum(["on", "off"]).optional()),
+});
+
+/** Whether platform serves `/dev/ui` (otherwise it is a 404). */
+export function uiGalleryEnabled(
+  env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof uiGalleryEnv>,
+): boolean {
+  return env.UI_GALLERY ? env.UI_GALLERY === "on" : env.NODE_ENV !== "production";
+}
+
 /** Full set used by `web` / `platform` (and `getEnv()`). */
 const envSchema = z.object({
   ...dbEnv.shape,
@@ -67,6 +82,7 @@ const envSchema = z.object({
   ...observabilityEnv.shape,
   ...featureFlagsEnv.shape,
   ...cspEnv.shape,
+  ...uiGalleryEnv.shape,
 });
 
 /** What the worker needs: no `AUTH_*`, no feature flags. */

@@ -2,8 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  // production-build smoke check: playwright.smoke.config.ts
-  testIgnore: "visual-smoke.spec.ts",
+  // production-build smoke and axe checks: playwright.smoke.config.ts
+  testIgnore: ["visual-smoke.spec.ts", "a11y.spec.ts"],
   timeout: 30_000,
   retries: process.env["CI"] ? 2 : 0,
   reporter: process.env["CI"] ? "github" : "html",

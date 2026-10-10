@@ -8,6 +8,8 @@ import {
   cspReportingEnabled,
   parseEnv,
   parseEnvFor,
+  uiGalleryEnabled,
+  uiGalleryEnv,
   workerEnv,
 } from "./env";
 
@@ -97,6 +99,27 @@ describe("CSP_REPORTING (T-013)", () => {
 
   it("rejects anything but on/off", () => {
     expect(() => enabled({ CSP_REPORTING: "yes" })).toThrow(/CSP_REPORTING/);
+  });
+});
+
+describe("UI_GALLERY (T-017)", () => {
+  const schema = appEnv.extend(uiGalleryEnv.shape);
+  const enabled = (env: NodeJS.ProcessEnv) => uiGalleryEnabled(parseEnvFor(schema, env));
+
+  it("defaults to off in production and on elsewhere", () => {
+    expect(enabled({ NODE_ENV: "production" })).toBe(false);
+    expect(enabled({ NODE_ENV: "production", UI_GALLERY: "" })).toBe(false); // empty = unset
+    expect(enabled({ NODE_ENV: "development" })).toBe(true);
+    expect(enabled({})).toBe(true);
+  });
+
+  it("an explicit on/off wins", () => {
+    expect(enabled({ NODE_ENV: "production", UI_GALLERY: "on" })).toBe(true);
+    expect(enabled({ NODE_ENV: "development", UI_GALLERY: "off" })).toBe(false);
+  });
+
+  it("rejects anything but on/off", () => {
+    expect(() => enabled({ UI_GALLERY: "true" })).toThrow(/UI_GALLERY/);
   });
 });
 
