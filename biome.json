@@ -14,7 +14,8 @@
       "**/build/**",
       "**/drizzle/**",
       "**/.turbo/**",
-      "**/coverage/**"
+      "**/coverage/**",
+      "apps/web/test/app-manifest.schema.json"
     ]
   },
   "formatter": {
