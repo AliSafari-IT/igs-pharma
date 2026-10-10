@@ -12,7 +12,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 
 const apps = [
   { app: "web", port: 3000, paths: ["/nl", "/fr", "/de", "/en", "/nl/does-not-exist"] },
-  { app: "platform", port: 3001, paths: ["/", "/does-not-exist"] },
+  // /dev/ui: the T-017 component gallery, a 404 in production (UI_GALLERY unset)
+  { app: "platform", port: 3001, paths: ["/", "/does-not-exist", "/dev/ui"] },
 ];
 
 const COMMON = {
@@ -35,6 +36,7 @@ function start({ app, port }) {
     AUTH_URL: `http://localhost:${port}`,
     ...process.env,
     NODE_ENV: "production",
+    UI_GALLERY: "", // empty = unset: the production default
   };
   const server = spawn(
     "pnpm",
@@ -191,6 +193,11 @@ try {
       const res = await fetch(`http://localhost:${port}/apixaban`, { redirect: "manual" });
       assert.equal(res.headers.get("location"), "/nl/apixaban", "/apixaban: locale redirect");
       console.info("ok /apixaban -> /nl/apixaban (locale redirect kept)");
+    }
+    if (app === "platform") {
+      const res = await fetch(`http://localhost:${port}/dev/ui`, { redirect: "manual" });
+      assert.equal(res.status, 404, "/dev/ui: the component gallery is served in production");
+      console.info("ok /dev/ui -> 404 (gallery off in production)");
     }
     for (const p of paths) {
       const csp = await check(app, `http://localhost:${port}${p}`, nonces);

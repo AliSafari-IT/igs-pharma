@@ -9,6 +9,7 @@
     "smoke": "playwright test -c playwright.smoke.config.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.10.1",
     "@igs/tsconfig": "workspace:*",
     "@playwright/test": "1.49.1",
     "typescript": "5.7.2"

@@ -12,6 +12,8 @@ export {
   dbEnv,
   featureFlagsEnv,
   observabilityEnv,
+  uiGalleryEnabled,
+  uiGalleryEnv,
   workerEnv,
 } from "./env";
 export { getFeatureFlags, type FeatureFlags } from "./feature-flags";

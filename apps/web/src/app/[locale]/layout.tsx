@@ -1,6 +1,6 @@
+import { fontDisplay, fontSans } from "@igs/ui/fonts";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
-import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
 // Tailwind + @igs/ui tokens + global base styles (one entry, T-015)
@@ -10,11 +10,8 @@ import "../globals.css";
 // scripts would be blocked, so every page renders dynamically (accepted trade-off, D-031/D-008).
 export const dynamic = "force-dynamic";
 
-const inter = Inter({
-  subsets: ["latin", "latin-ext"],
-  variable: "--font-sans",
-  display: "swap",
-});
+// the brand name is not translated; per-page titles come with the feature pages
+export const metadata = { title: "IGS-Pharma" };
 
 export default async function RootLayout({
   children,
@@ -27,7 +24,7 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className={inter.variable}>
+    <html lang={locale} className={`${fontSans.variable} ${fontDisplay.variable}`}>
       <body className="bg-[var(--color-bg)] text-[var(--color-text)] font-sans antialiased">
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
       </body>

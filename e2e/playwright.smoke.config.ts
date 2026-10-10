@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Visual smoke check (T-015) against the PRODUCTION build of both apps: run `pnpm build` first, then
- * `pnpm --filter @igs/e2e smoke`. Set PLAYWRIGHT_CHROMIUM_EXECUTABLE to use a preinstalled Chromium.
+ * Visual smoke check (T-015) and axe (T-017) against the PRODUCTION build of both apps: run
+ * `pnpm build` first, then `pnpm --filter @igs/e2e smoke`. Set PLAYWRIGHT_CHROMIUM_EXECUTABLE to use
+ * a preinstalled Chromium.
  */
 const executablePath = process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"];
 // fake values: the env schema only needs valid-looking ones (these pages read no data)
@@ -14,7 +15,7 @@ const env = {
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: "visual-smoke.spec.ts",
+  testMatch: ["visual-smoke.spec.ts", "a11y.spec.ts"],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",
   projects: [
@@ -36,7 +37,8 @@ export default defineConfig({
     {
       command: "pnpm --filter=@igs/platform run start",
       url: "http://localhost:3001/",
-      env,
+      // the /dev/ui gallery is a 404 in production unless switched on
+      env: { ...env, UI_GALLERY: "on" },
       reuseExistingServer: false,
     },
   ],
