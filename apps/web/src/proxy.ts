@@ -67,7 +67,11 @@ export default function proxy(request: NextRequest) {
   if (gated && !passesGate(pathname)) {
     // every other URL renders the static page in place (no redirect: nothing to follow or index)
     response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });
-  } else if (pathname.startsWith("/.well-known/") || pathname.startsWith("/api/")) {
+  } else if (
+    pathname.startsWith("/.well-known/") ||
+    pathname === "/api" ||
+    pathname.startsWith("/api/")
+  ) {
     // locale-free: never redirected to /nl/…
     response = NextResponse.next({ request });
   } else {
@@ -83,9 +87,9 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Pages: all paths except API routes, Next.js internals and static files. `api(?:/|$)`, not a bare
-  // `api` prefix, so unprefixed slugs such as /apixaban still get the locale redirect.
-  // /.well-known/* contains dots, so it needs its own entry to get the security headers. /api/* is
-  // matched too, so an API route added later is behind the site gate unless `passesGate` lists it.
-  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)", "/.well-known/:path*", "/api/:path*"],
+  // Every path except Next.js internals and the two root files that answer for themselves: robots.txt
+  // (`src/app/robots.ts`, gate-aware) and favicon.ico. Dotted paths are NOT excluded wholesale, so a
+  // URL such as /nl/x.html still gets the security headers and the site gate. A file added to
+  // `public/` must be listed here, or the gate answers it with the coming-soon page.
+  matcher: ["/((?!_next/|_vercel/|robots\\.txt$|favicon\\.ico$).*)"],
 };

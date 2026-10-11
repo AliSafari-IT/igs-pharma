@@ -16,7 +16,8 @@ test("closed by default in production: every page is the coming-soon page, noind
     if (m.text().includes("Content Security Policy")) violations.push(m.text());
   });
 
-  for (const path of ["/", "/nl", "/fr/producten/paracetamol", "/en/account"]) {
+  // /nl/x.html: dotted paths go through the proxy too (the matcher does not skip them)
+  for (const path of ["/", "/nl", "/fr/producten/paracetamol", "/en/account", "/nl/x.html"]) {
     const response = await page.goto(`${GATED}${path}`, { waitUntil: "networkidle" });
     expect(response?.status(), path).toBe(200);
     expect(page.url(), path).toBe(`${GATED}${path}`); // shown in place, no redirect

@@ -1,15 +1,32 @@
 // The storefront gate (igs-pharma#46, IGS-D4) in both modes, through the real proxy and robots route.
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// next/experimental/testing/server needs the global `next start` installs before any Next module loads
+await vi.hoisted(async () => {
+  const { AsyncLocalStorage } = await import("node:async_hooks");
+  Object.assign(globalThis, { AsyncLocalStorage });
+});
+
 import robots from "../src/app/robots";
-import proxy, { COMING_SOON_PATH } from "../src/proxy";
+import proxy, { COMING_SOON_PATH, config } from "../src/proxy";
 
 const BASE = "http://localhost:3000";
 const call = (path: string) => proxy(new NextRequest(`${BASE}${path}`));
 const rewrittenTo = (res: Response) => res.headers.get("x-middleware-rewrite");
 
-const PAGES = ["/", "/nl", "/fr/producten/x", "/de", "/en", "/apixaban", "/coming-soon"];
+const PAGES = [
+  "/",
+  "/nl",
+  "/fr/producten/x",
+  "/de",
+  "/en",
+  "/apixaban",
+  "/coming-soon",
+  "/nl/x.html",
+  "/index.php",
+];
 const OPEN = [
   "/api/health",
   "/api/health/live",
@@ -19,6 +36,28 @@ const OPEN = [
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe("proxy matcher", () => {
+  // Next's own matcher logic, the code `next start` runs to decide whether the proxy is invoked
+  const matches = (path: string) => unstable_doesMiddlewareMatch({ config, url: `${BASE}${path}` });
+
+  it("runs the proxy for every page, dotted paths included, and for API and well-known routes", () => {
+    for (const path of [...PAGES, ...OPEN, "/api", "/api/orders", "/.well-known/security.txt"]) {
+      expect(matches(path), path).toBe(true);
+    }
+  });
+
+  it("skips only Next.js internals and the root files that answer for themselves", () => {
+    for (const path of [
+      "/_next/static/chunks/a.js",
+      "/_vercel/insights",
+      "/robots.txt",
+      "/favicon.ico",
+    ]) {
+      expect(matches(path), path).toBe(false);
+    }
+  });
 });
 
 describe("SITE_GATE=coming-soon", () => {

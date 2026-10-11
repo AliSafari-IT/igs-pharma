@@ -42,7 +42,8 @@ export default defineConfig({
       // the same build with SITE_GATE unset: closed by default (coming-soon.spec.ts)
       command: "pnpm --filter=@igs/web exec next start --port 3002",
       url: "http://localhost:3002/api/health/live",
-      env,
+      // "" counts as unset, and overrides a SITE_GATE inherited from the shell
+      env: { ...env, SITE_GATE: "" },
       reuseExistingServer: false,
     },
     {
