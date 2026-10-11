@@ -48,7 +48,8 @@ export default defineConfig({
     },
     {
       command: "pnpm --filter=@igs/platform run start",
-      url: "http://localhost:3001/",
+      // the route the staging container health check calls (igs-pharma#48)
+      url: "http://localhost:3001/api/health/live",
       // the /dev/ui gallery is a 404 in production unless switched on; Better Auth (and so the
       // passkeys' relying party) lives on the platform origin (36b)
       env: { ...env, AUTH_URL: "http://localhost:3001", UI_GALLERY: "on" },

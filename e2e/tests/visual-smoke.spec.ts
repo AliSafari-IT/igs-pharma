@@ -63,6 +63,15 @@ test("web /nl: Tailwind utilities, primary heading, Inter, no CSP violations", a
   expect(violations).toEqual([]);
 });
 
+test("platform /api/health/live: 200 without a session, no redirect, security headers (#48)", async ({
+  request,
+}) => {
+  const response = await request.get("http://localhost:3001/api/health/live", { maxRedirects: 0 });
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toEqual({ status: "ok" });
+  expect(response.headers()["x-content-type-options"]).toBe("nosniff");
+});
+
 test("platform /: Tailwind utilities, primary heading, Inter, no CSP violations", async ({
   page,
 }) => {
