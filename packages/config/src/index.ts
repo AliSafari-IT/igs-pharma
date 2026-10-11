@@ -12,6 +12,8 @@ export {
   dbEnv,
   featureFlagsEnv,
   observabilityEnv,
+  siteGateEnabled,
+  siteGateEnv,
   uiGalleryEnabled,
   uiGalleryEnv,
   workerEnv,

@@ -15,5 +15,9 @@
   "notFound": {
     "title": "Page introuvable",
     "backHome": "Retour à l'accueil"
+  },
+  "comingSoon": {
+    "title": "Bientôt ouvert",
+    "body": "IGS-Pharma, votre pharmacie en ligne en Belgique, ouvre bientôt."
   }
 }

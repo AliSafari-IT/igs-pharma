@@ -12,7 +12,13 @@ const env = smokeEnv;
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["visual-smoke.spec.ts", "a11y.spec.ts", "account.spec.ts", "two-step.spec.ts"],
+  testMatch: [
+    "visual-smoke.spec.ts",
+    "a11y.spec.ts",
+    "account.spec.ts",
+    "two-step.spec.ts",
+    "coming-soon.spec.ts",
+  ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",
   projects: [
@@ -28,6 +34,14 @@ export default defineConfig({
     {
       command: "pnpm --filter=@igs/web run start",
       url: "http://localhost:3000/nl",
+      // the open storefront; production defaults to the coming-soon gate (#46)
+      env: { ...env, SITE_GATE: "off" },
+      reuseExistingServer: false,
+    },
+    {
+      // the same build with SITE_GATE unset: closed by default (coming-soon.spec.ts)
+      command: "pnpm --filter=@igs/web exec next start --port 3002",
+      url: "http://localhost:3002/api/health/live",
       env,
       reuseExistingServer: false,
     },

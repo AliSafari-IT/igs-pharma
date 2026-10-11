@@ -1,12 +1,23 @@
 import type { Db } from "@igs/db";
 import { closeDb, getDb } from "@igs/db/client";
 import { sql } from "drizzle-orm";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 
 import { type KernelLogger, type Metrics, getKernelConfig } from "./config";
 
 /** Fails if the database is unreachable (worker start-up check). */
 export async function checkDatabase(): Promise<void> {
   await getDb().execute(sql`SELECT 1`);
+}
+
+/**
+ * Applies every committed migration in `migrationsFolder` (`packages/db/drizzle`, copied into the
+ * worker image) to `DATABASE_URL`, in order, each once (igs-pharma#46). The same chain and journal as
+ * `drizzle-kit migrate` (migrations.md), so the two tools can take turns on one database. Run by the
+ * worker image's one-shot `migrate` entry with a DDL-capable role, before the apps start.
+ */
+export async function migrateDatabase(migrationsFolder: string): Promise<void> {
+  await migrate(getDb(), { migrationsFolder });
 }
 
 /** Closes the connection pool on graceful shutdown. */

@@ -8,6 +8,8 @@ import {
   cspReportingEnabled,
   parseEnv,
   parseEnvFor,
+  siteGateEnabled,
+  siteGateEnv,
   uiGalleryEnabled,
   uiGalleryEnv,
   workerEnv,
@@ -130,5 +132,26 @@ describe("auditEnv", () => {
     expect(parseEnvFor(auditEnv, { AUDIT_HMAC_KEY: "k".repeat(32) }).AUDIT_HMAC_KEY).toHaveLength(
       32,
     );
+  });
+});
+
+describe("siteGateEnabled (igs-pharma#46)", () => {
+  const schema = appEnv.extend(siteGateEnv.shape);
+  const enabled = (env: NodeJS.ProcessEnv) => siteGateEnabled(parseEnvFor(schema, env));
+
+  it("fails closed: unset means closed in production, open elsewhere", () => {
+    expect(enabled({ NODE_ENV: "production" })).toBe(true);
+    expect(enabled({ NODE_ENV: "production", SITE_GATE: "" })).toBe(true); // empty = unset
+    expect(enabled({ NODE_ENV: "development" })).toBe(false);
+    expect(enabled({})).toBe(false);
+  });
+
+  it("an explicit value wins", () => {
+    expect(enabled({ NODE_ENV: "production", SITE_GATE: "off" })).toBe(false);
+    expect(enabled({ NODE_ENV: "development", SITE_GATE: "coming-soon" })).toBe(true);
+  });
+
+  it("rejects anything else", () => {
+    expect(() => enabled({ NODE_ENV: "production", SITE_GATE: "open" })).toThrow();
   });
 });

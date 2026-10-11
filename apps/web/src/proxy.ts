@@ -1,7 +1,14 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { appEnv, cspEnv, cspReportingEnabled, parseEnvFor } from "@igs/config";
+import {
+  appEnv,
+  cspEnv,
+  cspReportingEnabled,
+  parseEnvFor,
+  siteGateEnabled,
+  siteGateEnv,
+} from "@igs/config";
 import { routing } from "@igs/i18n/routing";
 import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "@igs/security-headers";
 
@@ -14,11 +21,32 @@ function reportOptions(): { reportPath?: string } {
   return reporting ? { reportPath: CSP_REPORT_PATH } : {};
 }
 
+const gateEnv = appEnv.extend(siteGateEnv.shape);
+
+/** The internal route of the "coming soon" page (`src/app/coming-soon`); reachable only by rewrite. */
+export const COMING_SOON_PATH = "/coming-soon";
+
+/**
+ * What stays reachable while the storefront is closed (igs-pharma#46, IGS-D4): health checks, the
+ * ASafariM OS manifest and CSP reports. `/robots.txt` is outside the matcher and answers
+ * "disallow everything" itself while the gate is on (`src/app/robots.ts`).
+ */
+function passesGate(pathname: string): boolean {
+  return (
+    pathname === "/api/health" ||
+    pathname.startsWith("/api/health/") ||
+    pathname === "/api/csp-report" ||
+    pathname === "/.well-known/asafarim-app.json"
+  );
+}
+
 /**
  * Next 16 proxy: per-request CSP nonce + security headers (T-011, D-031), then next-intl locale routing.
  * Next reads the nonce from the request's Content-Security-Policy header and stamps it on its own
  * <script> tags; `x-nonce` exposes it to server components (headers()) for any script they render.
  * Security note: authorization is NEVER enforced here — only in server actions / route handlers (D-005).
+ * The site gate is not authorization either: it keeps an unfinished storefront out of view and out of
+ * search indexes (`SITE_GATE`, on by default in production).
  */
 export default function proxy(request: NextRequest) {
   const nonce = generateNonce();
@@ -33,17 +61,31 @@ export default function proxy(request: NextRequest) {
   request.headers.set("x-nonce", nonce);
   request.headers.set("content-security-policy", headers["content-security-policy"] ?? "");
 
-  // /.well-known/* (the ASafariM OS manifest) is locale-free: never redirected to /nl/…
-  const response = request.nextUrl.pathname.startsWith("/.well-known/")
-    ? NextResponse.next({ request })
-    : handleI18nRouting(request);
+  const { pathname } = request.nextUrl;
+  const gated = siteGateEnabled(parseEnvFor(gateEnv));
+  let response: NextResponse;
+  if (gated && !passesGate(pathname)) {
+    // every other URL renders the static page in place (no redirect: nothing to follow or index)
+    response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });
+  } else if (pathname.startsWith("/.well-known/") || pathname.startsWith("/api/")) {
+    // locale-free: never redirected to /nl/…
+    response = NextResponse.next({ request });
+  } else {
+    response = handleI18nRouting(request);
+  }
   for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
+  if (gated) {
+    response.headers.set("x-robots-tag", "noindex, nofollow");
+    // the gate is switched by configuration: a cache must not keep serving either state
+    if (!passesGate(pathname)) response.headers.set("cache-control", "no-store");
+  }
   return response;
 }
 
 export const config = {
-  // Match all paths except API routes, Next.js internals and static files. `api(?:/|$)`, not a bare
+  // Pages: all paths except API routes, Next.js internals and static files. `api(?:/|$)`, not a bare
   // `api` prefix, so unprefixed slugs such as /apixaban still get the locale redirect.
-  // /.well-known/* contains dots, so it needs its own entry to get the security headers.
-  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)", "/.well-known/:path*"],
+  // /.well-known/* contains dots, so it needs its own entry to get the security headers. /api/* is
+  // matched too, so an API route added later is behind the site gate unless `passesGate` lists it.
+  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)", "/.well-known/:path*", "/api/:path*"],
 };

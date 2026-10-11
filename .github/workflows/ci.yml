@@ -109,7 +109,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build
 
-  # ── 5b. Container images (build only, never pushed) ─────────────────────────────
+  # ── 5b. Container images (build only; job 5c publishes them from main) ──────────
   # worker: build + smoke test (starts, logs JSON, exits 0 on SIGTERM; invalid env exits non-zero).
   # web/platform: confirm the Next standalone images still build.
   docker:
@@ -174,20 +174,17 @@ jobs:
           echo "$label" | jq -e --slurpfile file apps/web/platform.app.json '. == $file[0]'
       # T-016: the worker loads the RBAC catalogue from the database at boot, so the smoke test
       # needs a migrated database (the seed migration); an unmigrated one stops it, by design.
-      - uses: pnpm/action-setup@v4
-        if: matrix.image == 'worker'
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
-        if: matrix.image == 'worker'
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-      - name: Migrate the CI database
+      # #46: migrated by the image's own one-shot entry, as the server stack does; twice, because a
+      # second run must be a no-op.
+      - name: Migrate the CI database with the image's migrate entry
         if: matrix.image == 'worker'
         run: |
-          pnpm install --frozen-lockfile
-          pnpm db:migrate
+          for run in 1 2; do
+            docker run --rm --network host -e NODE_ENV=test -e DATABASE_URL="$DATABASE_URL" \
+              igs-worker:ci node dist/migrate.js | tee "migrate-$run.log"
+          done
+          grep -q "Database migrations applied" migrate-2.log
+          grep -q "pg-boss schema up to date" migrate-2.log
       - name: Worker smoke test
         if: matrix.image == 'worker'
         run: |
@@ -220,6 +217,57 @@ jobs:
         run: |
           docker run --rm --entrypoint sh igs-worker:ci -c \
             '! ls node_modules/.pnpm 2>/dev/null | grep -Eq "^(typescript|vitest|tsup|esbuild|tsx|@biomejs)"'
+
+  # ── 5c. Publish images (main only, IGS-D6) ──────────────────────────────────────
+  # After everything above is green on a push to main: the same three images, pushed to GHCR as
+  # ghcr.io/alisafari-it/igs-pharma-<image>:<commit sha>. PR builds stay build-only (job 5b). The
+  # server stack pins a sha and runs `node dist/migrate.js` from the worker image before the apps.
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, docker, secrets-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [worker, web, platform]
+    env:
+      IMAGE: ghcr.io/alisafari-it/igs-pharma-${{ matrix.image }}:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: ASafariM OS manifest build arg
+        run: echo "APP_MANIFEST=$(jq -c . apps/web/platform.app.json)" >> "$GITHUB_ENV"
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/${{ matrix.image }}.Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.IMAGE }}
+          # links the GHCR package to this repository (visibility and access follow the repo)
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: ${{ matrix.image == 'web' && 'APP_MANIFEST' || '' }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+      - name: Web image carries the ASafariM OS manifest label
+        if: matrix.image == 'web'
+        run: |
+          label=$(docker image inspect "$IMAGE" --format '{{ index .Config.Labels "org.asafarim.app.manifest" }}')
+          echo "$label" | jq -e --slurpfile file apps/web/platform.app.json '. == $file[0]'
+      - name: Push
+        run: |
+          docker push "$IMAGE"
+          echo "pushed \`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
 
   # ── 6. Secret scanning ────────────────────────────────────────────────────────
   secrets-scan:
