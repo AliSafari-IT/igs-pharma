@@ -8,6 +8,7 @@ import {
   recordSecurityEvent,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
+import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
 import { logger } from "@igs/observability/logger";
 
 /** The actor Better Auth's factor changes are audited as (36b); `system_auth` can do nothing else. */
@@ -47,6 +48,7 @@ export function ensureAuthConfigured(): void {
   const env = parseEnvFor(auditEnv);
   registerIdentityAuditActions(registerAuditAction);
   registerCatalogAuditActions(registerAuditAction);
+  registerInventoryAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
   configureAuth({
     onSecurityEvent: async (event) => {

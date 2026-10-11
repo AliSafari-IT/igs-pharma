@@ -61,8 +61,9 @@ function assertBundleImportsDeclared(): void {
     fs.readFileSync(path.join(here, "dist", `${path.basename(entry, ".ts")}.js`), "utf8"),
   ).join("\n");
   const imported = new Set<string>();
+  // the keyword must not end a word or a string ("stock_import", "stock.import", reason: "import" are not imports)
   for (const match of bundle.matchAll(
-    /(?:from\s*|import\s*\(?\s*|import\s+)["']([^"'.\/][^"']*)["']/g,
+    /(?<![\w$."'])(?:from\s*|import\s*\(?\s*|import\s+)["']([^"'.\/][^"']*)["']/g,
   )) {
     const spec = match[1] as string;
     if (spec.startsWith("node:")) continue;

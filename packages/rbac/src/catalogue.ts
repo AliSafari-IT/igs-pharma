@@ -25,6 +25,12 @@ export const PERMISSIONS = {
     /** Back-office: create and edit products, brands and their content; change product status. */
     productsManage: "catalog.products.manage",
   },
+  inventory: {
+    /** Back-office: on-hand stock and the movement ledger (igs-pharma#53). */
+    stockRead: "inventory.stock.read",
+    /** Back-office: import stock counts and adjust stock with a reason. */
+    stockManage: "inventory.stock.manage",
+  },
   staff: {
     invite: "staff.invite",
     /** Grant/revoke non-pharmacist roles; suspend, reactivate and delete users. */
@@ -79,7 +85,8 @@ export const ROLES = {
   system_auth: { kind: "system", description: "Better Auth hooks: records sign-in factor changes" },
   system_seed: {
     kind: "system",
-    description: "Synthetic seed CLI: loads fake catalogue data (staging and development only)",
+    description:
+      "Synthetic seed CLI: loads fake catalogue and stock data (staging and development only)",
   },
 } as const satisfies Record<string, RoleDefinition>;
 
@@ -114,18 +121,25 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.inventory.stockRead,
+    PERMISSIONS.inventory.stockManage,
     PERMISSIONS.pharmacy.pharmacistsManage,
   ],
+  // pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
   pharmacist: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.inventory.stockRead,
+    PERMISSIONS.inventory.stockManage,
   ],
   pharmacy_assistant: [
     PERMISSIONS.orders.read,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.inventory.stockRead,
+    PERMISSIONS.inventory.stockManage,
   ],
   customer_service: [PERMISSIONS.orders.read],
   // pharmacy-platform-backoffice.md: the catalogue screens belong to the content editor
@@ -138,7 +152,12 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
   system_auth: [PERMISSIONS.identity.securityEventsRecord],
-  system_seed: [PERMISSIONS.catalog.productsRead, PERMISSIONS.catalog.productsManage],
+  system_seed: [
+    PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.catalog.productsManage,
+    PERMISSIONS.inventory.stockRead,
+    PERMISSIONS.inventory.stockManage,
+  ],
 };
 
 /** One row of `identity.role_permissions`. */

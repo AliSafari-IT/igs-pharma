@@ -26,3 +26,4 @@ export {
   listProducts,
 } from "./queries";
 export { CATALOG_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
+export { type ProductRef, productRefsByCnk, productRefsById, searchProductRefs } from "./refs";
