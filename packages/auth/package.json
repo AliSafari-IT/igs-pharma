@@ -26,6 +26,7 @@
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/module-identity": "workspace:*",
+    "@igs/rbac": "workspace:*",
     "better-auth": "1.7.7",
     "server-only": "0.0.1"
   },

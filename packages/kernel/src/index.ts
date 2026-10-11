@@ -8,6 +8,7 @@ export {
   type Query,
   type QueryCtx,
   type QuerySpec,
+  type ResourceCheck,
   command,
   query,
 } from "./command";

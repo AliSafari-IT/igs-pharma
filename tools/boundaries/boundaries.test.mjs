@@ -118,9 +118,56 @@ mustPass(
   'import { command } from "@igs/kernel";\nconsole.log(command);\n',
 );
 mustPass(
-  "kernel -> auth/permissions, observability, db/client",
+  "kernel -> rbac, observability, db/client",
   "packages/kernel/src/x.ts",
-  'import { hasPermission } from "@igs/auth/permissions";\nimport { logger } from "@igs/observability/logger";\nimport { getDb } from "@igs/db/client";\nconsole.log(hasPermission, logger, getDb);\n',
+  'import { hasPermission } from "@igs/rbac";\nimport { logger } from "@igs/observability/logger";\nimport { getDb } from "@igs/db/client";\nconsole.log(hasPermission, logger, getDb);\n',
+);
+
+mustFail(
+  "kernel -> @igs/auth (T-016 option C: the kernel depends on @igs/rbac only)",
+  "packages/kernel/src/x.ts",
+  'import { hasPermission } from "@igs/auth/permissions";\nconsole.log(hasPermission);\n',
+  "boundaries/element-types",
+);
+
+// --- @igs/rbac is a leaf (T-016 option C): it imports nothing in-repo ----------------------------
+for (const [target, specifier] of [
+  ["config", "@igs/config/env"],
+  ["db", "@igs/db/ids"],
+  ["kernel", "@igs/kernel"],
+  ["auth", "@igs/auth"],
+  ["observability", "@igs/observability/logger"],
+  ["crypto", "@igs/crypto"],
+  ["module", "@igs/module-identity"],
+]) {
+  mustFail(
+    `rbac -> ${target}`,
+    "packages/rbac/src/x.ts",
+    `import * as x from "${specifier}";\nconsole.log(x);\n`,
+    "boundaries/element-types",
+  );
+}
+mustFail(
+  "rbac -> app",
+  "packages/rbac/src/x.ts",
+  'import page from "../../../apps/web/src/app/[locale]/page";\nconsole.log(page);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "module src -> @igs/rbac/testing",
+  "packages/modules/identity/src/x.ts",
+  'import { useCodeRbacCatalogue } from "@igs/rbac/testing";\nconsole.log(useCodeRbacCatalogue);\n',
+  "boundaries/entry-point",
+);
+mustPass(
+  "module test/ file -> @igs/rbac/testing",
+  "packages/modules/identity/test/x.ts",
+  'import { useCodeRbacCatalogue } from "@igs/rbac/testing";\nconsole.log(useCodeRbacCatalogue);\n',
+);
+mustPass(
+  "auth and modules -> @igs/rbac",
+  "packages/modules/identity/src/x.ts",
+  'import { hasPermission } from "@igs/rbac";\nconsole.log(hasPermission);\n',
 );
 
 // --- sanity: legitimate imports stay legal --------------------------------------------------

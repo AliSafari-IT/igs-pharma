@@ -22,10 +22,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@igs/auth": "workspace:*",
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/observability": "workspace:*",
+    "@igs/rbac": "workspace:*",
     "drizzle-orm": "0.38.3",
     "zod": "4.6.5"
   },

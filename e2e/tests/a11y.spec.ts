@@ -2,12 +2,13 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 /**
- * T-017: axe on the component gallery and the storefront home page, against the production build
+ * T-017: axe on the component gallery and the storefront home page (T-016: and /account), against the production build
  * (playwright.smoke.config.ts). Serious or critical violations fail; minor/moderate are listed.
  */
 const pages = [
   ["web /nl", "http://localhost:3000/nl"],
   ["platform /dev/ui", "http://localhost:3001/dev/ui"],
+  ["platform /account (signed out)", "http://localhost:3001/account"],
 ] as const;
 
 for (const [name, url] of pages) {

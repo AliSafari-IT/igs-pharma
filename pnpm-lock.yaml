@@ -51,6 +51,9 @@ importers:
       '@igs/module-audit':
         specifier: workspace:*
         version: link:../../packages/modules/audit
+      '@igs/module-identity':
+        specifier: workspace:*
+        version: link:../../packages/modules/identity
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -115,6 +118,9 @@ importers:
       '@igs/module-audit':
         specifier: workspace:*
         version: link:../../packages/modules/audit
+      '@igs/module-identity':
+        specifier: workspace:*
+        version: link:../../packages/modules/identity
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -182,6 +188,9 @@ importers:
       '@igs/module-audit':
         specifier: workspace:*
         version: link:../../packages/modules/audit
+      '@igs/module-identity':
+        specifier: workspace:*
+        version: link:../../packages/modules/identity
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -231,6 +240,9 @@ importers:
       '@playwright/test':
         specifier: 1.49.1
         version: 1.49.1
+      postgres:
+        specifier: 3.4.5
+        version: 3.4.5
       typescript:
         specifier: 5.7.2
         version: 5.7.2
@@ -249,6 +261,9 @@ importers:
       '@igs/module-identity':
         specifier: workspace:*
         version: link:../modules/identity
+      '@igs/rbac':
+        specifier: workspace:*
+        version: link:../rbac
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(next@16.0.11(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(pg@8.23.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@2.1.8(@types/node@24.19.1)(lightningcss@1.33.0))
@@ -367,9 +382,6 @@ importers:
 
   packages/kernel:
     dependencies:
-      '@igs/auth':
-        specifier: workspace:*
-        version: link:../auth
       '@igs/config':
         specifier: workspace:*
         version: link:../config
@@ -379,6 +391,9 @@ importers:
       '@igs/observability':
         specifier: workspace:*
         version: link:../observability
+      '@igs/rbac':
+        specifier: workspace:*
+        version: link:../rbac
       drizzle-orm:
         specifier: 0.38.3
         version: 0.38.3(@types/react@19.2.18)(kysely@0.29.6)(pg@8.23.1)(postgres@3.4.5)(react@19.2.8)
@@ -453,16 +468,40 @@ importers:
       '@igs/db':
         specifier: workspace:*
         version: link:../../db
+      '@igs/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@igs/rbac':
+        specifier: workspace:*
+        version: link:../../rbac
       drizzle-orm:
         specifier: 0.38.3
         version: 0.38.3(@types/react@19.2.18)(kysely@0.29.6)(pg@8.23.1)(postgres@3.4.5)(react@19.2.8)
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
+      '@igs/module-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@igs/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@testcontainers/postgresql':
+        specifier: 12.2.0
+        version: 12.2.0
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      postgres:
+        specifier: 3.4.5
+        version: 3.4.5
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@24.19.1)(lightningcss@1.33.0)
 
   packages/observability:
     dependencies:
@@ -482,6 +521,21 @@ importers:
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+
+  packages/rbac:
+    devDependencies:
+      '@igs/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: 5.7.2
+        version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@24.19.1)(lightningcss@1.33.0)
 
   packages/security-headers:
     dependencies:

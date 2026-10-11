@@ -99,3 +99,18 @@ test("platform /dev/ui: the component gallery renders with both fonts, no CSP vi
   expect(offOrigin(requests, "http://localhost:3001/")).toEqual([]);
   expect(violations).toEqual([]);
 });
+
+test("platform /account: renders signed out with @igs/ui, no CSP violations (T-016)", async ({
+  page,
+}) => {
+  const violations = await watchCsp(page);
+  const requests = watchRequests(page);
+  const res = await page.goto("http://localhost:3001/account", { waitUntil: "networkidle" });
+
+  expect(res?.status()).toBe(200);
+  await expect(page.locator("h1")).toHaveText("Your account");
+  await expect(page.locator("h1")).toHaveCSS("color", await primaryColor(page));
+  await expect(page.getByText("You are not signed in")).toBeVisible();
+  expect(offOrigin(requests, "http://localhost:3001/")).toEqual([]);
+  expect(violations).toEqual([]);
+});

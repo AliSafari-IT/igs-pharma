@@ -641,4 +641,64 @@ describe("ctx.can", () => {
   });
 });
 
+describe("ctx.authorizeResource (.own/.any, T-016)", () => {
+  // a query: the check is the same on Ctx and QueryCtx, and a query needs no audit
+  const readOrder = query({
+    name: "test.order.read",
+    input: z.object({ ownerId: z.string() }),
+    permission: "public",
+    async handler({ input, ctx }) {
+      ctx.authorizeResource({ any: "orders.read", own: "orders.read.own", ownerId: input.ownerId });
+      return "ok";
+    },
+  });
+
+  it("staff with the .any permission reach anyone's resource", async () => {
+    const staff = actors.user({ roles: ["customer_service"], kind: "staff" });
+    await expect(readOrder({ ownerId: "someone-else" }, staff)).resolves.toBe("ok");
+  });
+
+  it("a customer with .own reaches their own resource", async () => {
+    const customer = actors.user({ id: "cust-1", roles: ["customer"], kind: "customer" });
+    await expect(readOrder({ ownerId: "cust-1" }, customer)).resolves.toBe("ok");
+  });
+
+  it("someone else's resource is NotFound, not Forbidden (no existence leak)", async () => {
+    const customer = actors.user({ id: "cust-1", roles: ["customer"] });
+    await expect(readOrder({ ownerId: "cust-2" }, customer)).rejects.toMatchObject({
+      kind: "NotFound",
+      code: "kernel.not_found",
+    });
+  });
+
+  it("without either permission it is NotFound too; anonymous never owns anything", async () => {
+    await expect(readOrder({ ownerId: "x" }, actors.user({ id: "x" }))).rejects.toMatchObject({
+      kind: "NotFound",
+    });
+    const anon = { ...actors.anonymous("x"), roles: ["customer"] };
+    await expect(readOrder({ ownerId: "x" }, anon)).rejects.toMatchObject({ kind: "NotFound" });
+  });
+
+  it("works inside a command handler as well", async () => {
+    const touch = command({
+      name: "test.order.touch",
+      input: z.object({ ownerId: z.string() }),
+      permission: "orders.read.own",
+      audit: "none",
+      async handler({ input, ctx }) {
+        ctx.authorizeResource({
+          any: "orders.read",
+          own: "orders.read.own",
+          ownerId: input.ownerId,
+        });
+      },
+    });
+    const customer = actors.user({ id: "cust-9", roles: ["customer"] });
+    await expect(touch({ ownerId: "cust-9" }, customer)).resolves.toBeUndefined();
+    await expect(touch({ ownerId: "cust-8" }, customer)).rejects.toMatchObject({
+      kind: "NotFound",
+    });
+  });
+});
+
 vi.setConfig({ testTimeout: 30_000 });

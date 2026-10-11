@@ -1,7 +1,9 @@
 {
   "extends": "@igs/tsconfig/base.json",
   "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
     "tsBuildInfoFile": "./node_modules/.cache/.tsbuildinfo"
   },
-  "include": ["src"]
+  "include": ["src", "test", "vitest.config.ts"]
 }

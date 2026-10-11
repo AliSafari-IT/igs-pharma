@@ -7,7 +7,16 @@ import {
   purgeExpired,
   startOutboxRelay,
 } from "@igs/kernel";
-import { type JobScheduler, createAuditPort, registerAuditJobs } from "@igs/module-audit";
+import {
+  type JobScheduler,
+  createAuditPort,
+  registerAuditAction,
+  registerAuditJobs,
+} from "@igs/module-audit";
+import {
+  ensureRbacCatalogue,
+  registerAuditActions as registerIdentityAuditActions,
+} from "@igs/module-identity";
 import PgBoss from "pg-boss";
 
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
@@ -32,11 +41,17 @@ async function main() {
   // Kernel composition root. The worker holds NO `AUDIT_HMAC_KEY`: its actors are system/webhook and
   // never carry an `origin`, so the port is built without a key and fails closed (audit.origin_without_key)
   // if one ever arrives. Audit action registrations of auditing modules go here, before configureKernel.
+  registerIdentityAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort(), logger });
 
   // Phase 0: verify DB connectivity
   await checkDatabase();
   logger.info("Database connection verified");
+
+  // T-016: load the RBAC catalogue once, at boot, and check it against the code. A drifted
+  // database (a missing seed migration) stops the worker here instead of authorizing wrongly.
+  await ensureRbacCatalogue();
+  logger.info("RBAC catalogue loaded");
 
   // pg-boss owns its own `pgboss` schema. In production the worker role has no DDL rights, so
   // pg-boss must NOT migrate itself: its install/upgrade is a step of the migration job (D-021,
