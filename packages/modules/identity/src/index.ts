@@ -9,12 +9,34 @@ export {
   sessionAllowed,
 } from "./rbac";
 export {
+  SECURITY_EVENTS,
+  type SecurityEventType,
+  bootstrapStaff,
   deleteUser,
   grantPharmacistRole,
   grantRole,
   reactivateUser,
+  recordSecurityEvent,
+  reissueEnrolment,
   revokePharmacistRole,
   revokeRole,
   suspendUser,
 } from "./commands";
 export { IDENTITY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
+export {
+  ENROLMENT_TTL_MS,
+  type MfaFactors,
+  type MfaMethod,
+  clearOtherSessionsMfa,
+  deleteEnrolmentTokens,
+  factorCount,
+  markSessionFromEnrolment,
+  markSessionMfaVerified,
+  mfaFactors,
+  newEnrolmentToken,
+  redeemEnrolmentToken,
+  sessionFromEnrolment,
+  sessionMfaVerified,
+  storeEnrolmentToken,
+  userKind,
+} from "./mfa";

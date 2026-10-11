@@ -160,9 +160,15 @@ function parseInput<I>(schema: z.ZodType<I, unknown>, raw: unknown): I {
   throw validationFailed("kernel.validation_failed", fields);
 }
 
+/** A staff user whose session has not proved a second factor (36b). */
+const lacksMfa = (actor: Actor) =>
+  actor.type === "user" && actor.kind === "staff" && actor.mfaVerified !== true;
+
 function canDo(actor: Actor, permission: Permission): boolean {
-  // anonymous actors never carry roles, whatever the caller passed
-  return hasPermission(actor.type === "anonymous" ? [] : actor.roles, permission);
+  // anonymous actors never carry roles, whatever the caller passed; staff without a verified
+  // second factor hold no permission, so `ctx.can` and `authorizeResource` refuse them too (36b)
+  if (actor.type === "anonymous" || lacksMfa(actor)) return false;
+  return hasPermission(actor.roles, permission);
 }
 
 function authorizeResource(actor: Actor, { any, own, ownerId }: ResourceCheck): void {
@@ -171,8 +177,19 @@ function authorizeResource(actor: Actor, { any, own, ownerId }: ResourceCheck): 
   throw notFound("kernel.not_found");
 }
 
+/**
+ * 36b: the kernel, not Better Auth, enforces 2-step login. A staff user whose session has not
+ * proved a second factor is refused every non-public operation, whatever their roles, so a stolen
+ * first factor alone reaches nothing. Checked before the permission so the code tells the edge to
+ * send the person to "Set up 2-step login" rather than show "forbidden".
+ */
+function requireMfa(actor: Actor): void {
+  if (lacksMfa(actor)) throw forbidden("kernel.mfa_required");
+}
+
 function authorize(permission: PermissionSpec, actor: Actor): void {
   if (permission === "public") return;
+  requireMfa(actor);
   if (!canDo(actor, permission)) throw forbidden("kernel.forbidden");
 }
 

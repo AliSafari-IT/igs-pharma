@@ -59,7 +59,14 @@ async function createSession(userId: string) {
 async function actorFor(userId: string) {
   const resolved = await loadActor(iso.db, userId);
   if (!resolved) throw new Error("no actor");
-  return { type: resolved.type, id: resolved.id, roles: resolved.roles, kind: resolved.kind };
+  // these tests are about permissions: act as if the session proved a second factor (36b)
+  return {
+    type: resolved.type,
+    id: resolved.id,
+    roles: resolved.roles,
+    kind: resolved.kind,
+    mfaVerified: true,
+  };
 }
 
 async function staffWith(...roleKeys: string[]) {
@@ -308,7 +315,7 @@ describe("user status (Q6)", () => {
 });
 
 describe("registerAuditActions", () => {
-  it("registers exactly the five identity actions", () => {
+  it("registers exactly the identity actions", () => {
     const seen: string[] = [];
     registerAuditActions((action) => void seen.push(action));
     expect(seen).toEqual([
@@ -317,6 +324,10 @@ describe("registerAuditActions", () => {
       "identity.user.suspended",
       "identity.user.reactivated",
       "identity.user.deleted",
+      "identity.mfa.enrolled",
+      "identity.mfa.removed",
+      "identity.owner.bootstrapped",
+      "identity.enrolment.reissued",
     ]);
   });
 });

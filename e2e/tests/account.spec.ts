@@ -44,10 +44,14 @@ test.beforeAll(async () => {
     INSERT INTO identity.user_roles (id, user_id, role_key, location_id) VALUES
       (gen_random_uuid(), ${userId}, 'owner', NULL),
       (gen_random_uuid(), ${userId}, 'pharmacist', NULL)`;
+  // 36b: a staff session that proved a second factor (a passkey), or /account sends it to /setup
+  await sql`
+    INSERT INTO identity.passkeys (id, user_id, public_key, credential_id, counter, device_type, backed_up)
+    VALUES (gen_random_uuid(), ${userId}, 'pk', ${randomUUID()}, 0, 'singleDevice', false)`;
   token = randomUUID();
   await sql`
-    INSERT INTO identity.sessions (id, user_id, token, expires_at)
-    VALUES (gen_random_uuid(), ${userId}, ${token}, now() + interval '1 hour')`;
+    INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at)
+    VALUES (gen_random_uuid(), ${userId}, ${token}, now() + interval '1 hour', now())`;
 });
 
 test.afterAll(async () => {

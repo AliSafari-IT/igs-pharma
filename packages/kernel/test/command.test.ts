@@ -210,6 +210,89 @@ describe("authorization and validation happen before any database work", () => {
   });
 });
 
+describe("2-step login guard (36b)", () => {
+  const listOrders = query({
+    name: "test.order.list",
+    input: z.object({}),
+    permission: "orders.read",
+    handler: async () => "ok",
+  });
+  const probe = query({
+    name: "test.order.probe",
+    input: z.object({}),
+    permission: "public",
+    async handler({ ctx }) {
+      const can = ctx.can("orders.read");
+      let reached = true;
+      try {
+        ctx.authorizeResource({ any: "orders.read", own: "orders.read.own", ownerId: "x" });
+      } catch {
+        reached = false;
+      }
+      return { can, reached };
+    },
+  });
+
+  it("staff without a verified second factor → Forbidden kernel.mfa_required, before any database work", async () => {
+    const owner = actors.user({
+      roles: ["owner", "pharmacist"],
+      kind: "staff",
+      mfaVerified: false,
+    });
+    await expect(createItem({ id: "a" }, owner)).rejects.toMatchObject({
+      kind: "Forbidden",
+      code: "kernel.mfa_required",
+    });
+    await expect(listOrders({}, owner)).rejects.toMatchObject({ code: "kernel.mfa_required" });
+    expect(transactionCalls).toBe(0);
+    expect(await count("kernel_items")).toBe(0);
+  });
+
+  it("a staff actor with mfaVerified absent is treated as not verified (fails closed)", async () => {
+    const owner = {
+      type: "user" as const,
+      id: "u-1",
+      roles: ["pharmacist"],
+      kind: "staff" as const,
+    };
+    await expect(createItem({ id: "a" }, owner)).rejects.toMatchObject({
+      code: "kernel.mfa_required",
+    });
+  });
+
+  it("ctx.can and authorizeResource grant such staff nothing, even inside a public operation", async () => {
+    const staff = actors.user({ roles: ["owner"], kind: "staff", mfaVerified: false });
+    expect(await probe({}, staff)).toEqual({ can: false, reached: false });
+    const verified = actors.user({ roles: ["owner"], kind: "staff", mfaVerified: true });
+    expect(await probe({}, verified)).toEqual({ can: true, reached: true });
+  });
+
+  it("verified staff pass; customers and system actors are not affected", async () => {
+    const pharmacistStaff = actors.user({
+      roles: ["pharmacist"],
+      kind: "staff",
+      mfaVerified: true,
+    });
+    expect(await createItem({ id: "a" }, pharmacistStaff)).toEqual({ id: "a" });
+    const customer = actors.user({ roles: ["customer"], kind: "customer", mfaVerified: false });
+    await expect(listOrders({}, customer)).rejects.toMatchObject({ code: "kernel.forbidden" });
+    expect(await createItem({ id: "b" }, actors.system({ roles: ["pharmacist"] }))).toEqual({
+      id: "b",
+    });
+  });
+
+  it("public operations stay open to staff without a second factor", async () => {
+    const staff = actors.user({ roles: [], kind: "staff", mfaVerified: false });
+    const ping = query({
+      name: "test.ping",
+      input: z.object({}),
+      permission: "public",
+      handler: async () => "pong",
+    });
+    expect(await ping({}, staff)).toBe("pong");
+  });
+});
+
 describe("public operations and anonymous actors (A1)", () => {
   const addToGuestCart = command({
     name: "cart.guest.add_item",

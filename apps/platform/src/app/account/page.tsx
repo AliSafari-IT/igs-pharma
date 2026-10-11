@@ -1,18 +1,21 @@
-import { type ResolvedActor, resolveActor } from "@igs/auth";
-import { Alert, Badge, Container, Stack } from "@igs/ui";
-import { headers } from "next/headers";
+import type { ResolvedActor } from "@igs/auth";
+import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
+import { redirect } from "next/navigation";
+
+import { currentActor, needsTwoStep } from "../../server/actor";
 
 /**
  * Read-only account page (T-016, 36a): who the signed-in person is and the roles **resolved from
  * the database** for this request, the same actor the kernel receives. Nothing here is cached
- * across requests, so a revoked role disappears on the next page load.
+ * across requests, so a revoked role disappears on the next page load. Staff whose session has not
+ * proved a second factor are sent to "Set up 2-step login" (36b).
  */
 export const metadata = { title: "Your account · IGS-Pharma Platform" };
 
 function SignedOut() {
   return (
     <Alert variant="info" title="You are not signed in">
-      Sign in to the back-office to see your account and roles.
+      <Link href="/sign-in">Sign in</Link> to the back-office to see your account and roles.
     </Alert>
   );
 }
@@ -33,6 +36,17 @@ function Account({ actor }: { actor: ResolvedActor }) {
         <dt className="text-[var(--color-text-subtle)]">Status</dt>
         <dd>
           <Badge variant="success">{profile.status}</Badge>
+        </dd>
+        <dt className="text-[var(--color-text-subtle)]">2-step login</dt>
+        <dd>
+          {[
+            profile.factors.passkeys > 0
+              ? `${profile.factors.passkeys} passkey${profile.factors.passkeys > 1 ? "s" : ""}`
+              : null,
+            profile.factors.totp ? "authenticator app" : null,
+          ]
+            .filter(Boolean)
+            .join(", ") || "not set up"}
         </dd>
       </dl>
 
@@ -77,7 +91,8 @@ function Account({ actor }: { actor: ResolvedActor }) {
 }
 
 export default async function AccountPage() {
-  const actor = await resolveActor(await headers());
+  const actor = await currentActor();
+  if (actor && needsTwoStep(actor)) redirect("/setup");
   return (
     <Container asChild size="md">
       <main className="py-10">

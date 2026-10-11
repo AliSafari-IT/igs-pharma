@@ -32,7 +32,17 @@ describe("@igs/auth", () => {
   });
 
   it("getAuth() fails fast on invalid env instead of at import time", async () => {
-    const { getAuth } = await import("./index");
+    const { configureAuth, getAuth } = await import("./index");
+    configureAuth({ onSecurityEvent: async () => {} });
     expect(() => getAuth()).toThrow(/Invalid environment configuration/);
+  });
+
+  it("getAuth() refuses to start before configureAuth (no unaudited factor changes, 36b)", async () => {
+    process.env.DATABASE_URL = "postgres://u:p@localhost:5432/db";
+    process.env.AUTH_SECRET = "x".repeat(32);
+    process.env.AUTH_URL = "http://localhost:3001";
+    const { getAuth } = await import("./index");
+    expect(() => getAuth()).toThrow(/auth\.not_configured/);
+    expect(getDb).not.toHaveBeenCalled();
   });
 });

@@ -54,11 +54,14 @@ const updatedAt = () =>
 /** Allowed values of the profile columns (text + CHECK, not pg enums: cheaper to evolve). */
 export const USER_LOCALES = ["nl", "fr", "de", "en"] as const;
 export const USER_KINDS = ["customer", "staff"] as const;
+/** Role kinds: the user kinds plus `system` (roles held only by system actors, 36b). */
+export const ROLE_KINDS = [...USER_KINDS, "system"] as const;
 export const USER_STATUSES = ["active", "suspended", "deleted"] as const;
 export const IDENTITY_ASSURANCE = ["none", "email", "itsme_high"] as const;
 
 export type UserLocale = (typeof USER_LOCALES)[number];
 export type UserKind = (typeof USER_KINDS)[number];
+export type RoleKind = (typeof ROLE_KINDS)[number];
 export type UserStatus = (typeof USER_STATUSES)[number];
 export type IdentityAssurance = (typeof IDENTITY_ASSURANCE)[number];
 
@@ -104,6 +107,19 @@ export const sessions = identity.table(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    /**
+     * 36b: when this session proved a second factor (passkey with user verification, or a TOTP
+     * code). NULL = not verified; the kernel rejects staff on such a session (`kernel.mfa_required`).
+     * Written by the `@igs/auth` hooks only (Better Auth `additionalFields` with `input: false`), and
+     * cleared on the user's other sessions when a factor is removed.
+     */
+    mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
+    /**
+     * 36b: when this session was started by redeeming a bootstrap enrolment link. Only such a
+     * session may enrol a staff user's FIRST factor; cleared once the session is MFA-verified.
+     * Server-owned like `mfaVerifiedAt` (`input: false`).
+     */
+    enrolmentAt: timestamp("enrolment_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -194,10 +210,10 @@ export const roles = identity.table(
   "roles",
   {
     key: text("key").primaryKey(),
-    kind: text("kind").$type<UserKind>().notNull(),
+    kind: text("kind").$type<RoleKind>().notNull(),
     description: text("description").notNull(),
   },
-  () => [check("roles_kind_check", oneOf("kind", USER_KINDS))],
+  () => [check("roles_kind_check", oneOf("kind", ROLE_KINDS))],
 );
 
 export const permissions = identity.table("permissions", {

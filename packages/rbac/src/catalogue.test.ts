@@ -7,6 +7,7 @@ import {
   ROLES,
   ROLE_KEYS,
   ROLE_PERMISSIONS,
+  SYSTEM_ONLY,
   codeRolePermissions,
   hasPermission,
   rbacDrift,
@@ -24,9 +25,12 @@ async function fresh() {
 describe("hasPermission (code catalogue installed)", () => {
   beforeAll(() => useCodeRbacCatalogue());
 
-  it("owner has every staff permission except the pharmacist-only ones (K2, D-030)", () => {
+  it("owner has every staff permission except the pharmacist- and system-only ones (K2, D-030)", () => {
     for (const permission of ALL_PERMISSIONS) {
-      const expected = !PHARMACIST_ONLY.includes(permission) && !permission.endsWith(".own");
+      const expected =
+        !PHARMACIST_ONLY.includes(permission) &&
+        !SYSTEM_ONLY.includes(permission) &&
+        !permission.endsWith(".own");
       expect(hasPermission(["owner"], permission), permission).toBe(expected);
     }
     expect(hasPermission(["owner"], PERMISSIONS.orders.reviewDecide)).toBe(false);
@@ -93,6 +97,23 @@ describe("catalogue invariants (T-016)", () => {
         staff.some((r) => (ROLE_PERMISSIONS[r] as readonly string[]).includes(any)),
         own,
       ).toBe(true);
+    }
+  });
+
+  it("system-only permissions are held by system roles only, and system roles hold nothing else (36b)", () => {
+    for (const role of ROLE_KEYS) {
+      const perms = ROLE_PERMISSIONS[role] as readonly string[];
+      if (ROLES[role].kind === "system") {
+        expect(
+          perms.every((p) => (SYSTEM_ONLY as readonly string[]).includes(p)),
+          role,
+        ).toBe(true);
+      } else {
+        expect(
+          perms.filter((p) => (SYSTEM_ONLY as readonly string[]).includes(p)),
+          role,
+        ).toEqual([]);
+      }
     }
   });
 

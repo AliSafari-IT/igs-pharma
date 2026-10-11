@@ -52,15 +52,26 @@ export function fakeClock(start: Date = new Date("2026-01-01T00:00:00.000Z")): F
 let counter = 0;
 const nextId = (prefix: string) => `${prefix}-${++counter}`;
 
-/** Actor builders. Roles are given explicitly; `anonymous` never carries any. */
+/**
+ * Actor builders. Roles are given explicitly; `anonymous` never carries any. A `staff` user is
+ * MFA-verified unless `mfaVerified: false` is passed (36b), so permission tests need no extra setup.
+ */
 export const actors = {
   user: (
-    options: { id?: string; roles?: readonly string[]; kind?: "customer" | "staff" } = {},
+    options: {
+      id?: string;
+      roles?: readonly string[];
+      kind?: "customer" | "staff";
+      mfaVerified?: boolean;
+    } = {},
   ): Actor => ({
     type: "user",
     id: options.id ?? nextId("user"),
     roles: options.roles ?? [],
     ...(options.kind ? { kind: options.kind } : {}),
+    ...(options.kind === "staff" || options.mfaVerified !== undefined
+      ? { mfaVerified: options.mfaVerified ?? true }
+      : {}),
   }),
   anonymous: (id?: string): Actor => ({
     type: "anonymous",

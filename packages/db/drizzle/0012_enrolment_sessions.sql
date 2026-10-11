@@ -1,0 +1,1 @@
+ALTER TABLE "identity"."sessions" ADD COLUMN "enrolment_at" timestamp with time zone;

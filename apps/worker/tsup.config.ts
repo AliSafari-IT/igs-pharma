@@ -57,7 +57,9 @@ function thirdPartyDependencies(entry: string): string[] {
  */
 function assertBundleImportsDeclared(): void {
   const own = JSON.parse(fs.readFileSync(path.join(here, "package.json"), "utf8")) as Manifest;
-  const bundle = fs.readFileSync(path.join(here, "dist", "index.js"), "utf8");
+  const bundle = ENTRIES.map((entry) =>
+    fs.readFileSync(path.join(here, "dist", `${path.basename(entry, ".ts")}.js`), "utf8"),
+  ).join("\n");
   const imported = new Set<string>();
   for (const match of bundle.matchAll(
     /(?:from\s*|import\s*\(?\s*|import\s+)["']([^"'.\/][^"']*)["']/g,
@@ -72,13 +74,16 @@ function assertBundleImportsDeclared(): void {
   );
   if (missing.length > 0) {
     throw new Error(
-      `apps/worker/package.json must list these runtime dependencies (imported by dist/index.js): ${missing.join(", ")}`,
+      `apps/worker/package.json must list these runtime dependencies (imported by the dist/ bundles): ${missing.join(", ")}`,
     );
   }
 }
 
+/** The worker, and the bootstrap CLI (36b) that ships in the same image. */
+const ENTRIES = ["src/index.ts", "src/bootstrap-owner.ts"];
+
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ENTRIES,
   format: ["esm"],
   platform: "node",
   target: "node24",

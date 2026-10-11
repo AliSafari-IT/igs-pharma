@@ -1,9 +1,17 @@
 import { type Ctx, command, conflict, forbidden, notFound } from "@igs/kernel";
 import { PERMISSIONS, PHARMACIST_ROLES, ROLES, ROLE_KEYS, type RoleKey } from "@igs/rbac";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { IDENTITY_AUDIT } from "./audit";
+import {
+  ENROLMENT_TTL_MS,
+  deleteEnrolmentTokens,
+  factorCount,
+  mfaFactors,
+  newEnrolmentToken,
+  storeEnrolmentToken,
+} from "./mfa";
 import { sessions, userRoles, users } from "./schema";
 
 /**
@@ -205,5 +213,149 @@ export const deleteUser = command({
       "deleted",
       IDENTITY_AUDIT.userDeleted,
     );
+  },
+});
+
+// ── 36b: 2-step login ───────────────────────────────────────────────────────────────────────────
+
+/** Roles the bootstrap CLI may create a first holder for (Q4). */
+const BOOTSTRAP_ROLES = ["owner", "pharmacist_titular"] as const satisfies readonly RoleKey[];
+
+const bootstrapInput = z.object({
+  email: z.email().max(254),
+  name: z.string().trim().min(1).max(200),
+  roleKey: z.enum(BOOTSTRAP_ROLES).default("owner"),
+});
+
+const bootstrapOutput = z.object({
+  userId: z.uuid(),
+  /** Shown once by the CLI, inside the link; only its SHA-256 is stored. */
+  token: z.string(),
+  expiresAt: z.date(),
+});
+
+/**
+ * Creates the first `owner` (or, with `roleKey: "pharmacist_titular"`, the first titular
+ * pharmacist) as a staff user with **no credential**, and a single-use enrolment token valid for
+ * 15 minutes (Q4). Refuses when the role already has a holder, so it cannot mint a second owner.
+ * Run by the bootstrap CLI as a system actor holding `system_bootstrap`; no user can hold that role.
+ */
+export const bootstrapStaff = command({
+  name: "identity.owner.bootstrap",
+  input: bootstrapInput,
+  output: bootstrapOutput,
+  permission: PERMISSIONS.identity.bootstrap,
+  async handler({ input, ctx }) {
+    // two concurrent runs must not both see "no holder yet"
+    await ctx.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('identity.owner.bootstrap'))`);
+    const [holder] = await ctx.tx
+      .select({ id: userRoles.id })
+      .from(userRoles)
+      .where(eq(userRoles.roleKey, input.roleKey))
+      .limit(1);
+    if (holder) throw conflict("identity.role_already_held", { roleKey: input.roleKey });
+    const [taken] = await ctx.tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, input.email));
+    if (taken) throw conflict("identity.email_taken");
+
+    const [user] = await ctx.tx
+      .insert(users)
+      .values({ name: input.name, email: input.email, kind: "staff" })
+      .returning({ id: users.id });
+    if (!user) throw new Error("identity.owner.bootstrap: user insert returned no row");
+    await ctx.tx
+      .insert(userRoles)
+      .values({ userId: user.id, roleKey: input.roleKey, locationId: null, grantedAt: ctx.now });
+
+    const token = newEnrolmentToken();
+    const expiresAt = new Date(ctx.now.getTime() + ENROLMENT_TTL_MS);
+    await storeEnrolmentToken(ctx.tx, user.id, token, expiresAt);
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.ownerBootstrapped,
+      entityType: "user",
+      entityId: user.id,
+      data: { userId: user.id, roleKey: input.roleKey },
+    });
+    return { userId: user.id, token, expiresAt };
+  },
+});
+
+/**
+ * Issues a NEW enrolment link for a bootstrap holder who never enrolled (Q4 recovery): the first
+ * link expired or was lost. Only for an `active` staff user who holds `owner` or
+ * `pharmacist_titular` and has **zero** second factors, so it can never take over an account that
+ * is in use. Earlier unused links of that user are deleted, and so are the sessions earlier links
+ * started (they could still enrol the first factor); audited as
+ * `identity.enrolment.reissued`. Same actor and permission as `bootstrapStaff`.
+ */
+export const reissueEnrolment = command({
+  name: "identity.enrolment.reissue",
+  input: z.object({ email: z.email().max(254) }),
+  output: bootstrapOutput,
+  permission: PERMISSIONS.identity.bootstrap,
+  async handler({ input, ctx }) {
+    await ctx.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('identity.owner.bootstrap'))`);
+    const [user] = await ctx.tx
+      .select({ id: users.id, kind: users.kind, status: users.status })
+      .from(users)
+      .where(eq(users.email, input.email))
+      .for("update");
+    if (!user || user.status !== "active" || user.kind !== "staff") {
+      throw notFound("identity.user_not_found");
+    }
+    const [holds] = await ctx.tx
+      .select({ id: userRoles.id })
+      .from(userRoles)
+      .where(and(eq(userRoles.userId, user.id), inArray(userRoles.roleKey, [...BOOTSTRAP_ROLES])))
+      .limit(1);
+    if (!holds) throw conflict("identity.not_a_bootstrap_holder");
+    if (factorCount(await mfaFactors(ctx.tx, user.id)) > 0) {
+      throw conflict("identity.already_enrolled");
+    }
+
+    await deleteEnrolmentTokens(ctx.tx, user.id);
+    // a session an earlier link already started keeps the first-factor exception (`enrolment_at`):
+    // end them all. With zero factors none is MFA-verified, so nothing legitimate is lost.
+    await ctx.tx.delete(sessions).where(eq(sessions.userId, user.id));
+    const token = newEnrolmentToken();
+    const expiresAt = new Date(ctx.now.getTime() + ENROLMENT_TTL_MS);
+    await storeEnrolmentToken(ctx.tx, user.id, token, expiresAt);
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.enrolmentReissued,
+      entityType: "user",
+      entityId: user.id,
+      data: { userId: user.id },
+    });
+    return { userId: user.id, token, expiresAt };
+  },
+});
+
+/** Sign-in factor changes Better Auth reports through `@igs/auth`'s `onSecurityEvent` (36b). */
+export const SECURITY_EVENTS = ["mfa.enrolled", "mfa.removed"] as const;
+export type SecurityEventType = (typeof SECURITY_EVENTS)[number];
+
+/**
+ * Audits a sign-in factor change (`identity.mfa.enrolled|removed {userId, method}`). Run by each
+ * app's composition root from `configureAuth({ onSecurityEvent })` as a system actor holding
+ * `system_auth`, so `@igs/auth` never depends on `@igs/module-audit` (dependency inversion).
+ */
+export const recordSecurityEvent = command({
+  name: "identity.security_event.record",
+  input: z.object({
+    userId: z.uuid(),
+    type: z.enum(SECURITY_EVENTS),
+    method: z.enum(["passkey", "totp"]),
+  }),
+  permission: PERMISSIONS.identity.securityEventsRecord,
+  async handler({ input, ctx }) {
+    await ctx.audit.record({
+      action:
+        input.type === "mfa.enrolled" ? IDENTITY_AUDIT.mfaEnrolled : IDENTITY_AUDIT.mfaRemoved,
+      entityType: "user",
+      entityId: input.userId,
+      data: { userId: input.userId, method: input.method },
+    });
   },
 });
