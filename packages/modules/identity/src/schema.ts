@@ -114,6 +114,12 @@ export const sessions = identity.table(
      * cleared on the user's other sessions when a factor is removed.
      */
     mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
+    /**
+     * 36b: when this session was started by redeeming a bootstrap enrolment link. Only such a
+     * session may enrol a staff user's FIRST factor; cleared once the session is MFA-verified.
+     * Server-owned like `mfaVerifiedAt` (`input: false`).
+     */
+    enrolmentAt: timestamp("enrolment_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

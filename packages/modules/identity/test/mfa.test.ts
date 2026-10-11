@@ -19,6 +19,7 @@ import {
   recordSecurityEvent,
   redeemEnrolmentToken,
   registerAuditActions,
+  reissueEnrolment,
 } from "../src";
 import {
   accounts,
@@ -302,6 +303,67 @@ describe("bootstrap (Q4)", () => {
     expect(await redeemEnrolmentToken(iso.db, token, later)).toBeNull();
     expect(await redeemEnrolmentToken(iso.db, "not-a-token")).toBeNull();
     expect(await redeemEnrolmentToken(iso.db, "")).toBeNull();
+  });
+});
+
+describe("re-issuing an enrolment link (Q4 recovery)", () => {
+  const bootstrapOwner = async () => {
+    const email = `${crypto.randomUUID()}@example.test`;
+    const first = await bootstrapStaff({ email, name: "Owner" }, bootstrapper());
+    return { email, ...first };
+  };
+
+  it("replaces the expired link of a holder with no factor, and audits it", async () => {
+    const { email, userId, token: expired } = await bootstrapOwner();
+    const { userId: same, token, expiresAt } = await reissueEnrolment({ email }, bootstrapper());
+    expect(same).toBe(userId);
+    expect(expiresAt.getTime() - kernel.clock.now().getTime()).toBe(ENROLMENT_TTL_MS);
+    expect(await redeemEnrolmentToken(iso.db, expired)).toBeNull(); // the earlier link is gone
+    expect(await redeemEnrolmentToken(iso.db, token)).toBe(userId);
+    expect((await auditFor(userId)).map((row) => row.action)).toEqual([
+      "identity.owner.bootstrapped",
+      "identity.enrolment.reissued",
+    ]);
+    const [entry] = (await auditFor(userId)).slice(-1);
+    expect(entry?.data).toEqual({ userId });
+  });
+
+  it("refuses a holder who already has a second factor, writing nothing", async () => {
+    const { email, userId, token } = await bootstrapOwner();
+    await addPasskey(userId);
+    expect(await codeOf(reissueEnrolment({ email }, bootstrapper()))).toBe(
+      "identity.already_enrolled",
+    );
+    expect(await redeemEnrolmentToken(iso.db, token)).toBe(userId); // earlier link untouched
+    expect((await auditFor(userId)).map((row) => row.action)).toEqual([
+      "identity.owner.bootstrapped",
+    ]);
+  });
+
+  it("refuses anyone who is not an active staff owner or titular", async () => {
+    const plainStaff = await createUser("staff");
+    const [row] = await iso.db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, plainStaff));
+    expect(await codeOf(reissueEnrolment({ email: String(row?.email) }, bootstrapper()))).toBe(
+      "identity.not_a_bootstrap_holder",
+    );
+    expect(await codeOf(reissueEnrolment({ email: "nobody@example.test" }, bootstrapper()))).toBe(
+      "identity.user_not_found",
+    );
+
+    const { email, userId } = await bootstrapOwner();
+    await iso.db.update(users).set({ status: "suspended" }).where(eq(users.id, userId));
+    expect(await codeOf(reissueEnrolment({ email }, bootstrapper()))).toBe(
+      "identity.user_not_found",
+    );
+  });
+
+  it("only the system_bootstrap role may run it", async () => {
+    const { email } = await bootstrapOwner();
+    const owner = actors.user({ roles: ["owner"], kind: "staff", mfaVerified: true });
+    expect(await codeOf(reissueEnrolment({ email }, owner))).toBe("kernel.forbidden");
   });
 });
 

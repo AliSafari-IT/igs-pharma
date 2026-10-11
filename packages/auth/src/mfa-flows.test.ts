@@ -231,6 +231,30 @@ describe("TOTP (backup factor)", () => {
     }
     expect((await later.call("/passkey/generate-register-options")).status).toBe(403);
   });
+
+  it("the first factor needs a session the enrolment link started; verifying ends that origin", async () => {
+    const userId = await createStaff();
+    const b = await enrolledBrowser(userId);
+    expect((await b.session())?.enrolmentAt).toBeInstanceOf(Date);
+    // a session from any other sign-in method (simulated: same session without the link origin)
+    await iso.db
+      .update(sessions)
+      .set({ enrolmentAt: null })
+      .where(eq(sessions.id, String((await b.session())?.id)));
+    for (const path of ["/passkey/generate-register-options", "/two-factor/enable"]) {
+      const body = path === "/two-factor/enable" ? {} : undefined;
+      expect(await b.call(path, body), path).toMatchObject({
+        status: 403,
+        json: { code: "MFA_REQUIRED" },
+      });
+    }
+
+    const linked = await enrolledBrowser(userId);
+    await enrolTotp(linked);
+    const session = await linked.session();
+    expect(session?.mfaVerifiedAt).toBeInstanceOf(Date);
+    expect(session?.enrolmentAt).toBeNull();
+  });
 });
 
 describe("removing a factor", () => {
@@ -289,12 +313,19 @@ describe("removing a factor", () => {
 });
 
 describe("server-owned fields", () => {
-  it("a request body cannot set mfaVerifiedAt", async () => {
+  it("a request body cannot set mfaVerifiedAt or enrolmentAt", async () => {
     const userId = await createStaff();
     const b = await enrolledBrowser(userId);
-    await b.call("/update-session", { mfaVerifiedAt: new Date().toISOString() });
-    await b.call("/update-user", { mfaVerifiedAt: new Date().toISOString(), kind: "staff" });
-    expect((await b.session())?.mfaVerifiedAt).toBeNull();
+    await iso.db
+      .update(sessions)
+      .set({ enrolmentAt: null })
+      .where(eq(sessions.id, String((await b.session())?.id)));
+    const now = new Date().toISOString();
+    await b.call("/update-session", { mfaVerifiedAt: now, enrolmentAt: now });
+    await b.call("/update-user", { mfaVerifiedAt: now, kind: "staff" });
+    const session = await b.session();
+    expect(session?.mfaVerifiedAt).toBeNull();
+    expect(session?.enrolmentAt).toBeNull();
   });
 });
 

@@ -3,9 +3,11 @@ import {
   type MfaMethod,
   clearOtherSessionsMfa,
   factorCount,
+  markSessionFromEnrolment,
   markSessionMfaVerified,
   mfaFactors,
   redeemEnrolmentToken,
+  sessionFromEnrolment,
   sessionMfaVerified,
   userKind,
 } from "@igs/module-identity";
@@ -27,8 +29,8 @@ import { z } from "zod";
  *
  * - **Marks** a session `mfa_verified_at` after it proves a second factor: a passkey assertion
  *   (user verification enforced in the passkey options), a TOTP or backup code, or the enrolment of
- *   a factor (the first one is anchored on the single-use enrolment link; later ones need an
- *   already verified session, below).
+ *   a factor. A staff user's FIRST factor can only be enrolled on a session started by the
+ *   single-use enrolment link (`enrolment_at`); later ones need an already verified session.
  * - **Staff rules:** adding a factor when one exists, reading the TOTP secret or backup codes, and
  *   removing a factor all need a verified session (a stolen first factor cannot add its own second
  *   factor), and a staff user can never remove their last factor.
@@ -112,6 +114,8 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
           const session = await ctx.context.internalAdapter.createSession(userId);
           const user = await ctx.context.internalAdapter.findUserById(userId);
           if (!session || !user) throw fail("BAD_REQUEST", MFA_ERROR_CODES.ENROLMENT_LINK_INVALID);
+          // the only kind of session that may enrol a staff user's first factor (before-hook)
+          await markSessionFromEnrolment(db, session.id);
           await setSessionCookie(ctx, { session, user });
           return ctx.json({ status: true });
         },
@@ -133,8 +137,13 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
             }
             if ((await userKind(db, userId)) !== "staff") return;
             const count = factorCount(factors);
-            if (count === 0 && !removing) return; // the first factor: enrolment link session
-            if (!(await sessionMfaVerified(db, userId, session.session.id))) {
+            const sessionId = session.session.id;
+            // the first factor: only on a session the enrolment link started, never on one from
+            // any other sign-in method a staff user might gain later
+            if (count === 0 && !removing && (await sessionFromEnrolment(db, userId, sessionId))) {
+              return;
+            }
+            if (!(await sessionMfaVerified(db, userId, sessionId))) {
               throw fail("FORBIDDEN", MFA_ERROR_CODES.MFA_REQUIRED);
             }
             if (removing && count <= 1) throw fail("BAD_REQUEST", MFA_ERROR_CODES.LAST_FACTOR);

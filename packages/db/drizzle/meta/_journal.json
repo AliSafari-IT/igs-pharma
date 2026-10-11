@@ -85,6 +85,13 @@
       "when": 1791713312971,
       "tag": "0011_rbac_seed_system",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791718201755,
+      "tag": "0012_enrolment_sessions",
+      "breakpoints": true
     }
   ]
 }

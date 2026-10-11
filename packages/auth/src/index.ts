@@ -56,6 +56,8 @@ export function createAuth({ db, secret, baseURL, onSecurityEvent }: AuthDeps) {
       // 36b: written by the igs-mfa plugin only, never from a request body
       additionalFields: {
         mfaVerifiedAt: { type: "date", input: false, required: false },
+        // set by /enrolment/redeem only: the session may enrol a staff user's first factor
+        enrolmentAt: { type: "date", input: false, required: false },
       },
     },
     user: {

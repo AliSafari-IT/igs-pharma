@@ -4,8 +4,12 @@
  * opens it, lands signed in on "Set up 2-step login", and enrols a passkey (or an authenticator app).
  * No password is ever set. It refuses when the role already has a holder.
  *
+ * `--reissue --email <e>` issues a new link (replacing unused ones) when the first expired or was
+ * lost: only for an active owner or titular with no second factor yet (`identity.enrolment.reissued`).
+ *
  *   node dist/bootstrap-owner.js --email owner@example.be --name "An Owner" \
  *     --base-url https://platform.example.be [--role pharmacist_titular]
+ *   node dist/bootstrap-owner.js --reissue --email owner@example.be --base-url https://platform.example.be
  *   (dev: pnpm --filter @igs/worker bootstrap-owner -- --email … --name … --base-url http://localhost:3001)
  *
  * Runs through the kernel as a system actor holding `system_bootstrap` (no user can hold it), so the
@@ -21,10 +25,13 @@ import {
   bootstrapStaff,
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
+  reissueEnrolment,
 } from "@igs/module-identity";
 
-const USAGE =
-  "usage: bootstrap-owner --email <e-mail> --name <full name> --base-url <platform URL> [--role owner|pharmacist_titular]";
+const USAGE = [
+  "usage: bootstrap-owner --email <e-mail> --name <full name> --base-url <platform URL> [--role owner|pharmacist_titular]",
+  "       bootstrap-owner --reissue --email <e-mail> --base-url <platform URL>",
+].join("\n");
 
 const BOOTSTRAP_ACTOR = {
   type: "system",
@@ -60,10 +67,12 @@ async function main() {
       name: { type: "string" },
       role: { type: "string", default: "owner" },
       "base-url": { type: "string" },
+      reissue: { type: "boolean", default: false },
     },
     strict: true,
   });
-  if (!values.email || !values.name || !values["base-url"]) fail(USAGE);
+  const reissue = values.reissue === true;
+  if (!values.email || !values["base-url"] || (!reissue && !values.name)) fail(USAGE);
   // validate the URL before touching the database
   try {
     enrolmentLink(values["base-url"], "x");
@@ -82,13 +91,17 @@ async function main() {
   try {
     await checkDatabase();
     await ensureRbacCatalogue();
-    const { token, expiresAt } = await bootstrapStaff(
-      { email: values.email, name: values.name, roleKey: values.role },
-      BOOTSTRAP_ACTOR,
-    );
+    const { token, expiresAt } = reissue
+      ? await reissueEnrolment({ email: values.email }, BOOTSTRAP_ACTOR)
+      : await bootstrapStaff(
+          { email: values.email, name: values.name, roleKey: values.role },
+          BOOTSTRAP_ACTOR,
+        );
     process.stdout.write(
       [
-        `Created ${values.role} ${values.email}.`,
+        reissue
+          ? `New enrolment link for ${values.email}; earlier links no longer work.`
+          : `Created ${values.role} ${values.email}.`,
         "Send them this link through a channel you trust. It works once, until",
         `${expiresAt.toISOString()}:`,
         "",

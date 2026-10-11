@@ -327,6 +327,7 @@ describe("registerAuditActions", () => {
       "identity.mfa.enrolled",
       "identity.mfa.removed",
       "identity.owner.bootstrapped",
+      "identity.enrolment.reissued",
     ]);
   });
 });

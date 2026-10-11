@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Db } from "@igs/db";
-import { and, count, eq, gt, isNotNull, ne } from "drizzle-orm";
+import { and, count, eq, gt, isNotNull, like, ne } from "drizzle-orm";
 
 import { passkeys, sessions, twoFactors, users, verifications } from "./schema";
 
@@ -70,13 +70,46 @@ export async function sessionMfaVerified(
   return row !== undefined;
 }
 
-/** Marks a session as having proved a second factor (`at` = when). */
+/**
+ * Marks a session as having proved a second factor (`at` = when). It also ends the session's
+ * enrolment origin: from now on it adds factors as a verified session, not through the link.
+ */
 export async function markSessionMfaVerified(
   db: Executor,
   sessionId: string,
   at: Date = new Date(),
 ): Promise<void> {
-  await db.update(sessions).set({ mfaVerifiedAt: at }).where(eq(sessions.id, sessionId));
+  await db
+    .update(sessions)
+    .set({ mfaVerifiedAt: at, enrolmentAt: null })
+    .where(eq(sessions.id, sessionId));
+}
+
+/** Records that `sessionId` was started by redeeming an enrolment link (`/enrolment/redeem`). */
+export async function markSessionFromEnrolment(
+  db: Executor,
+  sessionId: string,
+  at: Date = new Date(),
+): Promise<void> {
+  await db.update(sessions).set({ enrolmentAt: at }).where(eq(sessions.id, sessionId));
+}
+
+/**
+ * Whether `sessionId` (of `userId`) came from an enrolment link and has not verified since: the only
+ * session that may enrol a staff user's first factor.
+ */
+export async function sessionFromEnrolment(
+  db: Reader,
+  userId: string,
+  sessionId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(
+      and(eq(sessions.id, sessionId), eq(sessions.userId, userId), isNotNull(sessions.enrolmentAt)),
+    );
+  return row !== undefined;
 }
 
 /**
@@ -127,6 +160,15 @@ export async function storeEnrolmentToken(
     value: userId,
     expiresAt,
   });
+}
+
+/** Deletes every unused enrolment token of `userId` (a re-issued link replaces them). */
+export async function deleteEnrolmentTokens(db: Executor, userId: string): Promise<void> {
+  await db
+    .delete(verifications)
+    .where(
+      and(like(verifications.identifier, `${ENROLMENT_PREFIX}%`), eq(verifications.value, userId)),
+    );
 }
 
 /**

@@ -1,10 +1,17 @@
 import { type Ctx, command, conflict, forbidden, notFound } from "@igs/kernel";
 import { PERMISSIONS, PHARMACIST_ROLES, ROLES, ROLE_KEYS, type RoleKey } from "@igs/rbac";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { IDENTITY_AUDIT } from "./audit";
-import { ENROLMENT_TTL_MS, newEnrolmentToken, storeEnrolmentToken } from "./mfa";
+import {
+  ENROLMENT_TTL_MS,
+  deleteEnrolmentTokens,
+  factorCount,
+  mfaFactors,
+  newEnrolmentToken,
+  storeEnrolmentToken,
+} from "./mfa";
 import { sessions, userRoles, users } from "./schema";
 
 /**
@@ -270,6 +277,52 @@ export const bootstrapStaff = command({
       entityType: "user",
       entityId: user.id,
       data: { userId: user.id, roleKey: input.roleKey },
+    });
+    return { userId: user.id, token, expiresAt };
+  },
+});
+
+/**
+ * Issues a NEW enrolment link for a bootstrap holder who never enrolled (Q4 recovery): the first
+ * link expired or was lost. Only for an `active` staff user who holds `owner` or
+ * `pharmacist_titular` and has **zero** second factors, so it can never take over an account that
+ * is in use. Earlier unused links of that user are deleted; audited as
+ * `identity.enrolment.reissued`. Same actor and permission as `bootstrapStaff`.
+ */
+export const reissueEnrolment = command({
+  name: "identity.enrolment.reissue",
+  input: z.object({ email: z.email().max(254) }),
+  output: bootstrapOutput,
+  permission: PERMISSIONS.identity.bootstrap,
+  async handler({ input, ctx }) {
+    await ctx.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('identity.owner.bootstrap'))`);
+    const [user] = await ctx.tx
+      .select({ id: users.id, kind: users.kind, status: users.status })
+      .from(users)
+      .where(eq(users.email, input.email))
+      .for("update");
+    if (!user || user.status !== "active" || user.kind !== "staff") {
+      throw notFound("identity.user_not_found");
+    }
+    const [holds] = await ctx.tx
+      .select({ id: userRoles.id })
+      .from(userRoles)
+      .where(and(eq(userRoles.userId, user.id), inArray(userRoles.roleKey, [...BOOTSTRAP_ROLES])))
+      .limit(1);
+    if (!holds) throw conflict("identity.not_a_bootstrap_holder");
+    if (factorCount(await mfaFactors(ctx.tx, user.id)) > 0) {
+      throw conflict("identity.already_enrolled");
+    }
+
+    await deleteEnrolmentTokens(ctx.tx, user.id);
+    const token = newEnrolmentToken();
+    const expiresAt = new Date(ctx.now.getTime() + ENROLMENT_TTL_MS);
+    await storeEnrolmentToken(ctx.tx, user.id, token, expiresAt);
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.enrolmentReissued,
+      entityType: "user",
+      entityId: user.id,
+      data: { userId: user.id },
     });
     return { userId: user.id, token, expiresAt };
   },

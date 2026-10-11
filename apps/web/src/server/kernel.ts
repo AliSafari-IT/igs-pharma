@@ -7,6 +7,7 @@ import {
   recordSecurityEvent,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
+import { logger } from "@igs/observability/logger";
 
 /** The actor Better Auth's factor changes are audited as (36b); `system_auth` can do nothing else. */
 const AUTH_HOOK_ACTOR = { type: "system", id: "better-auth", roles: ["system_auth"] } as const;
@@ -47,8 +48,22 @@ export function ensureAuthConfigured(): void {
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
   configureAuth({
     onSecurityEvent: async (event) => {
-      await ensureRbacCatalogue();
-      await recordSecurityEvent(event, AUTH_HOOK_ACTOR);
+      try {
+        await ensureRbacCatalogue();
+        await recordSecurityEvent(event, AUTH_HOOK_ACTOR);
+      } catch (error) {
+        // Better Auth's factor change already stands: make the missing audit row traceable
+        logger.error(
+          {
+            event: "auth.security_event_audit_failed",
+            type: event.type,
+            userId: event.userId,
+            err: error,
+          },
+          "auth.security_event_audit_failed",
+        );
+        throw error;
+      }
     },
   });
   configured = true;

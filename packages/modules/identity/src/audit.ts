@@ -10,6 +10,7 @@ export const IDENTITY_AUDIT = {
   mfaEnrolled: "identity.mfa.enrolled",
   mfaRemoved: "identity.mfa.removed",
   ownerBootstrapped: "identity.owner.bootstrapped",
+  enrolmentReissued: "identity.enrolment.reissued",
 } as const;
 
 const roleChange = z.object({
@@ -42,4 +43,5 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(IDENTITY_AUDIT.mfaEnrolled, mfaChange);
   register(IDENTITY_AUDIT.mfaRemoved, mfaChange);
   register(IDENTITY_AUDIT.ownerBootstrapped, bootstrapped);
+  register(IDENTITY_AUDIT.enrolmentReissued, userChange);
 }
