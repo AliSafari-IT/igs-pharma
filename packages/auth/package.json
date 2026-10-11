@@ -27,11 +27,14 @@
     "@igs/db": "workspace:*",
     "@igs/module-identity": "workspace:*",
     "better-auth": "1.7.7",
+    "drizzle-orm": "0.38.3",
     "server-only": "0.0.1"
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
+    "@testcontainers/postgresql": "12.2.0",
     "@types/node": "24.19.1",
+    "postgres": "3.4.5",
     "typescript": "5.7.2",
     "vitest": "2.1.8"
   }
