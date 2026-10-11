@@ -31,14 +31,20 @@ export function TwoStepSetup({ passkeys, totp }: Props) {
   async function run(action: () => Promise<{ error?: unknown } | undefined | null>) {
     setBusy(true);
     setError(null);
-    const result = await action();
-    if (result?.error) {
-      setError(authErrorMessage(result.error as { code?: string; status?: number }));
-      setBusy(false);
+    try {
+      const result = await action();
+      if (result?.error) {
+        setError(authErrorMessage(result.error as { code?: string; status?: number }));
+        return false;
+      }
+      return true;
+    } catch {
+      // a network failure or a cancelled browser prompt: say so, never leave the buttons disabled
+      setError(authErrorMessage(null));
       return false;
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    return true;
   }
 
   const addPasskey = async () => {

@@ -97,8 +97,10 @@ async function main() {
       ].join("\n"),
     );
   } catch (error) {
-    if (isDomainError(error)) fail(`refused: ${error.code}`);
-    throw error;
+    if (!isDomainError(error)) throw error;
+    // not fail(): process.exit() would skip the finally below
+    process.stderr.write(`refused: ${error.code}\n`);
+    process.exitCode = 1;
   } finally {
     await closeDatabase();
   }

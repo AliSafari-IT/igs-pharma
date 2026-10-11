@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { type SecurityEvent, createAuth } from "./index";
+import { requireUserVerification } from "./mfa-plugin";
 
 const { passkeys, sessions, twoFactors, users } = identitySchema;
 const BASE_URL = "http://localhost:3001";
@@ -294,5 +295,29 @@ describe("server-owned fields", () => {
     await b.call("/update-session", { mfaVerifiedAt: new Date().toISOString() });
     await b.call("/update-user", { mfaVerifiedAt: new Date().toISOString(), kind: "staff" });
     expect((await b.session())?.mfaVerifiedAt).toBeNull();
+  });
+});
+
+describe("passkey user verification (36b)", () => {
+  // the library verifies with requireUserVerification: false; both afterVerification hooks call
+  // this, before any passkey row or session is written (full ceremony: e2e two-step.spec.ts)
+  it("refuses an assertion or registration without the UV flag", () => {
+    for (const verification of [
+      { authenticationInfo: { userVerified: false } },
+      { registrationInfo: { userVerified: false } },
+      {},
+    ]) {
+      expect(() => requireUserVerification(verification)).toThrow(
+        expect.objectContaining({
+          body: expect.objectContaining({ code: "USER_VERIFICATION_REQUIRED" }),
+        }),
+      );
+    }
+    expect(() =>
+      requireUserVerification({ authenticationInfo: { userVerified: true } }),
+    ).not.toThrow();
+    expect(() =>
+      requireUserVerification({ registrationInfo: { userVerified: true } }),
+    ).not.toThrow();
   });
 });

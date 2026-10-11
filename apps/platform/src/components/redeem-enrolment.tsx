@@ -26,18 +26,23 @@ export function RedeemEnrolment() {
     if (!token) return;
     setBusy(true);
     setError(null);
-    const response = await fetch("/api/auth/enrolment/redeem", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    if (response.ok) {
-      window.location.replace("/setup");
-      return;
+    try {
+      const response = await fetch("/api/auth/enrolment/redeem", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (response.ok) {
+        window.location.replace("/setup");
+        return;
+      }
+      const body = (await response.json().catch(() => null)) as { code?: string } | null;
+      setError(authErrorMessage({ code: body?.code ?? "", status: response.status }));
+      setToken(null); // the server answered: a link works once, whatever happened
+    } catch {
+      // no answer (network): the link may still be unused, so keep the button
+      setError(authErrorMessage(null));
     }
-    const body = (await response.json().catch(() => null)) as { code?: string } | null;
-    setError(authErrorMessage({ code: body?.code ?? "", status: response.status }));
-    setToken(null); // a link works once, whatever happened
     setBusy(false);
   }
 

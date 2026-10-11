@@ -14,13 +14,17 @@ export function PasskeySignIn() {
   async function signIn() {
     setBusy(true);
     setError(null);
-    const result = await authClient.signIn.passkey();
-    if (result?.error) {
+    try {
+      const result = await authClient.signIn.passkey();
+      if (!result?.error) {
+        window.location.assign("/account");
+        return;
+      }
       setError(authErrorMessage(result.error));
-      setBusy(false);
-      return;
+    } catch {
+      setError(authErrorMessage(null));
     }
-    window.location.assign("/account");
+    setBusy(false);
   }
 
   return (
