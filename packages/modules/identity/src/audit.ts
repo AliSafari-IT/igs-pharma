@@ -7,6 +7,9 @@ export const IDENTITY_AUDIT = {
   userSuspended: "identity.user.suspended",
   userReactivated: "identity.user.reactivated",
   userDeleted: "identity.user.deleted",
+  mfaEnrolled: "identity.mfa.enrolled",
+  mfaRemoved: "identity.mfa.removed",
+  ownerBootstrapped: "identity.owner.bootstrapped",
 } as const;
 
 const roleChange = z.object({
@@ -15,6 +18,8 @@ const roleChange = z.object({
   locationId: z.uuid().nullable(),
 });
 const userChange = z.object({ userId: z.uuid() });
+const mfaChange = z.object({ userId: z.uuid(), method: z.enum(["passkey", "totp"]) });
+const bootstrapped = z.object({ userId: z.uuid(), roleKey: z.string() });
 
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
@@ -34,4 +39,7 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(IDENTITY_AUDIT.userSuspended, userChange);
   register(IDENTITY_AUDIT.userReactivated, userChange);
   register(IDENTITY_AUDIT.userDeleted, userChange);
+  register(IDENTITY_AUDIT.mfaEnrolled, mfaChange);
+  register(IDENTITY_AUDIT.mfaRemoved, mfaChange);
+  register(IDENTITY_AUDIT.ownerBootstrapped, bootstrapped);
 }

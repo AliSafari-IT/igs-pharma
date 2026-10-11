@@ -14,6 +14,7 @@ export {
   ROLES,
   ROLE_KEYS,
   ROLE_PERMISSIONS,
+  SYSTEM_ONLY,
   type Permission,
   type RoleDefinition,
   type RoleKey,

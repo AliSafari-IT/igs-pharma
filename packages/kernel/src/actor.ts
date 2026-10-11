@@ -23,4 +23,10 @@ export interface Actor {
    * multi-location (B-06) sets it without a breaking change.
    */
   readonly locationId?: string | null;
+  /**
+   * 36b: whether this `user` actor's session proved a second factor that is still enrolled
+   * (resolved per request with the roles). A `staff` user without it can run only `public`
+   * operations (`kernel.mfa_required`); customers are not affected.
+   */
+  readonly mfaVerified?: boolean;
 }

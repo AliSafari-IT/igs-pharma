@@ -12,7 +12,7 @@ const env = smokeEnv;
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["visual-smoke.spec.ts", "a11y.spec.ts", "account.spec.ts"],
+  testMatch: ["visual-smoke.spec.ts", "a11y.spec.ts", "account.spec.ts", "two-step.spec.ts"],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",
   projects: [
@@ -34,8 +34,9 @@ export default defineConfig({
     {
       command: "pnpm --filter=@igs/platform run start",
       url: "http://localhost:3001/",
-      // the /dev/ui gallery is a 404 in production unless switched on
-      env: { ...env, UI_GALLERY: "on" },
+      // the /dev/ui gallery is a 404 in production unless switched on; Better Auth (and so the
+      // passkeys' relying party) lives on the platform origin (36b)
+      env: { ...env, AUTH_URL: "http://localhost:3001", UI_GALLERY: "on" },
       reuseExistingServer: false,
     },
   ],

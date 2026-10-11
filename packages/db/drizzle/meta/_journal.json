@@ -71,6 +71,20 @@
       "when": 1791672936017,
       "tag": "0009_rbac_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791713311901,
+      "tag": "0010_mfa_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791713312971,
+      "tag": "0011_rbac_seed_system",
+      "breakpoints": true
     }
   ]
 }

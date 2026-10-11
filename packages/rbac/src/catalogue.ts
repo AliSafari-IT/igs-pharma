@@ -30,6 +30,12 @@ export const PERMISSIONS = {
     /** Grant/revoke `pharmacist` and `pharmacist_titular` (Q7): only the titular holds it (D-030). */
     pharmacistsManage: "pharmacy.pharmacists.manage",
   },
+  identity: {
+    /** Create the first owner or titular pharmacist (bootstrap CLI, 36b). System actors only. */
+    bootstrap: "identity.bootstrap",
+    /** Audit sign-in factor changes reported by Better Auth (36b). System actors only. */
+    securityEventsRecord: "identity.security_events.record",
+  },
 } as const;
 
 /** Values of every group, distributed over the union (indexing a union by `keyof` yields `never`). */
@@ -41,7 +47,12 @@ export const ALL_PERMISSIONS: readonly Permission[] = Object.values(PERMISSIONS)
   Object.values(group),
 );
 
-export type RoleKind = "customer" | "staff";
+/**
+ * `system` roles (36b) are held by system actors only (the bootstrap CLI, the Better Auth security
+ * event hook), never by a user: a grant requires the role kind to equal the user kind, and users are
+ * `customer` or `staff`.
+ */
+export type RoleKind = "customer" | "staff" | "system";
 
 export interface RoleDefinition {
   readonly kind: RoleKind;
@@ -60,6 +71,8 @@ export const ROLES = {
   customer_service: { kind: "staff", description: "Customer service" },
   content_editor: { kind: "staff", description: "Catalogue content editor" },
   customer: { kind: "customer", description: "Webshop customer" },
+  system_bootstrap: { kind: "system", description: "Bootstrap CLI: creates the first owner" },
+  system_auth: { kind: "system", description: "Better Auth hooks: records sign-in factor changes" },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -78,11 +91,16 @@ export const PHARMACIST_ONLY: readonly Permission[] = [
 /** Roles that only a holder of `pharmacy.pharmacists.manage` may grant or revoke (Q7). */
 export const PHARMACIST_ROLES: readonly RoleKey[] = ["pharmacist", "pharmacist_titular"];
 
+/** System-only permissions (36b): held by `system` roles, never implied by `owner`. */
+export const SYSTEM_ONLY: readonly Permission[] = Object.values(PERMISSIONS.identity);
+
 const isOwnScoped = (permission: string) => permission.endsWith(".own");
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
 export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> = {
-  owner: ALL_PERMISSIONS.filter((p) => !PHARMACIST_ONLY.includes(p) && !isOwnScoped(p)),
+  owner: ALL_PERMISSIONS.filter(
+    (p) => !PHARMACIST_ONLY.includes(p) && !SYSTEM_ONLY.includes(p) && !isOwnScoped(p),
+  ),
   pharmacist_titular: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
@@ -94,6 +112,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   customer_service: [PERMISSIONS.orders.read],
   content_editor: [PERMISSIONS.catalog.read, PERMISSIONS.catalog.manage],
   customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
+  system_bootstrap: [PERMISSIONS.identity.bootstrap],
+  system_auth: [PERMISSIONS.identity.securityEventsRecord],
 };
 
 /** One row of `identity.role_permissions`. */
