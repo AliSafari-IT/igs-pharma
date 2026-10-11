@@ -4,6 +4,7 @@
  * TEST-ONLY (A8): importable only from test code (*.test.ts files, test/ folders and
  * vitest.config.ts) — enforced by the boundaries config, like `@igs/db/testing`.
  */
+import { useCodeRbacCatalogue } from "@igs/auth/permissions";
 import type { Db } from "@igs/db";
 
 import type { Actor } from "../actor";
@@ -16,6 +17,14 @@ import {
   resetKernelConfig,
 } from "../config";
 import { resetEventRegistry } from "../events";
+
+// ── RBAC catalogue ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Installs the code RBAC catalogue (T-016) so `hasPermission` works without a database load. Call
+ * once per test process, e.g. from a vitest `setupFiles` entry.
+ */
+export { useCodeRbacCatalogue };
 
 // ── clock ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -45,10 +54,13 @@ const nextId = (prefix: string) => `${prefix}-${++counter}`;
 
 /** Actor builders. Roles are given explicitly; `anonymous` never carries any. */
 export const actors = {
-  user: (options: { id?: string; roles?: readonly string[] } = {}): Actor => ({
+  user: (
+    options: { id?: string; roles?: readonly string[]; kind?: "customer" | "staff" } = {},
+  ): Actor => ({
     type: "user",
     id: options.id ?? nextId("user"),
     roles: options.roles ?? [],
+    ...(options.kind ? { kind: options.kind } : {}),
   }),
   anonymous: (id?: string): Actor => ({
     type: "anonymous",

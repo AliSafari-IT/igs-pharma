@@ -20,6 +20,7 @@ import {
   forbidden,
   invariant,
   isDomainError,
+  notFound,
   validationFailed,
 } from "./errors";
 import { type EventDef, requireRegistered } from "./events";
@@ -28,6 +29,17 @@ import { idempotencyKeys, outbox } from "./schema";
 // ── public types ───────────────────────────────────────────────────────────────────────────────
 
 export type PermissionSpec = Permission | "public";
+
+/**
+ * A resource-level check for `.own`/`.any` pairs (T-016): `any` is the staff-wide permission
+ * (e.g. `orders.read`), `own` the customer one (`orders.read.own`), `ownerId` the user who owns the
+ * resource being touched.
+ */
+export interface ResourceCheck {
+  readonly any: Permission;
+  readonly own: Permission;
+  readonly ownerId: string;
+}
 
 export interface Ctx {
   /** The single transaction of this execution. */
@@ -50,6 +62,12 @@ export interface Ctx {
   /** Resource-level checks inside a handler (the command-level permission is already enforced). */
   can(permission: Permission): boolean;
   /**
+   * `.own`/`.any` ownership check (T-016): passes when the actor holds `any`, or holds `own` and is
+   * the owner. Otherwise throws **`NotFound("kernel.not_found")`**, not Forbidden, so a customer
+   * cannot learn that someone else's resource exists. Handlers on `.own` permissions must use it.
+   */
+  authorizeResource(check: ResourceCheck): void;
+  /**
    * Run another command **in this transaction** (authorization and audit are enforced per command).
    * Calling another command's function directly inside a handler is an error (`kernel.nested_command`).
    */
@@ -61,6 +79,8 @@ export interface QueryCtx {
   readonly actor: Actor;
   readonly now: Date;
   can(permission: Permission): boolean;
+  /** See `Ctx.authorizeResource`. */
+  authorizeResource(check: ResourceCheck): void;
 }
 
 export interface CommandSpec<I, O> {
@@ -143,6 +163,12 @@ function parseInput<I>(schema: z.ZodType<I, unknown>, raw: unknown): I {
 function canDo(actor: Actor, permission: Permission): boolean {
   // anonymous actors never carry roles, whatever the caller passed
   return hasPermission(actor.type === "anonymous" ? [] : actor.roles, permission);
+}
+
+function authorizeResource(actor: Actor, { any, own, ownerId }: ResourceCheck): void {
+  if (canDo(actor, any)) return;
+  if (canDo(actor, own) && actor.type === "user" && ownerId === actor.id) return;
+  throw notFound("kernel.not_found");
 }
 
 function authorize(permission: PermissionSpec, actor: Actor): void {
@@ -243,6 +269,7 @@ function buildCtx(
       },
     },
     can: (permission) => canDo(actor, permission),
+    authorizeResource: (check) => authorizeResource(actor, check),
     run: (cmd, rawInput) => runJoined(config, cmd, rawInput, tx, actor, now, buffer),
   };
   return ctx;
@@ -431,7 +458,13 @@ export function query<I, O>(spec: QuerySpec<I, O>): Query<I, O> {
         config,
         spec.name,
         (tx) => {
-          const ctx: QueryCtx = { tx, actor, now: config.clock(), can: (p) => canDo(actor, p) };
+          const ctx: QueryCtx = {
+            tx,
+            actor,
+            now: config.clock(),
+            can: (p) => canDo(actor, p),
+            authorizeResource: (check) => authorizeResource(actor, check),
+          };
           return spec.handler({ input, ctx });
         },
         { isolationLevel: "read committed", accessMode: "read only" },
