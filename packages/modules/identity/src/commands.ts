@@ -286,7 +286,8 @@ export const bootstrapStaff = command({
  * Issues a NEW enrolment link for a bootstrap holder who never enrolled (Q4 recovery): the first
  * link expired or was lost. Only for an `active` staff user who holds `owner` or
  * `pharmacist_titular` and has **zero** second factors, so it can never take over an account that
- * is in use. Earlier unused links of that user are deleted; audited as
+ * is in use. Earlier unused links of that user are deleted, and so are the sessions earlier links
+ * started (they could still enrol the first factor); audited as
  * `identity.enrolment.reissued`. Same actor and permission as `bootstrapStaff`.
  */
 export const reissueEnrolment = command({
@@ -315,6 +316,9 @@ export const reissueEnrolment = command({
     }
 
     await deleteEnrolmentTokens(ctx.tx, user.id);
+    // a session an earlier link already started keeps the first-factor exception (`enrolment_at`):
+    // end them all. With zero factors none is MFA-verified, so nothing legitimate is lost.
+    await ctx.tx.delete(sessions).where(eq(sessions.userId, user.id));
     const token = newEnrolmentToken();
     const expiresAt = new Date(ctx.now.getTime() + ENROLMENT_TTL_MS);
     await storeEnrolmentToken(ctx.tx, user.id, token, expiresAt);

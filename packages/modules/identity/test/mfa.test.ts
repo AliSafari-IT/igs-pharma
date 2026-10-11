@@ -315,7 +315,10 @@ describe("re-issuing an enrolment link (Q4 recovery)", () => {
 
   it("replaces the expired link of a holder with no factor, and audits it", async () => {
     const { email, userId, token: expired } = await bootstrapOwner();
+    const earlierSession = await createSession(userId); // an earlier link redeemed, not enrolled
     const { userId: same, token, expiresAt } = await reissueEnrolment({ email }, bootstrapper());
+    // that session could still enrol the first factor: it is gone
+    expect(await iso.db.select().from(sessions).where(eq(sessions.id, earlierSession))).toEqual([]);
     expect(same).toBe(userId);
     expect(expiresAt.getTime() - kernel.clock.now().getTime()).toBe(ENROLMENT_TTL_MS);
     expect(await redeemEnrolmentToken(iso.db, expired)).toBeNull(); // the earlier link is gone
