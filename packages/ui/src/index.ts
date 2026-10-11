@@ -7,8 +7,12 @@ export {
   type InputProps,
   Label,
   type LabelProps,
+  Select,
+  type SelectProps,
   TextField,
   type TextFieldProps,
+  Textarea,
+  type TextareaProps,
 } from "./components/field";
 export { Container, type ContainerProps, Stack, type StackProps } from "./components/layout";
 export { Link, type LinkProps, type LinkVariant } from "./components/link";

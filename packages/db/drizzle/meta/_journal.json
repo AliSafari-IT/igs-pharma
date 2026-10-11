@@ -92,6 +92,20 @@
       "when": 1791718201755,
       "tag": "0012_enrolment_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791747225011,
+      "tag": "0013_catalog_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791747233902,
+      "tag": "0014_rbac_seed_catalog",
+      "breakpoints": true
     }
   ]
 }

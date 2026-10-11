@@ -92,6 +92,25 @@ export function siteGateEnabled(
   return env.SITE_GATE ? env.SITE_GATE === "coming-soon" : env.NODE_ENV === "production";
 }
 
+/**
+ * Synthetic catalogue seed (igs-pharma#50): `node dist/seed-catalog.js` loads fake products. It
+ * refuses when `NODE_ENV=production` unless `IGS_ALLOW_SYNTHETIC_SEED=1` (staging runs the
+ * production image, so the operator opts in there on purpose; never on the live shop).
+ */
+export const syntheticSeedEnv = z.object({
+  IGS_ALLOW_SYNTHETIC_SEED: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["1"]).optional(),
+  ),
+});
+
+/** Whether the synthetic seed may run in this environment. */
+export function syntheticSeedAllowed(
+  env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof syntheticSeedEnv>,
+): boolean {
+  return env.NODE_ENV !== "production" || env.IGS_ALLOW_SYNTHETIC_SEED === "1";
+}
+
 /** Full set used by `web` / `platform` (and `getEnv()`). */
 const envSchema = z.object({
   ...dbEnv.shape,

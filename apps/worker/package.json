@@ -9,13 +9,15 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "bootstrap-owner": "tsx --conditions=react-server src/bootstrap-owner.ts",
-    "migrate": "tsx --conditions=react-server src/migrate.ts"
+    "migrate": "tsx --conditions=react-server src/migrate.ts",
+    "seed-catalog": "tsx --conditions=react-server src/seed-catalog.ts"
   },
   "dependencies": {
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/kernel": "workspace:*",
     "@igs/module-audit": "workspace:*",
+    "@igs/module-catalog": "workspace:*",
     "@igs/module-identity": "workspace:*",
     "@igs/observability": "workspace:*",
     "drizzle-orm": "0.38.3",

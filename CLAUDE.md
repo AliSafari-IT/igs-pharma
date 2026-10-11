@@ -70,6 +70,7 @@ pnpm --filter=@igs/worker run build && pnpm --filter=@igs/worker run start
 docker build -f infra/docker/worker.Dockerfile .
 # one-shot entries of the worker image: `node dist/migrate.js` (migrations + pg-boss schema, before
 # the apps start; `pnpm --filter @igs/worker migrate` in dev) and `node dist/bootstrap-owner.js`
+# and `node dist/seed-catalog.js` (fake catalogue; refuses in production unless IGS_ALLOW_SYNTHETIC_SEED=1)
 ```
 
 ## Architecture
