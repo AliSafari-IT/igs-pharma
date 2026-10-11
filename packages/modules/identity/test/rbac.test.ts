@@ -1,19 +1,25 @@
 import { withTestTx } from "@igs/db/testing";
-import { identitySchema } from "@igs/module-identity";
-import { and, eq, sql } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
-
 import {
   ALL_PERMISSIONS,
   PERMISSIONS,
   ROLES,
   ROLE_KEYS,
   codeRolePermissions,
-  hasPermission,
-} from "../src/permissions";
-import { loadActor, loadRbacCatalogue, rbacDrift, sessionAllowed } from "../src/rbac";
+  rbacDrift,
+} from "@igs/rbac";
+import { and, eq, sql } from "drizzle-orm";
+import { describe, expect, it, vi } from "vitest";
 
-const { permissions, rolePermissions, roles, userRoles, users } = identitySchema;
+import { loadActor, readRbacCatalogue, sessionAllowed } from "../src/rbac";
+import { permissions, rolePermissions, roles, userRoles, users } from "../src/schema";
+
+/** Fresh module instances: no catalogue installed yet (it is installed once per process). */
+async function fresh() {
+  vi.resetModules();
+  const rbac = await import("@igs/rbac");
+  const identity = await import("../src/rbac");
+  return { rbac, identity };
+}
 
 type Tx = Parameters<Parameters<typeof withTestTx>[0]>[0];
 
@@ -40,9 +46,7 @@ describe("RBAC catalogue: database (seed migration) = code (T-016 Q1)", () => {
   it("roles, kinds and descriptions match", async () => {
     await withTestTx(async (tx) => {
       const rows = await tx.select().from(roles).orderBy(roles.key);
-      expect(rows).toEqual(
-        [...ROLE_KEYS].sort().map((key) => ({ key, ...ROLES[key] })),
-      );
+      expect(rows).toEqual([...ROLE_KEYS].sort().map((key) => ({ key, ...ROLES[key] })));
     });
   });
 
@@ -82,17 +86,47 @@ describe("RBAC catalogue: database (seed migration) = code (T-016 Q1)", () => {
   });
 
   it("loadRbacCatalogue installs the DB rows; hasPermission then answers from them", async () => {
+    const { rbac, identity } = await fresh();
     await withTestTx(async (tx) => {
-      await loadRbacCatalogue(tx);
+      expect(() => rbac.hasPermission(["owner"], PERMISSIONS.staff.manage)).toThrow(
+        /rbac\.catalogue_not_loaded/,
+      );
+      await identity.loadRbacCatalogue(tx);
+      const { hasPermission } = rbac;
       expect(hasPermission(["owner"], PERMISSIONS.staff.manage)).toBe(true);
       expect(hasPermission(["owner"], PERMISSIONS.orders.reviewDecide)).toBe(false);
       expect(hasPermission(["owner", "pharmacist"], PERMISSIONS.orders.reviewDecide)).toBe(true);
       expect(hasPermission(["customer"], PERMISSIONS.orders.readOwn)).toBe(true);
       expect(hasPermission(["customer"], PERMISSIONS.orders.read)).toBe(false);
+      // once per process
+      await expect(identity.loadRbacCatalogue(tx)).rejects.toThrow(
+        /rbac\.catalogue_already_loaded/,
+      );
+      await expect(identity.ensureRbacCatalogue(tx)).resolves.toBeUndefined();
     });
   });
 
-  it("loadRbacCatalogue fails fast when the database and the code disagree", async () => {
+  it("ensureRbacCatalogue shares one load between concurrent callers", async () => {
+    const { rbac, identity } = await fresh();
+    await withTestTx(async (tx) => {
+      await Promise.all([identity.ensureRbacCatalogue(tx), identity.ensureRbacCatalogue(tx)]);
+      expect(rbac.rbacCatalogueLoaded()).toBe(true);
+    });
+  });
+
+  it("a drifted database fails the load and installs nothing (fail closed)", async () => {
+    const { rbac, identity } = await fresh();
+    await withTestTx(async (tx) => {
+      await tx.delete(rolePermissions).where(eq(rolePermissions.roleKey, "content_editor"));
+      await expect(identity.ensureRbacCatalogue(tx)).rejects.toThrow(/rbac\.catalogue_drift/);
+      expect(rbac.rbacCatalogueLoaded()).toBe(false);
+      expect(() => rbac.hasPermission(["owner"], PERMISSIONS.staff.manage)).toThrow(
+        /rbac\.catalogue_not_loaded/,
+      );
+    });
+  });
+
+  it("readRbacCatalogue fails fast when the database and the code disagree", async () => {
     await withTestTx(async (tx) => {
       await tx
         .delete(rolePermissions)
@@ -102,8 +136,10 @@ describe("RBAC catalogue: database (seed migration) = code (T-016 Q1)", () => {
             eq(rolePermissions.permissionKey, "orders.create"),
           ),
         );
-      await tx.insert(rolePermissions).values({ roleKey: "customer", permissionKey: "staff.manage" });
-      await expect(loadRbacCatalogue(tx)).rejects.toThrow(
+      await tx
+        .insert(rolePermissions)
+        .values({ roleKey: "customer", permissionKey: "staff.manage" });
+      await expect(readRbacCatalogue(tx)).rejects.toThrow(
         /rbac\.catalogue_drift.*missing=\[customer:orders\.create\] extra=\[customer:staff\.manage\]/,
       );
     });

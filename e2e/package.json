@@ -12,6 +12,7 @@
     "@axe-core/playwright": "4.10.1",
     "@igs/tsconfig": "workspace:*",
     "@playwright/test": "1.49.1",
+    "postgres": "3.4.5",
     "typescript": "5.7.2"
   }
 }

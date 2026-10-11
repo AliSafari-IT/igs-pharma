@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { type Permission, hasPermission } from "@igs/auth/permissions";
 import { newId } from "@igs/db/ids";
+import { type Permission, hasPermission } from "@igs/rbac";
 import { eq, lte } from "drizzle-orm";
 import type { z } from "zod";
 

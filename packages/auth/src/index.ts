@@ -4,12 +4,16 @@ import { passkey } from "@better-auth/passkey";
 import { getEnv } from "@igs/config/env";
 import { getDb } from "@igs/db/client";
 import { newId } from "@igs/db/ids";
-import { identitySchema } from "@igs/module-identity";
+import {
+  type ResolvedActor,
+  ensureRbacCatalogue,
+  identitySchema,
+  loadActor,
+  sessionAllowed,
+} from "@igs/module-identity";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins";
-
-import { type ResolvedActor, ensureRbacCatalogue, loadActor, sessionAllowed } from "./rbac";
 
 function createAuth() {
   const env = getEnv();
@@ -47,7 +51,8 @@ function createAuth() {
       session: {
         create: {
           // T-016 Q6: suspended or deleted users get no new session
-          before: async (session) => ((await sessionAllowed(getDb(), session.userId)) ? undefined : false),
+          before: async (session) =>
+            (await sessionAllowed(getDb(), session.userId)) ? undefined : false,
         },
       },
     },
@@ -71,14 +76,7 @@ export function getAuth(): Auth {
 export type Session = Auth["$Infer"]["Session"];
 export type User = Session["user"];
 
-export {
-  type ResolvedActor,
-  type RoleGrant,
-  ensureRbacCatalogue,
-  loadActor,
-  loadRbacCatalogue,
-  rbacDrift,
-} from "./rbac";
+export type { ResolvedActor, RoleGrant } from "@igs/module-identity";
 
 /**
  * The edge adapter's actor for this request (T-016 Q2): validates the Better Auth session, then

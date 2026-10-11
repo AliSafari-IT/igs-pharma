@@ -18,6 +18,7 @@ const infra = [
   "ui",
   "i18n",
   "kernel",
+  "rbac",
   "security-headers",
 ];
 
@@ -27,10 +28,15 @@ const TEST_FILES = [
   "**/*.spec.{ts,tsx,mts}",
   "**/test/**/*.{ts,tsx,mts}",
   "**/vitest.config.ts",
+  // the kernel's own test kit is test-only itself (KERNEL_MESSAGE), so it may use other test kits
+  "packages/kernel/src/testing/**",
 ];
 
 const TESTING_MESSAGE =
   "@igs/db/testing is test-only: import it from test code only (**/*.test.ts, **/test/**, **/vitest.config.ts)";
+
+const RBAC_MESSAGE =
+  "@igs/rbac/testing is test-only: import it from test code only (**/*.test.ts, **/test/**, **/vitest.config.ts)";
 
 const KERNEL_MESSAGE =
   "@igs/kernel exposes only its public entry point (@igs/kernel); @igs/kernel/testing is test-only (**/*.test.ts, **/test/**, **/vitest.config.ts) and system.* tables are reached through commands (D-015, D-017)";
@@ -39,7 +45,7 @@ const KERNEL_MESSAGE =
  * entry-point options. `dbRules` decides what may be imported from @igs/db; `kernelAllow` which
  * kernel entries are importable (test code additionally gets `src/testing/**`, A8).
  */
-const entryPoint = (dbRules, kernelAllow = "src/index.ts") => [
+const entryPoint = (dbRules, kernelAllow = "src/index.ts", rbacAllow = "src/index.ts") => [
   "error",
   {
     default: "disallow",
@@ -48,9 +54,14 @@ const entryPoint = (dbRules, kernelAllow = "src/index.ts") => [
       // modules expose src/index.ts only; infra packages expose their package.json#exports
       { target: "module", allow: "src/index.ts" },
       {
-        target: [...infra.filter((name) => name !== "db" && name !== "kernel"), "app"],
+        target: [
+          ...infra.filter((name) => name !== "db" && name !== "kernel" && name !== "rbac"),
+          "app",
+        ],
         allow: "**",
       },
+      { target: "rbac", disallow: "**", message: RBAC_MESSAGE },
+      { target: "rbac", allow: rbacAllow },
       { target: "kernel", disallow: "**", message: KERNEL_MESSAGE },
       { target: "kernel", allow: kernelAllow },
       ...dbRules,
@@ -106,13 +117,14 @@ export default [
                 "observability",
                 "config",
                 "kernel",
+                "rbac",
                 ["module", { module: "!${from.module}" }],
               ],
             },
-            // D-011: identity owns tables only; auth imports identity, never the reverse
+            // D-011: identity owns the identity tables and commands; auth imports identity, never the reverse
             { from: [["module", { module: "identity" }]], disallow: ["auth"] },
             // infra packages
-            { from: "kernel", allow: ["db", "auth", "observability", "config"] },
+            { from: "kernel", allow: ["db", "rbac", "observability", "config"] },
             {
               from: "auth",
               allow: [
@@ -120,11 +132,14 @@ export default [
                 "db",
                 "crypto",
                 "observability",
+                "rbac",
                 ["module", { module: "identity" }],
               ],
             },
             { from: "db", allow: ["config"] },
             { from: "observability", allow: ["config"] },
+            // T-016 option C: the RBAC catalogue is a leaf, so kernel, auth and modules share it cycle-free
+            { from: "rbac", allow: [] },
             { from: "i18n", allow: [] },
             { from: "crypto", allow: [] },
             { from: "config", allow: [] },
@@ -171,6 +186,7 @@ export default [
       "boundaries/entry-point": entryPoint(
         [{ target: "db", allow: "**" }],
         ["src/index.ts", "src/testing/**"],
+        ["src/index.ts", "src/testing.ts"],
       ),
     },
   },

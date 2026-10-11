@@ -172,6 +172,22 @@ jobs:
           label=$(docker image inspect igs-web:ci --format '{{ index .Config.Labels "org.asafarim.app.manifest" }}')
           echo "$label" | jq .
           echo "$label" | jq -e --slurpfile file apps/web/platform.app.json '. == $file[0]'
+      # T-016: the worker loads the RBAC catalogue from the database at boot, so the smoke test
+      # needs a migrated database (the seed migration); an unmigrated one stops it, by design.
+      - uses: pnpm/action-setup@v4
+        if: matrix.image == 'worker'
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        if: matrix.image == 'worker'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Migrate the CI database
+        if: matrix.image == 'worker'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm db:migrate
       - name: Worker smoke test
         if: matrix.image == 'worker'
         run: |
@@ -195,6 +211,7 @@ jobs:
           done
           docker logs worker
           docker logs worker 2>&1 | head -1 | jq -e '.msg == "Worker starting"'
+          docker logs worker 2>&1 | grep -q "RBAC catalogue loaded"
           test "$(docker inspect -f '{{.State.Running}}' worker)" = "true"
           docker stop -t 15 worker
           test "$(docker inspect -f '{{.State.ExitCode}}' worker)" = "0"

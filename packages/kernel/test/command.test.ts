@@ -686,12 +686,18 @@ describe("ctx.authorizeResource (.own/.any, T-016)", () => {
       permission: "orders.read.own",
       audit: "none",
       async handler({ input, ctx }) {
-        ctx.authorizeResource({ any: "orders.read", own: "orders.read.own", ownerId: input.ownerId });
+        ctx.authorizeResource({
+          any: "orders.read",
+          own: "orders.read.own",
+          ownerId: input.ownerId,
+        });
       },
     });
     const customer = actors.user({ id: "cust-9", roles: ["customer"] });
     await expect(touch({ ownerId: "cust-9" }, customer)).resolves.toBeUndefined();
-    await expect(touch({ ownerId: "cust-8" }, customer)).rejects.toMatchObject({ kind: "NotFound" });
+    await expect(touch({ ownerId: "cust-8" }, customer)).rejects.toMatchObject({
+      kind: "NotFound",
+    });
   });
 });
 

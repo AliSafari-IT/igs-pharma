@@ -6,6 +6,7 @@
     { "path": "packages/db" },
     { "path": "packages/auth" },
     { "path": "packages/crypto" },
+    { "path": "packages/rbac" },
     { "path": "packages/observability" },
     { "path": "packages/ui" },
     { "path": "packages/i18n" },

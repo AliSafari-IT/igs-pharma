@@ -27,8 +27,10 @@ import {
  * Generated from Better Auth 1.7.7 (`npx auth@1.7.7 generate`, then adapted). When upgrading
  * better-auth or its plugins, re-run the generator and diff against this file.
  *
- * Boundary (D-011): `@igs/auth` imports this module (adapter schema). This module must NEVER
- * import `@igs/auth` — it owns tables only; the reverse would create a dependency cycle.
+ * Boundary (D-011): this module owns the identity tables AND the identity commands (role grants,
+ * user status; `./commands.ts`), plus loading the RBAC catalogue (`./rbac.ts`). `@igs/auth`
+ * imports it (adapter schema, actor resolution); it must NEVER import `@igs/auth`, which would
+ * create a dependency cycle. It depends on `@igs/kernel` and the leaf `@igs/rbac` only.
  */
 export const identity = pgSchema("identity");
 
@@ -187,7 +189,7 @@ export const passkeys = identity.table(
 
 // ── RBAC (T-016) ────────────────────────────────────────────────────────────────────────────────
 
-/** Code-owned catalogue: rows are seeded by migration only (see `rbac.ts` and the drift test). */
+/** Code-owned catalogue (`@igs/rbac`): rows are seeded by migration only (see the drift test). */
 export const roles = identity.table(
   "roles",
   {

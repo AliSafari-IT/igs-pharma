@@ -1,11 +1,11 @@
+import type { Db } from "@igs/db";
 /**
  * Test helpers for code built on the kernel (`@igs/kernel/testing`).
  *
  * TEST-ONLY (A8): importable only from test code (*.test.ts files, test/ folders and
  * vitest.config.ts) — enforced by the boundaries config, like `@igs/db/testing`.
  */
-import { useCodeRbacCatalogue } from "@igs/auth/permissions";
-import type { Db } from "@igs/db";
+import { useCodeRbacCatalogue } from "@igs/rbac/testing";
 
 import type { Actor } from "../actor";
 import {

@@ -1,39 +1,23 @@
 import type { Db } from "@igs/db";
-import { identitySchema } from "@igs/module-identity";
-import { and, eq, isNull, or } from "drizzle-orm";
-
+import { getDb } from "@igs/db/client";
 import {
   type RolePermissionRow,
-  codeRolePermissions,
   rbacCatalogueLoaded,
+  rbacDrift,
   setRbacCatalogue,
-} from "./permissions";
+} from "@igs/rbac";
+import { and, eq, isNull, or } from "drizzle-orm";
 
-const { rolePermissions, userRoles, users } = identitySchema;
+import { rolePermissions, userRoles, users } from "./schema";
 
 /** Anything that can run a select (the pool, or a transaction in tests). */
 type Reader = Pick<Db, "select">;
 
-const pair = (row: RolePermissionRow) => `${row.roleKey}:${row.permissionKey}`;
-
-/** Pairs present in code but not in the DB (`missing`) and the reverse (`extra`). */
-export function rbacDrift(dbRows: readonly RolePermissionRow[]): {
-  missing: string[];
-  extra: string[];
-} {
-  const inDb = new Set(dbRows.map(pair));
-  const inCode = new Set(codeRolePermissions().map(pair));
-  return {
-    missing: [...inCode].filter((p) => !inDb.has(p)).sort(),
-    extra: [...inDb].filter((p) => !inCode.has(p)).sort(),
-  };
-}
-
 /**
- * Reads `identity.role_permissions`, checks it against the code catalogue and installs it for
- * `hasPermission`. Fails fast (readable error) when a migration is missing or the code moved on.
+ * Reads `identity.role_permissions` and checks it against the code catalogue (`@igs/rbac`). Fails
+ * fast (readable error) when a migration is missing or the code moved on.
  */
-export async function loadRbacCatalogue(db: Reader): Promise<void> {
+export async function readRbacCatalogue(db: Reader): Promise<RolePermissionRow[]> {
   const rows = await db
     .select({
       roleKey: rolePermissions.roleKey,
@@ -46,13 +30,24 @@ export async function loadRbacCatalogue(db: Reader): Promise<void> {
       `rbac.catalogue_drift: the database RBAC catalogue differs from the code (run the RBAC seed migration). missing=[${missing.join(", ")}] extra=[${extra.join(", ")}]`,
     );
   }
-  setRbacCatalogue(rows);
+  return rows;
+}
+
+/**
+ * Reads and checks the catalogue, then installs it for `hasPermission` (once per process: a
+ * second call throws `rbac.catalogue_already_loaded`). Composition roots call `ensureRbacCatalogue`.
+ */
+export async function loadRbacCatalogue(db: Reader): Promise<void> {
+  setRbacCatalogue(await readRbacCatalogue(db));
 }
 
 let loading: Promise<void> | undefined;
 
-/** Loads the catalogue once per process (concurrent callers share the load; a failure retries). */
-export function ensureRbacCatalogue(db: Reader): Promise<void> {
+/**
+ * Loads the catalogue once per process: concurrent callers share the load, later calls are free,
+ * and a failed load is retried by the next caller. Called by every composition root at boot.
+ */
+export function ensureRbacCatalogue(db: Reader = getDb()): Promise<void> {
   if (rbacCatalogueLoaded()) return Promise.resolve();
   loading ??= loadRbacCatalogue(db).catch((error: unknown) => {
     loading = undefined;
@@ -140,9 +135,6 @@ export async function loadActor(
 
 /** Whether Better Auth may create a session for `userId` (Q6: only `active` users). */
 export async function sessionAllowed(db: Reader, userId: string): Promise<boolean> {
-  const [user] = await db
-    .select({ status: users.status })
-    .from(users)
-    .where(eq(users.id, userId));
+  const [user] = await db.select({ status: users.status }).from(users).where(eq(users.id, userId));
   return user?.status === "active";
 }
