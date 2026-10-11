@@ -1,0 +1,6 @@
+{
+  "apps": [".", "apps/*", "infra/*"],
+  "envs": ["igs", "root"],
+  "keyFile": ".age/key.txt",
+  "keyPubFile": ".age/key.pub"
+}

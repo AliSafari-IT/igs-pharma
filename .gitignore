@@ -44,3 +44,16 @@ next-env.d.ts
 # test artifacts
 **/test-results/
 **/playwright-report/
+
+# --- envage managed ---
+# Decrypted env files — never commit
+.env*
+.env*.igs
+!.env*.igs.example
+!.env*.age
+!.env.example
+!.env.template
+
+# Age private key
+.age/key.txt
+# --- end envage ---

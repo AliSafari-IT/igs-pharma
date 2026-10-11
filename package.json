@@ -21,9 +21,14 @@
     "lint:boundaries": "eslint . && node tools/boundaries/check-cycles.mjs",
     "test:boundaries": "node --test tools/boundaries/boundaries.test.mjs",
     "db:check": "node tools/db/check-drift.mjs",
-    "check:csp": "node tools/security/check-csp.mjs"
+    "check:csp": "node tools/security/check-csp.mjs",
+    "env:status": "envage status",
+    "env:key:init": "envage init-key",
+    "env:encrypt:igs": "envage encrypt --all --env igs",
+    "env:decrypt:igs": "envage decrypt --all --env igs"
   },
   "devDependencies": {
+    "@asafarim/envage": "^0.4.2",
     "@biomejs/biome": "1.9.4",
     "@typescript-eslint/eslint-plugin": "8.18.0",
     "@typescript-eslint/parser": "8.18.0",
@@ -33,11 +38,19 @@
     "typescript": "5.7.2"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "sharp"],
-    "ignoredBuiltDependencies": ["@parcel/watcher", "@swc/core"],
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild",
+      "sharp"
+    ],
+    "ignoredBuiltDependencies": [
+      "@parcel/watcher",
+      "@swc/core"
+    ],
     "overrides": {
       "@tailwindcss/node": "4.0.0",
       "@tailwindcss/oxide": "4.0.0"
     }
-  }
+  },
+  "dependencies": {}
 }
