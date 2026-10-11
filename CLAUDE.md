@@ -66,7 +66,10 @@ pnpm run build              # all apps (Next.js standalone + worker dist)
 pnpm --filter=@igs/web run build    # single app
 # worker: tsup bundles apps/worker (workspace packages inlined, D-007) into dist/index.js
 pnpm --filter=@igs/worker run build && pnpm --filter=@igs/worker run start
-# images (CI builds all three): docker build -f infra/docker/worker.Dockerfile .
+# images (CI builds all three; on main it pushes ghcr.io/alisafari-it/igs-pharma-{web,platform,worker}:<sha>)
+docker build -f infra/docker/worker.Dockerfile .
+# one-shot entries of the worker image: `node dist/migrate.js` (migrations + pg-boss schema, before
+# the apps start; `pnpm --filter @igs/worker migrate` in dev) and `node dist/bootstrap-owner.js`
 ```
 
 ## Architecture
@@ -117,7 +120,7 @@ Every Server Action, route handler and job goes through `@igs/kernel` (`asafarim
 
 ### i18n
 
-The storefront (`apps/web`) uses `next-intl` with locale-prefixed URLs (`/nl/`, `/fr/`, `/de/`, `/en/`). Default locale is `nl`. `apps/web/src/proxy.ts` (Next 16 proxy) handles locale detection and, like `apps/platform/src/proxy.ts`, sets the nonce CSP + security headers from `@igs/security-headers`. Message files are in `packages/i18n/messages/*.json`. The back-office (`apps/platform`) is staff-only and uses English without URL prefixes.
+The storefront (`apps/web`) uses `next-intl` with locale-prefixed URLs (`/nl/`, `/fr/`, `/de/`, `/en/`). Default locale is `nl`. `apps/web/src/proxy.ts` (Next 16 proxy) handles locale detection and, like `apps/platform/src/proxy.ts`, sets the nonce CSP + security headers from `@igs/security-headers`. Message files are in `packages/i18n/messages/*.json`. `SITE_GATE` (`coming-soon` by default in production) makes the proxy answer every storefront page with the static `/coming-soon` page (noindex), leaving health and the OS manifest reachable. The back-office (`apps/platform`) is staff-only and uses English without URL prefixes.
 
 ### Styling
 

@@ -73,6 +73,25 @@ export function uiGalleryEnabled(
   return env.UI_GALLERY ? env.UI_GALLERY === "on" : env.NODE_ENV !== "production";
 }
 
+/**
+ * Storefront gate (igs-pharma#46, IGS-D4): `coming-soon|off`. With `coming-soon`, `apps/web` answers
+ * every page with a static "coming soon" page (noindex). Unset → `coming-soon` in production, so a
+ * deployed storefront is closed until someone opens it on purpose (fail closed); `off` elsewhere.
+ */
+export const siteGateEnv = z.object({
+  SITE_GATE: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["coming-soon", "off"]).optional(),
+  ),
+});
+
+/** Whether the storefront is closed behind the "coming soon" page. */
+export function siteGateEnabled(
+  env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof siteGateEnv>,
+): boolean {
+  return env.SITE_GATE ? env.SITE_GATE === "coming-soon" : env.NODE_ENV === "production";
+}
+
 /** Full set used by `web` / `platform` (and `getEnv()`). */
 const envSchema = z.object({
   ...dbEnv.shape,
@@ -83,6 +102,7 @@ const envSchema = z.object({
   ...featureFlagsEnv.shape,
   ...cspEnv.shape,
   ...uiGalleryEnv.shape,
+  ...siteGateEnv.shape,
 });
 
 /** What the worker needs: no `AUTH_*`, no feature flags. */

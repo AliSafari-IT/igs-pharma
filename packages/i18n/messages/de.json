@@ -15,5 +15,9 @@
   "notFound": {
     "title": "Seite nicht gefunden",
     "backHome": "Zur Startseite"
+  },
+  "comingSoon": {
+    "title": "Bald geöffnet",
+    "body": "IGS-Pharma, Ihre Online-Apotheke in Belgien, öffnet bald."
   }
 }

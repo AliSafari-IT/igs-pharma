@@ -15,5 +15,9 @@
   "notFound": {
     "title": "Page not found",
     "backHome": "Back to the home page"
+  },
+  "comingSoon": {
+    "title": "Opening soon",
+    "body": "IGS-Pharma, your online pharmacy in Belgium, is opening soon."
   }
 }

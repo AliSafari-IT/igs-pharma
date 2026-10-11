@@ -79,8 +79,8 @@ function assertBundleImportsDeclared(): void {
   }
 }
 
-/** The worker, and the bootstrap CLI (36b) that ships in the same image. */
-const ENTRIES = ["src/index.ts", "src/bootstrap-owner.ts"];
+/** The worker, the bootstrap CLI (36b) and the one-shot migrate entry (#46), all in one image. */
+const ENTRIES = ["src/index.ts", "src/bootstrap-owner.ts", "src/migrate.ts"];
 
 export default defineConfig({
   entry: ENTRIES,

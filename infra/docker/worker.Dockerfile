@@ -39,7 +39,12 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder --chown=worker:nodejs /out/package.json ./package.json
 COPY --from=builder --chown=worker:nodejs /out/dist         ./dist
 COPY --from=builder --chown=worker:nodejs /out/node_modules ./node_modules
+# the committed migrations, for the one-shot `node dist/migrate.js` entry (igs-pharma#46)
+COPY --from=builder --chown=worker:nodejs /repo/packages/db/drizzle ./drizzle
 
 USER worker
 
+# default: the worker. One-shot entries in the same image (override the command):
+#   node dist/migrate.js          migrations + pg-boss schema, before the apps start
+#   node dist/bootstrap-owner.js  the first owner's enrolment link (36b)
 CMD ["node", "dist/index.js"]

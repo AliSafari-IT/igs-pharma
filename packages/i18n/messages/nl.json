@@ -15,5 +15,9 @@
   "notFound": {
     "title": "Pagina niet gevonden",
     "backHome": "Terug naar de startpagina"
+  },
+  "comingSoon": {
+    "title": "Binnenkort open",
+    "body": "IGS-Pharma, uw online apotheek in België, opent binnenkort."
   }
 }

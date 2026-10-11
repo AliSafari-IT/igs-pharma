@@ -54,6 +54,12 @@ export {
   createOutboxRelay,
   startOutboxRelay,
 } from "./relay";
-export { type KernelRuntime, checkDatabase, closeDatabase, getKernelRuntime } from "./lifecycle";
+export {
+  type KernelRuntime,
+  checkDatabase,
+  closeDatabase,
+  getKernelRuntime,
+  migrateDatabase,
+} from "./lifecycle";
 export { type PurgeOptions, type PurgeResult, purgeExpired } from "./maintenance";
 export { canonicalJson, requestHash } from "./canonical";
