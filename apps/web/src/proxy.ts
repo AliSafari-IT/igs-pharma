@@ -1,5 +1,5 @@
 import createMiddleware from "next-intl/middleware";
-import type { NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { appEnv, cspEnv, cspReportingEnabled, parseEnvFor } from "@igs/config";
 import { routing } from "@igs/i18n/routing";
@@ -33,7 +33,10 @@ export default function proxy(request: NextRequest) {
   request.headers.set("x-nonce", nonce);
   request.headers.set("content-security-policy", headers["content-security-policy"] ?? "");
 
-  const response = handleI18nRouting(request);
+  // /.well-known/* (the ASafariM OS manifest) is locale-free: never redirected to /nl/…
+  const response = request.nextUrl.pathname.startsWith("/.well-known/")
+    ? NextResponse.next({ request })
+    : handleI18nRouting(request);
   for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
   return response;
 }
@@ -41,5 +44,6 @@ export default function proxy(request: NextRequest) {
 export const config = {
   // Match all paths except API routes, Next.js internals and static files. `api(?:/|$)`, not a bare
   // `api` prefix, so unprefixed slugs such as /apixaban still get the locale redirect.
-  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)"],
+  // /.well-known/* contains dots, so it needs its own entry to get the security headers.
+  matcher: ["/((?!api(?:/|$)|_next|_vercel|.*\\..*).*)", "/.well-known/:path*"],
 };

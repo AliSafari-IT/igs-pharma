@@ -27,6 +27,15 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     AUTH_URL=http://localhost \
     pnpm --filter=@igs/web run build
 
+# ASafariM OS manifest (OS ADR 0001 §0): the image carries apps/web/platform.app.json as the
+# `org.asafarim.app.manifest` label. A Dockerfile can't read a file into a LABEL, so the build gets
+# it as APP_MANIFEST (CI: `jq -c . apps/web/platform.app.json`) and fails if it is missing or differs.
+ARG APP_MANIFEST
+RUN node -e ' \
+      const want = require("./apps/web/platform.app.json"); \
+      if (!process.env.APP_MANIFEST) throw new Error("pass --build-arg APP_MANIFEST=\"$(jq -c . apps/web/platform.app.json)\""); \
+      require("node:assert").deepStrictEqual(JSON.parse(process.env.APP_MANIFEST), want, "APP_MANIFEST differs from apps/web/platform.app.json");'
+
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:24-alpine AS runner
 WORKDIR /app
@@ -45,5 +54,8 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
+ARG APP_MANIFEST
+LABEL org.asafarim.app.manifest="${APP_MANIFEST}"
 
 CMD ["node", "apps/web/server.js"]

@@ -135,6 +135,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      # web image: the ASafariM OS manifest label (infra/docker/web.Dockerfile). Passed through the
+      # environment (`build-args: APP_MANIFEST` with no value) so the action's CSV parsing never sees the JSON.
+      - name: ASafariM OS manifest build arg
+        run: echo "APP_MANIFEST=$(jq -c . apps/web/platform.app.json)" >> "$GITHUB_ENV"
       - name: Build ${{ matrix.image }} image
         uses: docker/build-push-action@v6
         with:
@@ -143,6 +147,7 @@ jobs:
           push: false
           load: true
           tags: igs-${{ matrix.image }}:ci
+          build-args: ${{ matrix.image == 'web' && 'APP_MANIFEST' || '' }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
       - name: Image size and user
@@ -161,6 +166,12 @@ jobs:
             echo "::error::final image ENV contains secrets"
             exit 1
           fi
+      - name: Web image carries the ASafariM OS manifest label
+        if: matrix.image == 'web'
+        run: |
+          label=$(docker image inspect igs-web:ci --format '{{ index .Config.Labels "org.asafarim.app.manifest" }}')
+          echo "$label" | jq .
+          echo "$label" | jq -e --slurpfile file apps/web/platform.app.json '. == $file[0]'
       - name: Worker smoke test
         if: matrix.image == 'worker'
         run: |
