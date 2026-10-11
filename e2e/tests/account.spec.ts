@@ -33,7 +33,8 @@ async function signIn(context: BrowserContext) {
 }
 
 test.beforeAll(async () => {
-  sql = postgres(smokeDatabaseUrl as string, { max: 1, onnotice: () => {} });
+  // the same TLS the production build insists on (see smoke-env.ts)
+  sql = postgres(smokeDatabaseUrl as string, { max: 1, ssl: "require", onnotice: () => {} });
   const [user] = await sql<{ id: string }[]>`
     INSERT INTO identity.users (id, name, email, email_verified, kind)
     VALUES (gen_random_uuid(), 'Smoke Staff', ${`${randomUUID()}@example.test`}, true, 'staff')

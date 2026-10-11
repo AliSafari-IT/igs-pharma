@@ -67,6 +67,10 @@ async function grant(ctx: Ctx, input: RoleGrantInput): Promise<void> {
 }
 
 async function revoke(ctx: Ctx, input: RoleGrantInput): Promise<void> {
+  // the last owner or titular revoking their own role would leave nobody able to grant it back
+  if (ctx.actor.type === "user" && ctx.actor.id === input.userId) {
+    throw forbidden("identity.cannot_revoke_own_role");
+  }
   await targetUser(ctx, input.userId);
   const removed = await ctx.tx
     .delete(userRoles)

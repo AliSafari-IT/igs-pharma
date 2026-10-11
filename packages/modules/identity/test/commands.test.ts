@@ -201,6 +201,17 @@ describe("role grants (Q7, D-030)", () => {
     });
   });
 
+  it("nobody revokes their own role (no lock-out of the last owner or titular)", async () => {
+    const both = await staffWith("owner", "pharmacist_titular");
+    expect(await codeOf(revokeRole({ userId: both.id, roleKey: "owner" }, both))).toBe(
+      "identity.cannot_revoke_own_role",
+    );
+    expect(
+      await codeOf(revokePharmacistRole({ userId: both.id, roleKey: "pharmacist_titular" }, both)),
+    ).toBe("identity.cannot_revoke_own_role");
+    expect((await actorFor(both.id)).roles).toEqual(["owner", "pharmacist_titular"]);
+  });
+
   it("customers and anonymous callers are forbidden before any database work", async () => {
     const target = await createUser("staff");
     for (const actor of [
