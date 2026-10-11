@@ -10,6 +10,8 @@ import {
   parseEnvFor,
   siteGateEnabled,
   siteGateEnv,
+  syntheticSeedAllowed,
+  syntheticSeedEnv,
   uiGalleryEnabled,
   uiGalleryEnv,
   workerEnv,
@@ -153,5 +155,29 @@ describe("siteGateEnabled (igs-pharma#46)", () => {
 
   it("rejects anything else", () => {
     expect(() => enabled({ NODE_ENV: "production", SITE_GATE: "open" })).toThrow();
+  });
+});
+
+describe("syntheticSeedAllowed (igs-pharma#50)", () => {
+  const schema = appEnv.extend(syntheticSeedEnv.shape);
+  const allowed = (env: NodeJS.ProcessEnv) => syntheticSeedAllowed(parseEnvFor(schema, env));
+
+  it("refuses in production unless opted in with IGS_ALLOW_SYNTHETIC_SEED=1", () => {
+    expect(allowed({ NODE_ENV: "production" })).toBe(false);
+    expect(allowed({ NODE_ENV: "production", IGS_ALLOW_SYNTHETIC_SEED: "" })).toBe(false);
+    expect(allowed({ NODE_ENV: "production", IGS_ALLOW_SYNTHETIC_SEED: "1" })).toBe(true);
+    expect(allowed({ NODE_ENV: "development" })).toBe(true);
+  });
+
+  it("refuses without an explicit NODE_ENV=development, even though appEnv defaults to it", () => {
+    expect(parseEnvFor(appEnv, {}).NODE_ENV).toBe("development");
+    expect(allowed({})).toBe(false);
+    expect(allowed({ NODE_ENV: "" })).toBe(false);
+    expect(allowed({ NODE_ENV: "test" })).toBe(false);
+    expect(allowed({ IGS_ALLOW_SYNTHETIC_SEED: "1" })).toBe(true);
+  });
+
+  it("accepts only 1", () => {
+    expect(() => allowed({ NODE_ENV: "production", IGS_ALLOW_SYNTHETIC_SEED: "true" })).toThrow();
   });
 });

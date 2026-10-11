@@ -47,4 +47,5 @@ USER worker
 # default: the worker. One-shot entries in the same image (override the command):
 #   node dist/migrate.js          migrations + pg-boss schema, before the apps start
 #   node dist/bootstrap-owner.js  the first owner's enrolment link (36b)
+#   node dist/seed-catalog.js     fake catalogue for staging (needs IGS_ALLOW_SYNTHETIC_SEED=1, igs-pharma#50)
 CMD ["node", "dist/index.js"]

@@ -11,8 +11,10 @@ import {
   Label,
   Link,
   Price,
+  Select,
   Stack,
   TextField,
+  Textarea,
   VisuallyHidden,
   formatPrice,
 } from "./index";
@@ -72,6 +74,14 @@ describe("Link", () => {
 });
 
 describe("Input, Label, FieldError, TextField", () => {
+  it("Select and Textarea: aria-invalid only when invalid, input styles", () => {
+    expect(html(<Select />)).not.toContain("aria-invalid");
+    expect(html(<Select invalid />)).toContain('aria-invalid="true"');
+    expect(html(<Textarea invalid />)).toContain('aria-invalid="true"');
+    expect(html(<Textarea />)).toContain('rows="4"');
+    expect(html(<Textarea />)).toContain("min-h-[44px]");
+  });
+
   it("Input: aria-invalid only when invalid", () => {
     expect(html(<Input />)).not.toContain("aria-invalid");
     expect(html(<Input invalid />)).toContain('aria-invalid="true"');

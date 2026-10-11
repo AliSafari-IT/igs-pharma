@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack --port 3001",
     "build": "next build",
     "start": "next start --port 3001",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@igs/auth": "workspace:*",
@@ -14,6 +15,7 @@
     "@igs/db": "workspace:*",
     "@igs/kernel": "workspace:*",
     "@igs/module-audit": "workspace:*",
+    "@igs/module-catalog": "workspace:*",
     "@igs/module-identity": "workspace:*",
     "@igs/observability": "workspace:*",
     "@igs/security-headers": "workspace:*",
@@ -30,6 +32,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
     "tailwindcss": "4.0.0",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   }
 }

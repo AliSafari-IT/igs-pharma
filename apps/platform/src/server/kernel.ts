@@ -2,6 +2,7 @@ import { configureAuth } from "@igs/auth";
 import { auditEnv, parseEnvFor } from "@igs/config/env";
 import { configureKernel } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
+import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
 import {
   ensureRbacCatalogue,
   recordSecurityEvent,
@@ -45,6 +46,7 @@ export function ensureAuthConfigured(): void {
   if (configured) return;
   const env = parseEnvFor(auditEnv);
   registerIdentityAuditActions(registerAuditAction);
+  registerCatalogAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
   configureAuth({
     onSecurityEvent: async (event) => {

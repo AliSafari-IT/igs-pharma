@@ -20,6 +20,10 @@ export const PERMISSIONS = {
   catalog: {
     read: "catalog.read",
     manage: "catalog.manage",
+    /** Back-office: see every product, drafts and archived ones included (igs-pharma#50). */
+    productsRead: "catalog.products.read",
+    /** Back-office: create and edit products, brands and their content; change product status. */
+    productsManage: "catalog.products.manage",
   },
   staff: {
     invite: "staff.invite",
@@ -73,6 +77,10 @@ export const ROLES = {
   customer: { kind: "customer", description: "Webshop customer" },
   system_bootstrap: { kind: "system", description: "Bootstrap CLI: creates the first owner" },
   system_auth: { kind: "system", description: "Better Auth hooks: records sign-in factor changes" },
+  system_seed: {
+    kind: "system",
+    description: "Synthetic seed CLI: loads fake catalogue data (staging and development only)",
+  },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -105,15 +113,32 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
+    PERMISSIONS.catalog.productsRead,
     PERMISSIONS.pharmacy.pharmacistsManage,
   ],
-  pharmacist: [PERMISSIONS.orders.read, PERMISSIONS.orders.reviewDecide, PERMISSIONS.catalog.read],
-  pharmacy_assistant: [PERMISSIONS.orders.read, PERMISSIONS.catalog.read],
+  pharmacist: [
+    PERMISSIONS.orders.read,
+    PERMISSIONS.orders.reviewDecide,
+    PERMISSIONS.catalog.read,
+    PERMISSIONS.catalog.productsRead,
+  ],
+  pharmacy_assistant: [
+    PERMISSIONS.orders.read,
+    PERMISSIONS.catalog.read,
+    PERMISSIONS.catalog.productsRead,
+  ],
   customer_service: [PERMISSIONS.orders.read],
-  content_editor: [PERMISSIONS.catalog.read, PERMISSIONS.catalog.manage],
+  // pharmacy-platform-backoffice.md: the catalogue screens belong to the content editor
+  content_editor: [
+    PERMISSIONS.catalog.read,
+    PERMISSIONS.catalog.manage,
+    PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.catalog.productsManage,
+  ],
   customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
   system_auth: [PERMISSIONS.identity.securityEventsRecord],
+  system_seed: [PERMISSIONS.catalog.productsRead, PERMISSIONS.catalog.productsManage],
 };
 
 /** One row of `identity.role_permissions`. */

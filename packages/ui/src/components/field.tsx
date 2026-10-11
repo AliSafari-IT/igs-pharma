@@ -51,6 +51,39 @@ export function Input({ className, invalid = false, ...props }: InputProps) {
   );
 }
 
+export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  /** As on `Input`. */
+  invalid?: boolean;
+}
+
+/** A native `<select>` drawn like `Input` (same tokens, so `inputContrast` covers it). */
+export function Select({ className, invalid = false, ...props }: SelectProps) {
+  return (
+    <select
+      className={cn(inputClasses.base, invalid && inputClasses.invalid, className)}
+      aria-invalid={invalid || undefined}
+      {...props}
+    />
+  );
+}
+
+export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  /** As on `Input`. */
+  invalid?: boolean;
+}
+
+/** A `<textarea>` drawn like `Input` (same tokens, so `inputContrast` covers it). */
+export function Textarea({ className, invalid = false, rows = 4, ...props }: TextareaProps) {
+  return (
+    <textarea
+      className={cn(inputClasses.base, invalid && inputClasses.invalid, className)}
+      aria-invalid={invalid || undefined}
+      rows={rows}
+      {...props}
+    />
+  );
+}
+
 export interface LabelProps extends React.LabelHTMLAttributes<HTMLLabelElement> {
   /** Shows a visual "*"; the input's own `required` is what assistive technology announces. */
   required?: boolean;
