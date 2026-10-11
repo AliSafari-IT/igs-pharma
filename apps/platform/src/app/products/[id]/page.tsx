@@ -15,6 +15,7 @@ import {
   STATUS_BADGE,
   STATUS_LABELS,
   catalogErrorMessage,
+  statusLabelFor,
 } from "../../../components/catalog-labels";
 import { ProductForm } from "../../../components/product-form";
 import { requireStaffActor } from "../../../server/actor";
@@ -79,7 +80,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
 
   const missing = missingForActivation(product.content.map((c) => c.locale));
   const dutchName = product.content.find((c) => c.locale === "nl")?.name;
-  const movedTo = flash.status as ProductStatus | undefined;
+  const movedTo = statusLabelFor(flash.status);
 
   return (
     <Container asChild size="md">
@@ -94,11 +95,8 @@ export default async function ProductPage({ params, searchParams }: Props) {
           </div>
 
           {flash.saved ? <Alert variant="success" title="Product saved" /> : null}
-          {movedTo && movedTo in STATUS_LABELS ? (
-            <Alert
-              variant="success"
-              title={`Status changed to ${STATUS_LABELS[movedTo].toLowerCase()}`}
-            />
+          {movedTo ? (
+            <Alert variant="success" title={`Status changed to ${movedTo.toLowerCase()}`} />
           ) : null}
           {flash.error ? (
             <Alert variant="error" title="The status was not changed">

@@ -167,7 +167,14 @@ describe("syntheticSeedAllowed (igs-pharma#50)", () => {
     expect(allowed({ NODE_ENV: "production", IGS_ALLOW_SYNTHETIC_SEED: "" })).toBe(false);
     expect(allowed({ NODE_ENV: "production", IGS_ALLOW_SYNTHETIC_SEED: "1" })).toBe(true);
     expect(allowed({ NODE_ENV: "development" })).toBe(true);
-    expect(allowed({})).toBe(true);
+  });
+
+  it("refuses without an explicit NODE_ENV=development, even though appEnv defaults to it", () => {
+    expect(parseEnvFor(appEnv, {}).NODE_ENV).toBe("development");
+    expect(allowed({})).toBe(false);
+    expect(allowed({ NODE_ENV: "" })).toBe(false);
+    expect(allowed({ NODE_ENV: "test" })).toBe(false);
+    expect(allowed({ IGS_ALLOW_SYNTHETIC_SEED: "1" })).toBe(true);
   });
 
   it("accepts only 1", () => {

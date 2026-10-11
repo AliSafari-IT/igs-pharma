@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "bootstrap-owner": "tsx --conditions=react-server src/bootstrap-owner.ts",
     "migrate": "tsx --conditions=react-server src/migrate.ts",
-    "seed-catalog": "tsx --conditions=react-server src/seed-catalog.ts"
+    "seed-catalog": "tsx --conditions=react-server src/seed-catalog.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@igs/config": "workspace:*",
@@ -29,9 +30,11 @@
   },
   "devDependencies": {
     "@igs/tsconfig": "workspace:*",
+    "@testcontainers/postgresql": "12.2.0",
     "@types/node": "24.19.1",
     "tsup": "8.5.1",
     "tsx": "4.19.2",
-    "typescript": "5.7.2"
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
   }
 }

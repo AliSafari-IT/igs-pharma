@@ -1,6 +1,6 @@
 import { notFound, query } from "@igs/kernel";
 import { PERMISSIONS } from "@igs/rbac";
-import { type SQL, and, asc, count, desc, eq, exists, ilike, like, or } from "drizzle-orm";
+import { type SQL, and, asc, count, desc, eq, exists, ilike, inArray, like, or } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -36,13 +36,17 @@ export interface ProductPage {
 
 /**
  * Products, most recently changed first, paged. `q` matches a CNK prefix or a substring of the
- * name in any language (case-insensitive).
+ * name in any language (case-insensitive); `cnk` matches one CNK exactly.
  */
 export const listProducts = query({
   name: "catalog.product.list",
   input: z.object({
     q: z.string().trim().max(100).default(""),
     status: z.enum(PRODUCT_STATUSES).optional(),
+    cnk: z
+      .string()
+      .regex(/^[0-9]{7}$/)
+      .optional(),
     page: z.coerce.number().int().min(1).max(10_000).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(25),
   }),
@@ -50,6 +54,7 @@ export const listProducts = query({
   async handler({ input, ctx }): Promise<ProductPage> {
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(products.status, input.status));
+    if (input.cnk) filters.push(eq(products.cnk, input.cnk));
     if (input.q) {
       const term = escapeLike(input.q);
       const byName = ctx.tx
@@ -154,16 +159,19 @@ export interface BrandView {
   readonly slug: string;
 }
 
-/** Every brand by name, for the product form (v1 expects a few hundred at most). */
+/**
+ * Every brand by name, for the product form (v1 expects a few hundred at most, so the list stops at
+ * 1,000). `slugs` returns just those brands, without that limit.
+ */
 export const listBrands = query({
   name: "catalog.brand.list",
-  input: z.object({}),
+  input: z.object({ slugs: z.array(z.string().min(1).max(100)).min(1).max(100).optional() }),
   permission: PERMISSIONS.catalog.productsRead,
-  async handler({ ctx }): Promise<readonly BrandView[]> {
-    return ctx.tx
+  async handler({ input, ctx }): Promise<readonly BrandView[]> {
+    const select = ctx.tx
       .select({ id: brands.id, name: brands.name, slug: brands.slug })
       .from(brands)
-      .orderBy(asc(brands.name))
-      .limit(1000);
+      .orderBy(asc(brands.name));
+    return input.slugs ? select.where(inArray(brands.slug, input.slugs)) : select.limit(1000);
   },
 });

@@ -100,6 +100,9 @@ importers:
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@24.19.1)(lightningcss@1.33.0)
 
   apps/web:
     dependencies:
@@ -222,6 +225,9 @@ importers:
       '@igs/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
+      '@testcontainers/postgresql':
+        specifier: 12.2.0
+        version: 12.2.0
       '@types/node':
         specifier: 24.19.1
         version: 24.19.1
@@ -234,6 +240,9 @@ importers:
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@24.19.1)(lightningcss@1.33.0)
 
   e2e:
     devDependencies:

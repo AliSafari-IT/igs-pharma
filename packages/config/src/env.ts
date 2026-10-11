@@ -93,11 +93,16 @@ export function siteGateEnabled(
 }
 
 /**
- * Synthetic catalogue seed (igs-pharma#50): `node dist/seed-catalog.js` loads fake products. It
- * refuses when `NODE_ENV=production` unless `IGS_ALLOW_SYNTHETIC_SEED=1` (staging runs the
- * production image, so the operator opts in there on purpose; never on the live shop).
+ * Synthetic catalogue seed (igs-pharma#50): `node dist/seed-catalog.js` loads fake products. It runs
+ * only when `NODE_ENV=development` is set explicitly, or with `IGS_ALLOW_SYNTHETIC_SEED=1` (staging
+ * runs the production image, so the operator opts in there on purpose; never on the live shop). A
+ * missing `NODE_ENV` refuses: unlike `appEnv`, this schema has no development default.
  */
 export const syntheticSeedEnv = z.object({
+  NODE_ENV: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["development", "test", "production"]).optional(),
+  ),
   IGS_ALLOW_SYNTHETIC_SEED: z.preprocess(
     (v) => (v === "" ? undefined : v),
     z.enum(["1"]).optional(),
@@ -105,10 +110,8 @@ export const syntheticSeedEnv = z.object({
 });
 
 /** Whether the synthetic seed may run in this environment. */
-export function syntheticSeedAllowed(
-  env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof syntheticSeedEnv>,
-): boolean {
-  return env.NODE_ENV !== "production" || env.IGS_ALLOW_SYNTHETIC_SEED === "1";
+export function syntheticSeedAllowed(env: z.output<typeof syntheticSeedEnv>): boolean {
+  return env.NODE_ENV === "development" || env.IGS_ALLOW_SYNTHETIC_SEED === "1";
 }
 
 /** Full set used by `web` / `platform` (and `getEnv()`). */

@@ -216,6 +216,24 @@ describe("catalog.brand.create", () => {
   });
 });
 
+describe("catalog.brand.list", () => {
+  it("finds brands by slug past the 1,000 brands the full list stops at", async () => {
+    const tag = randomUUID().slice(0, 8);
+    // 1,000 names that sort before "Zz…", so the full list never reaches the brand below
+    await iso.sql`
+      INSERT INTO catalog.brands (id, name, slug)
+      SELECT gen_random_uuid(), ${`Aa ${tag} `} || n, ${`aa-${tag}-`} || n
+      FROM generate_series(1, 1000) AS n`;
+    const slug = `zz-${tag}`;
+    const { brandId } = await createBrand({ name: `Zz ${tag}`, slug }, editor);
+    expect((await listBrands({}, editor)).map((b) => b.id)).not.toContain(brandId);
+    expect(await listBrands({ slugs: [slug, `missing-${tag}`] }, editor)).toEqual([
+      { id: brandId, name: `Zz ${tag}`, slug },
+    ]);
+    expect(await codeOf(listBrands({ slugs: [] }, editor))).toBe("kernel.validation_failed");
+  });
+});
+
 describe("catalog.product.list", () => {
   it("searches by CNK prefix or by name in any language, paged", async () => {
     const tag = randomUUID().slice(0, 8);
@@ -244,6 +262,16 @@ describe("catalog.product.list", () => {
     expect(found.items.map((p) => p.id)).toEqual([byCnk.id]);
     // LIKE wildcards are literal
     expect((await listProducts({ q: "%" }, editor)).total).toBe(0);
+  });
+
+  it("matches one CNK exactly with cnk, never a name that contains it", async () => {
+    const target = await createProduct(product(), editor);
+    const { cnk: exact } = await getProduct({ productId: target.productId }, editor);
+    await createProduct(product({ content: [{ locale: "nl", name: `Demo ${exact}` }] }), editor);
+    expect((await listProducts({ q: exact }, editor)).total).toBe(2);
+    const found = await listProducts({ cnk: exact }, editor);
+    expect(found.items.map((p) => p.id)).toEqual([target.productId]);
+    expect(await codeOf(listProducts({ cnk: "123" }, editor))).toBe("kernel.validation_failed");
   });
 });
 

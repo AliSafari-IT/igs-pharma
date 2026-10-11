@@ -35,6 +35,15 @@ export const STATUS_LABELS: Record<ProductStatus, string> = {
   archived: "Archived",
 };
 
+/**
+ * The label of a status read from the URL (`?status=`), or `undefined` for anything else. Own
+ * keys only: `in` would also accept `toString` and the other `Object.prototype` names.
+ */
+export const statusLabelFor = (value: string | undefined): string | undefined =>
+  value !== undefined && Object.hasOwn(STATUS_LABELS, value)
+    ? STATUS_LABELS[value as ProductStatus]
+    : undefined;
+
 export const STATUS_BADGE: Record<ProductStatus, "neutral" | "success" | "amber"> = {
   draft: "neutral",
   active: "success",
@@ -61,4 +70,4 @@ const ERRORS: Record<string, string> = {
 };
 
 export const catalogErrorMessage = (code: string | undefined) =>
-  (code && ERRORS[code]) || "That didn't work. Try again.";
+  (code && Object.hasOwn(ERRORS, code) && ERRORS[code]) || "That didn't work. Try again.";
