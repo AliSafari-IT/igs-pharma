@@ -22,6 +22,8 @@ import {
 
 let iso: IsolatedDatabase;
 let kernel: KernelTestHandles;
+/** The kernel's clock for the current test: requests are "received" relative to it, not to the wall clock. */
+let clockNow: Date;
 
 beforeAll(async () => {
   iso = await createIsolatedDatabase();
@@ -33,7 +35,8 @@ afterAll(async () => {
 });
 beforeEach(() => {
   kernel = configureKernelForTests({ db: iso.db, audit: createAuditPort() });
-  kernel.clock.set(new Date()); // audit partitions exist around "now"
+  clockNow = new Date();
+  kernel.clock.set(clockNow); // audit partitions exist around "now"
 });
 
 const staff = (...roles: string[]): Actor => ({
@@ -66,7 +69,8 @@ const newRequest = async (overrides: Record<string, unknown> = {}) =>
         subjectRef: subject(),
         type: "erasure",
         channel: "email",
-        receivedAt: new Date(Date.now() - 1000).toISOString(),
+        // a second before the test clock, however long the test has run on the wall clock
+        receivedAt: new Date(clockNow.getTime() - 1000).toISOString(),
         ...overrides,
       },
       owner,
