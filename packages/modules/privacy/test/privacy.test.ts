@@ -12,6 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   type DsrStatus,
   createDsr,
+  dsrDueAt,
   getConsents,
   getDsr,
   listDsr,
@@ -184,8 +185,22 @@ describe("append-only ledgers", () => {
 });
 
 describe("privacy.dsr.create", () => {
-  it("is due 30 days after receipt, starts as received, and audits identifiers only", async () => {
-    // one clock for the command and the query, so "27 days left" is exact
+  it("stores the end of February for a request received on 31 January (clamped, Brussels time)", async () => {
+    const { requestId } = await createDsr(
+      {
+        subjectRef: subject(),
+        type: "access",
+        channel: "post",
+        receivedAt: "2026-01-31T09:00:00Z", // 10:00 in Brussels
+      },
+      owner,
+    );
+    const request = await getDsr({ requestId }, owner);
+    expect(request.dueAt.toISOString()).toBe("2026-02-28T09:00:00.000Z");
+  });
+
+  it("is due one calendar month after receipt, starts as received, and audits identifiers only", async () => {
+    // one clock for the command and the query, so the days left are exact
     const now = new Date();
     kernel.clock.set(now);
     const receivedAt = new Date(now.getTime() - 3 * DAY);
@@ -207,10 +222,10 @@ describe("privacy.dsr.create", () => {
       channel: "post",
       status: "received",
       overdue: false,
-      daysLeft: 27,
+      daysLeft: Math.ceil((dsrDueAt(receivedAt).getTime() - now.getTime()) / DAY),
       nextStatuses: ["in_progress", "rejected"],
     });
-    expect(request.dueAt.getTime() - request.receivedAt.getTime()).toBe(30 * DAY);
+    expect(request.dueAt).toEqual(dsrDueAt(receivedAt));
     expect(request.events.map((e) => [e.fromStatus, e.toStatus])).toEqual([[null, "received"]]);
     expect(await auditFor(requestId)).toEqual([
       {

@@ -1,7 +1,7 @@
 /**
  * The synthetic privacy data (igs-pharma#58): three FAKE data-subject requests and a few consent
  * changes, on made-up `@example.invalid` addresses, so the Privacy pages of the back-office can be
- * tried on staging and in development. One request is backdated past its 30-day deadline, so the
+ * tried on staging and in development. One request is backdated past its one-month deadline, so the
  * Overdue badge shows. `seed-catalog.ts` runs it after the catalogue.
  */
 import type { Actor } from "@igs/kernel";

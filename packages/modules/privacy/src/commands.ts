@@ -85,7 +85,7 @@ export const recordConsent = command({
 });
 
 /**
- * Logs a data-subject request. The deadline (`due_at`) is `receivedAt` + 30 days; `receivedAt` may
+ * Logs a data-subject request. The deadline (`due_at`) is `receivedAt` + one calendar month (`dsrDueAt`); `receivedAt` may
  * lie in the past (a letter opened late) but not in the future (`privacy.received_at_invalid`).
  */
 export const createDsr = command({

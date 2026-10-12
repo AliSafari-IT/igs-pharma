@@ -76,7 +76,7 @@ export default async function DataRequestsPage({ searchParams }: Props) {
           </div>
           <p className="max-w-prose text-[var(--color-text-subtle)]">
             Requests from people about their personal data (GDPR). Each one must be answered within
-            30 days of receipt. <Link href="/privacy/consents">Consents</Link>
+            one month of receipt. <Link href="/privacy/consents">Consents</Link>
           </p>
 
           {error ? (

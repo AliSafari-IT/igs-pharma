@@ -5,7 +5,6 @@ export {
   type ConsentPurpose,
   type ConsentSource,
   DSR_CHANNELS,
-  DSR_DEADLINE_DAYS,
   DSR_STATUSES,
   DSR_TYPES,
   type DsrChannel,
