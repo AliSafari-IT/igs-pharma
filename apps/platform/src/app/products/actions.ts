@@ -4,6 +4,7 @@ import { isDomainError } from "@igs/kernel";
 import {
   CONTENT_LOCALES,
   createProduct,
+  setProductCategories,
   setProductStatus,
   updateProduct,
 } from "@igs/module-catalog";
@@ -119,4 +120,25 @@ export async function changeStatus(form: FormData): Promise<void> {
   }
   revalidatePath("/products");
   redirect(`/products/${encodeURIComponent(productId)}?${query}`);
+}
+
+/** The category checkboxes on the product page (igs-pharma#54): saves the ticked set. */
+export async function saveProductCategories(form: FormData): Promise<void> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const productId = text(form, "productId");
+  const categoryIds = form.getAll("categoryId").filter((v): v is string => typeof v === "string");
+  let query: string;
+  try {
+    await setProductCategories({ productId, categoryIds }, actor, {
+      origin: await requestOrigin(),
+    });
+    query = "categories=1";
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    query = `categoriesError=${encodeURIComponent(error.code)}`;
+  }
+  revalidatePath("/products");
+  revalidatePath("/categories");
+  redirect(`/products/${encodeURIComponent(productId)}?${query}#categories-heading`);
 }

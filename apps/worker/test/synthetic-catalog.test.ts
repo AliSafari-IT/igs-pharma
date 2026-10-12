@@ -10,11 +10,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   BRANDS,
+  CATEGORIES,
   PRODUCTS,
   SEED_ACTOR,
   cnkFor,
   demoStockFor,
   seedSyntheticCatalog,
+  seedSyntheticCategories,
   seedSyntheticStock,
 } from "../src/synthetic-catalog";
 
@@ -134,5 +136,62 @@ describe("seedSyntheticStock", () => {
       FROM catalog.products WHERE cnk = ${cnkFor(0)}`;
     expect(await seedSyntheticStock()).toEqual({ stocked: 0, skipped: PRODUCTS.length });
     expect(await onHandOf(cnkFor(0))).toBe(demoStockFor(0) + 5);
+  });
+});
+
+describe("seedSyntheticCategories", () => {
+  // runs after the tests above, on the same database
+  const categoriesOf = async (cnk: string) =>
+    (
+      await iso.sql<{ slug: string }[]>`
+        SELECT c.slug FROM catalog.products p
+        JOIN catalog.product_categories pc ON pc.product_id = p.id
+        JOIN catalog.categories c ON c.id = pc.category_id
+        WHERE p.cnk = ${cnk} ORDER BY c.slug`
+    ).map((r) => r.slug);
+
+  it("creates the demo tree and puts every seed product in its categories, audited", async () => {
+    // a category staff made already, with a seed slug: kept as it is
+    await iso.sql`
+      INSERT INTO catalog.categories (id, slug, name_nl, name_fr)
+      VALUES (gen_random_uuid(), 'baby', 'Baby (eigen)', 'Bébé (propre)')`;
+    expect(await seedSyntheticCategories()).toEqual({
+      created: CATEGORIES.length - 1,
+      assigned: PRODUCTS.length - 1,
+      skipped: 1,
+    });
+    for (const [index, seed] of PRODUCTS.entries()) {
+      expect(await categoriesOf(cnkFor(index))).toEqual(
+        index === otherActive ? [] : [...seed.categories].sort(),
+      );
+    }
+    const [sun] = await iso.sql<{ parent: string }[]>`
+      SELECT p.slug AS parent FROM catalog.categories c
+      JOIN catalog.categories p ON p.id = c.parent_id WHERE c.slug = 'sun-care'`;
+    expect(sun?.parent).toBe("skin-care");
+    const [baby] = await iso.sql<{ name_nl: string }[]>`
+      SELECT name_nl FROM catalog.categories WHERE slug = 'baby'`;
+    expect(baby?.name_nl).toBe("Baby (eigen)");
+    const events = await iso.sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM audit.events
+      WHERE action = 'catalog.product.categories_set' AND actor_id = ${SEED_ACTOR.id}`;
+    expect(events[0]?.n).toBe(PRODUCTS.length - 1);
+  });
+
+  it("changes nothing on a second run, nor a product staff put elsewhere", async () => {
+    await iso.sql`
+      DELETE FROM catalog.product_categories
+      WHERE product_id = (SELECT id FROM catalog.products WHERE cnk = ${cnkFor(0)})
+        AND category_id <> (SELECT id FROM catalog.categories WHERE slug = 'allergy')`;
+    await iso.sql`
+      INSERT INTO catalog.product_categories (product_id, category_id)
+      SELECT p.id, c.id FROM catalog.products p, catalog.categories c
+      WHERE p.cnk = ${cnkFor(0)} AND c.slug = 'allergy'`;
+    expect(await seedSyntheticCategories()).toEqual({
+      created: 0,
+      assigned: 0,
+      skipped: PRODUCTS.length,
+    });
+    expect(await categoriesOf(cnkFor(0))).toEqual(["allergy"]);
   });
 });

@@ -20,9 +20,9 @@ export const PERMISSIONS = {
   catalog: {
     read: "catalog.read",
     manage: "catalog.manage",
-    /** Back-office: see every product, drafts and archived ones included (igs-pharma#50). */
+    /** Back-office: see every product (drafts and archived ones too) and the category tree. */
     productsRead: "catalog.products.read",
-    /** Back-office: create and edit products, brands and their content; change product status. */
+    /** Back-office: create and edit products, brands, categories and content; change product status. */
     productsManage: "catalog.products.manage",
   },
   inventory: {

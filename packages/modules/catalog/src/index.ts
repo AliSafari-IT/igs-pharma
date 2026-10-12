@@ -11,6 +11,8 @@ export {
   REQUIRED_LOCALES,
   VAT_CLASSES,
   type VatClass,
+  MAX_CATEGORIES_PER_PRODUCT,
+  MAX_CATEGORY_DEPTH,
   isValidCnk,
   missingForActivation,
 } from "./domain";
@@ -25,5 +27,14 @@ export {
   listBrands,
   listProducts,
 } from "./queries";
+export {
+  type CategoryNode,
+  createCategory,
+  deleteCategory,
+  listCategories,
+  moveCategory,
+  setProductCategories,
+  updateCategory,
+} from "./categories";
 export { CATALOG_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export { type ProductRef, productRefsByCnk, productRefsById, searchProductRefs } from "./refs";
