@@ -9,6 +9,7 @@ import {
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
+import { registerAuditActions as registerPricingAuditActions } from "@igs/module-pricing";
 import { registerAuditActions as registerPrivacyAuditActions } from "@igs/module-privacy";
 import { logger } from "@igs/observability/logger";
 
@@ -50,6 +51,7 @@ export function ensureAuthConfigured(): void {
   registerIdentityAuditActions(registerAuditAction);
   registerCatalogAuditActions(registerAuditAction);
   registerInventoryAuditActions(registerAuditAction);
+  registerPricingAuditActions(registerAuditAction);
   registerPrivacyAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
   configureAuth({

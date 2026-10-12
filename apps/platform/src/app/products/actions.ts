@@ -8,9 +8,11 @@ import {
   setProductStatus,
   updateProduct,
 } from "@igs/module-catalog";
+import { parseEuros, setPrice } from "@igs/module-pricing";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { brusselsLocalToDate } from "../../components/price-labels";
 import { requestOrigin, requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
 
@@ -141,4 +143,57 @@ export async function saveProductCategories(form: FormData): Promise<void> {
   revalidatePath("/products");
   revalidatePath("/categories");
   redirect(`/products/${encodeURIComponent(productId)}?${query}#categories-heading`);
+}
+
+/** The Change price dialog on the product page (igs-pharma#59). */
+export interface PriceFormState {
+  readonly error?: string;
+  readonly values?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Sets the product's web price: euros typed by staff (VAT included) → whole cents; "from now" or
+ * from a date and time in Brussels.
+ */
+export async function changePrice(
+  _previous: PriceFormState,
+  form: FormData,
+): Promise<PriceFormState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const productId = text(form, "productId");
+  const values = {
+    amount: text(form, "amount"),
+    when: text(form, "when") === "later" ? "later" : "now",
+    validFrom: text(form, "validFrom"),
+    reason: text(form, "reason"),
+  };
+  const amountCents = parseEuros(values.amount);
+  if (amountCents === null) return { error: "pricing.amount_invalid", values };
+  let validFrom: string | undefined;
+  if (values.when === "later") {
+    const moment = brusselsLocalToDate(values.validFrom);
+    if (!moment) return { error: "pricing.valid_from_invalid", values };
+    validFrom = moment.toISOString();
+  }
+  let scheduled: boolean;
+  try {
+    ({ scheduled } = await setPrice(
+      {
+        productId,
+        amountCents,
+        ...(validFrom ? { validFrom } : {}),
+        ...(values.reason.trim() ? { reason: values.reason } : {}),
+      },
+      actor,
+      { origin: await requestOrigin() },
+    ));
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code, values };
+  }
+  revalidatePath("/products");
+  redirect(
+    `/products/${encodeURIComponent(productId)}?price=${scheduled ? "scheduled" : "set"}#price`,
+  );
 }

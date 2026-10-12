@@ -9,6 +9,7 @@ import {
   listCategories,
   missingForActivation,
 } from "@igs/module-catalog";
+import { type PriceHistoryRow, type ProductPrices, listPrices } from "@igs/module-pricing";
 import { Alert, Badge, Button, Container, Link, Stack } from "@igs/ui";
 import { notFound } from "next/navigation";
 
@@ -19,7 +20,10 @@ import {
   catalogErrorMessage,
   statusLabelFor,
 } from "../../../components/catalog-labels";
+import { PriceDialog } from "../../../components/price-dialog";
+import { formatEuros, formatRate, vatLine } from "../../../components/price-labels";
 import { ProductForm } from "../../../components/product-form";
+import { formatMoment } from "../../../components/stock-labels";
 import { requireStaffActor } from "../../../server/actor";
 import { ensureKernelConfigured } from "../../../server/kernel";
 import { changeStatus, saveProductCategories } from "../actions";
@@ -52,6 +56,7 @@ interface Props {
     error?: string;
     categories?: string;
     categoriesError?: string;
+    price?: string;
   }>;
 }
 
@@ -78,6 +83,28 @@ export default async function ProductPage({ params, searchParams }: Props) {
     if (e.code === "catalog.product_not_found") notFound();
     error = e.code;
   }
+
+  // the Price panel needs pricing.price.read; without it the page simply has no Price panel
+  let prices: ProductPrices | null = null;
+  if (product) {
+    try {
+      prices = await listPrices({ productId: product.id }, actor);
+    } catch (e) {
+      if (!isDomainError(e)) throw e;
+    }
+  }
+  const who = (row: PriceHistoryRow) =>
+    row.createdByType === "user"
+      ? row.createdBy === actor.id
+        ? "You"
+        : "Staff member"
+      : row.createdBy === "seed-catalog"
+        ? "Demo data"
+        : "System";
+  const change = (row: PriceHistoryRow) =>
+    row.previousAmountCents === null
+      ? `First price: ${formatEuros(row.amountCents)}`
+      : `${formatEuros(row.previousAmountCents)} → ${formatEuros(row.amountCents)}`;
 
   if (!product) {
     return (
@@ -143,6 +170,107 @@ export default async function ProductPage({ params, searchParams }: Props) {
               ))}
             </div>
           </section>
+
+          {prices ? (
+            <section id="price" aria-labelledby="price-heading" className="flex flex-col gap-3">
+              <h2 id="price-heading" className="font-display text-xl font-semibold">
+                Price
+              </h2>
+              {flash.price === "set" ? <Alert variant="success" title="Price changed" /> : null}
+              {flash.price === "scheduled" ? (
+                <Alert variant="success" title="Price change scheduled" />
+              ) : null}
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
+                <dt className="text-[var(--color-text-subtle)]">Web price</dt>
+                <dd>
+                  {prices.current ? (
+                    <>
+                      <span className="font-semibold tabular-nums">
+                        {formatEuros(prices.current.amountCents)}
+                      </span>{" "}
+                      <span className="text-sm text-[var(--color-text-subtle)]">
+                        {vatLine(prices.current.vatRateBp, prices.current.vatCents)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[var(--color-text-subtle)]">No price yet</span>
+                  )}
+                </dd>
+                <dt className="text-[var(--color-text-subtle)]">VAT class</dt>
+                <dd>{formatRate(prices.vatRateBp)}</dd>
+              </dl>
+              <div>
+                <PriceDialog
+                  productId={product.id}
+                  currentCents={prices.current?.amountCents ?? null}
+                />
+              </div>
+
+              {prices.scheduled.length > 0 ? (
+                <table className="w-full border-collapse text-left text-sm">
+                  <caption className="mb-1 text-left font-semibold">Scheduled changes</caption>
+                  <thead>
+                    <tr className="border-b border-[var(--color-border-strong)]">
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Starts
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Change
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Who
+                      </th>
+                      <th scope="col" className="py-2 font-semibold">
+                        Reason
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prices.scheduled.map((row) => (
+                      <tr key={row.id} className="border-b border-[var(--color-border)]">
+                        <td className="py-2 pr-4">{formatMoment(row.validFrom)}</td>
+                        <td className="py-2 pr-4 tabular-nums">{change(row)}</td>
+                        <td className="py-2 pr-4">{who(row)}</td>
+                        <td className="py-2">{row.reason ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+
+              {prices.history.length > 0 ? (
+                <table className="w-full border-collapse text-left text-sm">
+                  <caption className="mb-1 text-left font-semibold">Price history</caption>
+                  <thead>
+                    <tr className="border-b border-[var(--color-border-strong)]">
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        When
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Change
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Who
+                      </th>
+                      <th scope="col" className="py-2 font-semibold">
+                        Reason
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prices.history.map((row) => (
+                      <tr key={row.id} className="border-b border-[var(--color-border)]">
+                        <td className="py-2 pr-4">{formatMoment(row.validFrom)}</td>
+                        <td className="py-2 pr-4 tabular-nums">{change(row)}</td>
+                        <td className="py-2 pr-4">{who(row)}</td>
+                        <td className="py-2">{row.reason ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </section>
+          ) : null}
 
           <section aria-labelledby="categories-heading" className="flex flex-col gap-3">
             <h2 id="categories-heading" className="font-display text-xl font-semibold">

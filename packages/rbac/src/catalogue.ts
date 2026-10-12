@@ -31,6 +31,12 @@ export const PERMISSIONS = {
     /** Back-office: import stock counts and adjust stock with a reason. */
     stockManage: "inventory.stock.manage",
   },
+  pricing: {
+    /** Back-office: a product's web price, its VAT part, scheduled changes and history (igs-pharma#59). */
+    priceRead: "pricing.price.read",
+    /** Back-office: set a product's price from now or schedule a change. */
+    priceManage: "pricing.price.manage",
+  },
   privacy: {
     /** Back-office: a subject's current consents and their history (igs-pharma#58). */
     consentRead: "privacy.consent.read",
@@ -96,7 +102,7 @@ export const ROLES = {
   system_seed: {
     kind: "system",
     description:
-      "Synthetic seed CLI: loads fake catalogue, stock and privacy data (staging and development only)",
+      "Synthetic seed CLI: loads fake catalogue, stock, price and privacy data (staging and development only)",
   },
 } as const satisfies Record<string, RoleDefinition>;
 
@@ -167,6 +173,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.catalog.productsManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
+    PERMISSIONS.pricing.priceRead,
+    PERMISSIONS.pricing.priceManage,
     PERMISSIONS.privacy.consentRead,
     PERMISSIONS.privacy.consentRecord,
     PERMISSIONS.privacy.dsrRead,
