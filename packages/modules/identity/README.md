@@ -6,11 +6,14 @@ the audit entry are one unit.
 
 ## Pharmacist seat and last owner (D-035)
 
-- Suspending, reactivating or deleting a user who holds `pharmacist` or `pharmacist_titular` needs
-  `pharmacy.pharmacists.manage` **in addition to** `staff.manage`. The owner alone cannot
-  (`identity.pharmacist_access_requires_titular`).
+- Two command families with one static permission each (the Q7 pattern). `suspendUser`,
+  `reactivateUser`, `deleteUser` (`staff.manage`) refuse a target holding `pharmacist` or
+  `pharmacist_titular`, for everyone (`identity.pharmacist_access_requires_titular`).
+  `suspendPharmacist`, `reactivatePharmacist`, `deletePharmacist` (`pharmacy.pharmacists.manage`)
+  handle only such targets (`identity.not_a_pharmacist` otherwise). So the titular alone manages
+  pharmacists, and an owner without the titular role cannot. Same audit events and shapes.
 - The last active holder (`users.status = 'active'`) of `owner` or `pharmacist_titular` cannot be
-  removed by role revoke, suspend or delete (`identity.last_holder_protected`). The check runs in
+  removed by role revoke, suspend or delete (either family) (`identity.last_holder_protected`). The check runs in
   the same transaction, after a transaction advisory lock per role, so two concurrent removals
   cannot both pass.
 - The bootstrap CLI (`bootstrapStaff`) counts only active holders: a deleted or suspended

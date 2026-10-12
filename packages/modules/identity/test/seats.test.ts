@@ -10,14 +10,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   bootstrapStaff,
+  deletePharmacist,
   deleteUser,
   loadActor,
   loadRbacCatalogue,
+  reactivatePharmacist,
   reactivateUser,
   registerAuditActions,
   reissueEnrolment,
   revokePharmacistRole,
   revokeRole,
+  suspendPharmacist,
   suspendUser,
 } from "../src";
 import { sessions, userRoles, users } from "../src/schema";
@@ -80,64 +83,98 @@ const codeOf = async (promise: Promise<unknown>) => {
 const bootstrapper = () => actors.system({ id: "bootstrap-cli", roles: ["system_bootstrap"] });
 const newEmail = () => `${crypto.randomUUID()}@example.test`;
 
-describe("ending a pharmacist's access needs pharmacy.pharmacists.manage (rule 1)", () => {
-  it("the owner can neither suspend, reactivate nor delete a pharmacist or the titular", async () => {
+describe("pharmacist access has its own command family (rule 1)", () => {
+  it("suspend, reactivate and delete (staff.manage) refuse a pharmacist or the titular, for everyone", async () => {
     const owner = await staffWith("owner");
-    const titular = await staffWith("pharmacist_titular");
-    for (const roleKey of ["pharmacist", "pharmacist_titular"]) {
-      const target = roleKey === "pharmacist" ? await staffWith("pharmacist") : titular;
-      expect(await codeOf(suspendUser({ userId: target.id }, owner))).toBe(
-        "identity.pharmacist_access_requires_titular",
-      );
-      expect(await codeOf(deleteUser({ userId: target.id }, owner))).toBe(
-        "identity.pharmacist_access_requires_titular",
-      );
-      expect(await statusOf(target.id)).toBe("active");
-    }
-    // restoring needs it too: a suspended pharmacist stays suspended for the owner
+    const both = await staffWith("owner", "pharmacist_titular");
     const pharmacist = await staffWith("pharmacist");
-    await suspendInDb(pharmacist.id);
-    expect(await codeOf(reactivateUser({ userId: pharmacist.id }, owner))).toBe(
-      "identity.pharmacist_access_requires_titular",
-    );
-    expect(await statusOf(pharmacist.id)).toBe("suspended");
+    const titular = await staffWith("pharmacist_titular");
+    const suspended = await staffWith("pharmacist");
+    await suspendInDb(suspended.id);
+    for (const actor of [owner, both]) {
+      for (const target of [pharmacist, titular]) {
+        expect(await codeOf(suspendUser({ userId: target.id }, actor))).toBe(
+          "identity.pharmacist_access_requires_titular",
+        );
+        expect(await codeOf(deleteUser({ userId: target.id }, actor))).toBe(
+          "identity.pharmacist_access_requires_titular",
+        );
+      }
+      expect(await codeOf(reactivateUser({ userId: suspended.id }, actor))).toBe(
+        "identity.pharmacist_access_requires_titular",
+      );
+    }
+    expect(await statusOf(pharmacist.id)).toBe("active");
+    expect(await statusOf(titular.id)).toBe("active");
+    expect(await statusOf(suspended.id)).toBe("suspended");
   });
 
   it("a location-scoped pharmacist role counts too", async () => {
-    const owner = await staffWith("owner");
+    const both = await staffWith("owner", "pharmacist_titular");
     const target = await staffWith();
     await iso.db
       .insert(userRoles)
       .values({ userId: target.id, roleKey: "pharmacist", locationId: crypto.randomUUID() });
-    expect(await codeOf(suspendUser({ userId: target.id }, owner))).toBe(
+    expect(await codeOf(suspendUser({ userId: target.id }, both))).toBe(
       "identity.pharmacist_access_requires_titular",
     );
+    await suspendPharmacist({ userId: target.id }, both);
+    expect(await statusOf(target.id)).toBe("suspended");
   });
 
-  it("an owner who is also the titular suspends, reactivates and deletes a pharmacist; the titular alone lacks staff.manage", async () => {
+  it("the titular alone suspends, reactivates and deletes a pharmacist, with the same audit events", async () => {
     const titular = await staffWith("pharmacist_titular");
-    const both = await staffWith("owner", "pharmacist_titular");
     const pharmacist = await staffWith("pharmacist");
 
-    expect(await codeOf(suspendUser({ userId: pharmacist.id }, titular))).toBe("kernel.forbidden");
-    await suspendUser({ userId: pharmacist.id }, both);
+    await suspendPharmacist({ userId: pharmacist.id }, titular);
     expect(await statusOf(pharmacist.id)).toBe("suspended");
-    await reactivateUser({ userId: pharmacist.id }, both);
+    await reactivatePharmacist({ userId: pharmacist.id }, titular);
     expect(await statusOf(pharmacist.id)).toBe("active");
-    await deleteUser({ userId: pharmacist.id }, both);
+    await deletePharmacist({ userId: pharmacist.id }, titular);
     expect(await statusOf(pharmacist.id)).toBe("deleted");
+
+    const rows = await iso.sql<{ action: string; data: unknown }[]>`
+      SELECT action, data FROM audit.events WHERE entity_id = ${pharmacist.id} ORDER BY seq`;
+    expect(rows).toEqual([
+      { action: "identity.user.suspended", data: { userId: pharmacist.id } },
+      { action: "identity.user.reactivated", data: { userId: pharmacist.id } },
+      { action: "identity.user.deleted", data: { userId: pharmacist.id } },
+    ]);
   });
 
-  it("the titular still lacks staff.manage: they cannot suspend an administrator", async () => {
+  it("the owner without the titular role cannot use the pharmacist family", async () => {
+    const owner = await staffWith("owner");
+    const pharmacist = await staffWith("pharmacist");
+    const suspended = await staffWith("pharmacist");
+    await suspendInDb(suspended.id);
+    expect(await codeOf(suspendPharmacist({ userId: pharmacist.id }, owner))).toBe(
+      "kernel.forbidden",
+    );
+    expect(await codeOf(deletePharmacist({ userId: pharmacist.id }, owner))).toBe(
+      "kernel.forbidden",
+    );
+    expect(await codeOf(reactivatePharmacist({ userId: suspended.id }, owner))).toBe(
+      "kernel.forbidden",
+    );
+    expect(await statusOf(pharmacist.id)).toBe("active");
+    expect(await statusOf(suspended.id)).toBe("suspended");
+  });
+
+  it("the pharmacist family refuses anyone who is not a pharmacist", async () => {
     const titular = await staffWith("pharmacist_titular");
     const assistant = await staffWith("pharmacy_assistant");
-    expect(await codeOf(suspendUser({ userId: assistant.id }, titular))).toBe("kernel.forbidden");
+    expect(await codeOf(suspendPharmacist({ userId: assistant.id }, titular))).toBe(
+      "identity.not_a_pharmacist",
+    );
+    expect(await statusOf(assistant.id)).toBe("active");
   });
 
-  it("the owner still manages everyone who is not a pharmacist", async () => {
+  it("the titular alone still lacks staff.manage; the owner still manages everyone else", async () => {
+    const titular = await staffWith("pharmacist_titular");
     const owner = await staffWith("owner");
     const second = await staffWith("owner");
     const assistant = await staffWith("pharmacy_assistant");
+    expect(await codeOf(suspendUser({ userId: assistant.id }, titular))).toBe("kernel.forbidden");
     await suspendUser({ userId: assistant.id }, owner);
     await suspendUser({ userId: second.id }, owner); // the acting owner stays active
     expect(await statusOf(assistant.id)).toBe("suspended");
@@ -149,30 +186,25 @@ const suspendInDb = (userId: string) =>
   iso.db.update(users).set({ status: "suspended" }).where(eq(users.id, userId));
 
 /**
- * `actor` can remove `target` (it holds the permissions the command needs) and both hold the role
- * under test. Titular targets need an acting owner+titular, so the actor is a second holder too.
+ * `actor` can remove `target` and both hold the role under test: owners use the staff commands,
+ * titulars the pharmacist family (so the actor needs only the titular role).
  */
 async function pair(role: "owner" | "pharmacist_titular") {
-  const actor = await staffWith(
-    ...(role === "owner" ? ["owner"] : ["owner", "pharmacist_titular"]),
-  );
+  const actor = await staffWith(role);
   const target = await staffWith(role);
   return { actor, target };
 }
 
+type Actor = Awaited<ReturnType<typeof staffWith>>;
 const REMOVALS = {
-  revoke: (
-    role: "owner" | "pharmacist_titular",
-    userId: string,
-    by: Awaited<ReturnType<typeof staffWith>>,
-  ) =>
+  revoke: (role: string, userId: string, by: Actor) =>
     role === "owner"
       ? revokeRole({ userId, roleKey: "owner" }, by)
       : revokePharmacistRole({ userId, roleKey: "pharmacist_titular" }, by),
-  suspend: (_role: string, userId: string, by: Awaited<ReturnType<typeof staffWith>>) =>
-    suspendUser({ userId }, by),
-  delete: (_role: string, userId: string, by: Awaited<ReturnType<typeof staffWith>>) =>
-    deleteUser({ userId }, by),
+  suspend: (role: string, userId: string, by: Actor) =>
+    role === "owner" ? suspendUser({ userId }, by) : suspendPharmacist({ userId }, by),
+  delete: (role: string, userId: string, by: Actor) =>
+    role === "owner" ? deleteUser({ userId }, by) : deletePharmacist({ userId }, by),
 };
 
 describe("the last active owner / titular cannot be removed (rule 2)", () => {
@@ -232,13 +264,6 @@ async function createSessionFor(userId: string) {
   });
 }
 
-/** Two actors that each hold both roles, so each may remove the other. */
-async function twoSeatHolders() {
-  const a = await staffWith("owner", "pharmacist_titular");
-  const b = await staffWith("owner", "pharmacist_titular");
-  return { a, b };
-}
-
 async function activeCount(roleKey: string) {
   const rows = await iso.sql<{ n: number }[]>`
     SELECT count(DISTINCT ur.user_id)::int AS n FROM identity.user_roles ur
@@ -249,40 +274,43 @@ async function activeCount(roleKey: string) {
 
 describe("two removals at once leave exactly one holder (rule 2, race)", () => {
   const ROUNDS = 8;
-  const races = {
-    "two owners suspend each other": (
-      a: Awaited<ReturnType<typeof staffWith>>,
-      b: Awaited<ReturnType<typeof staffWith>>,
-    ) => [suspendUser({ userId: b.id }, a), suspendUser({ userId: a.id }, b)],
-    "two titulars delete each other": (
-      a: Awaited<ReturnType<typeof staffWith>>,
-      b: Awaited<ReturnType<typeof staffWith>>,
-    ) => [deleteUser({ userId: b.id }, a), deleteUser({ userId: a.id }, b)],
-    "two owners revoke each other's owner role": (
-      a: Awaited<ReturnType<typeof staffWith>>,
-      b: Awaited<ReturnType<typeof staffWith>>,
-    ) => [
-      revokeRole({ userId: b.id, roleKey: "owner" }, a),
-      revokeRole({ userId: a.id, roleKey: "owner" }, b),
-    ],
-    "two titulars revoke each other's titular role": (
-      a: Awaited<ReturnType<typeof staffWith>>,
-      b: Awaited<ReturnType<typeof staffWith>>,
-    ) => [
-      revokePharmacistRole({ userId: b.id, roleKey: "pharmacist_titular" }, a),
-      revokePharmacistRole({ userId: a.id, roleKey: "pharmacist_titular" }, b),
-    ],
+  const races: Record<
+    string,
+    { role: "owner" | "pharmacist_titular"; run: (a: Actor, b: Actor) => Promise<unknown>[] }
+  > = {
+    "two owners suspend each other": {
+      role: "owner",
+      run: (a, b) => [suspendUser({ userId: b.id }, a), suspendUser({ userId: a.id }, b)],
+    },
+    "two owners revoke each other's owner role": {
+      role: "owner",
+      run: (a, b) => [
+        revokeRole({ userId: b.id, roleKey: "owner" }, a),
+        revokeRole({ userId: a.id, roleKey: "owner" }, b),
+      ],
+    },
+    "two titulars delete each other": {
+      role: "pharmacist_titular",
+      run: (a, b) => [deletePharmacist({ userId: b.id }, a), deletePharmacist({ userId: a.id }, b)],
+    },
+    "two titulars revoke each other's titular role": {
+      role: "pharmacist_titular",
+      run: (a, b) => [
+        revokePharmacistRole({ userId: b.id, roleKey: "pharmacist_titular" }, a),
+        revokePharmacistRole({ userId: a.id, roleKey: "pharmacist_titular" }, b),
+      ],
+    },
   };
 
-  for (const [name, race] of Object.entries(races)) {
+  for (const [name, { role, run }] of Object.entries(races)) {
     it(`${name}: exactly one succeeds`, async () => {
       for (let round = 0; round < ROUNDS; round++) {
         await reset();
-        const { a, b } = await twoSeatHolders();
-        const results = await Promise.all(race(a, b).map(codeOf));
+        const a = await staffWith(role);
+        const b = await staffWith(role);
+        const results = await Promise.all(run(a, b).map(codeOf));
         expect(results.sort()).toEqual(["identity.last_holder_protected", "ok"]);
-        expect(await activeCount("owner")).toBeGreaterThanOrEqual(1);
-        expect(await activeCount("pharmacist_titular")).toBeGreaterThanOrEqual(1);
+        expect(await activeCount(role)).toBe(1);
       }
     });
   }

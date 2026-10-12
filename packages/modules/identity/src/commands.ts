@@ -1,12 +1,5 @@
 import { type Ctx, command, conflict, forbidden, notFound } from "@igs/kernel";
-import {
-  PERMISSIONS,
-  PHARMACIST_ROLES,
-  ROLES,
-  ROLE_KEYS,
-  type RoleKey,
-  hasPermission,
-} from "@igs/rbac";
+import { PERMISSIONS, PHARMACIST_ROLES, ROLES, ROLE_KEYS, type RoleKey } from "@igs/rbac";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -31,8 +24,10 @@ import { sessions, userRoles, users } from "./schema";
  * hand out administrative roles. Hence two command pairs with one static permission each.
  *
  * D-035: that rule covers every action that ends or restores a pharmacist's access, not only role
- * revocation (suspend, reactivate and delete need `pharmacy.pharmacists.manage` when the target holds
- * a pharmacist role), and the last active `owner` / `pharmacist_titular` can never be removed.
+ * revocation. Same pattern, one static permission per command family: `suspendUser` & co.
+ * (`staff.manage`) refuse a target holding a pharmacist role, for everyone; `suspendPharmacist` & co.
+ * (`pharmacy.pharmacists.manage`) handle only such targets. The last active `owner` /
+ * `pharmacist_titular` can never be removed, by either family.
  */
 
 const roleGrantInput = z.object({
@@ -240,6 +235,7 @@ async function setStatus(
   from: readonly UserStatus[],
   to: UserStatus,
   action: string,
+  family: "staff" | "pharmacist",
 ): Promise<void> {
   if (ctx.actor.type === "user" && ctx.actor.id === userId) {
     throw forbidden("identity.cannot_change_own_status");
@@ -248,18 +244,17 @@ async function setStatus(
   const ends = to !== "active";
   if (ends) await lockHolders(ctx, PROTECTED_ROLES);
   const user = await targetUser(ctx, userId);
-  // D-035: whoever ends or restores a pharmacist's access must be able to manage pharmacists,
-  // in addition to `staff.manage` (the static permission of the command): the owner alone cannot.
+  // D-035: the target's roles decide which command family may act (a data-dependent check inside
+  // the handler; each family's static permission was already checked by the kernel, D-005)
   const held = await ctx.tx
     .select({ roleKey: userRoles.roleKey })
     .from(userRoles)
     .where(eq(userRoles.userId, userId));
-  if (
-    held.some((row) => PHARMACIST_ROLES.includes(row.roleKey as RoleKey)) &&
-    !hasPermission(ctx.actor.roles, PERMISSIONS.pharmacy.pharmacistsManage)
-  ) {
+  const isPharmacist = held.some((row) => PHARMACIST_ROLES.includes(row.roleKey as RoleKey));
+  if (family === "staff" && isPharmacist) {
     throw forbidden("identity.pharmacist_access_requires_titular");
   }
+  if (family === "pharmacist" && !isPharmacist) throw conflict("identity.not_a_pharmacist");
   if (!from.includes(user.status)) throw conflict("identity.invalid_status_transition");
   const before = ends ? await countHolders(ctx, PROTECTED_ROLES) : null;
   await ctx.tx.update(users).set({ status: to, updatedAt: ctx.now }).where(eq(users.id, userId));
@@ -268,29 +263,43 @@ async function setStatus(
   await ctx.audit.record({ action, entityType: "user", entityId: userId, data: { userId } });
 }
 
-/** Suspends an active user and ends their sessions (`staff.manage`). */
+/** Suspends an active user and ends their sessions (`staff.manage`). Not for a pharmacist. */
 export const suspendUser = command({
   name: "identity.user.suspend",
   input: userInput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
-    await setStatus(ctx, input.userId, ["active"], "suspended", IDENTITY_AUDIT.userSuspended);
+    await setStatus(
+      ctx,
+      input.userId,
+      ["active"],
+      "suspended",
+      IDENTITY_AUDIT.userSuspended,
+      "staff",
+    );
   },
 });
 
-/** Reactivates a suspended user (`staff.manage`). A deleted user stays deleted. */
+/** Reactivates a suspended user (`staff.manage`). A deleted user stays deleted. Not for a pharmacist. */
 export const reactivateUser = command({
   name: "identity.user.reactivate",
   input: userInput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
-    await setStatus(ctx, input.userId, ["suspended"], "active", IDENTITY_AUDIT.userReactivated);
+    await setStatus(
+      ctx,
+      input.userId,
+      ["suspended"],
+      "active",
+      IDENTITY_AUDIT.userReactivated,
+      "staff",
+    );
   },
 });
 
 /**
  * Marks a user deleted and ends their sessions (`staff.manage`). The row stays (audit history,
- * foreign keys); erasure of personal data is a separate, later flow (GDPR).
+ * foreign keys); erasure of personal data is a separate, later flow (GDPR). Not for a pharmacist.
  */
 export const deleteUser = command({
   name: "identity.user.delete",
@@ -303,6 +312,58 @@ export const deleteUser = command({
       ["active", "suspended"],
       "deleted",
       IDENTITY_AUDIT.userDeleted,
+      "staff",
+    );
+  },
+});
+
+/** Suspends an active pharmacist or titular (`pharmacy.pharmacists.manage`, D-035). Same audit event. */
+export const suspendPharmacist = command({
+  name: "identity.pharmacist.suspend",
+  input: userInput,
+  permission: PERMISSIONS.pharmacy.pharmacistsManage,
+  async handler({ input, ctx }) {
+    await setStatus(
+      ctx,
+      input.userId,
+      ["active"],
+      "suspended",
+      IDENTITY_AUDIT.userSuspended,
+      "pharmacist",
+    );
+  },
+});
+
+/** Reactivates a suspended pharmacist or titular (`pharmacy.pharmacists.manage`, D-035). */
+export const reactivatePharmacist = command({
+  name: "identity.pharmacist.reactivate",
+  input: userInput,
+  permission: PERMISSIONS.pharmacy.pharmacistsManage,
+  async handler({ input, ctx }) {
+    await setStatus(
+      ctx,
+      input.userId,
+      ["suspended"],
+      "active",
+      IDENTITY_AUDIT.userReactivated,
+      "pharmacist",
+    );
+  },
+});
+
+/** Marks a pharmacist or titular deleted (`pharmacy.pharmacists.manage`, D-035). */
+export const deletePharmacist = command({
+  name: "identity.pharmacist.delete",
+  input: userInput,
+  permission: PERMISSIONS.pharmacy.pharmacistsManage,
+  async handler({ input, ctx }) {
+    await setStatus(
+      ctx,
+      input.userId,
+      ["active", "suspended"],
+      "deleted",
+      IDENTITY_AUDIT.userDeleted,
+      "pharmacist",
     );
   },
 });

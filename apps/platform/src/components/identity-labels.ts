@@ -7,7 +7,8 @@ const ERRORS: Record<string, string> = {
   "identity.last_holder_protected":
     "This is the last active holder of the role. Give the role to someone else first, then try again.",
   "identity.pharmacist_access_requires_titular":
-    "Only the pharmacist-titular can suspend, restore or delete a pharmacist.",
+    "A pharmacist's access is managed by the pharmacist-titular, with the pharmacist actions.",
+  "identity.not_a_pharmacist": "That account is not a pharmacist.",
   "identity.pharmacist_role_requires_titular":
     "Only the pharmacist-titular can grant or revoke a pharmacist role.",
   "identity.cannot_change_own_status": "You cannot change your own account status.",
