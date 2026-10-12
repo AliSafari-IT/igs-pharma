@@ -52,7 +52,7 @@ export const dsrRequests = privacy.table(
     type: text("type").notNull(),
     channel: text("channel").notNull(),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
-    /** `received_at` + 30 days, computed in the domain (`dsrDueAt`). */
+    /** `received_at` + one calendar month (Brussels), computed in the domain (`dsrDueAt`). */
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     status: text("status").notNull(),
     /** Free text written by staff; never copied into the audit trail. */
