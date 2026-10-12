@@ -12,6 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   adjustStock,
+  getAvailability,
   getStock,
   importStock,
   listStock,
@@ -288,5 +289,44 @@ describe("permissions", () => {
         adjustStock({ productId: a.id, delta: 1, reason: "adjustment", note: "n" }, editor),
       ),
     ).toBe("kernel.forbidden");
+  });
+});
+
+describe("inventory.availability.get (storefront)", () => {
+  const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
+
+  it("says in or out of stock and never how many", async () => {
+    const stocked = await newProduct();
+    const sold = await newProduct();
+    const never = await newProduct();
+    await adjustStock(
+      { productId: stocked.id, delta: 7, reason: "adjustment", note: "found" },
+      owner,
+    );
+    await adjustStock({ productId: sold.id, delta: 2, reason: "adjustment", note: "found" }, owner);
+    await adjustStock(
+      { productId: sold.id, delta: -2, reason: "adjustment", note: "sold out" },
+      owner,
+    );
+
+    const rows = await getAvailability(
+      { productIds: [stocked.id, sold.id, never.id, randomUUID()] },
+      storefront,
+    );
+    expect(rows).toEqual([
+      { productId: stocked.id, inStock: true },
+      { productId: sold.id, inStock: false },
+      { productId: never.id, inStock: false },
+    ]);
+    expect(JSON.stringify(rows)).not.toContain("onHand");
+  });
+
+  it("is a permission of its own: the storefront cannot read stock levels, staff roles without it cannot read availability", async () => {
+    const item = await newProduct();
+    expect(await codeOf(listStock({}, storefront))).toBe("kernel.forbidden");
+    expect(await codeOf(getStock({ productId: item.id }, storefront))).toBe("kernel.forbidden");
+    expect(await codeOf(getAvailability({ productIds: [item.id] }, editor))).toBe(
+      "kernel.forbidden",
+    );
   });
 });

@@ -116,9 +116,15 @@ describe("catalogue invariants (T-016)", () => {
       "privacy.dsr.read",
       "privacy.dsr.manage",
     ]);
+    // the storefront preview (igs-pharma#62) only reads: active products, prices, in/out of stock
+    expect(ROLE_PERMISSIONS.system_storefront).toEqual([
+      "catalog.storefront.read",
+      "inventory.availability.read",
+      "pricing.price.read",
+    ]);
     for (const role of ROLE_KEYS) {
       const perms = ROLE_PERMISSIONS[role] as readonly string[];
-      if (role === "system_seed") continue;
+      if (role === "system_seed" || role === "system_storefront") continue;
       if (ROLES[role].kind === "system") {
         expect(
           perms.every((p) => (SYSTEM_ONLY as readonly string[]).includes(p)),

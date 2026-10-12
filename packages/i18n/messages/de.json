@@ -19,5 +19,33 @@
   "comingSoon": {
     "title": "Bald geöffnet",
     "body": "IGS-Pharma, Ihre Online-Apotheke in Belgien, öffnet bald."
+  },
+  "storefront": {
+    "title": "Unsere Produkte",
+    "categories": "Kategorien",
+    "allProducts": "Alle Produkte",
+    "noProducts": "Hier gibt es noch keine Produkte.",
+    "inStock": "Auf Lager",
+    "outOfStock": "Nicht auf Lager",
+    "vatIncluded": "inkl. {rate} MwSt.",
+    "priceUnknown": "Preis folgt",
+    "addToCart": "In den Warenkorb",
+    "addToCartSoon": "Online bestellen ist bald möglich.",
+    "description": "Beschreibung",
+    "warnings": "Warnhinweise",
+    "untranslated": "Dieser Text ist noch nicht in Ihrer Sprache verfügbar.",
+    "brand": "Marke",
+    "cnk": "CNK",
+    "language": "Sprache",
+    "page": "Seite {page} von {pages}",
+    "previous": "Vorherige Seite",
+    "next": "Nächste Seite",
+    "main": "Hauptinhalt",
+    "categoriesNav": "Kategorien",
+    "pages": "Seiten",
+    "viewProduct": "{name} ansehen",
+    "backTo": "Zurück zu {name}",
+    "unavailable": "Die Produkte sind vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
+    "skipToContent": "Zum Inhalt springen"
   }
 }

@@ -18,10 +18,12 @@ export type { ImportPlan, ImportPlanRow } from "./ledger";
 export { adjustStock, importStock, stockImportKey } from "./commands";
 export {
   MOVEMENT_HISTORY_LIMIT,
+  type ProductAvailability,
   type ProductStock,
   type StockListItem,
   type StockMovementView,
   type StockPage,
+  getAvailability,
   getStock,
   listStock,
   previewStockImport,
