@@ -1,6 +1,7 @@
 /**
  * Synthetic catalogue seed (igs-pharma#50): loads the FAKE products and brands of
- * `synthetic-catalog.ts`, so the back-office can be tried on staging and in development.
+ * `synthetic-catalog.ts` and their demo stock (igs-pharma#53), so the back-office can be tried on
+ * staging and in development.
  *
  *   NODE_ENV=development pnpm --filter @igs/worker seed-catalog                (dev)
  *   NODE_ENV=production IGS_ALLOW_SYNTHETIC_SEED=1 node dist/seed-catalog.js   (staging only)
@@ -18,8 +19,9 @@ import {
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
+import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
 
-import { PRODUCTS, cnkFor, seedSyntheticCatalog } from "./synthetic-catalog";
+import { PRODUCTS, cnkFor, seedSyntheticCatalog, seedSyntheticStock } from "./synthetic-catalog";
 
 function fail(message: string): never {
   process.stderr.write(`${message}\n`);
@@ -43,6 +45,7 @@ async function main() {
 
   registerIdentityAuditActions(registerAuditAction);
   registerCatalogAuditActions(registerAuditAction);
+  registerInventoryAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort() });
   try {
     await checkDatabase();
@@ -50,6 +53,10 @@ async function main() {
     const { created, restored, skipped } = await seedSyntheticCatalog();
     process.stdout.write(
       `Synthetic catalogue: ${created} product(s) created, ${restored} given their status after an interrupted run, ${skipped} already there (CNK ${cnkFor(0)}–${cnkFor(PRODUCTS.length - 1)}).\n`,
+    );
+    const stock = await seedSyntheticStock();
+    process.stdout.write(
+      `Demo stock: ${stock.stocked} product(s) stocked, ${stock.skipped} left as they were.\n`,
     );
   } catch (error) {
     if (!isDomainError(error)) throw error;

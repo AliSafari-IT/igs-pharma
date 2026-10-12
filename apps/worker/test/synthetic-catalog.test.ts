@@ -1,10 +1,11 @@
-// The synthetic catalogue seed (igs-pharma#50) against real Postgres, through the kernel as the
+// The synthetic catalogue seed (igs-pharma#50) and its demo stock (igs-pharma#53) against real Postgres, through the kernel as the
 // seed CLI's system actor, with the RBAC catalogue loaded from the database (igs-pharma#51 review).
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { createProduct, registerAuditActions } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
+import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -12,7 +13,9 @@ import {
   PRODUCTS,
   SEED_ACTOR,
   cnkFor,
+  demoStockFor,
   seedSyntheticCatalog,
+  seedSyntheticStock,
 } from "../src/synthetic-catalog";
 
 let iso: IsolatedDatabase;
@@ -21,6 +24,7 @@ beforeAll(async () => {
   iso = await createIsolatedDatabase();
   await loadRbacCatalogue(iso.db);
   registerAuditActions(registerAuditAction);
+  registerInventoryAuditActions(registerAuditAction);
 });
 afterAll(async () => {
   await iso?.drop();
@@ -97,5 +101,38 @@ describe("seedSyntheticCatalog", () => {
     });
     expect(await statusOf(cnkFor(firstActive))).toBe("active");
     expect(await statusOf(cnkFor(otherActive))).toBe("draft");
+  });
+});
+
+describe("seedSyntheticStock", () => {
+  // runs after the catalogue tests above, on the same database
+  const onHandOf = async (cnk: string) =>
+    (
+      await iso.sql<{ on_hand: number }[]>`
+        SELECT coalesce(sum(m.delta), 0)::int AS on_hand
+        FROM catalog.products p LEFT JOIN inventory.stock_movements m ON m.product_id = p.id
+        WHERE p.cnk = ${cnk}`
+    )[0]?.on_hand;
+
+  it("stocks every seed product once, as an audited import, and leaves the other product alone", async () => {
+    expect(await seedSyntheticStock()).toEqual({ stocked: PRODUCTS.length - 1, skipped: 1 });
+    for (const [index] of PRODUCTS.entries()) {
+      expect(await onHandOf(cnkFor(index))).toBe(index === otherActive ? 0 : demoStockFor(index));
+    }
+    const events = await iso.sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM audit.events
+      WHERE action = 'inventory.stock.imported' AND actor_id = ${SEED_ACTOR.id}`;
+    expect(events[0]?.n).toBe(1);
+  });
+
+  it("changes nothing on a second run, even after stock moved", async () => {
+    await iso.sql`
+      INSERT INTO inventory.stock_movements
+        (id, product_id, location_id, delta, reason, note, actor_type, actor_id)
+      SELECT gen_random_uuid(), id, '0192f000-0000-7000-8000-000000000001', 5, 'correction',
+        'counted again', 'user', 'someone'
+      FROM catalog.products WHERE cnk = ${cnkFor(0)}`;
+    expect(await seedSyntheticStock()).toEqual({ stocked: 0, skipped: PRODUCTS.length });
+    expect(await onHandOf(cnkFor(0))).toBe(demoStockFor(0) + 5);
   });
 });

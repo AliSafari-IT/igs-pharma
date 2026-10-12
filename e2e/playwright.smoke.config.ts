@@ -19,6 +19,7 @@ export default defineConfig({
     "two-step.spec.ts",
     "coming-soon.spec.ts",
     "catalog.spec.ts",
+    "stock.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",

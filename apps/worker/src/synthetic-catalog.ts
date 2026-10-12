@@ -1,7 +1,8 @@
 /**
  * The synthetic catalogue (igs-pharma#50): about twenty FAKE products (CNKs 0000001–0000020, names
- * starting with "Demo", "Synthetic test product, not for sale") and two fake brands. Nothing here
- * describes a real product. `seed-catalog.ts` is the CLI around it.
+ * starting with "Demo", "Synthetic test product, not for sale") and two fake brands, plus demo
+ * stock for them (igs-pharma#53). Nothing here describes a real product. `seed-catalog.ts` is the
+ * CLI around it.
  */
 import { type Actor, isDomainError } from "@igs/kernel";
 import {
@@ -15,6 +16,7 @@ import {
   listProducts,
   setProductStatus,
 } from "@igs/module-catalog";
+import { importStock, listStock } from "@igs/module-inventory";
 
 /** The seed CLI's system actor: `system_seed` is a system role no user can hold. */
 export const SEED_ACTOR = { type: "system", id: "seed-catalog", roles: ["system_seed"] } as const;
@@ -295,4 +297,40 @@ export async function seedSyntheticCatalog(actor: Actor = SEED_ACTOR): Promise<S
     }
   }
   return { created, restored, skipped };
+}
+
+/**
+ * The demo on-hand of the seed product at `index`: a spread of counts from 1 to 40. Never 0: a zero
+ * count writes no movement, so it could not be told apart from "never counted" on a re-run.
+ */
+export const demoStockFor = (index: number) => ((index * 7) % 40) + 1;
+
+export interface StockSeedResult {
+  /** Seed products given their demo stock by this run. */
+  readonly stocked: number;
+  /** Seed CNKs left alone: stock already moved, or not the seed's own product. */
+  readonly skipped: number;
+}
+
+/**
+ * Gives the seed products their demo stock, through one CSV import (`inventory.stock.import`, so it
+ * is audited like a pharmacist's upload). Only a seed product whose stock never moved is stocked:
+ * running it again, or after staff counted or adjusted stock, changes nothing. A product on a seed
+ * CNK that is not the seed's (another Dutch name) is never touched.
+ */
+export async function seedSyntheticStock(actor: Actor = SEED_ACTOR): Promise<StockSeedResult> {
+  const lines: string[] = [];
+  let skipped = 0;
+  for (const [index, seed] of PRODUCTS.entries()) {
+    const cnk = cnkFor(index);
+    const [item] = (await listStock({ q: cnk, pageSize: 1 }, actor)).items;
+    if (!item || item.cnk !== cnk || item.nameNl !== seed.names.nl || item.lastMovementAt) {
+      skipped++;
+      continue;
+    }
+    lines.push(`${cnk};${demoStockFor(index)}`);
+  }
+  if (lines.length === 0) return { stocked: 0, skipped };
+  await importStock({ csv: `cnk;quantity\n${lines.join("\n")}\n` }, actor);
+  return { stocked: lines.length, skipped };
 }

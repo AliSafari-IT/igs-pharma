@@ -10,6 +10,9 @@ export default function DashboardPage() {
             <Link href="/products">Products</Link>
           </li>
           <li>
+            <Link href="/stock">Stock</Link>
+          </li>
+          <li>
             <Link href="/account">Your account</Link>
           </li>
         </ul>
