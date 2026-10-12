@@ -31,6 +31,16 @@ export const PERMISSIONS = {
     /** Back-office: import stock counts and adjust stock with a reason. */
     stockManage: "inventory.stock.manage",
   },
+  privacy: {
+    /** Back-office: a subject's current consents and their history (igs-pharma#58). */
+    consentRead: "privacy.consent.read",
+    /** Back-office: record a consent given or withdrawn in store, by phone or by post. */
+    consentRecord: "privacy.consent.record",
+    /** Back-office: the register of data-subject requests and their deadlines. */
+    dsrRead: "privacy.dsr.read",
+    /** Back-office: log a data-subject request and move it through its statuses. */
+    dsrManage: "privacy.dsr.manage",
+  },
   staff: {
     invite: "staff.invite",
     /** Grant/revoke non-pharmacist roles; suspend, reactivate and delete users. */
@@ -86,7 +96,7 @@ export const ROLES = {
   system_seed: {
     kind: "system",
     description:
-      "Synthetic seed CLI: loads fake catalogue and stock data (staging and development only)",
+      "Synthetic seed CLI: loads fake catalogue, stock and privacy data (staging and development only)",
   },
 } as const satisfies Record<string, RoleDefinition>;
 
@@ -157,6 +167,10 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.catalog.productsManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
+    PERMISSIONS.privacy.consentRead,
+    PERMISSIONS.privacy.consentRecord,
+    PERMISSIONS.privacy.dsrRead,
+    PERMISSIONS.privacy.dsrManage,
   ],
 };
 

@@ -1,7 +1,8 @@
 /**
  * Synthetic catalogue seed (igs-pharma#50): loads the FAKE products and brands of
- * `synthetic-catalog.ts`, their demo stock (igs-pharma#53) and demo categories (igs-pharma#54), so the back-office can be tried on
- * staging and in development.
+ * `synthetic-catalog.ts`, their demo stock (igs-pharma#53) and demo categories (igs-pharma#54), and
+ * the demo privacy requests and consents of `synthetic-privacy.ts` (igs-pharma#58), so the
+ * back-office can be tried on staging and in development.
  *
  *   NODE_ENV=development pnpm --filter @igs/worker seed-catalog                (dev)
  *   NODE_ENV=production IGS_ALLOW_SYNTHETIC_SEED=1 node dist/seed-catalog.js   (staging only)
@@ -20,6 +21,7 @@ import {
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
+import { registerAuditActions as registerPrivacyAuditActions } from "@igs/module-privacy";
 
 import {
   PRODUCTS,
@@ -28,6 +30,7 @@ import {
   seedSyntheticCategories,
   seedSyntheticStock,
 } from "./synthetic-catalog";
+import { seedSyntheticPrivacy } from "./synthetic-privacy";
 
 function fail(message: string): never {
   process.stderr.write(`${message}\n`);
@@ -52,6 +55,7 @@ async function main() {
   registerIdentityAuditActions(registerAuditAction);
   registerCatalogAuditActions(registerAuditAction);
   registerInventoryAuditActions(registerAuditAction);
+  registerPrivacyAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort() });
   try {
     await checkDatabase();
@@ -67,6 +71,10 @@ async function main() {
     const stock = await seedSyntheticStock();
     process.stdout.write(
       `Demo stock: ${stock.stocked} product(s) stocked, ${stock.skipped} left as they were.\n`,
+    );
+    const privacy = await seedSyntheticPrivacy();
+    process.stdout.write(
+      `Demo privacy data: ${privacy.requests} request(s) and ${privacy.consents} consent change(s) added, ${privacy.skipped} left as they were.\n`,
     );
   } catch (error) {
     if (!isDomainError(error)) throw error;

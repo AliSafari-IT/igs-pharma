@@ -21,6 +21,7 @@ export default defineConfig({
     "catalog.spec.ts",
     "stock.spec.ts",
     "categories.spec.ts",
+    "privacy.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",

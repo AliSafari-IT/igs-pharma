@@ -16,6 +16,17 @@ export default function DashboardPage() {
             <Link href="/stock">Stock</Link>
           </li>
           <li>
+            Privacy
+            <ul className="mt-2 ml-4 flex flex-col gap-2">
+              <li>
+                <Link href="/privacy/requests">Data requests</Link>
+              </li>
+              <li>
+                <Link href="/privacy/consents">Consents</Link>
+              </li>
+            </ul>
+          </li>
+          <li>
             <Link href="/account">Your account</Link>
           </li>
         </ul>
