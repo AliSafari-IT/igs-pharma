@@ -173,6 +173,19 @@ describe("catalog.category.update", () => {
       await codeOf(updateCategory({ categoryId: randomUUID(), slug: slug(), ...names }, editor)),
     ).toBe("catalog.category_not_found");
   });
+
+  it("a rename racing a create for the same slug: one wins, the other gets slug_taken", async () => {
+    for (let round = 0; round < 5; round++) {
+      const existing = await category();
+      const wanted = slug("race");
+      const names = { nameNl: "X", nameFr: "X" };
+      const results = await Promise.all([
+        codeOf(updateCategory({ categoryId: existing, slug: wanted, ...names }, editor)),
+        codeOf(createCategory({ parentId: null, slug: wanted, ...names }, editor)),
+      ]);
+      expect(results.sort()).toEqual(["catalog.category_slug_taken", "ok"]);
+    }
+  });
 });
 
 describe("catalog.category.move", () => {
@@ -235,6 +248,18 @@ describe("catalog.category.move", () => {
     expect(
       await codeOf(moveCategory({ categoryId: two, parentId: deep, position: 0 }, editor)),
     ).toBe("catalog.category_too_deep");
+  });
+
+  it("lists siblings in the same order the moves count positions in (sort order, then id)", async () => {
+    const root = await category();
+    const first = await category(root);
+    const second = await category(root);
+    // A tie on sort_order (not reachable through the commands) must not fall back to names.
+    await iso.sql`UPDATE catalog.categories SET sort_order = 0, name_nl = CASE id
+      WHEN ${first} THEN 'Z' ELSE 'A' END WHERE parent_id = ${root}`;
+    expect(childrenOf(await tree(), root)).toEqual([first, second]);
+    await moveCategory({ categoryId: first, parentId: root, position: 1 }, editor);
+    expect(childrenOf(await tree(), root)).toEqual([second, first]);
   });
 
   it("two moves racing into a cycle: one wins, the other is refused", async () => {

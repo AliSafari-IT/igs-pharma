@@ -21,8 +21,9 @@ import { categories, productCategories, products } from "./schema";
  * permissions as products: `catalog.products.read` to see them, `catalog.products.manage` to change
  * them.
  *
- * Tree writes (create, move, delete) take one transaction advisory lock, so two moves can't race
- * into a cycle and sibling positions stay consistent. The tree is small (a webshop menu), so the
+ * Tree writes (create, rename, move, delete) take one transaction advisory lock, so two moves can't
+ * race into a cycle, sibling positions stay consistent, and two writes can't race for one slug
+ * (the loser gets `catalog.category_slug_taken`, not the unique index's error). The tree is small (a webshop menu), so the
  * rules load it whole.
  */
 
@@ -61,12 +62,15 @@ async function requireSlugFree(ctx: Ctx, slug: string, except?: string): Promise
   if (taken) throw conflict("catalog.category_slug_taken");
 }
 
+/** Sibling order everywhere (the commands and the list): `sort_order`, ties broken by id. */
+const siblingOrder = [asc(categories.sortOrder), asc(categories.id)] as const;
+
 const siblingsOf = (ctx: Ctx, parentId: string | null) =>
   ctx.tx
     .select({ id: categories.id, sortOrder: categories.sortOrder })
     .from(categories)
     .where(parentId === null ? isNull(categories.parentId) : eq(categories.parentId, parentId))
-    .orderBy(asc(categories.sortOrder), asc(categories.id));
+    .orderBy(...siblingOrder);
 
 /** Creates a category at the end of its parent's children (a root when `parentId` is `null`). */
 export const createCategory = command({
@@ -115,6 +119,7 @@ export const updateCategory = command({
   output: categoryIdOutput,
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
+    await lockTree(ctx);
     const [current] = await ctx.tx
       .select({ id: categories.id })
       .from(categories)
@@ -373,7 +378,7 @@ export const listCategories = query({
         productCount: sql<number>`(SELECT count(*)::int FROM ${productCategories} WHERE ${productCategories.categoryId} = ${categories.id})`,
       })
       .from(categories)
-      .orderBy(asc(categories.sortOrder), asc(categories.nameNl), asc(categories.id));
+      .orderBy(...siblingOrder);
     const childrenOf = new Map<string | null, typeof rows>();
     for (const row of rows) {
       const list = childrenOf.get(row.parentId) ?? [];
