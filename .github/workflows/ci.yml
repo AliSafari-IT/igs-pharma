@@ -361,8 +361,8 @@ jobs:
           mkdir certs
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
             -keyout certs/server.key -out certs/server.crt
-          sudo chown 70:70 certs/server.key certs/server.crt   # the postgres user of the alpine image
           chmod 600 certs/server.key
+          sudo chown 70:70 certs/server.key certs/server.crt   # the postgres user of the alpine image
           docker run -d --name smoke-db -p 5433:5432 -v "$PWD/certs:/certs:ro" \
             -e POSTGRES_USER=ci -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=ci \
             postgres:17-alpine \
