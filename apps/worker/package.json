@@ -21,6 +21,7 @@
     "@igs/module-catalog": "workspace:*",
     "@igs/module-identity": "workspace:*",
     "@igs/module-inventory": "workspace:*",
+    "@igs/module-pricing": "workspace:*",
     "@igs/module-privacy": "workspace:*",
     "@igs/observability": "workspace:*",
     "drizzle-orm": "0.38.3",

@@ -1,25 +1,33 @@
 import type { Tx } from "@igs/kernel";
-import { type SQL, and, asc, count, eq, exists, ilike, inArray, like, or } from "drizzle-orm";
+import { type SQL, and, asc, count, eq, exists, ilike, inArray, like, or, sql } from "drizzle-orm";
 
+import type { VatClass } from "./domain";
 import { productContent, products } from "./schema";
 
 /**
  * Product references for OTHER modules' kernel operations (igs-pharma#53: inventory). Plain
  * functions on the caller's transaction, not kernel queries: the calling command or query has
  * already authorized the actor with its own permission, and modules never read each other's tables
- * directly (module-anatomy rule 2). They return identifiers and the Dutch name only.
+ * directly (module-anatomy rule 2). They return identifiers, the Dutch name and the VAT class only.
  */
 export interface ProductRef {
   readonly id: string;
   readonly cnk: string;
   /** The Dutch name, `null` while the product has no Dutch content. */
   readonly nameNl: string | null;
+  /** The product's VAT class (igs-pharma#59: pricing shows the VAT part of a price). */
+  readonly vatClass: VatClass;
 }
 
 /** `%`, `_` and `\` are LIKE wildcards: match them literally. */
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-const refColumns = { id: products.id, cnk: products.cnk, nameNl: productContent.name };
+const refColumns = {
+  id: products.id,
+  cnk: products.cnk,
+  nameNl: productContent.name,
+  vatClass: sql<VatClass>`${products.vatClass}`,
+};
 
 function refsWhere(tx: Tx, where: SQL | undefined) {
   return tx

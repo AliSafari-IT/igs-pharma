@@ -1,8 +1,10 @@
 import { isDomainError } from "@igs/kernel";
 import { type ProductPage, listProducts } from "@igs/module-catalog";
+import { currentPrices } from "@igs/module-pricing";
 import { Alert, Badge, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
 
 import { STATUS_BADGE, STATUS_LABELS, catalogErrorMessage } from "../../components/catalog-labels";
+import { formatEuros } from "../../components/price-labels";
 import { requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
 
@@ -31,6 +33,17 @@ export default async function ProductsPage({ searchParams }: Props) {
   } catch (e) {
     if (!isDomainError(e)) throw e;
     error = e.code;
+  }
+  // the Price column needs pricing.price.read; without it the list has no Price column
+  let priceOf: ReadonlyMap<string, number> | null = null;
+  if (result) {
+    try {
+      const ids = result.items.map((item) => item.id);
+      const rows = ids.length > 0 ? await currentPrices({ productIds: ids }, actor) : [];
+      priceOf = new Map(rows.map((row) => [row.productId, row.amountCents]));
+    } catch (e) {
+      if (!isDomainError(e)) throw e;
+    }
   }
   const pages = result ? Math.max(1, Math.ceil(result.total / PAGE_SIZE)) : 1;
   const pageHref = (n: number) =>
@@ -94,6 +107,11 @@ export default async function ProductsPage({ searchParams }: Props) {
                       <th scope="col" className="py-2 pr-4 font-semibold">
                         Name (Dutch)
                       </th>
+                      {priceOf ? (
+                        <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                          Price
+                        </th>
+                      ) : null}
                       <th scope="col" className="py-2 font-semibold">
                         Status
                       </th>
@@ -114,6 +132,15 @@ export default async function ProductsPage({ searchParams }: Props) {
                             </span>
                           )}
                         </td>
+                        {priceOf ? (
+                          <td className="py-2 pr-4 text-right tabular-nums">
+                            {priceOf.has(item.id) ? (
+                              formatEuros(priceOf.get(item.id) ?? 0)
+                            ) : (
+                              <span className="sr-only">No price</span>
+                            )}
+                          </td>
+                        ) : null}
                         <td className="py-2">
                           <Badge variant={STATUS_BADGE[item.status]}>
                             {STATUS_LABELS[item.status]}
