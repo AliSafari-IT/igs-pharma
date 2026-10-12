@@ -11,10 +11,78 @@ import {
   normalizeSubjectRef,
 } from "./domain";
 
-describe("dsrDueAt", () => {
-  it("is 30 days after receipt", () => {
-    const received = new Date("2026-10-12T09:30:00Z");
-    expect(dsrDueAt(received).toISOString()).toBe("2026-11-11T09:30:00.000Z");
+describe("dsrDueAt (one calendar month, Europe/Brussels)", () => {
+  // inputs and outputs are instants written with their Brussels offset: +01:00 winter, +02:00 summer
+  const cases: [string, string, string][] = [
+    ["same day next month", "2027-01-15T10:00:00+01:00", "2027-02-15T10:00:00+01:00"],
+    ["clamps to 28 February", "2027-01-31T10:00:00+01:00", "2027-02-28T10:00:00+01:00"],
+    ["clamps to 29 February (leap year)", "2028-01-31T10:00:00+01:00", "2028-02-29T10:00:00+01:00"],
+    ["1 Feb is due 1 Mar, not 3 Mar", "2027-02-01T10:00:00+01:00", "2027-03-01T10:00:00+01:00"],
+    ["30 March is due 30 April", "2027-03-30T10:00:00+02:00", "2027-04-30T10:00:00+02:00"],
+    ["31 March is due 30 April", "2027-03-31T10:00:00+02:00", "2027-04-30T10:00:00+02:00"],
+    ["December rolls into the next year", "2027-12-31T10:00:00+01:00", "2028-01-31T10:00:00+01:00"],
+    ["31 August is due 30 September", "2027-08-31T10:00:00+02:00", "2027-09-30T10:00:00+02:00"],
+    [
+      "across the March change (28 Mar 2027) the local time stays 10:00",
+      "2027-02-28T10:00:00+01:00",
+      "2027-03-28T10:00:00+02:00",
+    ],
+    [
+      "across the March change from the day before the change",
+      "2027-02-14T02:30:00+01:00",
+      "2027-03-14T02:30:00+01:00",
+    ],
+    [
+      "across the October change (31 Oct 2027) the local time stays 10:00",
+      "2027-09-30T10:00:00+02:00",
+      "2027-10-30T10:00:00+02:00",
+    ],
+    [
+      "a request from before the October change is due after it, at the same local time",
+      "2027-10-01T10:00:00+02:00",
+      "2027-11-01T10:00:00+01:00",
+    ],
+    [
+      "a request on the day of the October change",
+      "2027-10-31T10:00:00+01:00",
+      "2027-11-30T10:00:00+01:00",
+    ],
+    [
+      "a request in the March change month, due after it",
+      "2027-03-28T10:00:00+02:00",
+      "2027-04-28T10:00:00+02:00",
+    ],
+    [
+      "just before midnight stays on the Brussels date",
+      "2027-01-31T23:30:00+01:00",
+      "2027-02-28T23:30:00+01:00",
+    ],
+  ];
+  for (const [name, received, due] of cases) {
+    it(name, () => {
+      expect(dsrDueAt(new Date(received)).toISOString()).toBe(new Date(due).toISOString());
+    });
+  }
+
+  it("uses the Brussels calendar date, not the UTC one", () => {
+    // 31 Jan 23:30 UTC is already 1 Feb 00:30 in Brussels: due 1 Mar 00:30 Brussels (28 Feb 23:30 UTC),
+    // not the 28 Feb that a UTC calendar would give
+    expect(dsrDueAt(new Date("2027-01-31T23:30:00Z")).toISOString()).toBe(
+      "2027-02-28T23:30:00.000Z",
+    );
+  });
+
+  it("keeps seconds and milliseconds", () => {
+    expect(dsrDueAt(new Date("2026-10-12T09:30:15.250Z")).toISOString()).toBe(
+      "2026-11-12T10:30:15.250Z",
+    );
+  });
+
+  it("maps a time that does not exist after the change to the hour after it", () => {
+    // 28 Feb 02:30 +01:00 is due 28 Mar 02:30, which Brussels skips (02:00 → 03:00): 03:30 +02:00
+    expect(dsrDueAt(new Date("2027-02-28T02:30:00+01:00")).toISOString()).toBe(
+      new Date("2027-03-28T03:30:00+02:00").toISOString(),
+    );
   });
 });
 
