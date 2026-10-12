@@ -1,6 +1,6 @@
 /**
  * Synthetic catalogue seed (igs-pharma#50): loads the FAKE products and brands of
- * `synthetic-catalog.ts` and their demo stock (igs-pharma#53), so the back-office can be tried on
+ * `synthetic-catalog.ts`, their demo stock (igs-pharma#53) and demo categories (igs-pharma#54), so the back-office can be tried on
  * staging and in development.
  *
  *   NODE_ENV=development pnpm --filter @igs/worker seed-catalog                (dev)
@@ -21,7 +21,13 @@ import {
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
 
-import { PRODUCTS, cnkFor, seedSyntheticCatalog, seedSyntheticStock } from "./synthetic-catalog";
+import {
+  PRODUCTS,
+  cnkFor,
+  seedSyntheticCatalog,
+  seedSyntheticCategories,
+  seedSyntheticStock,
+} from "./synthetic-catalog";
 
 function fail(message: string): never {
   process.stderr.write(`${message}\n`);
@@ -53,6 +59,10 @@ async function main() {
     const { created, restored, skipped } = await seedSyntheticCatalog();
     process.stdout.write(
       `Synthetic catalogue: ${created} product(s) created, ${restored} given their status after an interrupted run, ${skipped} already there (CNK ${cnkFor(0)}–${cnkFor(PRODUCTS.length - 1)}).\n`,
+    );
+    const categories = await seedSyntheticCategories();
+    process.stdout.write(
+      `Demo categories: ${categories.created} created, ${categories.assigned} product(s) put in them, ${categories.skipped} left as they were.\n`,
     );
     const stock = await seedSyntheticStock();
     process.stdout.write(

@@ -1,6 +1,7 @@
 import { newId } from "@igs/db/ids";
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
@@ -24,8 +25,8 @@ import {
 /**
  * Catalog module tables (igs-pharma#50, domain-model §2). Owned by this module (D-001), Postgres
  * schema `catalog`; UUIDv7 ids generated app-side (D-003); timestamptz everywhere. v1 holds
- * products, their per-locale content and brands; categories, media, substances and attributes are
- * later slices. Enumerations are text + CHECK (as in identity), not pg enums: cheaper to evolve.
+ * products, their per-locale content and brands; v2 adds the category tree (igs-pharma#54). Media,
+ * substances and attributes are later slices. Enumerations are text + CHECK (as in identity), not pg enums: cheaper to evolve.
  *
  * `product_content.approved_by` is a user id without a foreign key: a module never references
  * another module's tables (module-anatomy rule 2).
@@ -104,5 +105,52 @@ export const productContent = catalog.table(
     primaryKey({ columns: [t.productId, t.locale] }),
     check("product_content_locale_check", oneOf("locale", CONTENT_LOCALES)),
     check("product_content_source_check", oneOf("source", CONTENT_SOURCES)),
+  ],
+);
+
+/**
+ * The category tree (igs-pharma#54): `parent_id` points at the parent (`NULL` for a root) and
+ * `sort_order` orders siblings. Names live in columns, one per content locale: Dutch and French are
+ * required, German and English optional. The commands keep the tree free of cycles and at most
+ * `MAX_CATEGORY_DEPTH` deep; the foreign key refuses deleting a category that still has children.
+ */
+export const categories = catalog.table(
+  "categories",
+  {
+    id: id(),
+    parentId: uuid("parent_id").references((): AnyPgColumn => categories.id, {
+      onDelete: "restrict",
+    }),
+    slug: text("slug").notNull().unique(),
+    nameNl: text("name_nl").notNull(),
+    nameFr: text("name_fr").notNull(),
+    nameDe: text("name_de"),
+    nameEn: text("name_en"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("categories_slug_check", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+    check("categories_not_own_parent_check", sql`${t.parentId} IS DISTINCT FROM ${t.id}`),
+    index("categories_parent_id_idx").on(t.parentId, t.sortOrder),
+  ],
+);
+
+/** Which categories a product is in (many to many). A category in use cannot be deleted. */
+export const productCategories = catalog.table(
+  "product_categories",
+  {
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => categories.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.productId, t.categoryId] }),
+    index("product_categories_category_id_idx").on(t.categoryId),
   ],
 );

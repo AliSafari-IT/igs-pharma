@@ -45,3 +45,72 @@ export function missingForActivation(locales: Iterable<string>): ContentLocale[]
   const present = new Set(locales);
   return REQUIRED_LOCALES.filter((locale) => !present.has(locale));
 }
+
+/** A category or brand slug: lowercase letters and digits, single dashes between them. */
+export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Categories a product may belong to (igs-pharma#54). Generous for a pharmacy webshop, small
+ * enough that one `set_categories` call stays cheap and its audit record short.
+ */
+export const MAX_CATEGORIES_PER_PRODUCT = 20;
+
+/** How deep the category tree may go: a root is depth 1. Deeper menus don't help a shopper. */
+export const MAX_CATEGORY_DEPTH = 4;
+
+/** A category as the tree rules need it. */
+export interface CategoryLink {
+  readonly id: string;
+  readonly parentId: string | null;
+}
+
+/**
+ * Whether moving `categoryId` under `newParentId` would make a cycle: the new parent is the category
+ * itself or one of its descendants. `links` is the whole tree.
+ */
+export function wouldCycle(
+  links: readonly CategoryLink[],
+  categoryId: string,
+  newParentId: string | null,
+): boolean {
+  const parentOf = new Map(links.map((l) => [l.id, l.parentId]));
+  const seen = new Set<string>();
+  for (let at = newParentId; at !== null; at = parentOf.get(at) ?? null) {
+    if (at === categoryId) return true;
+    if (seen.has(at)) return true; // already broken; never loop
+    seen.add(at);
+  }
+  return false;
+}
+
+/** The depth of `categoryId` in the tree (a root is 1); `0` when it is not in `links`. */
+export function depthOf(links: readonly CategoryLink[], categoryId: string | null): number {
+  const parentOf = new Map(links.map((l) => [l.id, l.parentId]));
+  let depth = 0;
+  const seen = new Set<string>();
+  for (let at = categoryId; at !== null && parentOf.has(at) && !seen.has(at); ) {
+    seen.add(at);
+    depth++;
+    at = parentOf.get(at) ?? null;
+  }
+  return depth;
+}
+
+/** How many levels the subtree under `categoryId` spans, the category itself included (≥ 1). */
+export function subtreeHeight(links: readonly CategoryLink[], categoryId: string): number {
+  const children = new Map<string, string[]>();
+  for (const l of links) {
+    if (l.parentId === null) continue;
+    const list = children.get(l.parentId) ?? [];
+    list.push(l.id);
+    children.set(l.parentId, list);
+  }
+  const height = (id: string, guard: Set<string>): number => {
+    if (guard.has(id)) return 0;
+    guard.add(id);
+    let max = 0;
+    for (const child of children.get(id) ?? []) max = Math.max(max, height(child, guard));
+    return max + 1;
+  };
+  return height(categoryId, new Set());
+}

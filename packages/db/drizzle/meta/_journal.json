@@ -127,6 +127,13 @@
       "when": 1791758357495,
       "tag": "0017_rbac_seed_inventory",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791824023250,
+      "tag": "0018_catalog_categories",
+      "breakpoints": true
     }
   ]
 }

@@ -11,7 +11,7 @@ import {
   type ProductType,
   type VatClass,
 } from "./domain";
-import { brands, productContent, products } from "./schema";
+import { brands, productCategories, productContent, products } from "./schema";
 
 /** Catalog queries for the back-office (igs-pharma#50), behind `catalog.products.read`. */
 
@@ -118,6 +118,8 @@ export interface ProductView {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly content: readonly ProductContentView[];
+  /** The categories the product is in (igs-pharma#54). */
+  readonly categoryIds: readonly string[];
 }
 
 /** One product with all its content, or `catalog.product_not_found`. */
@@ -142,6 +144,10 @@ export const getProduct = query({
       .from(productContent)
       .where(eq(productContent.productId, input.productId))
       .orderBy(asc(productContent.locale));
+    const links = await ctx.tx
+      .select({ categoryId: productCategories.categoryId })
+      .from(productCategories)
+      .where(eq(productCategories.productId, input.productId));
     return {
       ...product,
       productType: product.productType as ProductType,
@@ -149,6 +155,7 @@ export const getProduct = query({
       status: product.status as ProductStatus,
       vatClass: product.vatClass as VatClass,
       content: content.map((c) => ({ ...c, locale: c.locale as ContentLocale })),
+      categoryIds: links.map((l) => l.categoryId),
     };
   },
 });
