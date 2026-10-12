@@ -6,7 +6,11 @@ import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { type Actor, isDomainError } from "@igs/kernel";
 import { type KernelTestHandles, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
-import { createProduct, registerAuditActions as registerCatalogAudit } from "@igs/module-catalog";
+import {
+  createProduct,
+  registerAuditActions as registerCatalogAudit,
+  setProductStatus,
+} from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -67,6 +71,29 @@ async function newProduct(): Promise<{ id: string; cnk: string }> {
     owner,
   );
   return { id: productId, cnk };
+}
+
+/** An ACTIVE catalog product (the storefront only knows active ones), optionally prescription-only. */
+async function storefrontProduct(
+  legalStatus: "otc" | "pharmacy_only" | "rx" = "otc",
+  productType: "otc_medicine" | "rx_medicine" = "otc_medicine",
+): Promise<string> {
+  const cnk = String(nextCnk++);
+  const { productId } = await createProduct(
+    {
+      cnk,
+      productType,
+      legalStatus,
+      vatClass: "BE_6",
+      content: [
+        { locale: "nl", name: `Demo ${cnk}` },
+        { locale: "fr", name: `Demo ${cnk} FR` },
+      ],
+    },
+    owner,
+  );
+  await setProductStatus({ productId, status: "active" }, owner);
+  return productId;
 }
 
 const codeOf = async (promise: Promise<unknown>) => {
@@ -296,9 +323,9 @@ describe("inventory.availability.get (storefront)", () => {
   const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
 
   it("says in or out of stock and never how many", async () => {
-    const stocked = await newProduct();
-    const sold = await newProduct();
-    const never = await newProduct();
+    const stocked = { id: await storefrontProduct() };
+    const sold = { id: await storefrontProduct("pharmacy_only") };
+    const never = { id: await storefrontProduct() };
     await adjustStock(
       { productId: stocked.id, delta: 7, reason: "adjustment", note: "found" },
       owner,
@@ -319,6 +346,23 @@ describe("inventory.availability.get (storefront)", () => {
       { productId: never.id, inStock: false },
     ]);
     expect(JSON.stringify(rows)).not.toContain("onHand");
+  });
+
+  it("does not know a prescription, a draft or an unknown product (D-034)", async () => {
+    const visible = await storefrontProduct();
+    const rx = await storefrontProduct("rx");
+    const rxType = await storefrontProduct("otc", "rx_medicine");
+    const draft = (await newProduct()).id;
+    for (const id of [rx, rxType, draft]) {
+      await adjustStock({ productId: id, delta: 3, reason: "adjustment", note: "found" }, owner);
+    }
+    const ids = [rx, rxType, draft, randomUUID(), visible];
+    expect(await getAvailability({ productIds: ids }, storefront)).toEqual([
+      { productId: visible, inStock: false },
+    ]);
+    // staff still see every product
+    const all = await getAvailability({ productIds: [rx, draft] }, owner);
+    expect(all.map((r) => r.productId).sort()).toEqual([rx, draft].sort());
   });
 
   it("is a permission of its own: the storefront cannot read stock levels, staff roles without it cannot read availability", async () => {
