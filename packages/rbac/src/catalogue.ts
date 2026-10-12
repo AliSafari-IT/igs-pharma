@@ -24,12 +24,16 @@ export const PERMISSIONS = {
     productsRead: "catalog.products.read",
     /** Back-office: create and edit products, brands, categories and content; change product status. */
     productsManage: "catalog.products.manage",
+    /** Storefront: read active products and the category tree, never drafts (igs-pharma#62). */
+    storefrontRead: "catalog.storefront.read",
   },
   inventory: {
     /** Back-office: on-hand stock and the movement ledger (igs-pharma#53). */
     stockRead: "inventory.stock.read",
     /** Back-office: import stock counts and adjust stock with a reason. */
     stockManage: "inventory.stock.manage",
+    /** Storefront: whether a product is in stock, never how many (igs-pharma#62). */
+    availabilityRead: "inventory.availability.read",
   },
   pricing: {
     /** Back-office: a product's web price, its VAT part, scheduled changes and history (igs-pharma#59). */
@@ -99,6 +103,10 @@ export const ROLES = {
   customer: { kind: "customer", description: "Webshop customer" },
   system_bootstrap: { kind: "system", description: "Bootstrap CLI: creates the first owner" },
   system_auth: { kind: "system", description: "Better Auth hooks: records sign-in factor changes" },
+  system_storefront: {
+    kind: "system",
+    description: "Storefront preview: reads active products, prices and availability (no writes)",
+  },
   system_seed: {
     kind: "system",
     description:
@@ -168,6 +176,11 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
   system_auth: [PERMISSIONS.identity.securityEventsRecord],
+  system_storefront: [
+    PERMISSIONS.catalog.storefrontRead,
+    PERMISSIONS.inventory.availabilityRead,
+    PERMISSIONS.pricing.priceRead,
+  ],
   system_seed: [
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.catalog.productsManage,

@@ -37,6 +37,9 @@ function start({ app, port }) {
     ...process.env,
     NODE_ENV: "production",
     UI_GALLERY: "", // empty = unset: the production default
+    // the OPEN storefront: production defaults to the coming-soon gate (#46), which answers every
+    // page with one static page and would leave the locale redirect and the pages below unchecked
+    SITE_GATE: "off",
   };
   const server = spawn(
     "pnpm",

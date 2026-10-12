@@ -133,9 +133,18 @@ importers:
       '@igs/module-audit':
         specifier: workspace:*
         version: link:../../packages/modules/audit
+      '@igs/module-catalog':
+        specifier: workspace:*
+        version: link:../../packages/modules/catalog
       '@igs/module-identity':
         specifier: workspace:*
         version: link:../../packages/modules/identity
+      '@igs/module-inventory':
+        specifier: workspace:*
+        version: link:../../packages/modules/inventory
+      '@igs/module-pricing':
+        specifier: workspace:*
+        version: link:../../packages/modules/pricing
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability

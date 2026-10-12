@@ -132,3 +132,31 @@ export const previewStockImport = query({
     return planImport(ctx.tx, input.csv);
   },
 });
+
+export interface ProductAvailability {
+  readonly productId: string;
+  /** Whether any stock is on hand. The count itself is never returned. */
+  readonly inStock: boolean;
+}
+
+/**
+ * Whether each of these products is in stock, for the storefront (igs-pharma#62). Returns only
+ * `inStock`, never how many, so the storefront actor cannot leak stock levels; an unknown id is
+ * simply absent.
+ */
+export const getAvailability = query({
+  name: "inventory.availability.get",
+  input: z.object({ productIds: z.array(z.uuid()).min(1).max(100) }),
+  permission: PERMISSIONS.inventory.availabilityRead,
+  async handler({ input, ctx }): Promise<readonly ProductAvailability[]> {
+    const refs = await productRefsById(ctx.tx, input.productIds);
+    const levels = await stockLevels(
+      ctx.tx,
+      refs.map((ref) => ref.id),
+    );
+    return refs.map((ref) => ({
+      productId: ref.id,
+      inStock: levelOf(levels, ref.id).onHand > 0,
+    }));
+  },
+});

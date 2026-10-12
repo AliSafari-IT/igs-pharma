@@ -13,3 +13,6 @@ export const smokeEnv = {
   // the composition roots configure the audit port (and, through it, Better Auth) on first use
   AUDIT_HMAC_KEY: "smoke-only-placeholder-audit-hmac-key-0000",
 };
+
+/** The preview key of the gated storefront in the smoke run (igs-pharma#62). Fake, 32+ characters. */
+export const smokePreviewKey = "smoke-only-preview-key-0123456789abcdef";

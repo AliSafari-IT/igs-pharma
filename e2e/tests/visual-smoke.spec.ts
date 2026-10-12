@@ -52,9 +52,10 @@ test("web /nl: Tailwind utilities, primary heading, Inter, no CSP violations", a
   const requests = watchRequests(page);
   await page.goto("http://localhost:3000/nl", { waitUntil: "networkidle" });
 
-  const main = page.locator("main");
-  await expect(main).toHaveCSS("display", "flex"); // a utility from the generated stylesheet
-  await expect(main).toHaveCSS("min-height", "720px"); // min-h-screen at the default viewport
+  // the storefront shell (igs-pharma#62): utilities from the generated stylesheet
+  const shell = page.getByTestId("shell");
+  await expect(shell).toHaveCSS("display", "flex");
+  await expect(shell).toHaveCSS("min-height", "720px"); // min-h-screen at the default viewport
   await expect(page.locator("h1")).toHaveCSS("color", await primaryColor(page));
   expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(/^"?inter/);
   await expect(page.locator("h1")).toHaveCSS("font-family", /^"?fraunces/);

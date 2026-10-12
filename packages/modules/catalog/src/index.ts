@@ -38,3 +38,12 @@ export {
 } from "./categories";
 export { CATALOG_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export { type ProductRef, productRefsByCnk, productRefsById, searchProductRefs } from "./refs";
+export {
+  type StorefrontCategory,
+  type StorefrontProduct,
+  type StorefrontProductItem,
+  type StorefrontProductPage,
+  getStorefrontProduct,
+  listStorefrontCategories,
+  listStorefrontProducts,
+} from "./storefront";
