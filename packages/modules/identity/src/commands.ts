@@ -1,5 +1,12 @@
 import { type Ctx, command, conflict, forbidden, notFound } from "@igs/kernel";
-import { PERMISSIONS, PHARMACIST_ROLES, ROLES, ROLE_KEYS, type RoleKey } from "@igs/rbac";
+import {
+  PERMISSIONS,
+  PHARMACIST_ROLES,
+  ROLES,
+  ROLE_KEYS,
+  type RoleKey,
+  hasPermission,
+} from "@igs/rbac";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -22,6 +29,10 @@ import { sessions, userRoles, users } from "./schema";
  * `pharmacist` and `pharmacist_titular`; those need `pharmacy.pharmacists.manage`, which only the
  * titular pharmacist holds. So the owner cannot make anyone a pharmacist, and the titular cannot
  * hand out administrative roles. Hence two command pairs with one static permission each.
+ *
+ * D-035: that rule covers every action that ends or restores a pharmacist's access, not only role
+ * revocation (suspend, reactivate and delete need `pharmacy.pharmacists.manage` when the target holds
+ * a pharmacist role), and the last active `owner` / `pharmacist_titular` can never be removed.
  */
 
 const roleGrantInput = z.object({
@@ -36,6 +47,65 @@ type RoleGrantInput = z.infer<typeof roleGrantInput>;
 const userInput = z.object({ userId: z.uuid() });
 
 const isPharmacistRole = (roleKey: RoleKey) => PHARMACIST_ROLES.includes(roleKey);
+
+/**
+ * Roles that must always keep at least one ACTIVE holder (D-035): with nobody left, nobody could
+ * grant them back (owner: `staff.manage`; titular: `pharmacy.pharmacists.manage`). Fixed order: the
+ * advisory locks below are always taken in this order, so two removals cannot deadlock.
+ */
+const PROTECTED_ROLES = ["owner", "pharmacist_titular"] as const satisfies readonly RoleKey[];
+type ProtectedRole = (typeof PROTECTED_ROLES)[number];
+const isProtectedRole = (roleKey: RoleKey): roleKey is ProtectedRole =>
+  (PROTECTED_ROLES as readonly RoleKey[]).includes(roleKey);
+
+/**
+ * Serialises every removal of a holder of `roleKeys` for the rest of the transaction. Without it two
+ * concurrent removals (A suspends B while B suspends A) each count the other as the remaining holder
+ * under READ COMMITTED, both pass, and nobody is left. Taken BEFORE any row lock or count.
+ */
+async function lockHolders(ctx: Ctx, roleKeys: readonly ProtectedRole[]): Promise<void> {
+  for (const roleKey of PROTECTED_ROLES) {
+    if (!roleKeys.includes(roleKey)) continue;
+    await ctx.tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`identity.holders.${roleKey}`}))`,
+    );
+  }
+}
+
+/** How many ACTIVE users hold `roleKey` (any location scope). */
+async function activeHolders(ctx: Ctx, roleKey: ProtectedRole): Promise<number> {
+  const [row] = await ctx.tx
+    .select({ n: sql<number>`count(distinct ${userRoles.userId})::int` })
+    .from(userRoles)
+    .innerJoin(users, eq(users.id, userRoles.userId))
+    .where(and(eq(userRoles.roleKey, roleKey), eq(users.status, "active")));
+  return row?.n ?? 0;
+}
+
+type HolderCounts = Readonly<Record<ProtectedRole, number>>;
+
+async function countHolders(ctx: Ctx, roleKeys: readonly ProtectedRole[]): Promise<HolderCounts> {
+  const counts = { owner: 0, pharmacist_titular: 0 };
+  for (const roleKey of roleKeys) counts[roleKey] = await activeHolders(ctx, roleKey);
+  return counts;
+}
+
+/**
+ * Run after a removal, inside the lock: throws (rolling the transaction back) when a protected role
+ * went from having an active holder to having none. A role that already had none (a seat emptied
+ * before this guard existed) does not block the removal, so recovery is never made harder.
+ */
+async function assertHoldersRemain(
+  ctx: Ctx,
+  before: HolderCounts,
+  roleKeys: readonly ProtectedRole[],
+): Promise<void> {
+  for (const roleKey of roleKeys) {
+    if (before[roleKey] > 0 && (await activeHolders(ctx, roleKey)) === 0) {
+      throw conflict("identity.last_holder_protected", { roleKey });
+    }
+  }
+}
 
 /** The target user, or `NotFound` for an unknown or deleted one. */
 async function targetUser(ctx: Ctx, userId: string) {
@@ -79,7 +149,10 @@ async function revoke(ctx: Ctx, input: RoleGrantInput): Promise<void> {
   if (ctx.actor.type === "user" && ctx.actor.id === input.userId) {
     throw forbidden("identity.cannot_revoke_own_role");
   }
+  const guarded: readonly ProtectedRole[] = isProtectedRole(input.roleKey) ? [input.roleKey] : [];
+  await lockHolders(ctx, guarded);
   await targetUser(ctx, input.userId);
+  const before = await countHolders(ctx, guarded);
   const removed = await ctx.tx
     .delete(userRoles)
     .where(
@@ -93,6 +166,7 @@ async function revoke(ctx: Ctx, input: RoleGrantInput): Promise<void> {
     )
     .returning({ id: userRoles.id });
   if (removed.length === 0) throw notFound("identity.role_not_granted");
+  await assertHoldersRemain(ctx, before, guarded);
   await ctx.audit.record({
     action: IDENTITY_AUDIT.roleRevoked,
     entityType: "user",
@@ -170,10 +244,27 @@ async function setStatus(
   if (ctx.actor.type === "user" && ctx.actor.id === userId) {
     throw forbidden("identity.cannot_change_own_status");
   }
+  // ending access can remove the last owner/titular: serialise against every other removal first
+  const ends = to !== "active";
+  if (ends) await lockHolders(ctx, PROTECTED_ROLES);
   const user = await targetUser(ctx, userId);
+  // D-035: whoever ends or restores a pharmacist's access must be able to manage pharmacists,
+  // in addition to `staff.manage` (the static permission of the command): the owner alone cannot.
+  const held = await ctx.tx
+    .select({ roleKey: userRoles.roleKey })
+    .from(userRoles)
+    .where(eq(userRoles.userId, userId));
+  if (
+    held.some((row) => PHARMACIST_ROLES.includes(row.roleKey as RoleKey)) &&
+    !hasPermission(ctx.actor.roles, PERMISSIONS.pharmacy.pharmacistsManage)
+  ) {
+    throw forbidden("identity.pharmacist_access_requires_titular");
+  }
   if (!from.includes(user.status)) throw conflict("identity.invalid_status_transition");
+  const before = ends ? await countHolders(ctx, PROTECTED_ROLES) : null;
   await ctx.tx.update(users).set({ status: to, updatedAt: ctx.now }).where(eq(users.id, userId));
-  if (to !== "active") await ctx.tx.delete(sessions).where(eq(sessions.userId, userId));
+  if (before) await assertHoldersRemain(ctx, before, PROTECTED_ROLES);
+  if (ends) await ctx.tx.delete(sessions).where(eq(sessions.userId, userId));
   await ctx.audit.record({ action, entityType: "user", entityId: userId, data: { userId } });
 }
 
@@ -237,7 +328,8 @@ const bootstrapOutput = z.object({
 /**
  * Creates the first `owner` (or, with `roleKey: "pharmacist_titular"`, the first titular
  * pharmacist) as a staff user with **no credential**, and a single-use enrolment token valid for
- * 15 minutes (Q4). Refuses when the role already has a holder, so it cannot mint a second owner.
+ * 15 minutes (Q4). Refuses while the role has an ACTIVE holder, so it cannot mint a second owner; a deleted or
+ * suspended holder does not block the seat (D-035).
  * Run by the bootstrap CLI as a system actor holding `system_bootstrap`; no user can hold that role.
  */
 export const bootstrapStaff = command({
@@ -248,10 +340,12 @@ export const bootstrapStaff = command({
   async handler({ input, ctx }) {
     // two concurrent runs must not both see "no holder yet"
     await ctx.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('identity.owner.bootstrap'))`);
+    // only ACTIVE holders block the seat: a deleted or suspended one must not (D-035)
     const [holder] = await ctx.tx
       .select({ id: userRoles.id })
       .from(userRoles)
-      .where(eq(userRoles.roleKey, input.roleKey))
+      .innerJoin(users, eq(users.id, userRoles.userId))
+      .where(and(eq(userRoles.roleKey, input.roleKey), eq(users.status, "active")))
       .limit(1);
     if (holder) throw conflict("identity.role_already_held", { roleKey: input.roleKey });
     const [taken] = await ctx.tx
