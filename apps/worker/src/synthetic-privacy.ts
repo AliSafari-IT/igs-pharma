@@ -13,6 +13,7 @@ import {
   type DsrType,
   createDsr,
   getConsents,
+  getDsr,
   listDsr,
   recordConsent,
   transitionDsr,
@@ -96,15 +97,24 @@ export const DEMO_CONSENTS: readonly SeedConsent[] = [
 ];
 
 export interface PrivacySeedResult {
+  /** Demo requests created by this run. */
   readonly requests: number;
+  /** Demo consent changes recorded by this run. */
   readonly consents: number;
+  /** Seed steps an interrupted run left undone, finished by this one. */
+  readonly resumed: number;
+  /** Demo people left as they are: done already, or changed by staff. */
   readonly skipped: number;
 }
 
 /**
  * Loads the demo requests and consents through the same commands staff use, so every write is
- * audited. Safe to run again: a person who already has a request of the seed's type, or any consent
- * event, is left as they are.
+ * audited. Safe to run again, and it finishes what an interrupted run left undone, but only the
+ * seed's own records:
+ * - a demo request still `received` that should be `in_progress`, with no step but its creation,
+ *   is moved on; one that staff moved is left alone;
+ * - a demo person whose consent history holds only the seed's events gets the missing ones, in
+ *   order; one with any event recorded by someone else is left alone.
  */
 export async function seedSyntheticPrivacy(
   actor: Actor = SEED_ACTOR,
@@ -112,42 +122,60 @@ export async function seedSyntheticPrivacy(
 ): Promise<PrivacySeedResult> {
   let requests = 0;
   let consents = 0;
+  let resumed = 0;
   let skipped = 0;
   for (const seed of DEMO_REQUESTS) {
-    const existing = await listDsr({ subjectRef: seed.subjectRef, type: seed.type }, actor);
-    if (existing.total > 0) {
-      skipped++;
-      continue;
+    const [existing] = (
+      await listDsr({ subjectRef: seed.subjectRef, type: seed.type, pageSize: 1 }, actor)
+    ).items;
+    let requestId: string;
+    if (existing) {
+      const request = await getDsr({ requestId: existing.id }, actor);
+      const untouched =
+        request.createdBy === actor.id &&
+        request.status === "received" &&
+        request.events.length === 1;
+      if (seed.status === "received" || !untouched) {
+        skipped++;
+        continue;
+      }
+      requestId = request.id;
+      resumed++;
+    } else {
+      ({ requestId } = await createDsr(
+        {
+          subjectRef: seed.subjectRef,
+          type: seed.type,
+          channel: seed.channel,
+          receivedAt: new Date(now.getTime() - seed.daysAgo * DAY).toISOString(),
+          note: seed.note,
+        },
+        actor,
+      ));
+      requests++;
     }
-    const { requestId } = await createDsr(
-      {
-        subjectRef: seed.subjectRef,
-        type: seed.type,
-        channel: seed.channel,
-        receivedAt: new Date(now.getTime() - seed.daysAgo * DAY).toISOString(),
-        note: seed.note,
-      },
-      actor,
-    );
     if (seed.status === "in_progress") {
       await transitionDsr(
         { requestId, to: "in_progress", note: "Demo: checking identity." },
         actor,
       );
     }
-    requests++;
   }
   const people = [...new Set(DEMO_CONSENTS.map((c) => c.subjectRef))];
-  const fresh = new Set<string>();
   for (const subjectRef of people) {
+    const planned = DEMO_CONSENTS.filter((c) => c.subjectRef === subjectRef);
     const { history } = await getConsents({ subjectRef }, actor);
-    if (history.length === 0) fresh.add(subjectRef);
-    else skipped++;
+    const othersChanged = history.some((e) => e.actorId !== actor.id);
+    if (othersChanged || history.length >= planned.length) {
+      skipped++;
+      continue;
+    }
+    if (history.length > 0) resumed++;
+    // the seed records its events in order, so the first `history.length` are already there
+    for (const seed of planned.slice(history.length)) {
+      await recordConsent({ ...seed, policyVersion: "2026-10" }, actor);
+      consents++;
+    }
   }
-  for (const seed of DEMO_CONSENTS) {
-    if (!fresh.has(seed.subjectRef)) continue;
-    await recordConsent({ ...seed, policyVersion: "2026-10" }, actor);
-    consents++;
-  }
-  return { requests, consents, skipped };
+  return { requests, consents, resumed, skipped };
 }

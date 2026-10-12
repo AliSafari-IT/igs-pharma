@@ -2,6 +2,7 @@
 
 import { isDomainError } from "@igs/kernel";
 import {
+  STAFF_CONSENT_SOURCES,
   type SubjectConsents,
   createDsr,
   getConsents,
@@ -19,6 +20,14 @@ const text = (form: FormData, name: string) => {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
 };
+
+/**
+ * Staff may only record a consent they took themselves (in the pharmacy, by phone, in the
+ * back-office): `storefront` and `import` belong to those systems, and the ledger can never be
+ * corrected. Anything else becomes "" so the command refuses it (`kernel.validation_failed`).
+ */
+const staffSource = (value: string): string =>
+  (STAFF_CONSENT_SOURCES as readonly string[]).includes(value) ? value : "";
 
 const brusselsDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Brussels" });
 
@@ -123,7 +132,7 @@ export async function consents(previous: ConsentsState, form: FormData): Promise
           purpose: text(form, "purpose"),
           granted: text(form, "granted") === "true",
           policyVersion: CURRENT_POLICY_VERSION,
-          source: text(form, "source"),
+          source: staffSource(text(form, "source")),
         },
         actor,
         { origin: await requestOrigin() },

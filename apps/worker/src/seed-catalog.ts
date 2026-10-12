@@ -74,7 +74,7 @@ async function main() {
     );
     const privacy = await seedSyntheticPrivacy();
     process.stdout.write(
-      `Demo privacy data: ${privacy.requests} request(s) and ${privacy.consents} consent change(s) added, ${privacy.skipped} left as they were.\n`,
+      `Demo privacy data: ${privacy.requests} request(s) and ${privacy.consents} consent change(s) added, ${privacy.resumed} interrupted step(s) finished, ${privacy.skipped} left as they were.\n`,
     );
   } catch (error) {
     if (!isDomainError(error)) throw error;
