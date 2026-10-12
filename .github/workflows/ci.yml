@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # a push to main is never cancelled mid-publish (a half-published commit), only PR runs are
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Obviously fake values — CI never needs real secrets.
@@ -20,24 +21,23 @@ env:
   AUTH_URL: http://localhost:3000
   PNPM_VERSION: "10.9.0"
   NODE_VERSION: "24"
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
   # ── 1. Install ───────────────────────────────────────────────────────────────
   install:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: node_modules
           key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -46,12 +46,13 @@ jobs:
   lint:
     needs: install
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -65,12 +66,16 @@ jobs:
   typecheck:
     needs: install
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -81,12 +86,16 @@ jobs:
   test:
     needs: install
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -97,23 +106,30 @@ jobs:
   build:
     needs: [lint, typecheck, test]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run build
+      # T-011: starts both built apps and checks headers, the CSP report sink and the stylesheets
+      - run: pnpm check:csp
 
   # ── 5b. Container images (build only; job 5c publishes them from main) ──────────
   # worker: build + smoke test (starts, logs JSON, exits 0 on SIGTERM; invalid env exits non-zero).
   # web/platform: confirm the Next standalone images still build.
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -133,20 +149,24 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       # web image: the ASafariM OS manifest label (infra/docker/web.Dockerfile). Passed through the
       # environment (`build-args: APP_MANIFEST` with no value) so the action's CSV parsing never sees the JSON.
       - name: ASafariM OS manifest build arg
         run: echo "APP_MANIFEST=$(jq -c . apps/web/platform.app.json)" >> "$GITHUB_ENV"
       - name: Build ${{ matrix.image }} image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: infra/docker/${{ matrix.image }}.Dockerfile
           push: false
           load: true
           tags: igs-${{ matrix.image }}:ci
+          # links the GHCR package to this repository (visibility and access follow the repo)
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
           build-args: ${{ matrix.image == 'web' && 'APP_MANIFEST' || '' }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
@@ -157,15 +177,7 @@ jobs:
           echo "igs-${{ matrix.image }}: $((size / 1024 / 1024)) MiB, runs as '$user'" | tee -a "$GITHUB_STEP_SUMMARY"
           test -n "$user" && test "$user" != "root"
       - name: No secrets baked into the final image (D-023)
-        run: |
-          if docker history --no-trunc igs-${{ matrix.image }}:ci | grep -Eq "AUTH_SECRET|DATABASE_URL|AUTH_URL"; then
-            echo "::error::final image history mentions build/runtime secrets"
-            exit 1
-          fi
-          if docker image inspect igs-${{ matrix.image }}:ci --format '{{json .Config.Env}}' | grep -Eq "AUTH_SECRET|DATABASE_URL|AUTH_URL"; then
-            echo "::error::final image ENV contains secrets"
-            exit 1
-          fi
+        run: tools/ci/check-image-secrets.sh igs-${{ matrix.image }}:ci
       - name: Web image carries the ASafariM OS manifest label
         if: matrix.image == 'web'
         run: |
@@ -218,14 +230,30 @@ jobs:
           docker run --rm --entrypoint sh igs-worker:ci -c \
             '! ls node_modules/.pnpm 2>/dev/null | grep -Eq "^(typescript|vitest|tsup|esbuild|tsx|@biomejs)"'
 
+      # main only: the exact image tested above is what `publish` pushes (no rebuild)
+      - name: Export the tested image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker save igs-${{ matrix.image }}:ci | gzip -1 > igs-${{ matrix.image }}.tar.gz
+      - name: Upload the tested image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: image-${{ matrix.image }}
+          path: igs-${{ matrix.image }}.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
   # ── 5c. Publish images (main only, IGS-D6) ──────────────────────────────────────
-  # After everything above is green on a push to main: the same three images, pushed to GHCR as
-  # ghcr.io/alisafari-it/igs-pharma-<image>:<commit sha>. PR builds stay build-only (job 5b). The
-  # server stack pins a sha and runs `node dist/migrate.js` from the worker image before the apps.
+  # After everything above is green on a push to main: pushes THE TESTED IMAGES (the tars `docker`
+  # exported; nothing is rebuilt) to GHCR as ghcr.io/alisafari-it/igs-pharma-<image>:<commit sha>,
+  # re-runs the D-023 secret check on what was pushed, and records the immutable `@sha256:` digest.
+  # Deploy by digest. PR builds stay build-only (job 5b). The server stack runs
+  # `node dist/migrate.js` from the worker image before the apps.
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build, docker, secrets-scan]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
@@ -234,52 +262,171 @@ jobs:
       matrix:
         image: [worker, web, platform]
     env:
-      IMAGE: ghcr.io/alisafari-it/igs-pharma-${{ matrix.image }}:${{ github.sha }}
+      REPO: ghcr.io/alisafari-it/igs-pharma-${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: ASafariM OS manifest build arg
-        run: echo "APP_MANIFEST=$(jq -c . apps/web/platform.app.json)" >> "$GITHUB_ENV"
-      - name: Build ${{ matrix.image }} image
-        uses: docker/build-push-action@v6
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          context: .
-          file: infra/docker/${{ matrix.image }}.Dockerfile
-          push: false
-          load: true
-          tags: ${{ env.IMAGE }}
-          # links the GHCR package to this repository (visibility and access follow the repo)
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          build-args: ${{ matrix.image == 'web' && 'APP_MANIFEST' || '' }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-      - name: Web image carries the ASafariM OS manifest label
-        if: matrix.image == 'web'
-        run: |
-          label=$(docker image inspect "$IMAGE" --format '{{ index .Config.Labels "org.asafarim.app.manifest" }}')
-          echo "$label" | jq -e --slurpfile file apps/web/platform.app.json '. == $file[0]'
+          name: image-${{ matrix.image }}
+      - name: Load the tested image
+        run: gunzip -c igs-${{ matrix.image }}.tar.gz | docker load
       - name: Push
         run: |
-          docker push "$IMAGE"
-          echo "pushed \`$IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          docker tag "igs-${{ matrix.image }}:ci" "$REPO:${{ github.sha }}"
+          docker push "$REPO:${{ github.sha }}"
+          digest=$(docker image inspect "$REPO:${{ github.sha }}" --format '{{ index .RepoDigests 0 }}')
+          case "$digest" in "$REPO@sha256:"*) ;; *) echo "::error::no digest for $REPO"; exit 1 ;; esac
+          echo "$digest" > digest-${{ matrix.image }}.txt
+      # what GHCR now serves under that digest, not the local copy
+      - name: D-023 check on the pushed image
+        run: |
+          digest=$(cat digest-${{ matrix.image }}.txt)
+          docker image rm "$REPO:${{ github.sha }}" "igs-${{ matrix.image }}:ci"
+          docker pull "$digest"
+          tools/ci/check-image-secrets.sh "$digest"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-${{ matrix.image }}
+          path: digest-${{ matrix.image }}.txt
+          retention-days: 7
+          if-no-files-found: error
+
+  # ── 5d. Confirm all three images are published ─────────────────────────────────────
+  # Runs only when every `publish` leg succeeded; fails the run unless all three digests resolve
+  # in GHCR under the commit tag. The summary lists the references to deploy.
+  publish-verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: digest-*
+          merge-multiple: true
+      - name: Every image resolves by tag and by digest
+        run: |
+          set -euo pipefail
+          test "$(ls digest-*.txt | wc -l)" -eq 3
+          echo "### Published images (deploy by digest)" >> "$GITHUB_STEP_SUMMARY"
+          for image in worker web platform; do
+            digest=$(cat "digest-$image.txt")
+            repo="ghcr.io/alisafari-it/igs-pharma-$image"
+            resolved=$(docker buildx imagetools inspect "$repo:${{ github.sha }}" --format '{{ .Manifest.Digest }}')
+            test "$repo@$resolved" = "$digest"
+            docker buildx imagetools inspect "$digest" > /dev/null
+            echo "- \`$digest\` (tag \`${{ github.sha }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  # ── 5e. Smoke, axe and gate e2e against the production build ────────────────────
+  # Visual smoke (T-015), axe (T-017), the closed-gate and storefront-preview specs and the
+  # back-office specs (e2e/playwright.smoke.config.ts). The DB-backed specs need a migrated Postgres
+  # that accepts TLS (a production build connects with ssl: "require"; unverified, so a throwaway
+  # self-signed certificate is enough). Not part of `publish`'s needs (owner decides, after it has
+  # proven stable). All values are fake.
+  e2e-smoke:
+    name: e2e (smoke)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+      SMOKE_DATABASE_URL: postgresql://ci:ci@localhost:5433/ci
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Postgres 17 with TLS (throwaway self-signed certificate)
+        run: |
+          set -euo pipefail
+          mkdir certs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=localhost" \
+            -keyout certs/server.key -out certs/server.crt
+          sudo chown 70:70 certs/server.key certs/server.crt   # the postgres user of the alpine image
+          chmod 600 certs/server.key
+          docker run -d --name smoke-db -p 5433:5432 -v "$PWD/certs:/certs:ro" \
+            -e POSTGRES_USER=ci -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=ci \
+            postgres:17-alpine \
+            -c ssl=on -c ssl_cert_file=/certs/server.crt -c ssl_key_file=/certs/server.key
+          for i in $(seq 1 30); do
+            docker exec smoke-db pg_isready -U ci -d ci && break
+            sleep 1
+          done
+          docker exec smoke-db pg_isready -U ci -d ci
+          test "$(docker exec smoke-db psql -U ci -d ci -Atc 'SHOW ssl')" = "on"
+      - name: Migrate the smoke database
+        run: DATABASE_URL="$SMOKE_DATABASE_URL" pnpm db:migrate
+      - run: pnpm turbo run build
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Install Chromium
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm --filter @igs/e2e exec playwright install-deps chromium
+          else
+            pnpm --filter @igs/e2e exec playwright install --with-deps chromium
+          fi
+      - name: Run the smoke, axe and gate specs
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ github.workspace }}/e2e/smoke-results.json
+        run: pnpm --filter @igs/e2e smoke --reporter=github,json
+      # No silent skips: a spec that skips (e.g. the DB-backed ones without SMOKE_DATABASE_URL)
+      # proves nothing, so any skipped test fails the job.
+      - name: Fail if any test was skipped
+        run: |
+          jq '.stats' e2e/smoke-results.json
+          skipped=$(jq '.stats.skipped' e2e/smoke-results.json)
+          expected=$(jq '.stats.expected' e2e/smoke-results.json)
+          test "$expected" -gt 0
+          if [ "$skipped" -ne 0 ]; then
+            echo "::error::$skipped e2e test(s) were skipped; the smoke run must run every spec"
+            exit 1
+          fi
+      - name: Upload the Playwright results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-smoke-results
+          path: |
+            e2e/test-results
+            e2e/smoke-results.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # ── 6. Secret scanning ────────────────────────────────────────────────────────
   secrets-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # gitleaks-action lists the PR's commits via the API (403 without pull-requests: read)
     permissions:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

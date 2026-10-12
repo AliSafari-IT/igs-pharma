@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # Multi-stage Next.js standalone build for apps/web
 
-FROM node:24-alpine AS base
+# Base image pinned by digest (node:24-alpine); Renovate bumps it.
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -37,7 +38,7 @@ RUN node -e ' \
       require("node:assert").deepStrictEqual(JSON.parse(process.env.APP_MANIFEST), want, "APP_MANIFEST differs from apps/web/platform.app.json");'
 
 # ── runner ────────────────────────────────────────────────────────────────────
-FROM node:24-alpine AS runner
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

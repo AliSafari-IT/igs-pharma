@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # Multi-stage Next.js standalone build for apps/platform
 
-FROM node:24-alpine AS base
+# Base image pinned by digest (node:24-alpine); Renovate bumps it.
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -28,7 +29,7 @@ RUN DATABASE_URL=postgresql://build:build@localhost:5432/build \
     pnpm --filter=@igs/platform run build
 
 # ── runner ────────────────────────────────────────────────────────────────────
-FROM node:24-alpine AS runner
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
