@@ -134,6 +134,27 @@
       "when": 1791824023250,
       "tag": "0018_catalog_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791829883548,
+      "tag": "0019_privacy_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791829885028,
+      "tag": "0020_privacy_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791829886543,
+      "tag": "0021_rbac_seed_privacy",
+      "breakpoints": true
     }
   ]
 }

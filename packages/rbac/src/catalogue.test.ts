@@ -101,14 +101,18 @@ describe("catalogue invariants (T-016)", () => {
   });
 
   it("system-only permissions are held by system roles only, and system roles hold nothing else (36b)", () => {
-    // the one exception: the synthetic seed CLI (igs-pharma#50, #53) writes products and demo
-    // stock through the same commands staff use (and reads what it wrote, to run twice safely),
+    // the one exception: the synthetic seed CLI (igs-pharma#50, #53, #58) writes products, demo
+    // stock and demo privacy records through the same commands staff use (and reads what it wrote, to run twice safely),
     // nothing else; no user can hold a system role
     expect(ROLE_PERMISSIONS.system_seed).toEqual([
       "catalog.products.read",
       "catalog.products.manage",
       "inventory.stock.read",
       "inventory.stock.manage",
+      "privacy.consent.read",
+      "privacy.consent.record",
+      "privacy.dsr.read",
+      "privacy.dsr.manage",
     ]);
     for (const role of ROLE_KEYS) {
       const perms = ROLE_PERMISSIONS[role] as readonly string[];
