@@ -124,6 +124,7 @@ export function ProductForm({ product, brands }: Props) {
   return (
     <form action={action} noValidate className="flex flex-col gap-8">
       {product ? <input type="hidden" name="productId" value={product.id} /> : null}
+      {product ? <input type="hidden" name="version" value={String(product.version)} /> : null}
       {state.error ? (
         <Alert variant="error" title="The product was not saved">
           {catalogErrorMessage(state.error)}

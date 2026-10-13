@@ -115,6 +115,8 @@ export interface ProductView {
   readonly ageMin: number | null;
   readonly coldChain: boolean;
   readonly brandId: string | null;
+  /** Optimistic concurrency (igs-pharma#80): send it back as `expectedVersion`. */
+  readonly version: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly content: readonly ProductContentView[];

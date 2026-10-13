@@ -4,6 +4,7 @@ import { and, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { CATALOG_AUDIT } from "./audit";
+import { isUniqueViolation, requireVersion } from "./concurrency";
 import {
   CONTENT_LOCALES,
   LEGAL_STATUSES,
@@ -61,10 +62,16 @@ const productFields = {
 };
 
 const createInput = z.object(productFields);
-const updateInput = z.object({ productId: z.uuid(), ...productFields });
+/** `expectedVersion`: the version the edit form loaded (igs-pharma#80); a stale one is refused. */
+const updateInput = z.object({
+  productId: z.uuid(),
+  expectedVersion: z.number().int().min(1),
+  ...productFields,
+});
 type ProductFields = z.infer<typeof createInput>;
 
 const productIdOutput = z.object({ productId: z.uuid() });
+const productWriteOutput = productIdOutput.extend({ version: z.number().int().min(1) });
 
 function requireValidCnk(cnk: string): void {
   if (!isValidCnk(cnk))
@@ -76,6 +83,9 @@ async function requireBrand(ctx: Ctx, brandId: string | null): Promise<void> {
   const [brand] = await ctx.tx.select({ id: brands.id }).from(brands).where(eq(brands.id, brandId));
   if (!brand) throw notFound("catalog.brand_not_found");
 }
+
+/** The unique constraint on `catalog.products.cnk` (migration 0013). */
+const CNK_UNIQUE = "products_cnk_unique";
 
 const coreValues = (input: ProductFields) => ({
   cnk: input.cnk,
@@ -125,7 +135,7 @@ async function saveContent(ctx: Ctx, productId: string, content: ProductFields["
 export const createProduct = command({
   name: "catalog.product.create",
   input: createInput,
-  output: productIdOutput,
+  output: productWriteOutput,
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     requireValidCnk(input.cnk);
@@ -141,54 +151,84 @@ export const createProduct = command({
       action: CATALOG_AUDIT.productCreated,
       entityType: "product",
       entityId: product.id,
-      data: { productId: product.id, cnk: input.cnk },
+      data: { productId: product.id, cnk: input.cnk, version: 1 },
     });
-    return { productId: product.id };
+    return { productId: product.id, version: 1 };
   },
 });
 
 /**
- * Replaces a product's core fields and content. An `active` product must keep its Dutch and French
- * content (`catalog.content_missing`); its status changes only through `setProductStatus`.
+ * Replaces a product's core fields and content. `expectedVersion` is the version the form loaded
+ * (`catalog.stale_version` otherwise, before anything is written). An `active` product must keep its
+ * Dutch and French content (`catalog.content_missing`) and its CNK (`catalog.cnk_locked`: archive it
+ * first to correct the CNK); its status changes only through `setProductStatus`. A CNK change on a
+ * draft or archived product is audited (`catalog.product.cnk_changed`).
  */
 export const updateProduct = command({
   name: "catalog.product.update",
   input: updateInput,
-  output: productIdOutput,
+  output: productWriteOutput,
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     requireValidCnk(input.cnk);
     const [current] = await ctx.tx
-      .select({ id: products.id, cnk: products.cnk, status: products.status })
+      .select({
+        id: products.id,
+        cnk: products.cnk,
+        status: products.status,
+        version: products.version,
+      })
       .from(products)
       .where(eq(products.id, input.productId))
       .for("update");
     if (!current) throw notFound("catalog.product_not_found");
+    requireVersion(current.version, input.expectedVersion);
     if (current.status === "active") {
       const missing = missingForActivation(input.content.map((c) => c.locale));
       if (missing.length > 0)
         throw conflict("catalog.content_missing", { missing: missing.join(",") });
     }
     await requireBrand(ctx, input.brandId);
-    if (input.cnk !== current.cnk) {
+    const cnkChanged = input.cnk !== current.cnk;
+    if (cnkChanged) {
+      // the CNK is a business key (igs-pharma#80): a live product keeps it; correct it by archiving first
+      if (current.status === "active") throw conflict("catalog.cnk_locked");
       const [taken] = await ctx.tx
         .select({ id: products.id })
         .from(products)
         .where(eq(products.cnk, input.cnk));
       if (taken) throw conflict("catalog.cnk_taken");
     }
-    await ctx.tx
-      .update(products)
-      .set({ ...coreValues(input), updatedAt: ctx.now })
-      .where(eq(products.id, input.productId));
+    const version = current.version + 1;
+    try {
+      // a savepoint: a lost race for the CNK (the SELECT above is not a lock) is a typed conflict,
+      // not the unique index's raw error
+      await ctx.tx.transaction((sp) =>
+        sp
+          .update(products)
+          .set({ ...coreValues(input), version, updatedAt: ctx.now })
+          .where(eq(products.id, input.productId)),
+      );
+    } catch (error) {
+      if (isUniqueViolation(error, CNK_UNIQUE)) throw conflict("catalog.cnk_taken");
+      throw error;
+    }
     await saveContent(ctx, input.productId, input.content);
     await ctx.audit.record({
       action: CATALOG_AUDIT.productUpdated,
       entityType: "product",
       entityId: input.productId,
-      data: { productId: input.productId, cnk: input.cnk },
+      data: { productId: input.productId, cnk: input.cnk, version },
     });
-    return { productId: input.productId };
+    if (cnkChanged) {
+      await ctx.audit.record({
+        action: CATALOG_AUDIT.productCnkChanged,
+        entityType: "product",
+        entityId: input.productId,
+        data: { productId: input.productId, fromCnk: current.cnk, toCnk: input.cnk },
+      });
+    }
+    return { productId: input.productId, version };
   },
 });
 
@@ -196,11 +236,15 @@ export const updateProduct = command({
 export const setProductStatus = command({
   name: "catalog.product.set_status",
   input: z.object({ productId: z.uuid(), status: z.enum(PRODUCT_STATUSES) }),
-  output: z.object({ productId: z.uuid(), status: z.enum(PRODUCT_STATUSES) }),
+  output: z.object({
+    productId: z.uuid(),
+    status: z.enum(PRODUCT_STATUSES),
+    version: z.number().int().min(1),
+  }),
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     const [current] = await ctx.tx
-      .select({ id: products.id, status: products.status })
+      .select({ id: products.id, status: products.status, version: products.version })
       .from(products)
       .where(eq(products.id, input.productId))
       .for("update");
@@ -216,17 +260,19 @@ export const setProductStatus = command({
       if (missing.length > 0)
         throw conflict("catalog.content_missing", { missing: missing.join(",") });
     }
+    // every write bumps the version, so an edit form loaded before this change is refused (igs-pharma#80)
+    const version = current.version + 1;
     await ctx.tx
       .update(products)
-      .set({ status: input.status, updatedAt: ctx.now })
+      .set({ status: input.status, version, updatedAt: ctx.now })
       .where(eq(products.id, input.productId));
     await ctx.audit.record({
       action: CATALOG_AUDIT.productStatusChanged,
       entityType: "product",
       entityId: input.productId,
-      data: { productId: input.productId, from, to: input.status },
+      data: { productId: input.productId, from, to: input.status, version },
     });
-    return { productId: input.productId, status: input.status };
+    return { productId: input.productId, status: input.status, version };
   },
 });
 

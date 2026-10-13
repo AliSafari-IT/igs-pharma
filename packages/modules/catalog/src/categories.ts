@@ -4,6 +4,7 @@ import { and, asc, count, eq, inArray, isNull, ne, notInArray, sql } from "drizz
 import { z } from "zod";
 
 import { CATALOG_AUDIT } from "./audit";
+import { requireVersion } from "./concurrency";
 import {
   type CategoryLink,
   MAX_CATEGORIES_PER_PRODUCT,
@@ -49,6 +50,8 @@ const categoryFields = {
 };
 
 const categoryIdOutput = z.object({ categoryId: z.uuid() });
+const version = z.number().int().min(1);
+const categoryWriteOutput = categoryIdOutput.extend({ version });
 
 async function requireSlugFree(ctx: Ctx, slug: string, except?: string): Promise<void> {
   const [taken] = await ctx.tx
@@ -76,7 +79,7 @@ const siblingsOf = (ctx: Ctx, parentId: string | null) =>
 export const createCategory = command({
   name: "catalog.category.create",
   input: z.object({ parentId: z.uuid().nullable().default(null), ...categoryFields }),
-  output: categoryIdOutput,
+  output: categoryWriteOutput,
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     await lockTree(ctx);
@@ -108,25 +111,32 @@ export const createCategory = command({
       entityId: category.id,
       data: { categoryId: category.id, slug: input.slug, parentId: input.parentId },
     });
-    return { categoryId: category.id };
+    return { categoryId: category.id, version: 1 };
   },
 });
 
 /** Renames a category: its slug and its names. Where it sits in the tree changes with `move`. */
 export const updateCategory = command({
   name: "catalog.category.update",
-  input: z.object({ categoryId: z.uuid(), ...categoryFields }),
-  output: categoryIdOutput,
+  input: z.object({
+    categoryId: z.uuid(),
+    /** The version the form loaded (igs-pharma#80); a stale one is refused. */
+    expectedVersion: version,
+    ...categoryFields,
+  }),
+  output: categoryWriteOutput,
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     await lockTree(ctx);
     const [current] = await ctx.tx
-      .select({ id: categories.id })
+      .select({ id: categories.id, version: categories.version })
       .from(categories)
       .where(eq(categories.id, input.categoryId))
       .for("update");
     if (!current) throw notFound("catalog.category_not_found");
+    requireVersion(current.version, input.expectedVersion);
     await requireSlugFree(ctx, input.slug, input.categoryId);
+    const next = current.version + 1;
     await ctx.tx
       .update(categories)
       .set({
@@ -135,6 +145,7 @@ export const updateCategory = command({
         nameFr: input.nameFr,
         nameDe: input.nameDe,
         nameEn: input.nameEn,
+        version: next,
         updatedAt: ctx.now,
       })
       .where(eq(categories.id, input.categoryId));
@@ -142,9 +153,9 @@ export const updateCategory = command({
       action: CATALOG_AUDIT.categoryUpdated,
       entityType: "category",
       entityId: input.categoryId,
-      data: { categoryId: input.categoryId, slug: input.slug },
+      data: { categoryId: input.categoryId, slug: input.slug, version: next },
     });
-    return { categoryId: input.categoryId };
+    return { categoryId: input.categoryId, version: next };
   },
 });
 
@@ -154,53 +165,87 @@ export const updateCategory = command({
  * new parent is the category or one of its descendants (`catalog.category_cycle`), or when the
  * tree would get deeper than `MAX_CATEGORY_DEPTH` (`catalog.category_too_deep`), and when it is
  * already there (`catalog.category_unchanged`: every command writes an audit record).
+ *
+ * `expectedVersion` is the version the page loaded (`catalog.stale_version` otherwise). Instead of
+ * `parentId` + `position` a move can say `direction: "up" | "down"` (one place among the current
+ * siblings). Every row the move writes, siblings included, gets its version bumped (igs-pharma#80).
  */
 export const moveCategory = command({
   name: "catalog.category.move",
-  input: z.object({
+  input: z.union([
+    // one place up or down among the CURRENT siblings, resolved here under the tree lock, so a
+    // concurrent insert or reorder cannot make a stale page move it to the wrong place
+    z.object({ categoryId: z.uuid(), expectedVersion: version, direction: z.enum(["up", "down"]) }),
+    z.object({
+      categoryId: z.uuid(),
+      expectedVersion: version,
+      parentId: z.uuid().nullable(),
+      position: z.number().int().min(0).max(10_000),
+    }),
+  ]),
+  output: z.object({
     categoryId: z.uuid(),
     parentId: z.uuid().nullable(),
-    position: z.number().int().min(0).max(10_000),
+    position: z.number(),
+    version,
   }),
-  output: z.object({ categoryId: z.uuid(), parentId: z.uuid().nullable(), position: z.number() }),
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     await lockTree(ctx);
     const links = await loadLinks(ctx);
     const self = links.find((l) => l.id === input.categoryId);
     if (!self) throw notFound("catalog.category_not_found");
-    if (input.parentId !== null && !links.some((l) => l.id === input.parentId))
+    const [row] = await ctx.tx
+      .select({ version: categories.version })
+      .from(categories)
+      .where(eq(categories.id, input.categoryId))
+      .for("update");
+    if (!row) throw notFound("catalog.category_not_found");
+    requireVersion(row.version, input.expectedVersion);
+
+    let parentId: string | null;
+    let wanted: number;
+    if ("direction" in input) {
+      parentId = self.parentId;
+      const current = await siblingsOf(ctx, parentId);
+      const index = current.findIndex((s) => s.id === self.id);
+      wanted = input.direction === "up" ? index - 1 : index + 1;
+      // already first (up) or last (down): nothing to do
+      if (wanted < 0 || wanted >= current.length) throw conflict("catalog.category_unchanged");
+    } else {
+      parentId = input.parentId;
+      wanted = input.position;
+    }
+    if (parentId !== null && !links.some((l) => l.id === parentId))
       throw notFound("catalog.category_not_found");
-    if (wouldCycle(links, input.categoryId, input.parentId))
-      throw conflict("catalog.category_cycle");
-    if (
-      depthOf(links, input.parentId) + subtreeHeight(links, input.categoryId) >
-      MAX_CATEGORY_DEPTH
-    )
+    if (wouldCycle(links, input.categoryId, parentId)) throw conflict("catalog.category_cycle");
+    if (depthOf(links, parentId) + subtreeHeight(links, input.categoryId) > MAX_CATEGORY_DEPTH)
       throw conflict("catalog.category_too_deep", { maxDepth: MAX_CATEGORY_DEPTH });
 
-    const siblings = await siblingsOf(ctx, input.parentId);
+    const siblings = await siblingsOf(ctx, parentId);
     const others = siblings.filter((s) => s.id !== input.categoryId);
-    const position = Math.min(input.position, others.length);
+    const position = Math.min(wanted, others.length);
     const samePlace =
-      self.parentId === input.parentId && siblings.findIndex((s) => s.id === self.id) === position;
+      self.parentId === parentId && siblings.findIndex((s) => s.id === self.id) === position;
     if (samePlace) throw conflict("catalog.category_unchanged");
 
     const ordered = [
       ...others.slice(0, position),
-      { id: input.categoryId, sortOrder: -1 },
+      { id: input.categoryId, sortOrder: -1, version: row.version },
       ...others.slice(position),
     ];
+    const next = row.version + 1;
     for (const [index, sibling] of ordered.entries()) {
       if (sibling.id === input.categoryId) {
         await ctx.tx
           .update(categories)
-          .set({ parentId: input.parentId, sortOrder: index, updatedAt: ctx.now })
+          .set({ parentId, sortOrder: index, version: next, updatedAt: ctx.now })
           .where(eq(categories.id, sibling.id));
       } else if (sibling.sortOrder !== index) {
+        // a sibling whose order is rewritten has been written: its version moves too
         await ctx.tx
           .update(categories)
-          .set({ sortOrder: index })
+          .set({ sortOrder: index, version: sql`${categories.version} + 1` })
           .where(eq(categories.id, sibling.id));
       }
     }
@@ -211,11 +256,12 @@ export const moveCategory = command({
       data: {
         categoryId: input.categoryId,
         fromParentId: self.parentId,
-        toParentId: input.parentId,
+        toParentId: parentId,
         position,
+        version: next,
       },
     });
-    return { categoryId: input.categoryId, parentId: input.parentId, position };
+    return { categoryId: input.categoryId, parentId, position, version: next };
   },
 });
 
@@ -353,6 +399,8 @@ export interface CategoryNode {
   readonly index: number;
   readonly siblingCount: number;
   readonly childCount: number;
+  /** Optimistic concurrency (igs-pharma#80): send it back as `expectedVersion`. */
+  readonly version: number;
   /** Products directly in this category (not in its sub-categories). */
   readonly productCount: number;
 }
@@ -375,6 +423,7 @@ export const listCategories = query({
         nameFr: categories.nameFr,
         nameDe: categories.nameDe,
         nameEn: categories.nameEn,
+        version: categories.version,
         productCount: sql<number>`(SELECT count(*)::int FROM ${productCategories} WHERE ${productCategories.categoryId} = ${categories.id})`,
       })
       .from(categories)

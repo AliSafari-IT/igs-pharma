@@ -1,6 +1,6 @@
 "use server";
 
-import { isDomainError } from "@igs/kernel";
+import { conflict, isDomainError } from "@igs/kernel";
 import { createCategory, deleteCategory, moveCategory, updateCategory } from "@igs/module-catalog";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -23,6 +23,16 @@ const text = (form: FormData, name: string) => {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
 };
+
+/**
+ * The version the page loaded (a hidden field). A form without one (opened before this field
+ * existed) is stale by definition, so it gets the "reload" refusal rather than a field error.
+ */
+function versionOf(form: FormData): number {
+  const version = Number.parseInt(text(form, "version"), 10);
+  if (!Number.isInteger(version) || version < 1) throw conflict("catalog.stale_version");
+  return version;
+}
 
 const fieldsOf = (form: FormData) => ({
   slug: text(form, "slug"),
@@ -58,7 +68,11 @@ export async function saveCategory(
   let savedId: string;
   try {
     const result = categoryId
-      ? await updateCategory({ categoryId, ...fieldsOf(form) }, actor, options)
+      ? await updateCategory(
+          { categoryId, expectedVersion: versionOf(form), ...fieldsOf(form) },
+          actor,
+          options,
+        )
       : await createCategory({ parentId: parentId || null, ...fieldsOf(form) }, actor, options);
     savedId = result.categoryId;
   } catch (error) {
@@ -82,16 +96,22 @@ export async function moveCategoryAction(form: FormData): Promise<void> {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const categoryId = text(form, "categoryId");
+  const direction = text(form, "direction");
   const parentId = text(form, "parentId");
   const position = Number.parseInt(text(form, "position"), 10);
   let query: string;
   try {
+    const expectedVersion = versionOf(form);
     await moveCategory(
-      {
-        categoryId,
-        parentId: parentId || null,
-        position: Number.isNaN(position) ? 10_000 : position,
-      },
+      direction === "up" || direction === "down"
+        ? // one place among the siblings as they are NOW, not a position computed when the page rendered
+          { categoryId, expectedVersion, direction }
+        : {
+            categoryId,
+            expectedVersion,
+            parentId: parentId || null,
+            position: Number.isNaN(position) ? 10_000 : position,
+          },
       actor,
       { origin: await requestOrigin() },
     );
