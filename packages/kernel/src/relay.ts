@@ -4,11 +4,13 @@ import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 
 import { type KernelLogger, type Metrics, type Tx, peekKernelConfig } from "./config";
 import { type JobExecutor, pgBossExecutor } from "./pgboss";
+import { assertQueuesExist } from "./queues";
 import { outbox } from "./schema";
 
 /** The slice of pg-boss that the relay needs (structural, so the kernel need not import pg-boss). */
 export interface JobQueue {
-  createQueue(name: string): Promise<void>;
+  /** The queue, or `null` when it does not exist (created by the migrate entry, never here). */
+  getQueue(name: string): Promise<unknown>;
   send(
     name: string,
     data: object,
@@ -95,9 +97,10 @@ export function createOutboxRelay(options: OutboxRelayOptions): OutboxProcessor 
   const database = () => options.db ?? peekKernelConfig()?.db() ?? getDb();
   const queues = new Set<string>();
 
+  /** The relay has no DDL right: the topic's queue must already exist (igs-pharma#66). */
   async function ensureQueue(topic: string) {
     if (queues.has(topic)) return;
-    await options.queue.createQueue(topic);
+    await assertQueuesExist(options.queue, [topic]);
     queues.add(topic);
   }
 

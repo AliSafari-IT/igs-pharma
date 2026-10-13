@@ -5,8 +5,10 @@ import { z } from "zod";
 
 import {
   AUDIT_JOBS,
+  type AuditQueueAdmin,
   type JobScheduler,
   MIN_FUTURE_PARTITIONS,
+  ensureAuditQueues,
   record,
   registerAuditAction,
   registerAuditJobs,
@@ -176,8 +178,9 @@ describe("registerAuditJobs", () => {
       schedules: [] as { name: string; cron: string; tz: string | undefined }[],
       workers: new Map<string, () => Promise<void>>(),
     };
-    const boss: JobScheduler = {
+    const boss: JobScheduler & AuditQueueAdmin = {
       createQueue: async (name, options) => void log.queues.push({ name, options }),
+      getQueue: async (name) => (log.queues.some((q) => q.name === name) ? { name } : null),
       schedule: async (name, cron, _data, options) =>
         void log.schedules.push({ name, cron, tz: options?.tz }),
       work: async (name, handler) => void log.workers.set(name, handler),
@@ -185,10 +188,23 @@ describe("registerAuditJobs", () => {
     return { boss, log };
   };
 
-  it("creates dead-letter queues first, retried queues, schedules and four workers", async () => {
+  it("the worker refuses to start without the queues the migrate entry creates", async () => {
     const { boss, log } = fakeBoss();
     const { runtime } = runtimeFor(iso.db);
+    await expect(registerAuditJobs(boss, runtime)).rejects.toThrow(
+      /kernel\.queue_missing.*audit\./,
+    );
+    expect(log.queues).toEqual([]); // and it never creates one itself
+    expect(log.schedules).toEqual([]);
+  });
+
+  it("the migrate entry creates dead-letter queues first, retried queues; the worker schedules and registers four workers", async () => {
+    const { boss, log } = fakeBoss();
+    const { runtime } = runtimeFor(iso.db);
+    await ensureAuditQueues(boss);
+    const createdByMigrate = log.queues.length;
     await registerAuditJobs(boss, runtime);
+    expect(log.queues.length).toBe(createdByMigrate);
 
     const names = log.queues.map((q) => q.name);
     expect(names.indexOf("audit.partitions.ensure.failed")).toBeLessThan(
@@ -222,6 +238,7 @@ describe("registerAuditJobs", () => {
   it("the registered handlers run the jobs and the dead-letter alarms", async () => {
     const { boss, log } = fakeBoss();
     const { runtime, captured } = runtimeFor(iso.db);
+    await ensureAuditQueues(boss);
     await registerAuditJobs(boss, runtime);
     await log.workers.get("audit.partitions.ensure")?.();
     await log.workers.get("audit.chain.verify")?.();

@@ -3,7 +3,7 @@ import type { KernelRuntime } from "@igs/kernel";
 import PgBoss from "pg-boss";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AUDIT_JOBS, type JobScheduler, registerAuditJobs } from "../src";
+import { AUDIT_JOBS, type JobScheduler, ensureAuditQueues, registerAuditJobs } from "../src";
 
 let iso: IsolatedDatabase;
 const bosses: PgBoss[] = [];
@@ -44,6 +44,13 @@ afterEach(async () => {
   for (const boss of bosses.splice(0)) await boss.stop({ graceful: false, wait: true });
   await iso.drop();
 });
+
+/** What the migrate entry does under the administrative role: the queues (DDL) exist before any worker boots. */
+async function migrateQueues(): Promise<void> {
+  const boss = await boot();
+  await ensureAuditQueues(boss);
+  await boss.stop({ graceful: false, wait: true });
+}
 
 const queues = () =>
   iso.sql<
@@ -86,7 +93,16 @@ const EXPECTED_SCHEDULES = [
 ];
 
 describe("registerAuditJobs against a real pg-boss (R2: a worker restart must not crash-loop)", () => {
-  it("registers the queues with retry and dead-letter options and the two daily schedules", async () => {
+  it("the worker refuses to boot on a database whose queues the migrate entry has not created", async () => {
+    const boss = await boot();
+    await expect(registerAuditJobs(boss as unknown as JobScheduler, runtime())).rejects.toThrow(
+      /kernel\.queue_missing/,
+    );
+    expect(await queues()).toEqual([]);
+  });
+
+  it("migrate creates the queues with retry and dead-letter options; the worker adds the two daily schedules", async () => {
+    await migrateQueues();
     const boss = await boot();
     await registerAuditJobs(boss as unknown as JobScheduler, runtime());
     expect(await queues()).toEqual(EXPECTED_QUEUES);
@@ -94,6 +110,8 @@ describe("registerAuditJobs against a real pg-boss (R2: a worker restart must no
   });
 
   it("running it again on the same instance, and on a new instance after a restart, neither throws nor changes anything", async () => {
+    await migrateQueues();
+    await migrateQueues(); // the migrate entry is re-run on every deploy
     const first = await boot();
     await registerAuditJobs(first as unknown as JobScheduler, runtime());
     await registerAuditJobs(first as unknown as JobScheduler, runtime());
@@ -110,6 +128,7 @@ describe("registerAuditJobs against a real pg-boss (R2: a worker restart must no
   });
 
   it("jobs run through pg-boss: the partitions job executes, the dead-letter queue raises the alarm", async () => {
+    await migrateQueues();
     const boss = await boot();
     await registerAuditJobs(boss as unknown as JobScheduler, runtime());
 

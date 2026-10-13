@@ -6,6 +6,23 @@ export const dbEnv = z.object({
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(100).default(10),
 });
 
+/**
+ * The DSN of the one-shot operator entries (igs-pharma#66): the migrate entry and the
+ * `bootstrap-owner` / `seed-catalog` CLIs. It connects as the administrative role that owns the
+ * schemas, whereas `DATABASE_URL` is the runtime role (`igs_app` / `igs_worker`), which can never
+ * run DDL. Read it with `migrateDsn()`, never from `process.env` directly.
+ */
+export const migrateEnv = z.object({
+  DATABASE_MIGRATE_URL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .url()
+      .optional()
+      .describe("PostgreSQL DSN of the administrative (schema-owning) role"),
+  ),
+});
+
 export const authEnv = z.object({
   AUTH_SECRET: z.string().min(32).describe("Better Auth HMAC secret (≥32 chars)"),
   AUTH_URL: z.string().url().describe("Canonical app URL for Better Auth callbacks"),
@@ -144,6 +161,53 @@ export const syntheticSeedEnv = z.object({
 /** Whether the synthetic seed may run in this environment. */
 export function syntheticSeedAllowed(env: z.output<typeof syntheticSeedEnv>): boolean {
   return env.NODE_ENV === "development" || env.IGS_ALLOW_SYNTHETIC_SEED === "1";
+}
+
+/** Whether two connection strings log in as the same database user (query strings and the like do not count). */
+function sameLogin(a: string, b: string): boolean {
+  try {
+    return decodeURIComponent(new URL(a).username) === decodeURIComponent(new URL(b).username);
+  } catch {
+    return a === b;
+  }
+}
+
+/**
+ * The connection string an operator entry (migrate, bootstrap-owner, seed-catalog) must use. In
+ * production `DATABASE_MIGRATE_URL` is required and must log in as a different user than `DATABASE_URL`
+ * (the runtime DSN), so these entries can never silently run under the runtime role or the other way round.
+ * Elsewhere it falls back to `DATABASE_URL`, so a single local database keeps working.
+ */
+export function migrateDsn(input: NodeJS.ProcessEnv = process.env): string {
+  const env = parseEnvFor(
+    appEnv.extend(migrateEnv.shape).extend({ DATABASE_URL: z.string().url().optional() }),
+    input,
+  );
+  const migrate = env.DATABASE_MIGRATE_URL;
+  if (env.NODE_ENV === "production") {
+    if (!migrate) {
+      throw new Error(
+        "DATABASE_MIGRATE_URL is not set: this entry needs the administrative database role, not the runtime DATABASE_URL.",
+      );
+    }
+    if (env.DATABASE_URL && sameLogin(migrate, env.DATABASE_URL)) {
+      throw new Error(
+        "DATABASE_MIGRATE_URL must use a different database user than DATABASE_URL: the runtime role must never run migrations.",
+      );
+    }
+    return migrate;
+  }
+  const dsn = migrate ?? env.DATABASE_URL;
+  if (!dsn) throw new Error("DATABASE_MIGRATE_URL (or DATABASE_URL in development) is not set.");
+  return dsn;
+}
+
+/**
+ * Makes the rest of the process (the kernel's database client, pg-boss) use the migrate DSN: the
+ * operator entries call it first. `DATABASE_URL` is overwritten for this process only.
+ */
+export function adoptMigrateDsn(input: NodeJS.ProcessEnv = process.env): void {
+  input["DATABASE_URL"] = migrateDsn(input);
 }
 
 /** Full set used by `web` / `platform` (and `getEnv()`). */

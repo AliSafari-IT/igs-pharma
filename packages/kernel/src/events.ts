@@ -44,6 +44,11 @@ export function registerEvents(...defs: EventDef[]): void {
   }
 }
 
+/** The topics registered so far (the migrate entry creates a queue for each). */
+export function registeredTopics(): string[] {
+  return [...registry.keys()].sort();
+}
+
 /** Test seam — re-exported by `@igs/kernel/testing`. */
 export function resetEventRegistry(): void {
   registry.clear();

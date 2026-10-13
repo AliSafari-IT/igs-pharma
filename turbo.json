@@ -28,6 +28,7 @@
     "db:migrate": {
       "cache": false,
       "passThroughEnv": [
+        "DATABASE_MIGRATE_URL",
         "DATABASE_URL",
         "DATABASE_MAX_CONNECTIONS",
         "AUTH_SECRET",
@@ -38,6 +39,7 @@
     "db:generate": {
       "outputs": ["drizzle/**"],
       "passThroughEnv": [
+        "DATABASE_MIGRATE_URL",
         "DATABASE_URL",
         "DATABASE_MAX_CONNECTIONS",
         "AUTH_SECRET",

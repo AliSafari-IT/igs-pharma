@@ -21,7 +21,8 @@
     "lint:boundaries": "eslint . && node tools/boundaries/check-cycles.mjs",
     "test:boundaries": "node --test tools/boundaries/boundaries.test.mjs",
     "db:check": "node tools/db/check-drift.mjs",
-    "check:csp": "node tools/security/check-csp.mjs"
+    "check:csp": "node tools/security/check-csp.mjs",
+    "db:grants:generate": "pnpm --filter @igs/db run db:grants:generate"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
