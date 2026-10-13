@@ -12,8 +12,8 @@ const source = (name: string) =>
   fs.readFileSync(new URL(`../src/${name}`, import.meta.url), "utf8");
 
 describe("event registration is shared", () => {
-  it("both entries call registerWorkerEvents()", () => {
-    for (const entry of ["index.ts", "migrate.ts"]) {
+  it("the worker and the migrate run both call registerWorkerEvents()", () => {
+    for (const entry of ["index.ts", "migrate-run.ts"]) {
       expect(source(entry), entry).toMatch(/registerWorkerEvents\(\)/);
     }
   });

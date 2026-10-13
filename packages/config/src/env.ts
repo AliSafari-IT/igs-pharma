@@ -1,9 +1,25 @@
 import { z } from "zod";
 
+/**
+ * TLS to PostgreSQL (igs-pharma#77), read by every database connection through `buildDbSsl()`
+ * (`@igs/config/db-ssl`): `verify` checks the server certificate chain and host name (the default
+ * in production); `insecure-dev` encrypts but does not verify (explicit opt-in); `off` is plain
+ * TCP (the default outside production, refused in production). `DATABASE_SSL_CA` adds a private CA:
+ * PEM text (escaped `\n` allowed) or the path of a PEM file; it is never logged.
+ */
+export const dbSslEnv = z.object({
+  DATABASE_SSL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["verify", "insecure-dev", "off"]).optional(),
+  ),
+  DATABASE_SSL_CA: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+});
+
 /** Composable per-concern schemas: each process parses only what it uses (T-005b). */
 export const dbEnv = z.object({
   DATABASE_URL: z.string().url().describe("PostgreSQL connection string"),
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(100).default(10),
+  ...dbSslEnv.shape,
 });
 
 /**
