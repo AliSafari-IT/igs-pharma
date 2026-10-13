@@ -17,7 +17,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   currentPrices,
   listPrices,
-  lowestPriceLast30Days,
+  referencePrice30Days,
   registerAuditActions,
   setPrice,
 } from "../src";
@@ -191,30 +191,55 @@ describe("pricing.price.set and the current price", () => {
   });
 });
 
-describe("pricing.price.lowest_30d", () => {
-  it("keeps the lowest price of the last 30 days through a drop and a later rise", async () => {
+describe("pricing.price.reference_30d", () => {
+  it("the reference of a reduction is the lowest price BEFORE it, not the reduction itself", async () => {
+    const productId = await newProduct();
+    const start = clockNow;
+    await setPrice({ productId, amountCents: 1000 }, owner);
+    kernel.clock.set(new Date(start.getTime() + 40 * DAY));
+    await setPrice({ productId, amountCents: 700 }, owner); // the reduction
+
+    const at = async (atMs: number) =>
+      (await referencePrice30Days({ productId, at: new Date(atMs).toISOString() }, owner))
+        .reduction;
+    const reductionAt = start.getTime() + 40 * DAY;
+    expect(await at(reductionAt - 1)).toBeNull(); // not applied yet
+    for (const when of [reductionAt, reductionAt + 10 * DAY, reductionAt + 90 * DAY]) {
+      expect(await at(when)).toEqual({
+        currentCents: 700,
+        appliedAt: new Date(reductionAt),
+        referenceCents: 1000,
+        fullWindow: true,
+      });
+    }
+    // before the first price there is nothing
+    expect(await at(start.getTime() - 1)).toBeNull();
+    // default `at`: the kernel clock, i.e. the day of the reduction
+    expect((await referencePrice30Days({ productId }, owner)).reduction).toMatchObject({
+      currentCents: 700,
+      referenceCents: 1000,
+    });
+  });
+
+  it("flags a product priced for less than 30 days, and is none for a rise", async () => {
     const productId = await newProduct();
     const start = clockNow;
     await setPrice({ productId, amountCents: 1000 }, owner);
     kernel.clock.set(new Date(start.getTime() + 10 * DAY));
-    await setPrice({ productId, amountCents: 800 }, owner); // drop
-    kernel.clock.set(new Date(start.getTime() + 20 * DAY));
-    await setPrice({ productId, amountCents: 1200 }, owner); // rise
+    await setPrice({ productId, amountCents: 700 }, owner);
+    kernel.clock.set(new Date(start.getTime() + 11 * DAY));
+    const { reduction } = await referencePrice30Days({ productId }, owner);
+    expect(reduction).toMatchObject({ referenceCents: 1000, fullWindow: false });
 
-    const lowest = async (atDays: number) =>
-      (
-        await lowestPriceLast30Days(
-          { productId, at: new Date(start.getTime() + atDays * DAY).toISOString() },
-          owner,
-        )
-      ).amountCents;
-    expect(await lowest(5)).toBe(1000);
-    expect(await lowest(25)).toBe(800);
-    expect(await lowest(49)).toBe(800); // the drop ended on day 20, 29 days earlier
-    expect(await lowest(51)).toBe(1200);
-    expect(await lowest(-1)).toBeNull();
-    // default `at`: the kernel clock (day 20)
-    expect((await lowestPriceLast30Days({ productId }, owner)).amountCents).toBe(800);
+    kernel.clock.set(new Date(start.getTime() + 12 * DAY));
+    await setPrice({ productId, amountCents: 1500 }, owner); // a rise is not a reduction
+    expect((await referencePrice30Days({ productId }, owner)).reduction).toBeNull();
+  });
+
+  it("refuses an unknown product", async () => {
+    expect(await codeOf(referencePrice30Days({ productId: randomUUID() }, owner))).toBe(
+      "pricing.unknown_product",
+    );
   });
 });
 
@@ -256,7 +281,7 @@ describe("permissions and audit", () => {
       expect(await codeOf(currentPrices({ productIds: [productId] }, actor)), role).toBe(
         "kernel.forbidden",
       );
-      expect(await codeOf(lowestPriceLast30Days({ productId }, actor)), role).toBe(
+      expect(await codeOf(referencePrice30Days({ productId }, actor)), role).toBe(
         "kernel.forbidden",
       );
     }
@@ -303,7 +328,7 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
       expect(await codeOf(listPrices({ productId: hidden }, storefront)), hidden).toBe(
         "pricing.unknown_product",
       );
-      expect(await codeOf(lowestPriceLast30Days({ productId: hidden }, storefront)), hidden).toBe(
+      expect(await codeOf(referencePrice30Days({ productId: hidden }, storefront)), hidden).toBe(
         "pricing.unknown_product",
       );
     }

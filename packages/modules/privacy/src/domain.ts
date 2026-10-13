@@ -1,7 +1,8 @@
 /**
- * Privacy domain rules (igs-pharma#58, domain-model §10, gdpr-and-privacy §5–6), free of I/O and of
- * imports: drizzle-kit loads this file through `schema.ts`.
+ * Privacy domain rules (igs-pharma#58, domain-model §10, gdpr-and-privacy §5–6), free of I/O:
+ * drizzle-kit loads this file through `schema.ts`, so it imports only pure leaf packages (`@igs/time`).
  */
+import { addBrusselsMonths } from "@igs/time";
 
 /** What a consent is for. The storefront banner (Phase 1b) records the same purposes. */
 export const CONSENT_PURPOSES = ["marketing_email", "analytics_cookies"] as const;
@@ -58,70 +59,6 @@ export const isFinalDsrStatus = (status: DsrStatus): boolean => FINAL_DSR_STATUS
 
 const DAY_MS = 86_400_000;
 
-const BRUSSELS = "Europe/Brussels";
-
-const brusselsParts = new Intl.DateTimeFormat("en-US", {
-  timeZone: BRUSSELS,
-  hourCycle: "h23",
-  year: "numeric",
-  month: "numeric",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-  second: "numeric",
-});
-
-interface LocalTime {
-  readonly year: number;
-  readonly month: number; // 1-12
-  readonly day: number;
-  readonly hour: number;
-  readonly minute: number;
-  readonly second: number;
-}
-
-/** The wall clock in Europe/Brussels at `instant`. */
-function brusselsLocal(instant: number): LocalTime {
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(brusselsParts.formatToParts(instant).find((p) => p.type === type)?.value);
-  return {
-    year: part("year"),
-    month: part("month"),
-    day: part("day"),
-    hour: part("hour"),
-    minute: part("minute"),
-    second: part("second"),
-  };
-}
-
-const localAsUtc = (t: LocalTime): number =>
-  Date.UTC(t.year, t.month - 1, t.day, t.hour, t.minute, t.second);
-
-/** Europe/Brussels' offset from UTC at `instant`, in ms (whole seconds). */
-const brusselsOffset = (instant: number): number =>
-  localAsUtc(brusselsLocal(instant)) - Math.floor(instant / 1000) * 1000;
-
-/**
- * The instant at which Brussels' wall clock reads `local`. A wall time that does not exist (the
- * hour skipped in March) moves forward by that hour; one that happens twice (October) takes the
- * earlier instant, the safe side. Both are reachable by a due date: the March gap (28 Feb → 28 Mar)
- * and the October repeat, when the last Sunday of October falls on the 25th-29th and a request
- * received on the same day of September at 02:xx lands in the doubled hour (25 Sep 2026 → 25 Oct).
- */
-function brusselsInstant(local: LocalTime): number {
-  const wall = localAsUtc(local);
-  const before = brusselsOffset(wall - DAY_MS);
-  const after = brusselsOffset(wall + DAY_MS);
-  const candidates = [before, after]
-    .map((offset) => wall - offset)
-    .filter((instant) => brusselsOffset(instant) === wall - instant);
-  // no candidate: the wall time falls in the March gap; the offset from before the gap lands after it
-  return candidates.length > 0 ? Math.min(...candidates) : wall - before;
-}
-
-const daysInMonth = (year: number, month: number): number =>
-  new Date(Date.UTC(year, month, 0)).getUTCDate();
-
 /**
  * When the answer to a request received at `receivedAt` is due: GDPR art. 12(3) gives one month,
  * counted per Reg. (EEC, Euratom) 1182/71, i.e. the same date in the next month, or the last day of
@@ -131,12 +68,7 @@ const daysInMonth = (year: number, month: number): number =>
  * `isDsrOverdue` flagging a day early is acceptable. (Art. 12(3)'s extension is not modelled.)
  */
 export function dsrDueAt(receivedAt: Date): Date {
-  const local = brusselsLocal(receivedAt.getTime());
-  const year = local.month === 12 ? local.year + 1 : local.year;
-  const month = local.month === 12 ? 1 : local.month + 1;
-  const day = Math.min(local.day, daysInMonth(year, month));
-  const due = brusselsInstant({ ...local, year, month, day });
-  return new Date(due + receivedAt.getUTCMilliseconds());
+  return addBrusselsMonths(receivedAt, 1);
 }
 
 /** An open request whose deadline has passed. */
