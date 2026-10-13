@@ -10,8 +10,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # a push to main is never cancelled mid-publish (a half-published commit), only PR runs are
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # PR runs share a group per ref and supersede each other. Every push to main gets its own group
+  # (the commit sha): it is never cancelled, and GitHub cannot drop a queued run of a middle commit
+  # (a commit that is never tested or published).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -29,6 +31,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -49,6 +53,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -72,6 +78,8 @@ jobs:
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -92,6 +100,8 @@ jobs:
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -112,6 +122,8 @@ jobs:
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -150,6 +162,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       # web image: the ASafariM OS manifest label (infra/docker/web.Dockerfile). Passed through the
       # environment (`build-args: APP_MANIFEST` with no value) so the action's CSV parsing never sees the JSON.
@@ -231,15 +245,23 @@ jobs:
             '! ls node_modules/.pnpm 2>/dev/null | grep -Eq "^(typescript|vitest|tsup|esbuild|tsx|@biomejs)"'
 
       # main only: the exact image tested above is what `publish` pushes (no rebuild)
+      # The image ID (config digest) is the identity that survives `docker save` / `load` / `push`;
+      # layer and manifest digests change on push (recompression). `publish` compares it.
       - name: Export the tested image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker save igs-${{ matrix.image }}:ci | gzip -1 > igs-${{ matrix.image }}.tar.gz
+        run: |
+          docker save igs-${{ matrix.image }}:ci | gzip -1 > igs-${{ matrix.image }}.tar.gz
+          docker image inspect igs-${{ matrix.image }}:ci --format '{{.Id}}' > igs-${{ matrix.image }}.id
+          cat igs-${{ matrix.image }}.id
       - name: Upload the tested image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: image-${{ matrix.image }}
-          path: igs-${{ matrix.image }}.tar.gz
+          path: |
+            igs-${{ matrix.image }}.tar.gz
+            igs-${{ matrix.image }}.id
+          # re-running `publish` after a day fails with a missing artifact: re-run the whole workflow
           retention-days: 1
           if-no-files-found: error
 
@@ -265,6 +287,8 @@ jobs:
       REPO: ghcr.io/alisafari-it/igs-pharma-${{ matrix.image }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
@@ -275,6 +299,13 @@ jobs:
           name: image-${{ matrix.image }}
       - name: Load the tested image
         run: gunzip -c igs-${{ matrix.image }}.tar.gz | docker load
+      - name: The loaded image is the one that was tested
+        run: |
+          tested=$(cat igs-${{ matrix.image }}.id)
+          loaded=$(docker image inspect igs-${{ matrix.image }}:ci --format '{{.Id}}')
+          echo "tested: $tested"
+          echo "loaded: $loaded"
+          test -n "$tested" && test "$tested" = "$loaded"
       - name: Push
         run: |
           docker tag "igs-${{ matrix.image }}:ci" "$REPO:${{ github.sha }}"
@@ -297,9 +328,11 @@ jobs:
           if-no-files-found: error
 
   # ── 5d. Confirm all three images are published ─────────────────────────────────────
-  # Runs only when every `publish` leg succeeded; fails the run unless all three digests resolve
-  # in GHCR under the commit tag. The summary lists the references to deploy.
+  # Runs after every `publish` leg, successful or not (main only): the summary lists which images
+  # are published (by digest) and which are missing, and the run fails unless all three resolve in
+  # GHCR under the commit tag. Nothing is unpublished: a half-published commit is reported.
   publish-verify:
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -312,23 +345,37 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # no digest-* artifact at all (every leg failed early) is reported below, not an error here
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
         with:
           pattern: digest-*
           merge-multiple: true
       - name: Every image resolves by tag and by digest
         run: |
-          set -euo pipefail
-          test "$(ls digest-*.txt | wc -l)" -eq 3
-          echo "### Published images (deploy by digest)" >> "$GITHUB_STEP_SUMMARY"
+          set -uo pipefail
+          missing=0
+          echo "### Published images for ${{ github.sha }} (deploy by digest)" >> "$GITHUB_STEP_SUMMARY"
           for image in worker web platform; do
-            digest=$(cat "digest-$image.txt")
             repo="ghcr.io/alisafari-it/igs-pharma-$image"
-            resolved=$(docker buildx imagetools inspect "$repo:${{ github.sha }}" --format '{{ .Manifest.Digest }}')
-            test "$repo@$resolved" = "$digest"
-            docker buildx imagetools inspect "$digest" > /dev/null
-            echo "- \`$digest\` (tag \`${{ github.sha }}\`)" >> "$GITHUB_STEP_SUMMARY"
+            if [ ! -s "digest-$image.txt" ]; then
+              echo "- **$image: NOT PUBLISHED** (the publish leg failed or did not finish)" >> "$GITHUB_STEP_SUMMARY"
+              missing=1
+              continue
+            fi
+            digest=$(cat "digest-$image.txt")
+            resolved=$(docker buildx imagetools inspect "$repo:${{ github.sha }}" --format '{{ .Manifest.Digest }}') || resolved=""
+            if [ "$repo@$resolved" = "$digest" ] && docker buildx imagetools inspect "$digest" > /dev/null; then
+              echo "- $image: \`$digest\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- **$image: tag and recorded digest DISAGREE** (\`$digest\` vs \`$resolved\`)" >> "$GITHUB_STEP_SUMMARY"
+              missing=1
+            fi
           done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::not every image of ${{ github.sha }} is published; see the job summary"
+            exit 1
+          fi
 
   # ── 5e. Smoke, axe and gate e2e against the production build ────────────────────
   # Visual smoke (T-015), axe (T-017), the closed-gate and storefront-preview specs and the
@@ -347,6 +394,8 @@ jobs:
       SMOKE_DATABASE_URL: postgresql://ci:ci@localhost:5433/ci
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -427,6 +476,8 @@ jobs:
       pull-requests: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
