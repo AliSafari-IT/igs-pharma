@@ -20,9 +20,11 @@ export function StockImport() {
     {} as StockImportState,
   );
   const id = useId();
-  const plan = preview.plan;
-  const changes = plan?.rows.filter((row) => row.delta !== 0) ?? [];
-  const unchanged = (plan?.rows.length ?? 0) - changes.length;
+  const rows = preview.rows ?? [];
+  const problems = preview.problems ?? [];
+  const showResult = preview.planId !== undefined || problems.length > 0;
+  const changes = rows.filter((row) => row.delta !== 0);
+  const unchanged = rows.length - changes.length;
   const fileError = preview.error;
 
   return (
@@ -57,13 +59,13 @@ export function StockImport() {
         </Button>
       </form>
 
-      {plan ? (
+      {showResult ? (
         <Stack gap={4}>
-          {plan.errors.length > 0 ? (
+          {problems.length > 0 ? (
             <Alert variant="error" title={`${preview.fileName ?? "The file"} can't be imported`}>
               <p>Fix these lines and upload the file again. No stock was changed.</p>
               <ul className="mt-2 list-disc pl-5">
-                {plan.errors.map((e) => (
+                {problems.map((e) => (
                   <li key={`${e.line}-${e.code}`}>
                     {e.line === 0 ? "File" : `Line ${e.line}`}: {rowErrorMessage(e.code)}
                   </li>
@@ -77,7 +79,7 @@ export function StockImport() {
             </Alert>
           )}
 
-          {plan.rows.length > 0 ? (
+          {rows.length > 0 ? (
             <table className="w-full border-collapse text-left">
               <caption className="sr-only">What the file changes</caption>
               <thead>
@@ -103,7 +105,7 @@ export function StockImport() {
                 </tr>
               </thead>
               <tbody>
-                {plan.rows.map((row) => (
+                {rows.map((row) => (
                   <tr key={row.line} className="border-b border-[var(--color-border)]">
                     <td className="py-2 pr-4">{row.line}</td>
                     <td className="py-2 pr-4">
@@ -127,9 +129,9 @@ export function StockImport() {
             </table>
           ) : null}
 
-          {plan.errors.length === 0 ? (
+          {preview.planId && problems.length === 0 ? (
             <form action={confirmAction} className="flex flex-col gap-3">
-              <input type="hidden" name="csv" value={preview.csv ?? ""} />
+              <input type="hidden" name="planId" value={preview.planId} />
               {confirmed.error ? (
                 <Alert variant="error" title="The stock was not imported">
                   {stockErrorMessage(confirmed.error)}
