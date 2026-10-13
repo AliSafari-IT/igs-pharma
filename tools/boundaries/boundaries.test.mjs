@@ -138,6 +138,7 @@ for (const [target, specifier] of [
   ["auth", "@igs/auth"],
   ["observability", "@igs/observability/logger"],
   ["crypto", "@igs/crypto"],
+  ["time", "@igs/time"],
   ["module", "@igs/module-identity"],
 ]) {
   mustFail(
@@ -168,6 +169,28 @@ mustPass(
   "auth and modules -> @igs/rbac",
   "packages/modules/identity/src/x.ts",
   'import { hasPermission } from "@igs/rbac";\nconsole.log(hasPermission);\n',
+);
+
+// --- @igs/time is a leaf: it imports nothing in-repo, and modules may use it ---------------------
+for (const [target, specifier] of [
+  ["config", "@igs/config/env"],
+  ["db", "@igs/db/ids"],
+  ["kernel", "@igs/kernel"],
+  ["rbac", "@igs/rbac"],
+  ["crypto", "@igs/crypto"],
+  ["module", "@igs/module-privacy"],
+]) {
+  mustFail(
+    `time -> ${target}`,
+    "packages/time/src/x.ts",
+    `import * as x from "${specifier}";\nconsole.log(x);\n`,
+    "boundaries/element-types",
+  );
+}
+mustPass(
+  "modules -> @igs/time",
+  "packages/modules/privacy/src/x.ts",
+  'import { addBrusselsDays } from "@igs/time";\nconsole.log(addBrusselsDays);\n',
 );
 
 // --- sanity: legitimate imports stay legal --------------------------------------------------
