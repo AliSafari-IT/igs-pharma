@@ -22,6 +22,9 @@ const cnk = () => `93${String(randomInt(0, 100_000)).padStart(5, "0")}`;
 const stocked = { cnk: cnk(), name: `Demo Voorraad ${suffix}` };
 const soldOut = { cnk: cnk(), name: `Demo Uitverkocht ${suffix}` };
 const draft = { cnk: cnk(), name: `Demo Concept ${suffix}` };
+// D-034: ACTIVE, priced and in a category, yet never shown (by legal status / by product type)
+const rxLegal = { cnk: cnk(), name: `Demo Rx Wettelijk ${suffix}` };
+const rxType = { cnk: cnk(), name: `Demo Rx Type ${suffix}` };
 const productIds: string[] = [];
 
 async function expectAxeClean(page: Page) {
@@ -41,14 +44,16 @@ test.beforeAll(async () => {
     VALUES (gen_random_uuid(), ${categorySlug}, ${`Pijn ${suffix}`}, ${`Douleur ${suffix}`})
     RETURNING id`;
   const [location] = await sql<{ id: string }[]>`SELECT id FROM inventory.locations LIMIT 1`;
-  for (const [item, status] of [
-    [stocked, "active"],
-    [soldOut, "active"],
-    [draft, "draft"],
+  for (const [item, status, type, legal] of [
+    [stocked, "active", "otc_medicine", "otc"],
+    [soldOut, "active", "otc_medicine", "otc"],
+    [draft, "draft", "otc_medicine", "otc"],
+    [rxLegal, "active", "otc_medicine", "rx"],
+    [rxType, "active", "rx_medicine", "otc"],
   ] as const) {
     const [product] = await sql<{ id: string }[]>`
       INSERT INTO catalog.products (id, cnk, product_type, legal_status, vat_class, status)
-      VALUES (gen_random_uuid(), ${item.cnk}, 'otc_medicine', 'otc', 'BE_6', ${status})
+      VALUES (gen_random_uuid(), ${item.cnk}, ${type}, ${legal}, 'BE_6', ${status})
       RETURNING id`;
     const id = (product as { id: string }).id;
     productIds.push(id);
@@ -137,6 +142,9 @@ test("with the key: banner, a category, a product with price, VAT and availabili
   ).toBeVisible();
   // a draft does not exist, and no stock count is ever shown
   await expect(page.getByText(draft.name)).toHaveCount(0);
+  // a prescription medicine does not exist either, though it is active, priced and categorised
+  await expect(page.getByText(rxLegal.name)).toHaveCount(0);
+  await expect(page.getByText(rxType.name)).toHaveCount(0);
   await expect(page.getByText(/\b12\b/)).toHaveCount(0);
   await expectAxeClean(page);
 
@@ -161,8 +169,8 @@ test("with the key: banner, a category, a product with price, VAT and availabili
   await expect(page.getByRole("heading", { level: 1, name: stocked.name })).toBeVisible();
   await expect(page.getByText("noch nicht in Ihrer Sprache")).toBeVisible();
 
-  // a draft product and an unknown CNK are plain 404s, even with the cookie
-  for (const missing of [draft.cnk, "0000000"]) {
+  // a draft, a prescription medicine and an unknown CNK are the same plain 404, even with the cookie
+  for (const missing of [draft.cnk, rxLegal.cnk, rxType.cnk, "0000000"]) {
     const gone = await page.goto(`${GATED}/nl/p/${missing}`);
     expect(gone?.status(), missing).toBe(404);
     await expect(page.getByText("Pagina niet gevonden"), missing).toBeVisible();
