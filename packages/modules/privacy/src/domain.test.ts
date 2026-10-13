@@ -28,12 +28,12 @@ describe("dsrDueAt (one calendar month, Europe/Brussels)", () => {
       "2027-03-28T10:00:00+02:00",
     ],
     [
-      "across the March change from the day before the change",
+      "a month that ends before the March change (14 Feb → 14 Mar) keeps 02:30; no DST in between",
       "2027-02-14T02:30:00+01:00",
       "2027-03-14T02:30:00+01:00",
     ],
     [
-      "across the October change (31 Oct 2027) the local time stays 10:00",
+      "a month that ends before the October change (30 Sep → 30 Oct) keeps 10:00; no DST in between",
       "2027-09-30T10:00:00+02:00",
       "2027-10-30T10:00:00+02:00",
     ],
@@ -69,6 +69,24 @@ describe("dsrDueAt (one calendar month, Europe/Brussels)", () => {
     // not the 28 Feb that a UTC calendar would give
     expect(dsrDueAt(new Date("2027-01-31T23:30:00Z")).toISOString()).toBe(
       "2027-02-28T23:30:00.000Z",
+    );
+  });
+
+  it("takes the EARLIER instant when the due wall time happens twice (October)", () => {
+    // the last Sunday of October is the 25th in 2026 and the 29th in 2028: 02:30 happens at 00:30Z
+    // (CEST) and again at 01:30Z (CET); the deadline is the first
+    expect(dsrDueAt(new Date("2026-09-25T02:30:00+02:00")).toISOString()).toBe(
+      "2026-10-25T00:30:00.000Z",
+    );
+    expect(dsrDueAt(new Date("2028-09-29T02:30:00+02:00")).toISOString()).toBe(
+      "2028-10-29T00:30:00.000Z",
+    );
+    // just outside the doubled hour nothing is ambiguous
+    expect(dsrDueAt(new Date("2026-09-25T03:30:00+02:00")).toISOString()).toBe(
+      "2026-10-25T02:30:00.000Z", // 03:30 CET
+    );
+    expect(dsrDueAt(new Date("2026-09-25T01:59:00+02:00")).toISOString()).toBe(
+      "2026-10-24T23:59:00.000Z", // 01:59 CEST
     );
   });
 

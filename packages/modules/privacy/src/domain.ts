@@ -104,8 +104,9 @@ const brusselsOffset = (instant: number): number =>
 /**
  * The instant at which Brussels' wall clock reads `local`. A wall time that does not exist (the
  * hour skipped in March) moves forward by that hour; one that happens twice (October) takes the
- * earlier instant, the safe side. A due date can only hit the March gap (28 Feb → 28 Mar), never
- * the October repeat (there is no 31 September), but the helper handles both.
+ * earlier instant, the safe side. Both are reachable by a due date: the March gap (28 Feb → 28 Mar)
+ * and the October repeat, when the last Sunday of October falls on the 25th-29th and a request
+ * received on the same day of September at 02:xx lands in the doubled hour (25 Sep 2026 → 25 Oct).
  */
 function brusselsInstant(local: LocalTime): number {
   const wall = localAsUtc(local);
