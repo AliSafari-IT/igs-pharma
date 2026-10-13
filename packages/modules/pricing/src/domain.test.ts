@@ -98,12 +98,12 @@ describe("priceAt", () => {
 describe("lowestPriceBefore: the reference price of a reduction (Omnibus)", () => {
   // January: no clock change in the window, so 30 calendar days = 30 × 24 h here
   const applied = new Date("2026-01-20T12:00:00Z");
-  const before = (n: number) => new Date(applied.getTime() - n * DAY);
-  const windowOpens = before(30);
+  const daysBefore = (n: number) => new Date(applied.getTime() - n * DAY);
+  const windowOpens = daysBefore(30);
 
   it("never counts the reduction itself, only what came before it", () => {
     // 1000 for 40 days, then 700: the old maths answered 700 at the start of the reduction
-    const points = [point(1000, before(40)), point(700, applied)];
+    const points = [point(1000, daysBefore(40)), point(700, applied)];
     expect(lowestPriceBefore(points, applied)).toEqual({ cents: 1000, fullWindow: true });
   });
 
@@ -112,21 +112,25 @@ describe("lowestPriceBefore: the reference price of a reduction (Omnibus)", () =
     ["a price that ended 1 ms after the window opened does", 1, 300],
   ])("%s", (_name, overlapMs, expected) => {
     const points = [
-      point(300, before(50)),
+      point(300, daysBefore(50)),
       point(900, new Date(windowOpens.getTime() + overlapMs)),
-      point(800, before(10)),
+      point(800, daysBefore(10)),
     ];
     expect(lowestPriceBefore(points, applied)?.cents).toBe(expected);
   });
 
   it("keeps a drop inside the window after a later rise", () => {
-    const points = [point(1000, before(40)), point(800, before(20)), point(1200, before(5))];
+    const points = [
+      point(1000, daysBefore(40)),
+      point(800, daysBefore(20)),
+      point(1200, daysBefore(5)),
+    ];
     expect(lowestPriceBefore(points, applied)?.cents).toBe(800);
   });
 
   it("ignores a scheduled price and a price that starts exactly at the reduction", () => {
     const points = [
-      point(1000, before(40)),
+      point(1000, daysBefore(40)),
       point(100, applied),
       point(50, new Date(applied.getTime() + DAY)),
     ];
@@ -134,7 +138,7 @@ describe("lowestPriceBefore: the reference price of a reduction (Omnibus)", () =
   });
 
   it("ignores a row overtaken at the same moment (never in force)", () => {
-    const start = before(3);
+    const start = daysBefore(3);
     expect(
       lowestPriceBefore([point(100, start), point(700, start), point(600, applied)], applied)
         ?.cents,
@@ -142,12 +146,12 @@ describe("lowestPriceBefore: the reference price of a reduction (Omnibus)", () =
   });
 
   it("says when the history is shorter than the window, using what exists", () => {
-    const points = [point(1000, before(10)), point(700, applied)];
+    const points = [point(1000, daysBefore(10)), point(700, applied)];
     expect(lowestPriceBefore(points, applied)).toEqual({ cents: 1000, fullWindow: false });
   });
 
   it("is full when a price was already in force as the window opened", () => {
-    expect(lowestPriceBefore([point(500, before(60))], applied)).toEqual({
+    expect(lowestPriceBefore([point(500, daysBefore(60))], applied)).toEqual({
       cents: 500,
       fullWindow: true,
     });
@@ -195,10 +199,10 @@ describe("lowestPriceBefore: the reference price of a reduction (Omnibus)", () =
 
 describe("priceReductionAt", () => {
   const applied = new Date("2026-01-20T12:00:00Z");
-  const before = (n: number) => new Date(applied.getTime() - n * DAY);
+  const daysBefore = (n: number) => new Date(applied.getTime() - n * DAY);
 
   it("starts exactly at the moment the reduction applies: 1 ms before it there is none", () => {
-    const points = [point(1000, before(40)), point(700, applied)];
+    const points = [point(1000, daysBefore(40)), point(700, applied)];
     expect(priceReductionAt(points, new Date(applied.getTime() - 1))).toBeNull();
     const expected = {
       currentCents: 700,
@@ -212,7 +216,7 @@ describe("priceReductionAt", () => {
   });
 
   it("measures a reduction after a reduction against the window before the LATEST one", () => {
-    const points = [point(1000, before(60)), point(800, before(20)), point(600, applied)];
+    const points = [point(1000, daysBefore(60)), point(800, daysBefore(20)), point(600, applied)];
     expect(priceReductionAt(points, applied)).toMatchObject({
       currentCents: 600,
       referenceCents: 800,
@@ -221,13 +225,13 @@ describe("priceReductionAt", () => {
     expect(priceReductionAt(points, new Date(applied.getTime() - 1))).toMatchObject({
       currentCents: 800,
       referenceCents: 1000,
-      appliedAt: before(20),
+      appliedAt: daysBefore(20),
     });
   });
 
   it.each([
-    ["a rise", [point(700, before(40)), point(1000, applied)]],
-    ["the same price again", [point(700, before(40)), point(700, applied)]],
+    ["a rise", [point(700, daysBefore(40)), point(1000, applied)]],
+    ["the same price again", [point(700, daysBefore(40)), point(700, applied)]],
     ["a first price", [point(700, applied)]],
     ["no price yet", [point(700, new Date(applied.getTime() + 1))]],
   ])("is none for %s", (_name, points) => {
@@ -235,7 +239,7 @@ describe("priceReductionAt", () => {
   });
 
   it("carries the short-history flag of the reference", () => {
-    const points = [point(1000, before(10)), point(700, applied)];
+    const points = [point(1000, daysBefore(10)), point(700, applied)];
     expect(priceReductionAt(points, applied)).toMatchObject({
       referenceCents: 1000,
       fullWindow: false,
