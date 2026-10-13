@@ -29,6 +29,8 @@
       "cache": false,
       "passThroughEnv": [
         "DATABASE_MIGRATE_URL",
+        "DATABASE_SSL",
+        "DATABASE_SSL_CA",
         "DATABASE_URL",
         "DATABASE_MAX_CONNECTIONS",
         "AUTH_SECRET",
@@ -40,6 +42,8 @@
       "outputs": ["drizzle/**"],
       "passThroughEnv": [
         "DATABASE_MIGRATE_URL",
+        "DATABASE_SSL",
+        "DATABASE_SSL_CA",
         "DATABASE_URL",
         "DATABASE_MAX_CONNECTIONS",
         "AUTH_SECRET",

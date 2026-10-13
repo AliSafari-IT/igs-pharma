@@ -1,5 +1,5 @@
 import type { Db } from "@igs/db";
-import { closeDb, getDb } from "@igs/db/client";
+import { MIGRATE_LOCK_KEY, closeDb, getDb, withAdvisoryLock } from "@igs/db/client";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 
@@ -18,6 +18,17 @@ export async function checkDatabase(): Promise<void> {
  */
 export async function migrateDatabase(migrationsFolder: string): Promise<void> {
   await migrate(getDb(), { migrationsFolder });
+}
+
+/**
+ * Runs the whole migrate entry (Drizzle migrations, pg-boss install, queue creation, grants) under a
+ * session-level advisory lock, so two concurrent starts serialise (igs-pharma#77).
+ */
+export function withMigrateLock<T>(
+  fn: () => Promise<T>,
+  options: { waitSeconds?: number; onWait?: () => void } = {},
+): Promise<T> {
+  return withAdvisoryLock(MIGRATE_LOCK_KEY, fn, options);
 }
 
 /** Closes the connection pool on graceful shutdown. */

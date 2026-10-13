@@ -7,6 +7,7 @@
  *
  * 1. Applies the committed Drizzle migrations (`packages/db/drizzle`, copied into the image as
  *    `/app/drizzle`), each once: the same chain and journal as `pnpm db:migrate` (migrations.md).
+ *    The whole run holds a session-level advisory lock, so concurrent starts serialise (#77).
  * 2. Installs or upgrades pg-boss's `pgboss` schema (D-021): the production worker starts pg-boss
  *    with `migrate: false`, so this is the step that creates it.
  *
@@ -22,11 +23,8 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { adoptMigrateDsn, parseEnvFor, workerEnv } from "@igs/config/env";
-import { closeDatabase, migrateDatabase } from "@igs/kernel";
-import PgBoss from "pg-boss";
 
-import { registerWorkerEvents } from "./events";
-import { type InstallableBoss, installPgBossQueuesAndGrants } from "./pgboss-install";
+import { runMigrate } from "./migrate-run";
 
 /** `/app/drizzle` next to `/app/dist` in the image; the repository's folder under `tsx`. */
 function migrationsFolder(): string {
@@ -50,36 +48,7 @@ async function main() {
   }
   const { logger } = await import("@igs/observability/logger");
 
-  const folder = migrationsFolder();
-  try {
-    logger.info({ folder }, "Applying database migrations");
-    await migrateDatabase(folder);
-    logger.info("Database migrations applied");
-  } finally {
-    await closeDatabase();
-  }
-
-  // same connection settings as the worker (src/index.ts), but allowed to migrate its schema
-  const boss = new PgBoss({
-    connectionString: env.DATABASE_URL,
-    max: 1,
-    migrate: true,
-    supervise: false,
-    schedule: false,
-    ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-  });
-  boss.on("error", (err) => logger.error({ err }, "pg-boss error"));
-  await boss.start();
-  try {
-    // the same events as the worker: one queue per topic (see ./events)
-    registerWorkerEvents();
-    // getDb() is public in pg-boss 10 but missing from its typings
-    await installPgBossQueuesAndGrants(boss as unknown as InstallableBoss);
-    logger.info("pg-boss queues and runtime grants up to date");
-  } finally {
-    await boss.stop({ graceful: false, wait: true });
-  }
-  logger.info("pg-boss schema up to date");
+  await runMigrate({ folder: migrationsFolder(), env, logger });
 }
 
 main().catch(async (err: unknown) => {

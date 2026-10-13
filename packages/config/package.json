@@ -15,6 +15,10 @@
     "./feature-flags": {
       "types": "./src/feature-flags.ts",
       "default": "./src/feature-flags.ts"
+    },
+    "./db-ssl": {
+      "types": "./src/db-ssl.ts",
+      "default": "./src/db-ssl.ts"
     }
   },
   "scripts": {
