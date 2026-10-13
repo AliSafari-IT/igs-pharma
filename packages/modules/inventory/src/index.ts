@@ -29,3 +29,14 @@ export {
   listStock,
 } from "./queries";
 export { INVENTORY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
+export {
+  IMPORT_PLAN_GRACE_HOURS,
+  INVENTORY_JOBS,
+  INVENTORY_QUEUES,
+  type InventoryJobScheduler,
+  type InventoryQueueAdmin,
+  ensureInventoryQueues,
+  registerInventoryJobs,
+  reportImportPlanPurgeFailed,
+  runImportPlanPurge,
+} from "./jobs";

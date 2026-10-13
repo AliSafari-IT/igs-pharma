@@ -1,8 +1,24 @@
 import { newId } from "@igs/db/ids";
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  pgSchema,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
-import { CONSENT_PURPOSES, CONSENT_SOURCES, DSR_CHANNELS, DSR_STATUSES, DSR_TYPES } from "./domain";
+import {
+  CONSENT_PURPOSES,
+  CONSENT_SOURCES,
+  DSR_CHANNELS,
+  DSR_STATUSES,
+  DSR_TYPES,
+  RETENTION_KEYS,
+} from "./domain";
 
 /**
  * Privacy module tables (igs-pharma#58, domain-model §10). Owned by this module (D-001), Postgres
@@ -90,5 +106,25 @@ export const dsrEvents = privacy.table(
   (t) => [
     check("dsr_events_to_status_check", oneOf("to_status", DSR_STATUSES)),
     index("dsr_events_request_at_idx").on(t.requestId, t.at),
+  ],
+);
+
+/**
+ * How long personal data is kept (igs-pharma#88). Written by migrations only: the runtime roles can
+ * read it and nothing else, so the worker that purges cannot shorten retention. `months` is `NULL`
+ * for "keep": the purge function skips that scope. Every row awaits the privacy adviser's decision
+ * (`awaits_adviser`). The purge itself is `privacy.purge_expired_data()` (a definer function).
+ */
+export const retentionPolicy = privacy.table(
+  "retention_policy",
+  {
+    key: text("key").primaryKey(),
+    months: integer("months"),
+    awaitsAdviser: boolean("awaits_adviser").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("retention_policy_key_check", oneOf("key", RETENTION_KEYS)),
+    check("retention_policy_months_check", sql`${t.months} IS NULL OR ${t.months} >= 0`),
   ],
 );

@@ -55,6 +55,8 @@ export const PERMISSIONS = {
     dsrRead: "privacy.dsr.read",
     /** Back-office: log a data-subject request and move it through its statuses. */
     dsrManage: "privacy.dsr.manage",
+    /** System actors only: the retention job deletes expired ledger rows (igs-pharma#88). */
+    retentionPurge: "privacy.retention.purge",
   },
   staff: {
     invite: "staff.invite",
@@ -117,6 +119,10 @@ export const ROLES = {
     description:
       "Synthetic seed CLI: loads fake catalogue, stock, price and privacy data (staging and development only)",
   },
+  system_maintenance: {
+    kind: "system",
+    description: "Worker maintenance jobs: purges personal data past its retention period",
+  },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -137,7 +143,10 @@ export const PHARMACIST_ONLY: readonly Permission[] = [
 export const PHARMACIST_ROLES: readonly RoleKey[] = ["pharmacist", "pharmacist_titular"];
 
 /** System-only permissions (36b): held by `system` roles, never implied by `owner`. */
-export const SYSTEM_ONLY: readonly Permission[] = Object.values(PERMISSIONS.identity);
+export const SYSTEM_ONLY: readonly Permission[] = [
+  ...Object.values(PERMISSIONS.identity),
+  PERMISSIONS.privacy.retentionPurge,
+];
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
 export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> = {
@@ -221,6 +230,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.privacy.dsrRead,
     PERMISSIONS.privacy.dsrManage,
   ],
+  system_maintenance: [PERMISSIONS.privacy.retentionPurge],
 };
 
 /** One row of `identity.role_permissions`. */

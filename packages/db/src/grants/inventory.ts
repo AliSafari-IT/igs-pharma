@@ -17,6 +17,11 @@ export const inventory: SchemaGrants = {
       since: 29,
     }),
     fn("inventory.reject_mutation()", { note: "trigger function" }),
+    fn("inventory.purge_expired_import_plans()", {
+      worker: true,
+      note: "SECURITY DEFINER, zero arguments: the worker's daily purge of expired import plans (igs-pharma#88)",
+      since: 33,
+    }),
     fn("inventory.apply_movement_to_level()", {
       note: "SECURITY DEFINER trigger function (no EXECUTE for anyone: a trigger needs none)",
       since: 29,

@@ -37,16 +37,22 @@ import {
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAudit,
 } from "@igs/module-identity";
-import { adjustStock, registerAuditActions as registerInventoryAudit } from "@igs/module-inventory";
+import {
+  adjustStock,
+  registerAuditActions as registerInventoryAudit,
+  registerInventoryJobs,
+} from "@igs/module-inventory";
 import {
   currentPrices,
   registerAuditActions as registerPricingAudit,
   setPrice,
 } from "@igs/module-pricing";
 import {
+  PRIVACY_JOBS,
   createDsr,
   recordConsent,
   registerAuditActions as registerPrivacyAudit,
+  registerPrivacyJobs,
 } from "@igs/module-privacy";
 import { drizzle } from "drizzle-orm/postgres-js";
 import PgBoss from "pg-boss";
@@ -308,6 +314,95 @@ describe("the worker as igs_worker (member of igs_app and igs_worker)", () => {
   }, 60_000);
 });
 
+describe("the retention jobs as igs_worker (igs-pharma#88)", () => {
+  let db: RuntimeRoleDatabase;
+  let runtimeWorker: ReturnType<typeof connect>;
+  let admin: postgres.Sql;
+  let boss: PgBoss | undefined;
+
+  beforeAll(async () => {
+    db = await createRuntimeRoleDatabase();
+    await runMigrateEntry(db, { queues: true });
+    runtimeWorker = connect(db.workerUrl);
+    admin = postgres(db.adminUrl, { max: 2, onnotice: () => {} });
+  }, 180_000);
+  afterAll(async () => {
+    await boss?.stop({ graceful: false, wait: true });
+    await admin?.end({ timeout: 5 });
+    await runtimeWorker?.sql.end({ timeout: 5 });
+    await db?.drop();
+  });
+
+  it("purge expired plans and withdrawn consent through the real queues, audit counts only, log counts only", async () => {
+    const kernel = configureKernelForTests({ db: runtimeWorker.db, audit: createAuditPort() });
+    kernel.clock.set(new Date());
+    await ensureRbacCatalogue(runtimeWorker.db);
+
+    // fixtures, written by the administrator: a plan expired two days ago, a withdrawn chain from 7 years ago
+    const email = `retention-${randomUUID()}@example.test`;
+    const old = new Date(Date.now() - 7 * 365 * 86_400_000).toISOString();
+    await admin`
+      INSERT INTO inventory.import_plans (id, actor_id, rows, created_at, expires_at)
+      VALUES (${randomUUID()}, 'staff-1', '[]'::jsonb, now() - interval '51 hours', now() - interval '50 hours')`;
+    await admin`
+      INSERT INTO privacy.consent_events (id, subject_ref, purpose, granted, policy_version, source, actor_type, actor_id, at)
+      VALUES (${randomUUID()}, ${email}, 'marketing_email', false, 'v1', 'storefront', 'system', 't', ${old}::timestamptz)`;
+
+    boss = new PgBoss({
+      connectionString: db.workerUrl,
+      max: 4,
+      migrate: false,
+      supervise: false,
+      schedule: false,
+    });
+    const errors: unknown[] = [];
+    boss.on("error", (err) => errors.push(err));
+    await boss.start();
+    const logs: { obj: Record<string, unknown>; msg?: string }[] = [];
+    const runtime = {
+      db: runtimeWorker.db,
+      now: () => new Date(),
+      metrics: { increment: () => {} },
+      logger: {
+        error: (obj: Record<string, unknown>) => void errors.push(obj),
+        info: (obj: Record<string, unknown>, msg?: string) =>
+          void logs.push({ obj, ...(msg ? { msg } : {}) }),
+        warn: (obj: Record<string, unknown>) => void errors.push(obj),
+      },
+    };
+    await registerInventoryJobs(boss as never, runtime);
+    await registerPrivacyJobs(boss as never, runtime);
+    await boss.send("inventory.plans.purge", {});
+    await boss.send(PRIVACY_JOBS.purge.queue, {});
+    await vi.waitFor(
+      () =>
+        expect(logs.map((l) => l.msg)).toEqual(
+          expect.arrayContaining(["inventory.plans.purged", "privacy.retention.purged"]),
+        ),
+      { timeout: 20_000, interval: 250 },
+    );
+
+    expect(logs.find((l) => l.msg === "inventory.plans.purged")?.obj).toEqual({ purged: 1 });
+    expect(logs.find((l) => l.msg === "privacy.retention.purged")?.obj).toMatchObject({
+      consentEvents: 1,
+    });
+    expect(JSON.stringify(logs)).not.toContain("@");
+    const [plans] = await admin<
+      { n: number }[]
+    >`SELECT count(*)::int AS n FROM inventory.import_plans`;
+    const [consents] = await admin<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM privacy.consent_events WHERE subject_ref = ${email}`;
+    expect([plans?.n, consents?.n]).toEqual([0, 0]);
+    // the audit entry written under the worker role: counts, no personal data
+    const events = await admin<{ data: Record<string, unknown> }[]>`
+      SELECT data FROM audit.events WHERE action = 'privacy.retention.purged'`;
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data).toMatchObject({ consentEvents: 1, dsrRequests: 0, dsrEvents: 0 });
+    expect(JSON.stringify(events)).not.toContain(email);
+    expect(errors, "errors under the runtime role").toEqual([]);
+  }, 60_000);
+});
+
 describe("a worker started before the migrate entry has run", () => {
   let db: RuntimeRoleDatabase;
   let boss: PgBoss | undefined;
@@ -342,6 +437,19 @@ describe("a worker started before the migrate entry has run", () => {
           logger: { error: () => {} },
         }),
       ).rejects.toThrow(/kernel\.queue_missing.*migrate entry/s);
+      // the retention jobs (igs-pharma#88) refuse the same way
+      const runtime = {
+        db: workerDb,
+        now: () => new Date(),
+        metrics: { increment: () => {} },
+        logger: { error: () => {} },
+      };
+      await expect(registerInventoryJobs(boss as never, runtime)).rejects.toThrow(
+        /kernel\.queue_missing.*inventory\.plans\.purge/s,
+      );
+      await expect(registerPrivacyJobs(boss as never, runtime)).rejects.toThrow(
+        /kernel\.queue_missing.*privacy\.retention\.purge/s,
+      );
       // and the runtime role could not have created them anyway
       await expect(boss.createQueue("runtime.roles.rogue")).rejects.toThrow();
     } finally {
