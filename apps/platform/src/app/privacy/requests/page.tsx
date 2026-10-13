@@ -88,7 +88,7 @@ export default async function DataRequestsPage({ searchParams }: Props) {
           {result && result.overdueTotal > 0 ? (
             <Alert variant="error" title="Overdue requests">
               {result.overdueTotal} open request{result.overdueTotal === 1 ? " is" : "s are"} past
-              the 30-day deadline.
+              the one-month deadline.
             </Alert>
           ) : null}
 
