@@ -25,16 +25,51 @@ async function fresh() {
 describe("hasPermission (code catalogue installed)", () => {
   beforeAll(() => useCodeRbacCatalogue());
 
-  it("owner has every staff permission except the pharmacist- and system-only ones (K2, D-030)", () => {
+  // The owner's exact set (#64 C7). Changing the owner's permissions must change this list in the
+  // same PR, so every addition is reviewed; a new permission is NOT granted to the owner by default.
+  const OWNER_PERMISSIONS = [
+    "catalog.manage",
+    "catalog.products.manage",
+    "catalog.products.read",
+    "catalog.read",
+    "catalog.storefront.read",
+    "inventory.availability.read",
+    "inventory.stock.manage",
+    "inventory.stock.read",
+    "orders.read",
+    "pricing.price.manage",
+    "pricing.price.read",
+    "privacy.consent.read",
+    "privacy.consent.record",
+    "privacy.dsr.manage",
+    "privacy.dsr.read",
+    "staff.invite",
+    "staff.manage",
+  ];
+
+  it("the owner's permission set is pinned exactly (C7, D-030)", () => {
+    const held = ALL_PERMISSIONS.filter((permission) => hasPermission(["owner"], permission));
+    expect([...held].sort()).toEqual([...OWNER_PERMISSIONS].sort());
+  });
+
+  it("the owner never holds a pharmacist-only, system-only or customer-scoped permission", () => {
     for (const permission of ALL_PERMISSIONS) {
-      const expected =
-        !PHARMACIST_ONLY.includes(permission) &&
-        !SYSTEM_ONLY.includes(permission) &&
-        !permission.endsWith(".own");
-      expect(hasPermission(["owner"], permission), permission).toBe(expected);
+      const forbidden =
+        PHARMACIST_ONLY.includes(permission) ||
+        SYSTEM_ONLY.includes(permission) ||
+        permission.endsWith(".own") ||
+        permission === PERMISSIONS.orders.create;
+      if (forbidden) expect(hasPermission(["owner"], permission), permission).toBe(false);
     }
     expect(hasPermission(["owner"], PERMISSIONS.orders.reviewDecide)).toBe(false);
     expect(hasPermission(["owner"], PERMISSIONS.pharmacy.pharmacistsManage)).toBe(false);
+  });
+
+  it("every permission is held by at least one role (no orphaned permission)", () => {
+    for (const permission of ALL_PERMISSIONS) {
+      const holders = ROLE_KEYS.filter((role) => hasPermission([role], permission));
+      expect(holders.length, permission).toBeGreaterThan(0);
+    }
   });
 
   it("an owner who is also a pharmacist holds both (K2)", () => {
