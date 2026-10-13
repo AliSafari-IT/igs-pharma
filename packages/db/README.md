@@ -50,15 +50,22 @@ schemas** and is the only one that runs DDL. This is code, not server folklore:
 | `igs_worker` (group; the worker's login is a member of **both** groups) | worker | `igs_app` plus the worker-only grants (purge `DELETE`, `audit.maintain_partitions()`, `pgboss` DML) |
 
 - **The manifest** is `src/grants/<schema>.ts` (one file per schema, no module import: D-001). It is
-  the single source of truth for the tests and was rendered into migration `0026_runtime_grants`
-  with `renderGrantsSql`. The migration is idempotent: it resets PUBLIC and the runtime roles in each
+  the single source of truth for the tests and is rendered into migration `0026_runtime_grants` by
+  `pnpm db:grants:generate`; `test/grants-sql.test.ts` fails when the committed SQL differs from the
+  generator output. A later table gets `since: <migration number>` on its manifest entry, its own
+  migration (`drizzle-kit generate --custom`) and `pnpm db:grants:generate <number>` renders that
+  migration's `GRANT`s. The migration is idempotent: it resets PUBLIC and the runtime roles in each
   schema and grants exactly the manifest, so it converges on a database whose grants were made by
-  hand. It ends with an assertion that lists (and never fixes) runtime-role-owned objects and
-  powerful role attributes.
+  hand. It STARTS with an assertion that lists (and never fixes) objects owned by a runtime role or
+  by a member of one (including `pgboss`) and powerful role attributes, so a non-superuser
+  administrator gets the offender list instead of a bare `permission denied`.
 - **A new table or function fails `test/grants.test.ts` until it has a manifest entry** (the drift
   test), and gets its grants in **its own migration** (no `ALTER DEFAULT PRIVILEGES`, no `PUBLIC`).
   Add the entry to the module's schema file and write the `GRANT`s next to the `CREATE TABLE`
   (`renderGrantsSql` can print them). The same test compares every privilege in both directions.
+- **Events**: the worker and the migrate entry both call `registerWorkerEvents()` (`apps/worker/src/events.ts`);
+  the migrate entry creates one queue per registered topic. Adding an event means re-running the
+  migrate entry before starting the new worker.
 - **pg-boss**: its schema is installed by the migrate entry (the administrator owns it), which also
   creates every queue (DDL) and grants the worker its DML (`renderPgbossGrantsSql`). The worker only
   checks that its queues exist (`kernel.queue_missing`).

@@ -37,6 +37,8 @@ export interface TableGrant {
   readonly worker: readonly TablePrivilege[];
   /** Why, when it is not obvious. */
   readonly note?: string;
+  /** The grants migration that introduced the entry (default 26, `0026_runtime_grants`). */
+  readonly since?: number;
 }
 
 export interface FunctionGrant {
@@ -47,6 +49,8 @@ export interface FunctionGrant {
   /** Granted to `igs_worker` itself (the worker login also holds `app`). */
   readonly worker: boolean;
   readonly note?: string;
+  /** See `TableGrant.since`. */
+  readonly since?: number;
 }
 
 export type ObjectGrant = TableGrant | FunctionGrant;
@@ -61,7 +65,12 @@ export interface SchemaGrants {
 export const table = (
   name: string,
   cls: TableClass,
-  grants: { app?: readonly TablePrivilege[]; worker?: readonly TablePrivilege[]; note?: string },
+  grants: {
+    app?: readonly TablePrivilege[];
+    worker?: readonly TablePrivilege[];
+    note?: string;
+    since?: number;
+  },
 ): TableGrant => ({
   kind: "table",
   name,
@@ -69,15 +78,17 @@ export const table = (
   app: grants.app ?? [],
   worker: grants.worker ?? [],
   ...(grants.note ? { note: grants.note } : {}),
+  ...(grants.since ? { since: grants.since } : {}),
 });
 
 export const fn = (
   name: string,
-  grants: { app?: boolean; worker?: boolean; note?: string },
+  grants: { app?: boolean; worker?: boolean; note?: string; since?: number },
 ): FunctionGrant => ({
   kind: "function",
   name,
   app: grants.app ?? false,
   worker: grants.worker ?? false,
   ...(grants.note ? { note: grants.note } : {}),
+  ...(grants.since ? { since: grants.since } : {}),
 });

@@ -221,8 +221,15 @@ describe("migrateDsn (igs-pharma#66)", () => {
     expect(() => migrateDsn(production)).toThrow(/DATABASE_MIGRATE_URL is not set/);
     expect(() => migrateDsn({ ...production, DATABASE_MIGRATE_URL: "" })).toThrow(/not set/);
     expect(() => migrateDsn({ ...production, DATABASE_MIGRATE_URL: runtime })).toThrow(
-      /must differ/,
+      /different database user/,
     );
+    // the same user behind a query string, another host or database is still the runtime role
+    expect(() =>
+      migrateDsn({ ...production, DATABASE_MIGRATE_URL: `${runtime}?sslmode=require` }),
+    ).toThrow(/different database user/);
+    expect(() =>
+      migrateDsn({ ...production, DATABASE_MIGRATE_URL: "postgresql://igs_app:other@db2:5432/x" }),
+    ).toThrow(/different database user/);
     expect(migrateDsn({ ...production, DATABASE_MIGRATE_URL: admin })).toBe(admin);
     // the operator may pass only the migrate DSN
     expect(migrateDsn({ NODE_ENV: "production", DATABASE_MIGRATE_URL: admin })).toBe(admin);

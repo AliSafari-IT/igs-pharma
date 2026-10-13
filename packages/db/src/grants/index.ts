@@ -1,5 +1,10 @@
 export * from "./types";
-export { renderGrantsSql, renderPgbossGrantsSql } from "./sql";
+export {
+  GRANTS_MIGRATION,
+  renderGrantsSql,
+  renderPgbossGrantsScript,
+  renderPgbossGrantsSql,
+} from "./sql";
 
 import { audit } from "./audit";
 import { catalog } from "./catalog";

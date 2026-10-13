@@ -25,6 +25,7 @@ import { adoptMigrateDsn, parseEnvFor, workerEnv } from "@igs/config/env";
 import { closeDatabase, migrateDatabase } from "@igs/kernel";
 import PgBoss from "pg-boss";
 
+import { registerWorkerEvents } from "./events";
 import { type InstallableBoss, installPgBossQueuesAndGrants } from "./pgboss-install";
 
 /** `/app/drizzle` next to `/app/dist` in the image; the repository's folder under `tsx`. */
@@ -70,6 +71,8 @@ async function main() {
   boss.on("error", (err) => logger.error({ err }, "pg-boss error"));
   await boss.start();
   try {
+    // the same events as the worker: one queue per topic (see ./events)
+    registerWorkerEvents();
     // getDb() is public in pg-boss 10 but missing from its typings
     await installPgBossQueuesAndGrants(boss as unknown as InstallableBoss);
     logger.info("pg-boss queues and runtime grants up to date");

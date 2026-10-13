@@ -286,9 +286,16 @@ describe("the worker as igs_worker (member of igs_app and igs_worker)", () => {
     });
     expect(purged.outbox).toBe(1);
 
+    // least privilege on pg-boss: DML on the queue tables; the one-row version table can be updated
+    // (the supervisor stamps it) but not replaced
+    const [version] = await runtimeWorker.sql<{ read: boolean; write: boolean }[]>`
+      SELECT has_table_privilege('pgboss.version', 'UPDATE') AS read,
+             has_table_privilege('pgboss.version', 'INSERT') OR has_table_privilege('pgboss.version', 'DELETE') AS write`;
+    expect(version).toEqual({ read: true, write: false });
+
     // give the supervisor a few maintenance rounds; a missing right would surface as an 'error' event
     await new Promise((resolve) => setTimeout(resolve, 3_500));
-    expect(errors, "pg-boss or job errors under the runtime role").toEqual([]);
+    expect(errors.map(String), "pg-boss or job errors under the runtime role").toEqual([]);
     void worker;
   }, 60_000);
 });

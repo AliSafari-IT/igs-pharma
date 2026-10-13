@@ -21,6 +21,8 @@ import {
 } from "@igs/module-identity";
 import PgBoss from "pg-boss";
 
+import { registerWorkerEvents } from "./events";
+
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -44,6 +46,7 @@ async function main() {
   // if one ever arrives. Audit action registrations of auditing modules go here, before configureKernel.
   registerIdentityAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort(), logger });
+  registerWorkerEvents(); // the topics the relay publishes; migrate creates their queues (./events)
 
   // Phase 0: verify DB connectivity
   await checkDatabase();

@@ -13,6 +13,7 @@ import {
   WORKER_ROLE,
   pgboss,
   renderGrantsSql,
+  renderPgbossGrantsScript,
 } from "../src/grants";
 import { type RuntimeRoleDatabase, createRuntimeRoleDatabase } from "../src/testing";
 
@@ -302,9 +303,9 @@ describe("runtime grants", () => {
     expect(await codeOf(() => app.unsafe("SELECT 1 FROM system.outbox"))).toBe("42501");
   });
 
-  it("the pgboss schema has no entry in the migration (the migrate entry grants it)", () => {
+  it("the migration only CHECKS the pgboss schema (the migrate entry grants it)", () => {
     expect(pgboss.schema).toBe("pgboss");
-    expect(renderGrantsSql(APP_SCHEMAS)).not.toContain("pgboss");
+    expect(renderGrantsSql(APP_SCHEMAS)).not.toMatch(/(GRANT|REVOKE)[^;]*pgboss/);
   });
 });
 
@@ -368,9 +369,9 @@ describe("the ownership assertion", () => {
 
   /** The migration's assertion statement, run as the administrative role like the migration is. */
   const run = async () => {
-    const assertion = renderGrantsSql(APP_SCHEMAS)
-      .split("\n--> statement-breakpoint\n")
-      .at(-1) as string;
+    const assertion = renderGrantsSql(APP_SCHEMAS).split(
+      "\n--> statement-breakpoint\n",
+    )[0] as string;
     return asAdministrator.unsafe(assertion);
   };
 
@@ -390,6 +391,32 @@ describe("the ownership assertion", () => {
     }
   });
 
+  it("also catches an object owned by a MEMBER of a runtime role (a login mapped to igs_app)", async () => {
+    await admin.unsafe(`ALTER TABLE catalog.brands OWNER TO "${db.appRole}"`);
+    try {
+      await expect(run()).rejects.toThrow(
+        new RegExp(`relation catalog\\.brands is owned by ${db.appRole}`),
+      );
+    } finally {
+      await admin.unsafe(`ALTER TABLE catalog.brands OWNER TO "${db.adminRole}"`);
+    }
+    await admin.unsafe(`ALTER FUNCTION audit.future_partitions() OWNER TO "${db.workerRole}"`);
+    try {
+      await expect(run()).rejects.toThrow(/function audit\.future_partitions\(\) is owned by/);
+    } finally {
+      await admin.unsafe(`ALTER FUNCTION audit.future_partitions() OWNER TO "${db.adminRole}"`);
+    }
+  });
+
+  it("covers the pgboss schema too (old workers created queues at runtime)", async () => {
+    await admin.unsafe(`CREATE SCHEMA pgboss AUTHORIZATION "${db.workerRole}"`);
+    try {
+      await expect(run()).rejects.toThrow(/schema pgboss is owned by/);
+    } finally {
+      await admin.unsafe("DROP SCHEMA pgboss");
+    }
+  });
+
   it("rejects a runtime role that is a superuser, CREATEROLE, CREATEDB, BYPASSRLS or the admin's member", async () => {
     for (const attribute of ["SUPERUSER", "CREATEROLE", "CREATEDB", "BYPASSRLS"]) {
       await admin.unsafe(`ALTER ROLE "${db.appRole}" ${attribute}`);
@@ -405,5 +432,96 @@ describe("the ownership assertion", () => {
     } finally {
       await admin.unsafe(`REVOKE "${db.adminRole}" FROM "${APP_ROLE}"`);
     }
+  });
+});
+
+describe("migrating as the administrator over a member-owned object", () => {
+  let db: RuntimeRoleDatabase;
+  let admin: postgres.Sql;
+
+  beforeAll(async () => {
+    db = await createRuntimeRoleDatabase();
+    await db.migrate({ upTo: 25 }); // the chain before 0026; also maps the logins to the groups
+    admin = postgres(db.superUrl, { max: 2, onnotice: () => {} });
+    await admin.unsafe(`ALTER TABLE catalog.brands OWNER TO "${db.appRole}"`);
+  }, 120_000);
+
+  afterAll(async () => {
+    await admin?.end({ timeout: 5 });
+    await db?.drop();
+  });
+
+  it("0026 stops FIRST with the offender list (not a bare 'permission denied'), and changes nothing", async () => {
+    await expect(db.migrate()).rejects.toThrow(
+      new RegExp(`relation catalog\\.brands is owned by ${db.appRole}`),
+    );
+    const [row] = await admin<
+      { n: number }[]
+    >`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`;
+    expect(row?.n).toBe(26); // 0000-0025 only; 0026 rolled back
+    const [after] = await admin<{ owner: string }[]>`
+      SELECT pg_get_userbyid(relowner) AS owner FROM pg_class WHERE oid = 'catalog.brands'::regclass`;
+    expect(after?.owner).toBe(db.appRole); // never moved by the migration
+  });
+
+  it("once the owner is fixed the same migration goes through", async () => {
+    await admin.unsafe(`ALTER TABLE catalog.brands OWNER TO "${db.adminRole}"`);
+    await db.migrate();
+    const [row] = await admin<
+      { n: number }[]
+    >`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`;
+    expect(row?.n).toBe(27);
+  });
+});
+
+describe("the pgboss grants are atomic", () => {
+  let db: RuntimeRoleDatabase;
+  let admin: postgres.Sql;
+  let asAdministrator: postgres.Sql;
+
+  beforeAll(async () => {
+    db = await createRuntimeRoleDatabase();
+    await db.migrate();
+    admin = postgres(db.superUrl, { max: 2, onnotice: () => {} });
+    asAdministrator = postgres(db.adminUrl, { max: 1, onnotice: () => {} });
+    await asAdministrator.unsafe("CREATE SCHEMA pgboss");
+    await asAdministrator.unsafe("CREATE TABLE pgboss.job (id int)");
+    await asAdministrator.unsafe("CREATE TABLE pgboss.version (version int)");
+  }, 120_000);
+
+  afterAll(async () => {
+    await Promise.all([admin?.end({ timeout: 5 }), asAdministrator?.end({ timeout: 5 })]);
+    await db?.drop();
+  });
+
+  const can = async (table: string, privilege: string) =>
+    (
+      await admin<{ ok: boolean }[]>`
+        SELECT has_table_privilege(${WORKER_ROLE}, ${table}, ${privilege}) AS ok`
+    )[0]?.ok === true;
+
+  it("an error in the middle rolls everything back", async () => {
+    await expect(
+      asAdministrator.unsafe(`${renderPgbossGrantsScript()}\nSELECT 1/0;`),
+    ).rejects.toThrow(/division by zero/);
+    expect(await can("pgboss.job", "SELECT")).toBe(false);
+    expect(await can("pgboss.job", "INSERT")).toBe(false);
+  });
+
+  it("applied whole it gives the worker DML on the queue tables, and only SELECT + UPDATE on the version row", async () => {
+    await asAdministrator.unsafe(renderPgbossGrantsScript());
+    for (const privilege of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+      expect(await can("pgboss.job", privilege), privilege).toBe(true);
+    }
+    for (const privilege of ["SELECT", "UPDATE"]) {
+      expect(await can("pgboss.version", privilege), privilege).toBe(true);
+    }
+    for (const privilege of ["INSERT", "DELETE", "TRUNCATE"]) {
+      expect(await can("pgboss.version", privilege), privilege).toBe(false);
+    }
+    expect(await can("pgboss.job", "TRUNCATE")).toBe(false);
+    const [app] = await admin<{ ok: boolean }[]>`
+      SELECT has_schema_privilege(${APP_ROLE}, 'pgboss', 'USAGE') AS ok`;
+    expect(app?.ok).toBe(false);
   });
 });

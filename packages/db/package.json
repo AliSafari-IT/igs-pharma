@@ -38,7 +38,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:grants:generate": "tsx scripts/generate-grants.ts"
   },
   "dependencies": {
     "@igs/config": "workspace:*",
@@ -52,6 +53,7 @@
     "@testcontainers/postgresql": "12.2.0",
     "@types/node": "24.19.1",
     "drizzle-kit": "0.30.1",
+    "tsx": "4.19.2",
     "typescript": "5.7.2",
     "vitest": "2.1.8",
     "zod": "4.6.5"

@@ -1,19 +1,10 @@
+import { migrateDsn } from "@igs/config/env";
 import type { Config } from "drizzle-kit";
-import { z } from "zod";
 
-// Migrations run as the administrative role: DATABASE_MIGRATE_URL, else DATABASE_URL (development).
-// No auth secret needed (not parseEnv()).
-const { DATABASE_MIGRATE_URL, DATABASE_URL } = z
-  .object({
-    DATABASE_MIGRATE_URL: z.preprocess(
-      (v) => (v === "" ? undefined : v),
-      z.string().url().optional(),
-    ),
-    DATABASE_URL: z.string().url().optional(),
-  })
-  .parse(process.env);
-const MIGRATE_URL = DATABASE_MIGRATE_URL ?? DATABASE_URL;
-if (!MIGRATE_URL) throw new Error("Set DATABASE_MIGRATE_URL (or DATABASE_URL in development).");
+// Migrations run as the administrative role, through the same rule as the migrate entry: production
+// needs DATABASE_MIGRATE_URL (a different user than DATABASE_URL); development falls back to
+// DATABASE_URL. No auth secret needed (not parseEnv()).
+const MIGRATE_URL = migrateDsn();
 
 export default {
   // Aggregated by path glob only — packages/db never imports modules (D-001).

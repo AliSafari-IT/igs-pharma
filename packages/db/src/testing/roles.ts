@@ -53,15 +53,31 @@ export async function createRuntimeRoleDatabase(): Promise<RuntimeRoleDatabase> 
   const workerRole = `igs_t66_wrk_${id}`;
   const password = randomBytes(12).toString("hex");
 
+  /** Drops what exists of this fixture; every step is guarded so a partial setup leaves nothing. */
+  async function dropAll() {
+    const sql = postgres(adminUrl0, { max: 1, onnotice: () => {} });
+    try {
+      await sql.unsafe(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`).catch(() => {});
+      for (const role of [workerRole, appRole, adminRole]) {
+        await sql.unsafe(`DROP ROLE IF EXISTS "${role}"`).catch(() => {});
+      }
+    } finally {
+      await sql.end({ timeout: 5 });
+    }
+  }
+
   const superSql = postgres(adminUrl0, { max: 1, onnotice: () => {} });
   try {
     await superSql.unsafe(`CREATE ROLE "${adminRole}" LOGIN CREATEROLE PASSWORD '${password}'`);
     await superSql.unsafe(`CREATE ROLE "${appRole}" LOGIN PASSWORD '${password}'`);
     await superSql.unsafe(`CREATE ROLE "${workerRole}" LOGIN PASSWORD '${password}'`);
     await superSql.unsafe(`CREATE DATABASE "${database}" OWNER "${adminRole}"`);
-  } finally {
+  } catch (error) {
     await superSql.end({ timeout: 5 });
+    await dropAll();
+    throw error;
   }
+  await superSql.end({ timeout: 5 });
   const superUrl = withDatabase(adminUrl0, database);
   const url = (role: string) => withCredentials(superUrl, role, password);
 
@@ -113,16 +129,6 @@ export async function createRuntimeRoleDatabase(): Promise<RuntimeRoleDatabase> 
     appRole,
     workerRole,
     migrate: (options = {}) => runMigrations(options.upTo),
-    async drop() {
-      const sql = postgres(adminUrl0, { max: 1, onnotice: () => {} });
-      try {
-        await sql.unsafe(`DROP DATABASE IF EXISTS "${database}" WITH (FORCE)`);
-        for (const role of [workerRole, appRole, adminRole]) {
-          await sql.unsafe(`DROP ROLE IF EXISTS "${role}"`);
-        }
-      } finally {
-        await sql.end({ timeout: 5 });
-      }
-    },
+    drop: dropAll,
   };
 }

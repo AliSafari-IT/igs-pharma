@@ -1,4 +1,4 @@
-import { renderPgbossGrantsSql } from "@igs/db/grants";
+import { renderPgbossGrantsScript } from "@igs/db/grants";
 
 import { registeredTopics } from "./events";
 
@@ -50,8 +50,11 @@ export interface SqlExecutor {
 /**
  * Gives the worker role its runtime rights on the `pgboss` schema (DML, no DDL; `igs_app` gets
  * nothing). Run by the migrate entry as the administrative role AFTER the queues exist, so the
- * grants cover the queue tables. Idempotent.
+ * grants cover the queue tables. Idempotent and ATOMIC: the REVOKEs and GRANTs go out as one
+ * parameterless multi-statement query, which Postgres runs in a single implicit transaction, so a
+ * failure in the middle leaves the previous privileges in place instead of a worker without them.
+ * (No explicit BEGIN: an error would leave the pooled connection in an aborted transaction.)
  */
 export async function grantPgBossRuntime(db: SqlExecutor): Promise<void> {
-  for (const statement of renderPgbossGrantsSql()) await db.executeSql(statement);
+  await db.executeSql(renderPgbossGrantsScript());
 }

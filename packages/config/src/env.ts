@@ -163,10 +163,19 @@ export function syntheticSeedAllowed(env: z.output<typeof syntheticSeedEnv>): bo
   return env.NODE_ENV === "development" || env.IGS_ALLOW_SYNTHETIC_SEED === "1";
 }
 
+/** Whether two connection strings log in as the same database user (query strings and the like do not count). */
+function sameLogin(a: string, b: string): boolean {
+  try {
+    return decodeURIComponent(new URL(a).username) === decodeURIComponent(new URL(b).username);
+  } catch {
+    return a === b;
+  }
+}
+
 /**
  * The connection string an operator entry (migrate, bootstrap-owner, seed-catalog) must use. In
- * production `DATABASE_MIGRATE_URL` is required and must differ from `DATABASE_URL` (the runtime
- * DSN), so these entries can never silently run under the runtime role or the other way round.
+ * production `DATABASE_MIGRATE_URL` is required and must log in as a different user than `DATABASE_URL`
+ * (the runtime DSN), so these entries can never silently run under the runtime role or the other way round.
  * Elsewhere it falls back to `DATABASE_URL`, so a single local database keeps working.
  */
 export function migrateDsn(input: NodeJS.ProcessEnv = process.env): string {
@@ -181,9 +190,9 @@ export function migrateDsn(input: NodeJS.ProcessEnv = process.env): string {
         "DATABASE_MIGRATE_URL is not set: this entry needs the administrative database role, not the runtime DATABASE_URL.",
       );
     }
-    if (migrate === env.DATABASE_URL) {
+    if (env.DATABASE_URL && sameLogin(migrate, env.DATABASE_URL)) {
       throw new Error(
-        "DATABASE_MIGRATE_URL must differ from DATABASE_URL: the runtime role must never run migrations.",
+        "DATABASE_MIGRATE_URL must use a different database user than DATABASE_URL: the runtime role must never run migrations.",
       );
     }
     return migrate;

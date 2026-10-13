@@ -63,27 +63,36 @@ function usageStatements(grants: SchemaGrants): string[] {
 function assertionStatement(schemas: readonly string[]): string {
   const list = schemas.map((s) => `'${s}'`).join(", ");
   const roles = ROLES.map((r) => `'${r}'`).join(", ");
+  // owned by a runtime role OR by a role that is (transitively) a member of one: a login mapped to
+  // a group would keep every right its own objects give it, including DDL. Not `pg_has_role(.., 'MEMBER')`:
+  // that is true for every superuser.
+  const runtime = (owner: string) => `${owner} IN (SELECT oid FROM runtime)`;
   return `DO $$
 DECLARE
   offenders text;
 BEGIN
+  WITH RECURSIVE runtime(oid) AS (
+    SELECT oid FROM pg_roles WHERE rolname IN (${roles})
+    UNION
+    SELECT m.member FROM pg_auth_members m JOIN runtime r ON m.roleid = r.oid
+  )
   SELECT string_agg(kind || ' ' || name || ' is owned by ' || owner, E'\\n' ORDER BY kind, name)
     INTO offenders
   FROM (
     SELECT 'relation' AS kind, n.nspname || '.' || c.relname AS name, pg_get_userbyid(c.relowner) AS owner
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname IN (${list}) AND pg_get_userbyid(c.relowner) IN (${roles})
+      WHERE n.nspname IN (${list}) AND ${runtime("c.relowner")}
     UNION ALL
     SELECT 'function', p.oid::regprocedure::text, pg_get_userbyid(p.proowner)
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname IN (${list}) AND pg_get_userbyid(p.proowner) IN (${roles})
+      WHERE n.nspname IN (${list}) AND ${runtime("p.proowner")}
     UNION ALL
     SELECT 'schema', n.nspname, pg_get_userbyid(n.nspowner)
       FROM pg_namespace n
-      WHERE n.nspname IN (${list}) AND pg_get_userbyid(n.nspowner) IN (${roles})
+      WHERE n.nspname IN (${list}) AND ${runtime("n.nspowner")}
   ) owned;
   IF offenders IS NOT NULL THEN
-    RAISE EXCEPTION E'igs-pharma#66: the runtime roles must not own objects; the administrative role must. Offenders:\\n%', offenders
+    RAISE EXCEPTION E'igs-pharma#66: the runtime roles (and their members) must not own objects; the administrative role must. Offenders:\\n%', offenders
       USING ERRCODE = '42501';
   END IF;
 
@@ -110,19 +119,42 @@ END
 $$;`;
 }
 
+/** The migration that introduced the runtime grants (resets each schema, then grants the manifest). */
+export const GRANTS_MIGRATION = 26;
+
 /**
- * The SQL of the grants migration for `schemas` (the content of `0026_runtime_grants.sql`).
- * Idempotent: it first strips PUBLIC and the runtime roles in each schema, then grants exactly the
- * manifest. No `ALTER DEFAULT PRIVILEGES`: a new table gets its grants in its own migration.
+ * The SQL of a grants migration for `schemas`.
+ *
+ * - `migration: 26` (default; `0026_runtime_grants.sql`): the ownership/role assertion FIRST (so a
+ *   non-superuser administrator gets the actionable offender list instead of a bare `permission
+ *   denied` from the first REVOKE), then, per schema, a reset of PUBLIC and the runtime roles and
+ *   exactly the manifest entries introduced up to 26. Idempotent: it converges on a database whose
+ *   grants were made by hand. No `ALTER DEFAULT PRIVILEGES`.
+ * - any later `migration: N`: only the `GRANT`s of the entries with `since: N` (a module's own
+ *   migration, D-036), no reset.
  */
-export function renderGrantsSql(schemas: readonly SchemaGrants[]): string {
+export function renderGrantsSql(
+  schemas: readonly SchemaGrants[],
+  options: { migration?: number } = {},
+): string {
+  const migration = options.migration ?? GRANTS_MIGRATION;
   const statements: string[] = [];
-  for (const grants of schemas) {
-    statements.push(...resetStatements(grants.schema));
-    statements.push(...usageStatements(grants));
-    for (const object of grants.objects) statements.push(...objectStatements(object));
+  if (migration === GRANTS_MIGRATION) {
+    // pgboss is checked too: it is installed by the migrate entry, so on a first run it does not exist yet
+    statements.push(assertionStatement([...schemas.map((g) => g.schema), "pgboss"]));
   }
-  statements.push(assertionStatement(schemas.map((g) => g.schema)));
+  for (const grants of schemas) {
+    const objects = grants.objects.filter((o) =>
+      migration === GRANTS_MIGRATION
+        ? (o.since ?? GRANTS_MIGRATION) <= GRANTS_MIGRATION
+        : o.since === migration,
+    );
+    if (migration === GRANTS_MIGRATION) {
+      statements.push(...resetStatements(grants.schema));
+      statements.push(...usageStatements(grants));
+    }
+    for (const object of objects) statements.push(...objectStatements(object));
+  }
   return statements.join(BREAKPOINT);
 }
 
@@ -138,7 +170,19 @@ export function renderPgbossGrantsSql(): string[] {
     ...resetStatements("pgboss"),
     `GRANT USAGE ON SCHEMA ${s} TO ${worker};`,
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${s} TO ${worker};`,
+    // pg-boss's supervisor and scheduler UPDATE the bookkeeping columns of its one-row version table
+    // (maintained_on, cron_on); the row itself is created and replaced by the migrate entry only
+    `REVOKE INSERT, DELETE ON ${s}.${qi("version")} FROM ${worker};`,
     `GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA ${s} TO ${worker};`,
     `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA ${s} TO ${worker};`,
   ];
+}
+
+/**
+ * The same statements as ONE multi-statement string. Sent as a single simple-protocol query (no
+ * parameters) Postgres runs it in one implicit transaction, so a crash or error in the middle
+ * rolls the whole thing back instead of leaving the worker role without its `pgboss` privileges.
+ */
+export function renderPgbossGrantsScript(): string {
+  return renderPgbossGrantsSql().join("\n");
 }
