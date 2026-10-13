@@ -1,7 +1,7 @@
 import { newId } from "@igs/db/ids";
 import { type Ctx, command, conflict, notFound, validationFailed } from "@igs/kernel";
 import { PERMISSIONS } from "@igs/rbac";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { PRIVACY_AUDIT } from "./audit";
@@ -194,5 +194,43 @@ export const transitionDsr = command({
       data: { requestId: request.id, from, to: input.to },
     });
     return { status: input.to };
+  },
+});
+
+/**
+ * Deletes the personal data whose retention period has passed (igs-pharma#88): calls
+ * `privacy.purge_expired_data()`, a zero-argument SECURITY DEFINER function that reads
+ * `privacy.retention_policy` and is the only thing that may delete from the append-only ledgers. The
+ * audit entry carries COUNTS only, never an e-mail address or a note. Run daily by the worker's
+ * maintenance job as the `system_maintenance` actor (system-only permission).
+ */
+export const purgeExpiredPrivacyData = command({
+  name: "privacy.retention.purge",
+  input: z.object({}),
+  output: z.object({
+    consentEvents: z.number().int(),
+    dsrRequests: z.number().int(),
+    dsrEvents: z.number().int(),
+  }),
+  permission: PERMISSIONS.privacy.retentionPurge,
+  async handler({ ctx }) {
+    const rows = Array.from(
+      await ctx.tx.execute<{ consent_events: number; dsr_requests: number; dsr_events: number }>(
+        sql`SELECT consent_events, dsr_requests, dsr_events FROM privacy.purge_expired_data()`,
+      ),
+    );
+    const row = rows[0];
+    const counts = {
+      consentEvents: Number(row?.consent_events ?? 0),
+      dsrRequests: Number(row?.dsr_requests ?? 0),
+      dsrEvents: Number(row?.dsr_events ?? 0),
+    };
+    await ctx.audit.record({
+      action: PRIVACY_AUDIT.retentionPurged,
+      entityType: "retention_purge",
+      entityId: newId(),
+      data: counts,
+    });
+    return counts;
   },
 });

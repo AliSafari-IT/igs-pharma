@@ -93,3 +93,37 @@ export function normalizeSubjectRef(value: string): string | null {
   if (ref.length === 0 || ref.length > MAX_SUBJECT_REF_LENGTH || !EMAIL.test(ref)) return null;
   return ref;
 }
+
+/**
+ * Retention of personal data in the privacy ledgers (igs-pharma#88, REQ-PRV-04). The periods are legal
+ * decisions: this is the documented default per key, seeded into `privacy.retention_policy` by a
+ * migration (a test keeps the two equal); the purge function reads the TABLE, so a value changes by a
+ * reviewed migration, never by the worker. `months: null` means keep: never purge that scope.
+ *
+ * **Every value here awaits the privacy adviser (and the owner) to confirm.**
+ */
+export const RETENTION_KEYS = ["consent_after_withdrawal", "dsr_after_close"] as const;
+export type RetentionKey = (typeof RETENTION_KEYS)[number];
+
+export interface RetentionDefault {
+  /** Calendar months (Europe/Brussels) after the clock starts; `null`: keep, never purge. */
+  readonly months: number | null;
+  /** Always `true` until the adviser has decided; flipped by the migration that sets the real value. */
+  readonly awaitsPrivacyAdviser: boolean;
+  readonly description: string;
+}
+
+export const RETENTION_DEFAULTS: Readonly<Record<RetentionKey, RetentionDefault>> = {
+  consent_after_withdrawal: {
+    months: 60,
+    awaitsPrivacyAdviser: true,
+    description:
+      "A consent chain whose latest event is a withdrawal is deleted this many months after it (consent period + 5 years, REQ-PRV-04). A chain whose latest event is a grant is never purged.",
+  },
+  dsr_after_close: {
+    months: null,
+    awaitsPrivacyAdviser: true,
+    description:
+      "A closed data-subject request is deleted with its events this many months after it closed. Switched OFF (keep): the requests are also the evidence that deadlines were met.",
+  },
+};

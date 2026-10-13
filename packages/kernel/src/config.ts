@@ -62,6 +62,8 @@ export interface Tracer {
 export interface KernelLogger {
   error(obj: Record<string, unknown>, msg?: string): void;
   info?(obj: Record<string, unknown>, msg?: string): void;
+  /** Optional: housekeeping jobs warn here when they fail after all retries (no metrics backend yet). */
+  warn?(obj: Record<string, unknown>, msg?: string): void;
 }
 
 export interface KernelConfig {

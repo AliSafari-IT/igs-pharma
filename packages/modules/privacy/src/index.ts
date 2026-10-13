@@ -12,6 +12,10 @@ export {
   type DsrType,
   FINAL_DSR_STATUSES,
   MAX_SUBJECT_REF_LENGTH,
+  RETENTION_DEFAULTS,
+  RETENTION_KEYS,
+  type RetentionDefault,
+  type RetentionKey,
   STAFF_CONSENT_SOURCES,
   type StaffConsentSource,
   canMoveDsr,
@@ -22,7 +26,19 @@ export {
   nextDsrStatuses,
   normalizeSubjectRef,
 } from "./domain";
-export { createDsr, recordConsent, transitionDsr } from "./commands";
+export { createDsr, purgeExpiredPrivacyData, recordConsent, transitionDsr } from "./commands";
+export {
+  MAINTENANCE_ACTOR,
+  PRIVACY_JOBS,
+  PRIVACY_QUEUES,
+  type PrivacyJobScheduler,
+  type PrivacyQueueAdmin,
+  type RetentionPurgeResult,
+  ensurePrivacyQueues,
+  registerPrivacyJobs,
+  reportRetentionPurgeFailed,
+  runRetentionPurge,
+} from "./jobs";
 export {
   CONSENT_HISTORY_LIMIT,
   type ConsentEventView,
@@ -31,9 +47,11 @@ export {
   type DsrListItem,
   type DsrPage,
   type DsrView,
+  type RetentionPolicyView,
   type SubjectConsents,
   getConsents,
   getDsr,
+  getRetentionPolicy,
   listDsr,
 } from "./queries";
 export { PRIVACY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";

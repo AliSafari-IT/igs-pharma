@@ -14,11 +14,12 @@ import {
   type DsrStatus,
   type DsrType,
   MAX_SUBJECT_REF_LENGTH,
+  type RetentionKey,
   daysUntil,
   isDsrOverdue,
   nextDsrStatuses,
 } from "./domain";
-import { consentEvents, dsrEvents, dsrRequests } from "./schema";
+import { consentEvents, dsrEvents, dsrRequests, retentionPolicy } from "./schema";
 
 /** Privacy queries for the back-office (igs-pharma#58). */
 
@@ -286,5 +287,29 @@ export const getDsr = query({
         toStatus: e.toStatus as DsrStatus,
       })),
     };
+  },
+});
+
+export interface RetentionPolicyView {
+  readonly key: RetentionKey;
+  /** Calendar months; `null` means keep (never purge this scope). */
+  readonly months: number | null;
+  readonly awaitsAdviser: boolean;
+  readonly updatedAt: Date;
+}
+
+/** How long personal data is kept (igs-pharma#88): the rows the purge function reads. */
+export const getRetentionPolicy = query({
+  name: "privacy.retention.policy",
+  input: z.object({}),
+  permission: PERMISSIONS.privacy.consentRead,
+  async handler({ ctx }): Promise<readonly RetentionPolicyView[]> {
+    const rows = await ctx.tx.select().from(retentionPolicy).orderBy(asc(retentionPolicy.key));
+    return rows.map((row) => ({
+      key: row.key as RetentionKey,
+      months: row.months,
+      awaitsAdviser: row.awaitsAdviser,
+      updatedAt: row.updatedAt,
+    }));
   },
 });

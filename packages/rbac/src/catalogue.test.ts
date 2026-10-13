@@ -196,6 +196,8 @@ describe("catalogue invariants (T-016)", () => {
       "inventory.availability.read",
       "pricing.price.read",
     ]);
+    // the worker's maintenance jobs (igs-pharma#88) may purge expired personal data and do nothing else
+    expect(ROLE_PERMISSIONS.system_maintenance).toEqual(["privacy.retention.purge"]);
     for (const role of ROLE_KEYS) {
       const perms = ROLE_PERMISSIONS[role] as readonly string[];
       if (role === "system_seed" || role === "system_storefront") continue;

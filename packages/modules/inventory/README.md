@@ -24,7 +24,10 @@ back-office commands on it. On-hand is the sum of a product's movements; the led
   The plan id is the idempotency key of the confirm: a double click replays; the same file previewed
   again is a new plan and applies again.
 
-## Follow-up
+## Purging expired plans (igs-pharma#88)
 
-Expired plans are not deleted yet. The runtime roles have no DELETE; a narrow `SECURITY DEFINER`
-purge function called by a worker job (like the privacy purge) is a separate task.
+A plan is valid for one hour. `inventory.purge_expired_import_plans()` (zero-argument `SECURITY
+DEFINER`, executable by the worker role only) deletes plans that expired more than 24 hours ago; the
+grace (`IMPORT_PLAN_GRACE_HOURS`) is a constant of that function, an operational value: a plan holds
+product ids and counts, no personal data. The worker job `inventory.plans.purge` runs it daily at 04:12
+Europe/Brussels (never 02:xx) and logs the count only.

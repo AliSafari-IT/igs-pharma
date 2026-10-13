@@ -20,6 +20,12 @@ import {
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
+import { type InventoryJobScheduler, registerInventoryJobs } from "@igs/module-inventory";
+import {
+  type PrivacyJobScheduler,
+  registerAuditActions as registerPrivacyAuditActions,
+  registerPrivacyJobs,
+} from "@igs/module-privacy";
 import PgBoss from "pg-boss";
 
 import { registerWorkerEvents } from "./events";
@@ -46,6 +52,7 @@ async function main() {
   // never carry an `origin`, so the port is built without a key and fails closed (audit.origin_without_key)
   // if one ever arrives. Audit action registrations of auditing modules go here, before configureKernel.
   registerIdentityAuditActions(registerAuditAction);
+  registerPrivacyAuditActions(registerAuditAction); // the retention purge audits its counts
   configureKernel({ audit: createAuditPort(), logger });
   registerWorkerEvents(); // the topics the relay publishes; migrate creates their queues (./events)
 
@@ -87,6 +94,10 @@ async function main() {
   // Audit module (T-006b): daily partition maintenance (04:47) and chain verification (03:37,
   // Europe/Brussels), with pg-boss retries and dead-letter alarms. Brussels 02:xx is avoided (DST).
   await registerAuditJobs(boss as unknown as JobScheduler);
+  // Housekeeping that deletes through narrow definer functions (igs-pharma#88): expired import plans
+  // (04:12) and personal data past its retention period (03:52), Europe/Brussels, never 02:xx.
+  await registerInventoryJobs(boss as unknown as InventoryJobScheduler);
+  await registerPrivacyJobs(boss as unknown as PrivacyJobScheduler);
   // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.
 
   // pg-boss's timers keep the loop alive, but hold the process open ourselves too so a stopped

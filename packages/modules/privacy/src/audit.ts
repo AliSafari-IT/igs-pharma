@@ -7,6 +7,7 @@ export const PRIVACY_AUDIT = {
   consentRecorded: "privacy.consent.recorded",
   dsrCreated: "privacy.dsr.created",
   dsrTransitioned: "privacy.dsr.transitioned",
+  retentionPurged: "privacy.retention.purged",
 } as const;
 
 const consentRecorded = z.object({
@@ -26,6 +27,12 @@ const dsrTransitioned = z.object({
   to: z.enum(DSR_STATUSES),
 });
 
+const retentionPurged = z.object({
+  consentEvents: z.number().int().min(0),
+  dsrRequests: z.number().int().min(0),
+  dsrEvents: z.number().int().min(0),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -39,4 +46,5 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(PRIVACY_AUDIT.consentRecorded, consentRecorded);
   register(PRIVACY_AUDIT.dsrCreated, dsrCreated);
   register(PRIVACY_AUDIT.dsrTransitioned, dsrTransitioned);
+  register(PRIVACY_AUDIT.retentionPurged, retentionPurged);
 }
