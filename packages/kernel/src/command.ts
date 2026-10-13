@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { newId } from "@igs/db/ids";
-import { type Permission, hasPermission } from "@igs/rbac";
+import { type Permission, ROLES, hasPermission } from "@igs/rbac";
 import { eq, lte } from "drizzle-orm";
 import type { z } from "zod";
 
@@ -160,9 +160,20 @@ function parseInput<I>(schema: z.ZodType<I, unknown>, raw: unknown): I {
   throw validationFailed("kernel.validation_failed", fields);
 }
 
-/** A staff user whose session has not proved a second factor (36b). */
+/** Whether `role` is a catalogue role of the staff kind. Unknown roles are not staff (they grant nothing). */
+const isStaffRole = (role: string) =>
+  Object.hasOwn(ROLES, role) && ROLES[role as keyof typeof ROLES].kind === "staff";
+
+/**
+ * A staff user whose session has not proved a second factor (36b). Fails closed (#64 D8): a user is
+ * staff when `kind` says so OR when any of its roles is a staff role, so an actor built without
+ * `kind` (or with a wrong one) can never skip the second factor. Only a user that is neither (a
+ * customer, or one without any staff role) is exempt.
+ */
 const lacksMfa = (actor: Actor) =>
-  actor.type === "user" && actor.kind === "staff" && actor.mfaVerified !== true;
+  actor.type === "user" &&
+  (actor.kind === "staff" || actor.roles.some(isStaffRole)) &&
+  actor.mfaVerified !== true;
 
 function canDo(actor: Actor, permission: Permission): boolean {
   // anonymous actors never carry roles, whatever the caller passed; staff without a verified
