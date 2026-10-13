@@ -1,6 +1,6 @@
 "use server";
 
-import { isDomainError } from "@igs/kernel";
+import { conflict, isDomainError } from "@igs/kernel";
 import { createCategory, deleteCategory, moveCategory, updateCategory } from "@igs/module-catalog";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -24,8 +24,15 @@ const text = (form: FormData, name: string) => {
   return typeof value === "string" ? value : "";
 };
 
-/** The version the page loaded (a hidden field); 0 when missing, which the command refuses. */
-const versionOf = (form: FormData) => Number.parseInt(text(form, "version"), 10) || 0;
+/**
+ * The version the page loaded (a hidden field). A form without one (opened before this field
+ * existed) is stale by definition, so it gets the "reload" refusal rather than a field error.
+ */
+function versionOf(form: FormData): number {
+  const version = Number.parseInt(text(form, "version"), 10);
+  if (!Number.isInteger(version) || version < 1) throw conflict("catalog.stale_version");
+  return version;
+}
 
 const fieldsOf = (form: FormData) => ({
   slug: text(form, "slug"),
@@ -92,9 +99,9 @@ export async function moveCategoryAction(form: FormData): Promise<void> {
   const direction = text(form, "direction");
   const parentId = text(form, "parentId");
   const position = Number.parseInt(text(form, "position"), 10);
-  const expectedVersion = versionOf(form);
   let query: string;
   try {
+    const expectedVersion = versionOf(form);
     await moveCategory(
       direction === "up" || direction === "down"
         ? // one place among the siblings as they are NOW, not a position computed when the page rendered

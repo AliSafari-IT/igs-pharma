@@ -1,6 +1,6 @@
 "use server";
 
-import { isDomainError } from "@igs/kernel";
+import { conflict, isDomainError } from "@igs/kernel";
 import {
   CONTENT_LOCALES,
   createProduct,
@@ -29,6 +29,13 @@ const text = (form: FormData, name: string) => {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
 };
+
+/** The version the form loaded; a form without one is stale, so it gets the "reload" refusal. */
+function versionOf(form: FormData): number {
+  const version = Number.parseInt(text(form, "version"), 10);
+  if (!Number.isInteger(version) || version < 1) throw conflict("catalog.stale_version");
+  return version;
+}
 
 /** The form's fields → the command input; a locale counts when any of its fields is filled in. */
 function productInput(form: FormData) {
@@ -97,7 +104,7 @@ export async function saveProduct(
   try {
     const result = productId
       ? await updateProduct(
-          { productId, expectedVersion: Number.parseInt(text(form, "version"), 10), ...input },
+          { productId, expectedVersion: versionOf(form), ...input },
           actor,
           options,
         )
