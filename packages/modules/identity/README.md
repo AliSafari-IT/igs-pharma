@@ -18,6 +18,8 @@ the audit entry are one unit.
   cannot both pass.
 - The bootstrap CLI (`bootstrapStaff`) counts only active holders: a deleted or suspended
   titular does not block the seat.
+  Note: while a *suspended* titular (or owner) exists, the operator can mint a new one, and the
+  suspended one could later be reactivated, giving two holders. Benign and operator-only.
 
 ### Transferring the titular seat
 
