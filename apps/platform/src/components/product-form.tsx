@@ -284,6 +284,11 @@ export function ProductForm({
               hidden={tab !== locale}
               className="flex flex-col gap-4"
             >
+              {content ? (
+                <p className="text-sm text-[var(--color-text-subtle)]">
+                  {content.approvedAt ? "Text approved." : "Text not approved."}
+                </p>
+              ) : null}
               <TextField
                 label={`Name (${LOCALE_LABELS[locale]})`}
                 name={`${prefix}.name`}
@@ -315,6 +320,23 @@ export function ProductForm({
           );
         })}
       </section>
+
+      {canRegulate ? (
+        <label className="flex items-start gap-2">
+          <input
+            type="checkbox"
+            name="approveContent"
+            className="mt-1 size-5 accent-[var(--color-primary)]"
+          />
+          <span>
+            I have reviewed this text and approve it
+            <span className="block text-sm text-[var(--color-text-subtle)]">
+              Leave this unticked to save without approving: text you changed then stays not
+              approved.
+            </span>
+          </span>
+        </label>
+      ) : null}
 
       <div>
         <Button type="submit" loading={pending}>

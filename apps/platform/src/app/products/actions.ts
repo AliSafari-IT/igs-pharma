@@ -109,13 +109,15 @@ export async function saveProduct(
   let savedId: string;
   try {
     if (canManageRegulated(actor.roles)) {
+      // unticked by default: saving never approves text a pharmacist did not say they read
+      const approveContent = form.get("approveContent") === "on";
       const result = productId
         ? await updateProductRegulated(
-            { productId, expectedVersion: versionOf(form), ...input },
+            { productId, expectedVersion: versionOf(form), ...input, approveContent },
             actor,
             options,
           )
-        : await createProductRegulated(input, actor, options);
+        : await createProductRegulated({ ...input, approveContent }, actor, options);
       savedId = result.productId;
     } else {
       // the regulated fields are read-only for this person: they keep what is stored (or the

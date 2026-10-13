@@ -358,10 +358,18 @@ describe("activating a medicine needs a pharmacist", () => {
   });
 });
 
-describe("only a pharmacist approves medicine text", () => {
-  it("stamps the pharmacist on a regulated save", async () => {
-    const { productId } = await createProductRegulated(medicine(), pharmacist);
-    const rows = await approvals(productId);
+describe("only a pharmacist approves medicine text, and only when they say so", () => {
+  const unapproved = (rows: Awaited<ReturnType<typeof approvals>>) =>
+    rows.map((r) => [r.locale, r.by === null]);
+
+  it("creates a medicine unapproved, and approved only with approveContent", async () => {
+    const plain = await createProductRegulated(medicine(), pharmacist);
+    expect(unapproved(await approvals(plain.productId))).toEqual([
+      ["fr", true],
+      ["nl", true],
+    ]);
+    const approved = await createProductRegulated(medicine({ approveContent: true }), pharmacist);
+    const rows = await approvals(approved.productId);
     expect(rows).toHaveLength(2);
     for (const row of rows) {
       expect(row.by).toBe(pharmacist.id);
@@ -369,8 +377,100 @@ describe("only a pharmacist approves medicine text", () => {
     }
   });
 
-  it("clears the approval of the locales an editor saves on a medicine, keeping the status", async () => {
+  it("a pharmacist's VAT-only save leaves an editor's unapproved text unapproved", async () => {
+    const { productId } = await createProductRegulated(
+      medicine({ approveContent: true }),
+      pharmacist,
+    );
+    const stored = await getProduct({ productId }, editor);
+    await updateProduct(
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...medicine({ cnk: stored.cnk, content: [{ ...nl, name: "Editor text" }, fr] }),
+      },
+      editor,
+    );
+    // the editor's changed locale is unapproved; the unchanged one keeps the pharmacist
+    expect(
+      (await approvals(productId)).map((r) => [r.locale, r.by === pharmacist.id ? "kept" : "none"]),
+    ).toEqual([
+      ["fr", "kept"],
+      ["nl", "none"],
+    ]);
+    await updateProductRegulated(
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...medicine({
+          cnk: stored.cnk,
+          vatClass: "BE_21",
+          content: [{ ...nl, name: "Editor text" }, fr],
+        }),
+      },
+      pharmacist,
+    );
+    expect((await getProduct({ productId }, editor)).vatClass).toBe("BE_21");
+    expect(
+      (await approvals(productId)).map((r) => [r.locale, r.by === pharmacist.id ? "kept" : "none"]),
+    ).toEqual([
+      ["fr", "kept"],
+      ["nl", "none"], // the pharmacist did not say they read it
+    ]);
+  });
+
+  it("the same save with approveContent approves it", async () => {
     const { productId } = await createProductRegulated(medicine(), pharmacist);
+    const stored = await getProduct({ productId }, editor);
+    await updateProductRegulated(
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...medicine({ cnk: stored.cnk, approveContent: true }),
+      },
+      titular,
+    );
+    expect((await approvals(productId)).every((r) => r.by === titular.id)).toBe(true);
+  });
+
+  it("changed text without the flag is unapproved, unchanged text keeps its approval", async () => {
+    const { productId } = await createProductRegulated(
+      medicine({ approveContent: true }),
+      pharmacist,
+    );
+    const stored = await getProduct({ productId }, editor);
+    await updateProductRegulated(
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...medicine({ cnk: stored.cnk, content: [{ ...nl, name: "Pharmacist edit" }, fr] }),
+      },
+      titular,
+    );
+    const rows = await approvals(productId);
+    expect(rows.find((r) => r.locale === "fr")?.by).toBe(pharmacist.id);
+    expect(rows.find((r) => r.locale === "nl")?.by).toBeNull();
+    expect(rows.find((r) => r.locale === "nl")?.at).toBeNull();
+    // a locale added in a save without the flag starts unapproved
+    await updateProductRegulated(
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...medicine({
+          cnk: stored.cnk,
+          content: [{ ...nl, name: "Pharmacist edit" }, fr, { locale: "en", name: "Demo" }],
+        }),
+      },
+      titular,
+    );
+    expect((await approvals(productId)).find((r) => r.locale === "en")?.by).toBeNull();
+  });
+
+  it("clears the approval of the locales an editor changes on a medicine, keeping the status", async () => {
+    const { productId } = await createProductRegulated(
+      medicine({ approveContent: true }),
+      pharmacist,
+    );
     await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
     const stored = await getProduct({ productId }, editor);
     await updateProduct(
@@ -382,28 +482,13 @@ describe("only a pharmacist approves medicine text", () => {
       editor,
     );
     const rows = await approvals(productId);
-    expect(rows.map((r) => [r.locale, r.by, r.at])).toEqual([
-      ["fr", null, null],
-      ["nl", null, null],
+    expect(rows.map((r) => [r.locale, r.by === null])).toEqual([
+      ["fr", false],
+      ["nl", true],
     ]);
     const after = await getProduct({ productId }, editor);
     expect(after.status).toBe("active");
     expect(after.content.find((c) => c.locale === "nl")?.name).toBe("Nieuwe naam");
-  });
-
-  it("re-approves when the pharmacist saves again", async () => {
-    const { productId } = await createProductRegulated(medicine(), pharmacist);
-    const stored = await getProduct({ productId }, editor);
-    await updateProduct(
-      { productId, expectedVersion: await pv(productId), ...medicine({ cnk: stored.cnk }) },
-      editor,
-    );
-    expect((await approvals(productId)).every((r) => r.by === null)).toBe(true);
-    await updateProductRegulated(
-      { productId, expectedVersion: await pv(productId), ...medicine({ cnk: stored.cnk }) },
-      titular,
-    );
-    expect((await approvals(productId)).every((r) => r.by === titular.id)).toBe(true);
   });
 
   it("still lets the editor approve a general product's own text (as before)", async () => {

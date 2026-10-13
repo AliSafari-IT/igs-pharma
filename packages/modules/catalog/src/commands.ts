@@ -36,9 +36,11 @@ import { brands, productContent, products } from "./schema";
  *   `createProductRegulated`, `updateProductRegulated`, `setProductStatusRegulated`.
  *
  * Content is saved as a whole set: the locales in the input are written, the others removed.
- * Saving content stamps `approved_by`/`approved_at` with the saving actor (source `manual`), except
- * an editor's save on a medicine, which CLEARS the approval of the locales it wrote: only a
- * pharmacist approves medicine text (D-034).
+ * Approval (D-034): `approved_by` means "a pharmacist read this text". Saving content stamps the
+ * saving actor on every locale it writes (source `manual`) in two cases only: an editor's save on
+ * a general product, and a pharmacist's save with `approveContent: true`. Any other save (an
+ * editor's on a medicine; a pharmacist's without `approveContent`) keeps the approval of a locale
+ * whose text is unchanged and leaves a changed or new locale unapproved.
  */
 
 const nullableText = (max: number) =>
@@ -77,12 +79,16 @@ const productFields = {
 };
 
 const createInput = z.object(productFields);
+/** `approveContent`: the pharmacist read the text in this save and approves it (default: no). */
+const approveContent = { approveContent: z.boolean().default(false) };
+const createRegulatedInput = createInput.extend(approveContent);
 /** `expectedVersion`: the version the edit form loaded (igs-pharma#80); a stale one is refused. */
 const updateInput = z.object({
   productId: z.uuid(),
   expectedVersion: z.number().int().min(1),
   ...productFields,
 });
+const updateRegulatedInput = updateInput.extend(approveContent);
 type ProductFields = z.infer<typeof createInput>;
 
 const productIdOutput = z.object({ productId: z.uuid() });
@@ -132,8 +138,27 @@ function requireConsistent(input: ProductFields): void {
 
 const REGULATED_REQUIRED = "catalog.regulated_fields_require_pharmacist";
 
-/** Who approves the text a save writes: the saving actor, or nobody (a content editor's save on a medicine). */
-type Approval = "actor" | "none";
+/**
+ * Who approves the text a save writes: the saving actor ("actor"), or nobody new ("keep": a locale
+ * whose text is unchanged keeps its approval, a changed or new one is unapproved).
+ */
+type Approval = "actor" | "keep";
+
+async function currentContent(ctx: Ctx, productId: string) {
+  const rows = await ctx.tx
+    .select({
+      locale: productContent.locale,
+      name: productContent.name,
+      shortDescription: productContent.shortDescription,
+      description: productContent.description,
+      warnings: productContent.warnings,
+      approvedBy: productContent.approvedBy,
+      approvedAt: productContent.approvedAt,
+    })
+    .from(productContent)
+    .where(eq(productContent.productId, productId));
+  return new Map(rows.map((row) => [row.locale, row]));
+}
 
 /** Replaces the product's content with `content` (see the module comment). */
 async function saveContent(
@@ -152,9 +177,18 @@ async function saveContent(
     );
   if (content.length === 0) return;
   const approved = approval === "actor" && ctx.actor.type === "user";
-  const approvedBy = approved ? ctx.actor.id : null;
-  const approvedAt = approved ? ctx.now : null;
+  const existing = approval === "keep" ? await currentContent(ctx, productId) : new Map();
   for (const item of content) {
+    const before = existing.get(item.locale);
+    const unchanged =
+      before !== undefined &&
+      before.name === item.name &&
+      before.shortDescription === item.shortDescription &&
+      before.description === item.description &&
+      before.warnings === item.warnings;
+    const keep = approval === "keep" && unchanged;
+    const approvedBy = approved ? ctx.actor.id : keep ? before.approvedBy : null;
+    const approvedAt = approved ? ctx.now : keep ? before.approvedAt : null;
     const values = {
       name: item.name,
       shortDescription: item.shortDescription,
@@ -178,6 +212,7 @@ async function saveContent(
 async function insertProduct(
   ctx: Ctx,
   input: ProductFields,
+  approval: Approval,
 ): Promise<{ productId: string; version: number }> {
   requireValidCnk(input.cnk);
   await requireBrand(ctx, input.brandId);
@@ -187,8 +222,7 @@ async function insertProduct(
     .onConflictDoNothing({ target: products.cnk })
     .returning({ id: products.id });
   if (!product) throw conflict("catalog.cnk_taken");
-  // a new product is never a medicine unless a pharmacist creates it: the saving actor approves
-  await saveContent(ctx, product.id, input.content, "actor");
+  await saveContent(ctx, product.id, input.content, approval);
   await ctx.audit.record({
     action: CATALOG_AUDIT.productCreated,
     entityType: "product",
@@ -210,26 +244,33 @@ export const createProduct = command({
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
     if (!isGeneralEnvelope(regulatedOf(input))) throw forbidden(REGULATED_REQUIRED);
-    return insertProduct(ctx, input);
+    return insertProduct(ctx, input, "actor");
   },
 });
 
-/** Creates a `draft` product with any regulated values (a pharmacist; D-034). */
+/**
+ * Creates a `draft` product with any regulated values (a pharmacist; D-034). The text is approved
+ * only with `approveContent: true`.
+ */
 export const createProductRegulated = command({
   name: "catalog.product.create_regulated",
-  input: createInput,
+  input: createRegulatedInput,
   output: productWriteOutput,
   permission: PERMISSIONS.catalog.productsRegulatedManage,
   async handler({ input, ctx }) {
     requireConsistent(input);
-    return insertProduct(ctx, input);
+    return insertProduct(ctx, input, input.approveContent ? "actor" : "keep");
   },
 });
 
 type Family = "content" | "regulated";
 
 /** The update both families share; `family` decides who may change the regulated fields. */
-async function applyUpdate(ctx: Ctx, input: z.infer<typeof updateInput>, family: Family) {
+async function applyUpdate(
+  ctx: Ctx,
+  input: z.infer<typeof updateInput> & { readonly approveContent?: boolean },
+  family: Family,
+) {
   requireValidCnk(input.cnk);
   const [current] = await ctx.tx
     .select({
@@ -285,9 +326,15 @@ async function applyUpdate(ctx: Ctx, input: z.infer<typeof updateInput>, family:
     if (isUniqueViolation(error, CNK_UNIQUE)) throw conflict("catalog.cnk_taken");
     throw error;
   }
-  // only a pharmacist approves medicine text (D-034): an editor's save on a medicine clears it
+  // only a pharmacist approves medicine text (D-034), and only when they say so (`approveContent`)
   const approval: Approval =
-    family === "content" && isMedicine(current.productType, current.legalStatus) ? "none" : "actor";
+    family === "regulated"
+      ? input.approveContent
+        ? "actor"
+        : "keep"
+      : isMedicine(current.productType, current.legalStatus)
+        ? "keep"
+        : "actor";
   await saveContent(ctx, input.productId, input.content, approval);
   await ctx.audit.record({
     action: CATALOG_AUDIT.productUpdated,
@@ -331,10 +378,13 @@ export const updateProduct = command({
   handler: ({ input, ctx }) => applyUpdate(ctx, input, "content"),
 });
 
-/** Replaces a product's core fields, regulated ones included, and content; approves the text (a pharmacist). */
+/**
+ * Replaces a product's core fields, regulated ones included, and content (a pharmacist). Saving
+ * does not approve the text: only `approveContent: true` does.
+ */
 export const updateProductRegulated = command({
   name: "catalog.product.update_regulated",
-  input: updateInput,
+  input: updateRegulatedInput,
   output: productWriteOutput,
   permission: PERMISSIONS.catalog.productsRegulatedManage,
   handler: ({ input, ctx }) => applyUpdate(ctx, input, "regulated"),

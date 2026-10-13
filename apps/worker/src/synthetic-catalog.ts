@@ -324,6 +324,7 @@ export async function seedSyntheticCatalog(actor: Actor = SEED_ACTOR): Promise<S
           coldChain: seed.coldChain ?? false,
           brandId: seed.brand ? (brands.get(seed.brand) ?? null) : null,
           content,
+          approveContent: true, // demo text, read as approved
         },
         actor,
       ));
