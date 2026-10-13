@@ -60,6 +60,10 @@ export const LOCALE_LABELS: Record<ContentLocale, string> = {
 const ERRORS: Record<string, string> = {
   "catalog.cnk_invalid": "A CNK is exactly 7 digits.",
   "catalog.cnk_taken": "Another product already has this CNK.",
+  "catalog.cnk_locked":
+    "The CNK of an active product can't be changed. Archive the product, correct the CNK, then activate it again.",
+  "catalog.stale_version":
+    "This was changed by someone else while you were editing. Reload the page and apply your changes again.",
   "catalog.product_not_found": "This product no longer exists.",
   "catalog.brand_not_found": "That brand no longer exists. Pick another one.",
   "catalog.content_missing": "An active product needs a Dutch and a French name.",

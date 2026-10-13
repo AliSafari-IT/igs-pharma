@@ -27,6 +27,12 @@ describe("catalogErrorMessage", () => {
     expect(catalogErrorMessage("catalog.cnk_taken")).toBe("Another product already has this CNK.");
   });
 
+  it("tells a stale form to reload, and explains why a live product's CNK is locked (igs-pharma#80)", () => {
+    expect(catalogErrorMessage("catalog.stale_version")).toMatch(/changed by someone else.*Reload/);
+    expect(catalogErrorMessage("catalog.cnk_locked")).toMatch(/Archive the product/);
+    expect(catalogErrorMessage("catalog.stale_version")).not.toBe(fallback);
+  });
+
   it("falls back to a generic text, never to an Object.prototype member", () => {
     expect(catalogErrorMessage(undefined)).toBe(fallback);
     expect(catalogErrorMessage("catalog.unknown")).toBe(fallback);

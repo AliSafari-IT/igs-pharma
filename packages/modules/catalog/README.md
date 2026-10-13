@@ -18,3 +18,21 @@ A product is **storefront-visible** only if `status = 'active'` AND `legal_statu
   product enters a basket or order. It throws `catalog.product_not_sellable` (a not-found error)
   for a hidden or unknown product, so the two cannot be told apart. Use `storefrontVisibleIds`
   to check several ids at once.
+
+## Editing rules (igs-pharma#80)
+
+- **Version.** `catalog.products` and `catalog.categories` have a `version` (starts at 1; every write
+  to the row adds one, including the siblings a reorder rewrites and a status change). `getProduct`
+  and `listCategories` return it; `updateProduct`, `updateCategory` and `moveCategory` take it as
+  `expectedVersion` and refuse a stale one with `catalog.stale_version` (details: `expected`,
+  `current`) **before anything is written**. Product content is saved as a whole set, so this is
+  what keeps a stale form from deleting another editor's translation. `setProductStatus` takes no
+  version (a deliberate single-field transition) but bumps it.
+- **Moving up or down** sends `direction: "up" | "down"`, resolved against the siblings as they are
+  at that moment under the tree lock; the absolute `parentId` + `position` form (re-parenting) also
+  takes `expectedVersion`.
+- **The CNK is a business key.** It cannot change on an `active` product (`catalog.cnk_locked`).
+  On a draft or archived product a change is audited as `catalog.product.cnk_changed`
+  (`fromCnk`, `toCnk`). To correct a live product's CNK: archive it, correct the CNK, activate it
+  again (the id, stock and price history stay). A lost race for a CNK is `catalog.cnk_taken`, never
+  the unique index's raw error.

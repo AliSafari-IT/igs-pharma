@@ -11,10 +11,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runMigrate } from "../src/migrate-run";
 
 const folder = fileURLToPath(new URL("../../../packages/db/drizzle", import.meta.url));
-/** Every journal entry ends up applied exactly once, however many migrations there are. */
-const JOURNAL_ENTRIES = (
-  JSON.parse(fs.readFileSync(`${folder}/meta/_journal.json`, "utf8")) as { entries: unknown[] }
-).entries.length;
 let iso: IsolatedDatabase;
 const saved = { url: process.env["DATABASE_URL"], env: process.env["NODE_ENV"] };
 
@@ -34,6 +30,11 @@ afterAll(async () => {
   }
   await iso?.drop();
 });
+
+// every committed migration, counted from the journal so a new one does not break this test
+const committed = (
+  JSON.parse(fs.readFileSync(`${folder}/meta/_journal.json`, "utf8")) as { entries: unknown[] }
+).entries.length;
 
 const logs: string[] = [];
 const logger = {
@@ -77,7 +78,7 @@ describe("runMigrate", () => {
     await holder;
     await run;
     expect(finished).toBe(true);
-    expect(await journalRows()).toBe(JOURNAL_ENTRIES);
+    expect(await journalRows()).toBe(committed);
   }, 120_000);
 
   it("two concurrent runs both succeed, apply each migration once and create the queues once", async () => {
@@ -85,7 +86,7 @@ describe("runMigrate", () => {
       runMigrate({ folder, env: env(), logger }),
       runMigrate({ folder, env: env(), logger }),
     ]);
-    expect(await journalRows()).toBe(JOURNAL_ENTRIES);
+    expect(await journalRows()).toBe(committed);
     const queues = await iso.sql<{ name: string }[]>`SELECT name FROM pgboss.queue ORDER BY name`;
     expect(queues.map((q) => q.name)).toEqual(
       expect.arrayContaining([

@@ -1,7 +1,9 @@
-import fs from "node:fs";
 // The runtime roles' privileges as code (igs-pharma#66, D-036) against real Postgres: migrate as a
 // NON-superuser administrative role, then compare the database with the manifest in
 // `src/grants/` in both directions, and connect as the runtime roles to prove what they cannot do.
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -17,6 +19,17 @@ import {
   renderPgbossGrantsScript,
 } from "../src/grants";
 import { type RuntimeRoleDatabase, createRuntimeRoleDatabase } from "../src/testing";
+
+/** How many migrations are committed (the journal), so a new one does not break the counts below. */
+const committedMigrations = (): number =>
+  (
+    JSON.parse(
+      fs.readFileSync(
+        fileURLToPath(new URL("../drizzle/meta/_journal.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as { entries: unknown[] }
+  ).entries.length;
 
 const ALL_TABLE_PRIVILEGES = [
   "SELECT",
@@ -186,12 +199,6 @@ async function expectDatabaseMatchesManifest(db: RuntimeRoleDatabase, admin: pos
     expect(row.member, `${row.rolname} is a member of the administrative role`).toBe(false);
   }
 }
-
-const JOURNAL_ENTRIES = (
-  JSON.parse(
-    fs.readFileSync(new URL("../drizzle/meta/_journal.json", import.meta.url), "utf8"),
-  ) as { entries: unknown[] }
-).entries.length;
 
 describe("runtime grants", () => {
   let db: RuntimeRoleDatabase;
@@ -477,8 +484,7 @@ describe("migrating as the administrator over a member-owned object", () => {
     const [row] = await admin<
       { n: number }[]
     >`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`;
-    // every journal entry is applied, however many migrations there are
-    expect(row?.n).toBe(JOURNAL_ENTRIES);
+    expect(row?.n).toBe(committedMigrations()); // the whole chain, 0026 and everything after it
   });
 });
 

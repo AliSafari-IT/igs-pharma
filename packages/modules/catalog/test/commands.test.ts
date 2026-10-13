@@ -63,6 +63,11 @@ const product = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+/** The row's current version, as an edit form would have loaded it (igs-pharma#80). */
+const pv = async (id: string) =>
+  (await iso.sql<{ version: number }[]>`SELECT version FROM catalog.products WHERE id = ${id}`)[0]
+    ?.version as number;
+
 const codeOf = async (promise: Promise<unknown>) => {
   try {
     await promise;
@@ -144,19 +149,24 @@ describe("catalog.product.set_status", () => {
       "catalog.content_missing",
     );
 
-    await updateProduct({ productId, ...product({ content: [nl, fr] }) }, editor);
+    await updateProduct(
+      { productId, expectedVersion: await pv(productId), ...product({ content: [nl, fr] }) },
+      editor,
+    );
     await expect(setProductStatus({ productId, status: "active" }, editor)).resolves.toEqual({
       productId,
       status: "active",
+      version: 3, // created, updated, status changed
     });
     expect((await getProduct({ productId }, editor)).status).toBe("active");
     const audit = await auditFor(productId);
     expect(audit.map((a) => a.action)).toEqual([
       "catalog.product.created",
       "catalog.product.updated",
+      "catalog.product.cnk_changed", // the test's second input carries another CNK, allowed on a draft
       "catalog.product.status_changed",
     ]);
-    expect(audit[2]?.data).toEqual({ productId, from: "draft", to: "active" });
+    expect(audit[3]?.data).toEqual({ productId, from: "draft", to: "active", version: 3 });
   });
 
   it("archives, and refuses a no-op change and an unknown product", async () => {
@@ -178,7 +188,7 @@ describe("catalog.product.update", () => {
       editor,
     );
     const next = product({ coldChain: true, content: [nl, fr] });
-    await updateProduct({ productId, ...next }, editor);
+    await updateProduct({ productId, expectedVersion: await pv(productId), ...next }, editor);
     const view = await getProduct({ productId }, editor);
     expect(view).toMatchObject({ cnk: next.cnk, coldChain: true });
     expect(view.content.map((c) => c.locale)).toEqual(["fr", "nl"]);
@@ -187,21 +197,33 @@ describe("catalog.product.update", () => {
   it("keeps an active product's Dutch and French content", async () => {
     const { productId } = await createProduct(product(), editor);
     await setProductStatus({ productId, status: "active" }, editor);
-    expect(await codeOf(updateProduct({ productId, ...product({ content: [nl] }) }, editor))).toBe(
-      "catalog.content_missing",
-    );
+    expect(
+      await codeOf(
+        updateProduct(
+          { productId, expectedVersion: await pv(productId), ...product({ content: [nl] }) },
+          editor,
+        ),
+      ),
+    ).toBe("catalog.content_missing");
   });
 
   it("refuses another product's CNK and an unknown product", async () => {
     const first = product();
     await createProduct(first, editor);
     const { productId } = await createProduct(product(), editor);
-    expect(await codeOf(updateProduct({ productId, ...product({ cnk: first.cnk }) }, editor))).toBe(
-      "catalog.cnk_taken",
-    );
-    expect(await codeOf(updateProduct({ productId: randomUUID(), ...product() }, editor))).toBe(
-      "catalog.product_not_found",
-    );
+    expect(
+      await codeOf(
+        updateProduct(
+          { productId, expectedVersion: await pv(productId), ...product({ cnk: first.cnk }) },
+          editor,
+        ),
+      ),
+    ).toBe("catalog.cnk_taken");
+    expect(
+      await codeOf(
+        updateProduct({ productId: randomUUID(), expectedVersion: 1, ...product() }, editor),
+      ),
+    ).toBe("catalog.product_not_found");
   });
 });
 

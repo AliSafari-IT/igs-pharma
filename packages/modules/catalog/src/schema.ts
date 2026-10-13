@@ -69,10 +69,13 @@ export const products = catalog.table(
     ageMin: integer("age_min"),
     coldChain: boolean("cold_chain").notNull().default(false),
     brandId: uuid("brand_id").references(() => brands.id, { onDelete: "restrict" }),
+    /** Optimistic concurrency (igs-pharma#80): +1 on every write; edits carry the version they loaded. */
+    version: integer("version").notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check("products_version_check", sql`${t.version} >= 1`),
     check("products_cnk_check", sql`${t.cnk} ~ '^[0-9]{7}$'`),
     check("products_product_type_check", oneOf("product_type", PRODUCT_TYPES)),
     check("products_legal_status_check", oneOf("legal_status", LEGAL_STATUSES)),
@@ -127,10 +130,13 @@ export const categories = catalog.table(
     nameDe: text("name_de"),
     nameEn: text("name_en"),
     sortOrder: integer("sort_order").notNull().default(0),
+    /** Optimistic concurrency (igs-pharma#80): +1 on every write, including a sibling reorder. */
+    version: integer("version").notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check("categories_version_check", sql`${t.version} >= 1`),
     check("categories_slug_check", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
     check("categories_not_own_parent_check", sql`${t.parentId} IS DISTINCT FROM ${t.id}`),
     index("categories_parent_id_idx").on(t.parentId, t.sortOrder),

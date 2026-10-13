@@ -95,7 +95,8 @@ export const CONTENT_SOURCES = ["manual", "medipim", "sam"] as const;
 export const REQUIRED_LOCALES: readonly ContentLocale[] = ["nl", "fr"];
 
 /** A CNK is exactly 7 ASCII digits (no spaces, no check-digit arithmetic in v1). */
-export const isValidCnk = (value: string): boolean => /^[0-9]{7}$/.test(value);
+export const CNK_PATTERN = /^[0-9]{7}$/;
+export const isValidCnk = (value: string): boolean => CNK_PATTERN.test(value);
 
 /** The required locales that `locales` lacks, in `REQUIRED_LOCALES` order (empty when complete). */
 export function missingForActivation(locales: Iterable<string>): ContentLocale[] {

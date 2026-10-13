@@ -76,6 +76,11 @@ const general = (overrides: Record<string, unknown> = {}) => ({
 const medicine = (overrides: Record<string, unknown> = {}) =>
   general({ productType: "otc_medicine", legalStatus: "otc", vatClass: "BE_6", ...overrides });
 
+/** The row's current version, as an edit form would have loaded it (igs-pharma#80). */
+const pv = async (id: string) =>
+  (await iso.sql<{ version: number }[]>`SELECT version FROM catalog.products WHERE id = ${id}`)[0]
+    ?.version as number;
+
 const codeOf = async (promise: Promise<unknown>) => {
   try {
     await promise;
@@ -143,9 +148,14 @@ describe("the regulated commands belong to pharmacists", () => {
     const { productId } = await createProductRegulated(medicine(), pharmacist);
     for (const actor of [owner, editor, assistant, staff("customer_service")]) {
       expect(await codeOf(createProductRegulated(medicine(), actor))).toBe("kernel.forbidden");
-      expect(await codeOf(updateProductRegulated({ productId, ...medicine() }, actor))).toBe(
-        "kernel.forbidden",
-      );
+      expect(
+        await codeOf(
+          updateProductRegulated(
+            { productId, expectedVersion: await pv(productId), ...medicine() },
+            actor,
+          ),
+        ),
+      ).toBe("kernel.forbidden");
       expect(
         await codeOf(setProductStatusRegulated({ productId, status: "archived" }, actor)),
       ).toBe("kernel.forbidden");
@@ -155,9 +165,14 @@ describe("the regulated commands belong to pharmacists", () => {
   it("keeps the content commands out of the pharmacist's hands: she holds the regulated permission only", async () => {
     expect(await codeOf(createProduct(general(), pharmacist))).toBe("kernel.forbidden");
     const { productId } = await createProduct(general(), editor);
-    expect(await codeOf(updateProduct({ productId, ...general() }, pharmacist))).toBe(
-      "kernel.forbidden",
-    );
+    expect(
+      await codeOf(
+        updateProduct(
+          { productId, expectedVersion: await pv(productId), ...general() },
+          pharmacist,
+        ),
+      ),
+    ).toBe("kernel.forbidden");
     expect(await codeOf(setProductStatus({ productId, status: "archived" }, titular))).toBe(
       "kernel.forbidden",
     );
@@ -178,7 +193,12 @@ describe("product type and legal status must agree", () => {
         `create ${combo.productType}/${combo.legalStatus}`,
       ).toBe(expected);
       expect(
-        await codeOf(updateProductRegulated({ productId, ...general(combo) }, pharmacist)),
+        await codeOf(
+          updateProductRegulated(
+            { productId, expectedVersion: await pv(productId), ...general(combo) },
+            pharmacist,
+          ),
+        ),
         `update ${combo.productType}/${combo.legalStatus}`,
       ).toBe(expected);
     }
@@ -203,7 +223,12 @@ describe("a content save guards the regulated values", () => {
     );
     const same = medicine({ requiresPharmacistReview: true, ageMin: 12, coldChain: true });
     await updateProduct(
-      { productId, ...same, cnk: (await getProduct({ productId }, editor)).cnk },
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...same,
+        cnk: (await getProduct({ productId }, editor)).cnk,
+      },
       editor,
     );
     expect((await getProduct({ productId }, editor)).coldChain).toBe(true);
@@ -223,6 +248,7 @@ describe("a content save guards the regulated values", () => {
     const stored = await getProduct({ productId }, editor);
     const attempt = {
       productId,
+      expectedVersion: await pv(productId),
       cnk: stored.cnk,
       productType: stored.productType,
       legalStatus: stored.legalStatus,
@@ -256,7 +282,11 @@ describe("a content save guards the regulated values", () => {
     const { productId } = await createProductRegulated(medicine(), pharmacist);
     const stored = await getProduct({ productId }, pharmacist);
     await updateProductRegulated(
-      { productId, ...medicine({ cnk: stored.cnk, vatClass: "BE_21", ageMin: 12 }) },
+      {
+        productId,
+        expectedVersion: await pv(productId),
+        ...medicine({ cnk: stored.cnk, vatClass: "BE_21", ageMin: 12 }),
+      },
       pharmacist,
     );
     expect(await getProduct({ productId }, pharmacist)).toMatchObject({
@@ -276,7 +306,10 @@ describe("a content save guards the regulated values", () => {
   it("records no regulated change when nothing regulated changed", async () => {
     const { productId } = await createProductRegulated(medicine(), pharmacist);
     const stored = await getProduct({ productId }, pharmacist);
-    await updateProductRegulated({ productId, ...medicine({ cnk: stored.cnk }) }, pharmacist);
+    await updateProductRegulated(
+      { productId, expectedVersion: await pv(productId), ...medicine({ cnk: stored.cnk }) },
+      pharmacist,
+    );
     expect((await auditFor(productId)).map((a) => a.action)).toEqual([
       "catalog.product.created",
       "catalog.product.updated",
@@ -343,6 +376,7 @@ describe("only a pharmacist approves medicine text", () => {
     await updateProduct(
       {
         productId,
+        expectedVersion: await pv(productId),
         ...medicine({ cnk: stored.cnk, content: [{ ...nl, name: "Nieuwe naam" }, fr] }),
       },
       editor,
@@ -360,9 +394,15 @@ describe("only a pharmacist approves medicine text", () => {
   it("re-approves when the pharmacist saves again", async () => {
     const { productId } = await createProductRegulated(medicine(), pharmacist);
     const stored = await getProduct({ productId }, editor);
-    await updateProduct({ productId, ...medicine({ cnk: stored.cnk }) }, editor);
+    await updateProduct(
+      { productId, expectedVersion: await pv(productId), ...medicine({ cnk: stored.cnk }) },
+      editor,
+    );
     expect((await approvals(productId)).every((r) => r.by === null)).toBe(true);
-    await updateProductRegulated({ productId, ...medicine({ cnk: stored.cnk }) }, titular);
+    await updateProductRegulated(
+      { productId, expectedVersion: await pv(productId), ...medicine({ cnk: stored.cnk }) },
+      titular,
+    );
     expect((await approvals(productId)).every((r) => r.by === titular.id)).toBe(true);
   });
 
@@ -371,7 +411,10 @@ describe("only a pharmacist approves medicine text", () => {
     const rows = await approvals(productId);
     expect(rows.every((r) => r.by === editor.id)).toBe(true);
     const stored = await getProduct({ productId }, editor);
-    await updateProduct({ productId, ...general({ cnk: stored.cnk }) }, owner);
+    await updateProduct(
+      { productId, expectedVersion: await pv(productId), ...general({ cnk: stored.cnk }) },
+      owner,
+    );
     expect((await approvals(productId)).every((r) => r.by === owner.id)).toBe(true);
   });
 });
@@ -421,10 +464,35 @@ describe("the inconsistent-rows report (read-only)", () => {
     await updateProduct(
       {
         productId,
+        expectedVersion: await pv(productId),
         ...general({ cnk: value, productType: "cosmetic", legalStatus: "otc", content: [nl, fr] }),
       },
       editor,
     );
     expect(await getProduct({ productId }, editor)).toMatchObject({ legalStatus: "otc" });
+  });
+});
+
+describe("both families keep the version and CNK rules (igs-pharma#80)", () => {
+  it("refuses a stale form and a CNK change on an active product, in the regulated family too", async () => {
+    const { productId } = await createProductRegulated(medicine(), pharmacist);
+    const stored = await getProduct({ productId }, editor);
+    const form = { productId, ...medicine({ cnk: stored.cnk }) };
+    await updateProductRegulated({ ...form, expectedVersion: stored.version }, pharmacist);
+    expect(
+      await codeOf(
+        updateProductRegulated({ ...form, expectedVersion: stored.version }, pharmacist),
+      ),
+    ).toBe("catalog.stale_version");
+    const status = await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
+    expect(status.version).toBe(stored.version + 2);
+    expect(
+      await codeOf(
+        updateProductRegulated(
+          { ...form, cnk: cnk(), expectedVersion: status.version },
+          pharmacist,
+        ),
+      ),
+    ).toBe("catalog.cnk_locked");
   });
 });

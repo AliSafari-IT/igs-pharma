@@ -194,8 +194,15 @@
     {
       "idx": 27,
       "version": "7",
-      "when": 1791920686775,
-      "tag": "0027_rbac_regulated_fields",
+      "when": 1791920616809,
+      "tag": "0027_catalog_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791929279424,
+      "tag": "0028_rbac_regulated_fields",
       "breakpoints": true
     }
   ]

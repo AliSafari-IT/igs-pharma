@@ -21,15 +21,15 @@ interface Props {
   }>;
 }
 
-/** One "Move up" / "Move down" button: a plain form posting the new position. */
+/** One "Move up" / "Move down" button: a plain form posting the direction and the loaded version. */
 function MoveButton({ node, by, label }: { node: CategoryNode; by: -1 | 1; label: string }) {
   const position = node.index + by;
   const disabled = position < 0 || position >= node.siblingCount;
   return (
     <form action={moveCategoryAction}>
       <input type="hidden" name="categoryId" value={node.id} />
-      <input type="hidden" name="parentId" value={node.parentId ?? ""} />
-      <input type="hidden" name="position" value={String(position)} />
+      <input type="hidden" name="version" value={String(node.version)} />
+      <input type="hidden" name="direction" value={by < 0 ? "up" : "down"} />
       <Button
         type="submit"
         size="sm"

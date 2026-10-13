@@ -75,6 +75,11 @@ const product = async () =>
     )
   ).productId;
 
+/** The row's current version, as an edit form would have loaded it (igs-pharma#80). */
+const cv = async (id: string) =>
+  (await iso.sql<{ version: number }[]>`SELECT version FROM catalog.categories WHERE id = ${id}`)[0]
+    ?.version as number;
+
 const codeOf = async (promise: Promise<unknown>) => {
   try {
     await promise;
@@ -145,7 +150,14 @@ describe("catalog.category.update", () => {
     const id = await category();
     const newSlug = slug("renamed");
     await updateCategory(
-      { categoryId: id, slug: newSlug, nameNl: "Huid", nameFr: "Peau", nameEn: "Skin" },
+      {
+        categoryId: id,
+        expectedVersion: await cv(id),
+        slug: newSlug,
+        nameNl: "Huid",
+        nameFr: "Peau",
+        nameEn: "Skin",
+      },
       editor,
     );
     expect(nodeOf(await tree(), id)).toMatchObject({
@@ -157,7 +169,7 @@ describe("catalog.category.update", () => {
     });
     expect((await auditFor(id)).at(-1)).toEqual({
       action: "catalog.category.updated",
-      data: { categoryId: id, slug: newSlug },
+      data: { categoryId: id, slug: newSlug, version: 2 },
     });
   });
 
@@ -167,10 +179,20 @@ describe("catalog.category.update", () => {
     const [aNode] = (await tree()).filter((c) => c.id === a);
     const names = { nameNl: "X", nameFr: "X" };
     expect(
-      await codeOf(updateCategory({ categoryId: b, slug: aNode?.slug ?? "", ...names }, editor)),
+      await codeOf(
+        updateCategory(
+          { categoryId: b, expectedVersion: await cv(b), slug: aNode?.slug ?? "", ...names },
+          editor,
+        ),
+      ),
     ).toBe("catalog.category_slug_taken");
     expect(
-      await codeOf(updateCategory({ categoryId: randomUUID(), slug: slug(), ...names }, editor)),
+      await codeOf(
+        updateCategory(
+          { categoryId: randomUUID(), expectedVersion: 1, slug: slug(), ...names },
+          editor,
+        ),
+      ),
     ).toBe("catalog.category_not_found");
   });
 
@@ -180,7 +202,12 @@ describe("catalog.category.update", () => {
       const wanted = slug("race");
       const names = { nameNl: "X", nameFr: "X" };
       const results = await Promise.all([
-        codeOf(updateCategory({ categoryId: existing, slug: wanted, ...names }, editor)),
+        codeOf(
+          updateCategory(
+            { categoryId: existing, expectedVersion: await cv(existing), slug: wanted, ...names },
+            editor,
+          ),
+        ),
         codeOf(createCategory({ parentId: null, slug: wanted, ...names }, editor)),
       ]);
       expect(results.sort()).toEqual(["catalog.category_slug_taken", "ok"]);
@@ -192,13 +219,19 @@ describe("catalog.category.move", () => {
   it("reorders siblings and renumbers them", async () => {
     const root = await category();
     const [a, b, c] = [await category(root), await category(root), await category(root)];
-    await moveCategory({ categoryId: c, parentId: root, position: 0 }, editor);
+    await moveCategory(
+      { categoryId: c, expectedVersion: await cv(c), parentId: root, position: 0 },
+      editor,
+    );
     expect(childrenOf(await tree(), root)).toEqual([c, a, b]);
-    await moveCategory({ categoryId: c, parentId: root, position: 99 }, editor);
+    await moveCategory(
+      { categoryId: c, expectedVersion: await cv(c), parentId: root, position: 99 },
+      editor,
+    );
     expect(childrenOf(await tree(), root)).toEqual([a, b, c]);
     expect((await auditFor(c)).at(-1)).toEqual({
       action: "catalog.category.moved",
-      data: { categoryId: c, fromParentId: root, toParentId: root, position: 2 },
+      data: { categoryId: c, fromParentId: root, toParentId: root, position: 2, version: 3 },
     });
   });
 
@@ -206,9 +239,14 @@ describe("catalog.category.move", () => {
     const root = await category();
     const a = await category(root);
     const before = (await auditFor(a)).length;
-    expect(await codeOf(moveCategory({ categoryId: a, parentId: root, position: 0 }, editor))).toBe(
-      "catalog.category_unchanged",
-    );
+    expect(
+      await codeOf(
+        moveCategory(
+          { categoryId: a, expectedVersion: await cv(a), parentId: root, position: 0 },
+          editor,
+        ),
+      ),
+    ).toBe("catalog.category_unchanged");
     expect(await auditFor(a)).toHaveLength(before);
   });
 
@@ -217,12 +255,18 @@ describe("catalog.category.move", () => {
     const right = await category();
     const branch = await category(left);
     const leaf = await category(branch);
-    await moveCategory({ categoryId: branch, parentId: right, position: 0 }, editor);
+    await moveCategory(
+      { categoryId: branch, expectedVersion: await cv(branch), parentId: right, position: 0 },
+      editor,
+    );
     let nodes = await tree();
     expect(childrenOf(nodes, right)).toEqual([branch]);
     expect(childrenOf(nodes, left)).toEqual([]);
     expect(nodeOf(nodes, leaf).depth).toBe(3);
-    await moveCategory({ categoryId: branch, parentId: null, position: 0 }, editor);
+    await moveCategory(
+      { categoryId: branch, expectedVersion: await cv(branch), parentId: null, position: 0 },
+      editor,
+    );
     nodes = await tree();
     expect(nodeOf(nodes, branch)).toMatchObject({ parentId: null, depth: 1, index: 0 });
   });
@@ -232,10 +276,20 @@ describe("catalog.category.move", () => {
     const mid = await category(top);
     const low = await category(mid);
     expect(
-      await codeOf(moveCategory({ categoryId: top, parentId: top, position: 0 }, editor)),
+      await codeOf(
+        moveCategory(
+          { categoryId: top, expectedVersion: await cv(top), parentId: top, position: 0 },
+          editor,
+        ),
+      ),
     ).toBe("catalog.category_cycle");
     expect(
-      await codeOf(moveCategory({ categoryId: top, parentId: low, position: 0 }, editor)),
+      await codeOf(
+        moveCategory(
+          { categoryId: top, expectedVersion: await cv(top), parentId: low, position: 0 },
+          editor,
+        ),
+      ),
     ).toBe("catalog.category_cycle");
     expect(nodeOf(await tree(), top).parentId).toBeNull();
   });
@@ -246,7 +300,12 @@ describe("catalog.category.move", () => {
     const two = await category();
     await category(two); // `two` spans two levels
     expect(
-      await codeOf(moveCategory({ categoryId: two, parentId: deep, position: 0 }, editor)),
+      await codeOf(
+        moveCategory(
+          { categoryId: two, expectedVersion: await cv(two), parentId: deep, position: 0 },
+          editor,
+        ),
+      ),
     ).toBe("catalog.category_too_deep");
   });
 
@@ -258,7 +317,10 @@ describe("catalog.category.move", () => {
     await iso.sql`UPDATE catalog.categories SET sort_order = 0, name_nl = CASE id
       WHEN ${first} THEN 'Z' ELSE 'A' END WHERE parent_id = ${root}`;
     expect(childrenOf(await tree(), root)).toEqual([first, second]);
-    await moveCategory({ categoryId: first, parentId: root, position: 1 }, editor);
+    await moveCategory(
+      { categoryId: first, expectedVersion: await cv(first), parentId: root, position: 1 },
+      editor,
+    );
     expect(childrenOf(await tree(), root)).toEqual([second, first]);
   });
 
@@ -266,8 +328,18 @@ describe("catalog.category.move", () => {
     const x = await category();
     const y = await category();
     const results = await Promise.all([
-      codeOf(moveCategory({ categoryId: x, parentId: y, position: 0 }, editor)),
-      codeOf(moveCategory({ categoryId: y, parentId: x, position: 0 }, editor)),
+      codeOf(
+        moveCategory(
+          { categoryId: x, expectedVersion: await cv(x), parentId: y, position: 0 },
+          editor,
+        ),
+      ),
+      codeOf(
+        moveCategory(
+          { categoryId: y, expectedVersion: await cv(y), parentId: x, position: 0 },
+          editor,
+        ),
+      ),
     ]);
     expect(results.sort()).toEqual(["catalog.category_cycle", "ok"]);
   });
@@ -345,7 +417,12 @@ describe("permissions", () => {
       ),
     ).toBe("kernel.forbidden");
     expect(
-      await codeOf(moveCategory({ categoryId: id, parentId: null, position: 0 }, pharmacist)),
+      await codeOf(
+        moveCategory(
+          { categoryId: id, expectedVersion: await cv(id), parentId: null, position: 0 },
+          pharmacist,
+        ),
+      ),
     ).toBe("kernel.forbidden");
     expect(await codeOf(deleteCategory({ categoryId: id }, pharmacist))).toBe("kernel.forbidden");
   });
