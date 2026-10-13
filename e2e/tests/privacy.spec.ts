@@ -121,7 +121,8 @@ test("owner: log an erasure request, move it to in progress, then completed", as
   await expect(page.getByRole("heading", { name: "Erasure request", level: 1 })).toBeVisible();
   await expect(page.getByText("Request logged", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(subject)).toBeVisible();
-  await expect(page.getByText("Due in 30 days")).toBeVisible();
+  // one calendar month (igs-pharma#73), so 28 to 31 days depending on the month
+  await expect(page.getByText(/^Due in (28|29|30|31) days$/)).toBeVisible();
   await expectAxeClean(page);
 
   // rejecting needs a reason; then in progress, then completed
