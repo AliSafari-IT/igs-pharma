@@ -21,7 +21,7 @@ import {
   setProductCategories,
   setProductStatus,
 } from "@igs/module-catalog";
-import { importStock, listStock } from "@igs/module-inventory";
+import { importStock, listStock, prepareStockImport } from "@igs/module-inventory";
 
 /** The seed CLI's system actor: `system_seed` is a system role no user can hold. */
 export const SEED_ACTOR = { type: "system", id: "seed-catalog", roles: ["system_seed"] } as const;
@@ -382,7 +382,11 @@ export async function seedSyntheticStock(actor: Actor = SEED_ACTOR): Promise<Sto
     lines.push(`${cnk};${demoStockFor(index)}`);
   }
   if (lines.length === 0) return { stocked: 0, skipped };
-  await importStock({ csv: `cnk;quantity\n${lines.join("\n")}\n` }, actor);
+  const { planId } = await prepareStockImport(
+    { csv: `cnk;quantity\n${lines.join("\n")}\n` },
+    actor,
+  );
+  await importStock({ planId }, actor);
   return { stocked: lines.length, skipped };
 }
 

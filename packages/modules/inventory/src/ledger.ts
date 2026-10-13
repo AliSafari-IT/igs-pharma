@@ -1,8 +1,14 @@
-import type { Tx } from "@igs/kernel";
+import { newId } from "@igs/db/ids";
+import { type Actor, type Tx, conflict } from "@igs/kernel";
 import { productRefsByCnk } from "@igs/module-catalog";
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 
-import { DEFAULT_LOCATION_ID, type StockCsvError, parseStockCsv } from "./domain";
+import {
+  DEFAULT_LOCATION_ID,
+  type MovementReason,
+  type StockCsvError,
+  parseStockCsv,
+} from "./domain";
 import { stockMovements } from "./schema";
 
 /** Reading the ledger: on-hand is always the sum of the movements, never a stored number. */
@@ -48,6 +54,65 @@ export const levelOf = (levels: ReadonlyMap<string, StockLevel>, productId: stri
  */
 export async function lockStock(tx: Tx): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('inventory.stock'))`);
+}
+
+/** One movement to record at the default location. `delta` is never 0. */
+export interface MovementEntry {
+  readonly productId: string;
+  readonly delta: number;
+  readonly reason: MovementReason;
+  /** Staff free text of an adjustment; never copied into the audit trail. */
+  readonly note?: string;
+}
+
+/** The constraint on `inventory.stock_levels` that refuses a movement taking a product below zero. */
+const NEGATIVE_STOCK_CONSTRAINT = "stock_levels_on_hand_check";
+
+const isNegativeStock = (error: unknown): boolean => {
+  const e = error as { code?: string; constraint_name?: string } | null;
+  return e?.code === "23514" && e.constraint_name === NEGATIVE_STOCK_CONSTRAINT;
+};
+
+/**
+ * THE ONLY WRITER of `inventory.stock_movements` (igs-pharma#83, D-037; a test fails when any other
+ * source file writes the table). It takes the stock lock, inserts the movements in a fixed order
+ * (by product, so concurrent multi-row writers take the level rows in the same order) and turns the
+ * database guard's refusal into the typed `inventory.negative_stock`.
+ *
+ * The guard itself is in the database: a trigger on the table keeps `stock_levels` and its
+ * `on_hand >= 0` check refuses any movement that would take a product below zero, whoever inserts
+ * it and whether or not they went through this function.
+ */
+export async function recordMovements(
+  tx: Tx,
+  context: { readonly actor: Actor; readonly now: Date },
+  entries: readonly MovementEntry[],
+  options: { readonly importId?: string } = {},
+): Promise<readonly string[]> {
+  if (entries.length === 0) return [];
+  await lockStock(tx);
+  const ordered = [...entries].sort((a, b) =>
+    a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0,
+  );
+  const rows = ordered.map((entry) => ({
+    id: newId(),
+    productId: entry.productId,
+    locationId: DEFAULT_LOCATION_ID,
+    delta: entry.delta,
+    reason: entry.reason,
+    note: entry.note ?? null,
+    importId: options.importId ?? null,
+    actorType: context.actor.type,
+    actorId: context.actor.id,
+    at: context.now,
+  }));
+  try {
+    await tx.insert(stockMovements).values(rows);
+  } catch (error) {
+    if (isNegativeStock(error)) throw conflict("inventory.negative_stock");
+    throw error;
+  }
+  return rows.map((row) => row.id);
 }
 
 export interface ImportPlanRow {
