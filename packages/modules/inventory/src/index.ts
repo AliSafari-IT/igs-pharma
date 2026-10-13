@@ -3,6 +3,7 @@ export {
   ADJUST_REASONS,
   type AdjustReason,
   DEFAULT_LOCATION_ID,
+  IMPORT_PLAN_TTL_MS,
   LOCATION_KINDS,
   MAX_IMPORT_CHARS,
   MAX_IMPORT_ROWS,
@@ -15,7 +16,7 @@ export {
   parseStockCsv,
 } from "./domain";
 export type { ImportPlan, ImportPlanRow } from "./ledger";
-export { adjustStock, importStock, stockImportKey } from "./commands";
+export { adjustStock, importStock, prepareStockImport, stockImportKey } from "./commands";
 export {
   MOVEMENT_HISTORY_LIMIT,
   type ProductAvailability,
@@ -26,6 +27,5 @@ export {
   getAvailability,
   getStock,
   listStock,
-  previewStockImport,
 } from "./queries";
 export { INVENTORY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";

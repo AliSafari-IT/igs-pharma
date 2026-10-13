@@ -2,11 +2,10 @@
 
 import { isDomainError } from "@igs/kernel";
 import {
-  type ImportPlan,
   MAX_IMPORT_CHARS,
   adjustStock,
   importStock,
-  previewStockImport,
+  prepareStockImport,
   stockImportKey,
 } from "@igs/module-inventory";
 import { revalidatePath } from "next/cache";
@@ -20,16 +19,31 @@ const text = (form: FormData, name: string) => {
   return typeof value === "string" ? value : "";
 };
 
-/** The upload panel: the dry run of a file, then its confirmation (igs-pharma#53). */
+/** One problem line of a stock file (`line` 0 is the file as a whole). */
+export interface StockFileProblem {
+  readonly line: number;
+  readonly code: string;
+}
+
+/** The upload panel: the preview of a file (a stored plan), then its confirmation (igs-pharma#53, #83). */
 export interface StockImportState {
   readonly error?: string;
   readonly fileName?: string;
-  /** The file's text, sent back with "Confirm" so exactly the previewed file is imported. */
-  readonly csv?: string;
-  readonly plan?: ImportPlan;
+  /** The stored plan the confirm step applies: a fresh one for every preview. */
+  readonly planId?: string;
+  readonly rows?: readonly PreparedRow[];
+  /** Every problem in the file; when present nothing was stored and nothing can be confirmed. */
+  readonly problems?: readonly StockFileProblem[];
 }
 
-/** Step 1: read the uploaded file and show what it would change. Writes nothing. */
+export type PreparedRow = Awaited<ReturnType<typeof prepareStockImport>>["rows"][number];
+
+const lineOf = (path: string): number => {
+  const match = /^line\.([0-9]+)$/.exec(path);
+  return match ? Number(match[1]) : 0;
+};
+
+/** Step 1: read the uploaded file and store what it would change as a plan. Writes no stock. */
 export async function previewImport(
   _previous: StockImportState,
   form: FormData,
@@ -41,17 +55,26 @@ export async function previewImport(
   if (file.size > MAX_IMPORT_CHARS) return { error: "inventory.file_too_large" };
   const csv = await file.text();
   try {
-    const plan = await previewStockImport({ csv }, actor);
-    return { fileName: file.name, csv, plan };
+    const { planId, rows } = await prepareStockImport({ csv }, actor, {
+      origin: await requestOrigin(),
+    });
+    return { fileName: file.name, planId, rows };
   } catch (error) {
     if (!isDomainError(error)) throw error;
+    if (error.code === "inventory.import_invalid") {
+      return {
+        fileName: file.name,
+        problems: (error.fields ?? []).map((f) => ({ line: lineOf(f.path), code: f.code })),
+      };
+    }
     return { error: error.code };
   }
 }
 
 /**
- * Step 2: import the previewed file. The file's hash is the idempotency key, so a double click or a
- * second upload of the same file replays the first import instead of applying it twice.
+ * Step 2: apply the previewed plan. Only the plan's id is sent: the server applies what the preview
+ * showed, or refuses when stock moved since. The plan id is the idempotency key, so a double click
+ * replays the first result, while the same file previewed again is a new plan.
  */
 export async function confirmImport(
   previous: StockImportState,
@@ -59,11 +82,11 @@ export async function confirmImport(
 ): Promise<StockImportState> {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
-  const csv = text(form, "csv");
+  const planId = text(form, "planId");
   let changed: number;
   try {
-    const result = await importStock({ csv }, actor, {
-      idempotencyKey: stockImportKey(csv),
+    const result = await importStock({ planId }, actor, {
+      idempotencyKey: stockImportKey(planId),
       origin: await requestOrigin(),
     });
     changed = result.changed;

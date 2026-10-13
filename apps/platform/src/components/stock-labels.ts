@@ -39,6 +39,11 @@ const ERRORS: Record<string, string> = {
   "inventory.file_too_large": "The file is larger than 250 KB. Split it into smaller files.",
   "inventory.product_not_found": "This product no longer exists.",
   "inventory.negative_stock": "Stock can't go below zero.",
+  "inventory.import_stale":
+    "Stock changed after you previewed this file, so nothing was imported. Upload the file again to see the new numbers.",
+  "inventory.import_plan_expired":
+    "This preview is more than an hour old, so nothing was imported. Upload the file again.",
+  "inventory.import_plan_not_found": "This preview can't be found. Upload the file again.",
   "kernel.idempotency_in_progress": "This file is being imported right now. Reload in a moment.",
   "kernel.forbidden": "You don't have permission to work with stock.",
   "kernel.mfa_required": "Confirm your 2-step login first.",
