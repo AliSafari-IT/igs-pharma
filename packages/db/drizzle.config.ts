@@ -1,8 +1,10 @@
+import { migrateDsn } from "@igs/config/env";
 import type { Config } from "drizzle-kit";
-import { z } from "zod";
 
-// Only DATABASE_URL: migrations must run in jobs that have no auth secret (not parseEnv()).
-const { DATABASE_URL } = z.object({ DATABASE_URL: z.string().url() }).parse(process.env);
+// Migrations run as the administrative role, through the same rule as the migrate entry: production
+// needs DATABASE_MIGRATE_URL (a different user than DATABASE_URL); development falls back to
+// DATABASE_URL. No auth secret needed (not parseEnv()).
+const MIGRATE_URL = migrateDsn();
 
 export default {
   // Aggregated by path glob only — packages/db never imports modules (D-001).
@@ -12,7 +14,7 @@ export default {
   out: process.env["DRIZZLE_OUT"] ?? "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: DATABASE_URL,
+    url: MIGRATE_URL,
   },
   verbose: true,
   strict: true,

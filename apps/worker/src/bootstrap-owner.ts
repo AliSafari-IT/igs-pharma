@@ -18,7 +18,7 @@
  */
 import { parseArgs } from "node:util";
 
-import { parseEnvFor, workerEnv } from "@igs/config/env";
+import { adoptMigrateDsn, parseEnvFor, workerEnv } from "@igs/config/env";
 import { checkDatabase, closeDatabase, configureKernel, isDomainError } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
@@ -81,6 +81,8 @@ async function main() {
   }
 
   try {
+    // a one-shot operator tool: it runs as the administrative role (igs-pharma#66)
+    adoptMigrateDsn();
     parseEnvFor(workerEnv);
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));
