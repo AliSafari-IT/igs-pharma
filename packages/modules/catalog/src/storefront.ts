@@ -6,9 +6,10 @@ import { z } from "zod";
 
 import { CONTENT_LOCALES, type ContentLocale, type VatClass } from "./domain";
 import { brands, categories, productCategories, productContent, products } from "./schema";
+import { storefrontVisible } from "./visibility";
 
 /**
- * Storefront reads (igs-pharma#62), behind `catalog.storefront.read`: ACTIVE products and the
+ * Storefront reads (igs-pharma#62), behind `catalog.storefront.read`: ACTIVE, non-prescription products (`storefrontVisible`, D-034) and the
  * categories that have some, in the shopper's language. A draft or archived product does not exist
  * for these queries. Names fall back to Dutch (German and English content is optional); a product's
  * texts come from one language row, never a mix.
@@ -59,7 +60,7 @@ async function categoryRows(tx: Tx) {
     .select({ categoryId: productCategories.categoryId, direct: count() })
     .from(productCategories)
     .innerJoin(products, eq(products.id, productCategories.productId))
-    .where(eq(products.status, "active"))
+    .where(storefrontVisible())
     .groupBy(productCategories.categoryId);
   const directOf = new Map(counts.map((c) => [c.categoryId, c.direct]));
   return rows.map((row) => ({ ...row, direct: directOf.get(row.id) ?? 0 }));
@@ -161,7 +162,7 @@ export const listStorefrontProducts = query({
   permission: PERMISSIONS.catalog.storefrontRead,
   async handler({ input, ctx }): Promise<StorefrontProductPage> {
     let category: StorefrontProductPage["category"] = null;
-    const filters = [eq(products.status, "active")];
+    const filters = [storefrontVisible()];
     if (input.categorySlug) {
       const rows = await categoryRows(ctx.tx);
       const root = rows.find((row) => row.slug === input.categorySlug);
@@ -255,7 +256,7 @@ export const getStorefrontProduct = query({
       })
       .from(products)
       .leftJoin(brands, eq(brands.id, products.brandId))
-      .where(and(eq(products.cnk, input.cnk), eq(products.status, "active")));
+      .where(and(eq(products.cnk, input.cnk), storefrontVisible()));
     if (!product) throw notFound("catalog.product_not_found");
 
     const content = await ctx.tx

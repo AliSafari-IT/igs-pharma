@@ -6,7 +6,11 @@ import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { type Actor, isDomainError } from "@igs/kernel";
 import { type KernelTestHandles, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
-import { createProduct, registerAuditActions as registerCatalogAudit } from "@igs/module-catalog";
+import {
+  createProduct,
+  registerAuditActions as registerCatalogAudit,
+  setProductStatus,
+} from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -65,6 +69,29 @@ async function newProduct(vatClass: "BE_6" | "BE_21" = "BE_6"): Promise<string> 
     },
     owner,
   );
+  return productId;
+}
+
+/** An ACTIVE catalog product (the storefront only knows active ones), optionally prescription-only. */
+async function storefrontProduct(
+  legalStatus: "otc" | "pharmacy_only" | "rx" = "otc",
+  productType: "otc_medicine" | "rx_medicine" = "otc_medicine",
+): Promise<string> {
+  const cnk = String(nextCnk++);
+  const { productId } = await createProduct(
+    {
+      cnk,
+      productType,
+      legalStatus,
+      vatClass: "BE_6",
+      content: [
+        { locale: "nl", name: `Demo ${cnk}` },
+        { locale: "fr", name: `Demo ${cnk} FR` },
+      ],
+    },
+    owner,
+  );
+  await setProductStatus({ productId, status: "active" }, owner);
   return productId;
 }
 
@@ -243,5 +270,37 @@ describe("permissions and audit", () => {
       },
     ]);
     expect(JSON.stringify(events)).not.toContain("supplier-letter-xyz");
+  });
+});
+
+describe("the storefront prices storefront-visible products only (D-034)", () => {
+  const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
+
+  it("prices OTC and pharmacy-only products; a prescription, draft or unknown id is absent or unknown", async () => {
+    const otc = await storefrontProduct();
+    const pharmacyOnly = await storefrontProduct("pharmacy_only");
+    const rx = await storefrontProduct("rx");
+    const rxType = await storefrontProduct("otc", "rx_medicine");
+    const draft = await newProduct();
+    const everyone = [otc, pharmacyOnly, rx, rxType, draft];
+    for (const productId of everyone) {
+      await setPrice({ productId, amountCents: 500, reason: "launch" }, owner);
+    }
+
+    const seen = await currentPrices({ productIds: [...everyone, randomUUID()] }, storefront);
+    expect(seen.map((p) => p.productId).sort()).toEqual([otc, pharmacyOnly].sort());
+
+    for (const hidden of [rx, rxType, draft, randomUUID()]) {
+      expect(await codeOf(listPrices({ productId: hidden }, storefront)), hidden).toBe(
+        "pricing.unknown_product",
+      );
+      expect(await codeOf(lowestPriceLast30Days({ productId: hidden }, storefront)), hidden).toBe(
+        "pricing.unknown_product",
+      );
+    }
+    expect(await codeOf(listPrices({ productId: otc }, storefront))).toBe("ok");
+
+    // staff still price every product
+    expect(await currentPrices({ productIds: everyone }, owner)).toHaveLength(5);
   });
 });

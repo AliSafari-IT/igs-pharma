@@ -1,5 +1,5 @@
 import { type Tx, notFound, query } from "@igs/kernel";
-import { type VatClass, productRefsById } from "@igs/module-catalog";
+import { type VatClass, productRefsForActor } from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
@@ -107,7 +107,8 @@ export const currentPrices = query({
   input: z.object({ productIds: z.array(z.uuid()).min(1).max(100) }),
   permission: PERMISSIONS.pricing.priceRead,
   async handler({ input, ctx }): Promise<readonly CurrentPrice[]> {
-    const refs = await productRefsById(ctx.tx, input.productIds);
+    // the storefront actor prices storefront-visible products only (D-034)
+    const refs = await productRefsForActor(ctx.tx, input.productIds, ctx.can);
     if (refs.length === 0) return [];
     const rows = byProduct(
       await pricesUpTo(
@@ -158,7 +159,7 @@ export const listPrices = query({
   input: z.object({ productId: z.uuid() }),
   permission: PERMISSIONS.pricing.priceRead,
   async handler({ input, ctx }): Promise<ProductPrices> {
-    const [ref] = await productRefsById(ctx.tx, [input.productId]);
+    const [ref] = await productRefsForActor(ctx.tx, [input.productId], ctx.can);
     if (!ref) throw notFound("pricing.unknown_product");
     const rows = await ctx.tx
       .select(priceColumns)
@@ -210,7 +211,7 @@ export const lowestPriceLast30Days = query({
   input: z.object({ productId: z.uuid(), at: z.coerce.date().optional() }),
   permission: PERMISSIONS.pricing.priceRead,
   async handler({ input, ctx }): Promise<{ productId: string; amountCents: number | null }> {
-    const [ref] = await productRefsById(ctx.tx, [input.productId]);
+    const [ref] = await productRefsForActor(ctx.tx, [input.productId], ctx.can);
     if (!ref) throw notFound("pricing.unknown_product");
     const at = input.at ?? ctx.now;
     const points: PricePoint[] = await pricesUpTo(ctx.tx, [ref.id], at);
