@@ -371,10 +371,13 @@ describe("re-issuing an enrolment link (Q4 recovery)", () => {
 });
 
 describe("security events (onSecurityEvent → audit)", () => {
-  it("records identity.mfa.enrolled|removed with the user id and method only", async () => {
+  it("records identity.mfa.enrolled and backup-code regeneration with ids and method only", async () => {
     const id = await createUser();
     await recordSecurityEvent({ userId: id, type: "mfa.enrolled", method: "passkey" }, authHook());
-    await recordSecurityEvent({ userId: id, type: "mfa.removed", method: "totp" }, authHook());
+    await recordSecurityEvent(
+      { userId: id, type: "mfa.backup_codes_regenerated", method: "totp" },
+      authHook(),
+    );
     expect(await auditFor(id)).toEqual([
       {
         action: "identity.mfa.enrolled",
@@ -382,9 +385,9 @@ describe("security events (onSecurityEvent → audit)", () => {
         data: { userId: id, method: "passkey" },
       },
       {
-        action: "identity.mfa.removed",
+        action: "identity.mfa.backup_codes_regenerated",
         actor_type: "system",
-        data: { userId: id, method: "totp" },
+        data: { userId: id },
       },
     ]);
   });
@@ -393,7 +396,9 @@ describe("security events (onSecurityEvent → audit)", () => {
     const id = await createUser();
     const owner = actors.user({ id, roles: ["owner"], kind: "staff", mfaVerified: true });
     expect(
-      await codeOf(recordSecurityEvent({ userId: id, type: "mfa.removed", method: "totp" }, owner)),
+      await codeOf(
+        recordSecurityEvent({ userId: id, type: "mfa.enrolled", method: "totp" }, owner),
+      ),
     ).toBe("kernel.forbidden");
   });
 });

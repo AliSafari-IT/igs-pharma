@@ -328,6 +328,8 @@ describe("registerAuditActions", () => {
       "identity.mfa.removed",
       "identity.owner.bootstrapped",
       "identity.enrolment.reissued",
+      "identity.factors.reset",
+      "identity.mfa.backup_codes_regenerated",
     ]);
   });
 });

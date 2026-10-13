@@ -15,6 +15,9 @@ const ERRORS: Record<string, string> = {
   "identity.cannot_revoke_own_role": "You cannot revoke your own role.",
   "identity.invalid_status_transition": "That change is not possible for the account's status.",
   "identity.user_not_found": "That account was not found.",
+  "identity.cannot_reset_own_sign_in":
+    "You cannot reset your own sign-in. Ask another owner, or use the server's recovery command.",
+  "identity.fresh_mfa_required": "Confirm it's you with your passkey first, then try again.",
   "kernel.forbidden": "You are not allowed to do that.",
 };
 

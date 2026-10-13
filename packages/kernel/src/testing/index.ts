@@ -64,6 +64,8 @@ export const actors = {
       roles?: readonly string[];
       kind?: "customer" | "staff";
       mfaVerified?: boolean;
+      /** When the session last proved a second factor (handlers that need a FRESH proof, #90). */
+      mfaVerifiedAt?: Date | null;
     } = {},
   ): Actor => ({
     type: "user",
@@ -78,6 +80,7 @@ export const actors = {
     )
       ? { mfaVerified: options.mfaVerified ?? true }
       : {}),
+    ...(options.mfaVerifiedAt !== undefined ? { mfaVerifiedAt: options.mfaVerifiedAt } : {}),
   }),
   anonymous: (id?: string): Actor => ({
     type: "anonymous",

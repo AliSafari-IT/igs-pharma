@@ -1,11 +1,11 @@
 import { configureAuth } from "@igs/auth";
 import { auditEnv, parseEnvFor } from "@igs/config/env";
-import { configureKernel } from "@igs/kernel";
+import { configureKernel, isDomainError } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
 import {
+  applySecurityEvent,
   ensureRbacCatalogue,
-  recordSecurityEvent,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
@@ -30,8 +30,8 @@ let configured = false;
  * - The RBAC catalogue (T-016) is loaded from the database on first use and checked against the
  *   code; until it is, `hasPermission` throws (fail closed). A drifted database fails the call
  *   with `rbac.catalogue_drift` and is retried on the next one; `/api/health` is unaffected.
- * - 36b: `configureAuth` routes Better Auth's `mfa.enrolled|removed` events to an audit entry
- *   (`recordSecurityEvent`). `getAuth()` refuses to start without it, so anything that resolves
+ * - 36b: `configureAuth` routes Better Auth's factor changes to `applySecurityEvent`: a removal
+ *   and its audit entry commit together, an enrolment without its entry is undone (#90). `getAuth()` refuses to start without it, so anything that resolves
  *   the actor (`resolveActor`) or serves `/api/auth/*` calls `ensureAuthConfigured()` first.
  * - The edge adapter passes the caller's `origin` ({ ip, userAgent }) as a command call option;
  *   the audit port hashes it with the key. Handlers never see it.
@@ -58,9 +58,12 @@ export function ensureAuthConfigured(): void {
     onSecurityEvent: async (event) => {
       try {
         await ensureRbacCatalogue();
-        await recordSecurityEvent(event, AUTH_HOOK_ACTOR);
+        // a removal happens HERE, with its audit entry; a failed enrolment audit makes @igs/auth
+        // delete the new factor again (#90 C5)
+        await applySecurityEvent(event, AUTH_HOOK_ACTOR);
       } catch (error) {
-        // Better Auth's factor change already stands: make the missing audit row traceable
+        // a refusal (e.g. the last passkey) is an answer, not a failure
+        if (isDomainError(error)) throw error;
         logger.error(
           {
             event: "auth.security_event_audit_failed",

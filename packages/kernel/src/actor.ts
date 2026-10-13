@@ -29,4 +29,9 @@ export interface Actor {
    * operations (`kernel.mfa_required`); customers are not affected.
    */
   readonly mfaVerified?: boolean;
+  /**
+   * igs-pharma#90: when this `user` actor's session last proved a second factor (`null`: never).
+   * Handlers that need a FRESH proof (resetting someone's sign-in) compare it with `ctx.now`.
+   */
+  readonly mfaVerifiedAt?: Date | null;
 }

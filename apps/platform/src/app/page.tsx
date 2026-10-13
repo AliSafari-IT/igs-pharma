@@ -27,6 +27,9 @@ export default function DashboardPage() {
             </ul>
           </li>
           <li>
+            <Link href="/staff">Staff</Link>
+          </li>
+          <li>
             <Link href="/account">Your account</Link>
           </li>
         </ul>

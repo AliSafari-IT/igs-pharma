@@ -85,7 +85,8 @@ test("an enrolment link leads to 'Set up 2-step login', not the back-office; axe
   await expect(page).toHaveURL(`${PLATFORM}/setup`);
   await expect(page.getByRole("heading", { level: 1, name: "Set up 2-step login" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add a passkey" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Set up an authenticator app" })).toBeVisible();
+  // igs-pharma#90: staff sign in with a passkey only, so an authenticator app is never the first factor
+  await expect(page.getByRole("button", { name: "Set up an authenticator app" })).toHaveCount(0);
   await expectAxeClean(page);
 
   await page.goto(`${PLATFORM}/account`);
