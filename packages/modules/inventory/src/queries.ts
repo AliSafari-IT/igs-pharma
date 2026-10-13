@@ -1,5 +1,5 @@
 import { notFound, query } from "@igs/kernel";
-import { productRefsById, searchProductRefs } from "@igs/module-catalog";
+import { productRefsById, productRefsForActor, searchProductRefs } from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -149,7 +149,8 @@ export const getAvailability = query({
   input: z.object({ productIds: z.array(z.uuid()).min(1).max(100) }),
   permission: PERMISSIONS.inventory.availabilityRead,
   async handler({ input, ctx }): Promise<readonly ProductAvailability[]> {
-    const refs = await productRefsById(ctx.tx, input.productIds);
+    // the storefront actor sees storefront-visible products only (D-034)
+    const refs = await productRefsForActor(ctx.tx, input.productIds, ctx.can);
     const levels = await stockLevels(
       ctx.tx,
       refs.map((ref) => ref.id),

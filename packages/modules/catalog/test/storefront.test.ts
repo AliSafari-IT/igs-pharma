@@ -10,6 +10,7 @@ import { loadRbacCatalogue } from "@igs/module-identity";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  assertSellable,
   createBrand,
   createCategory,
   createProduct,
@@ -65,6 +66,8 @@ interface NewProduct {
   readonly name?: string;
   readonly status?: "draft" | "active" | "archived";
   readonly brandId?: string;
+  readonly productType?: "otc_medicine" | "rx_medicine" | "medical_device";
+  readonly legalStatus?: "otc" | "rx" | "pharmacy_only" | "general_sale";
   readonly categoryIds?: readonly string[];
   /** Extra content rows; Dutch and French are always written. */
   readonly content?: readonly { locale: "nl" | "fr" | "de" | "en"; name: string }[];
@@ -76,8 +79,8 @@ async function product(options: NewProduct = {}): Promise<{ id: string; cnk: str
   const { productId } = await createProduct(
     {
       cnk,
-      productType: "otc_medicine",
-      legalStatus: "otc",
+      productType: options.productType ?? "otc_medicine",
+      legalStatus: options.legalStatus ?? "otc",
       vatClass: "BE_6",
       ...(options.brandId ? { brandId: options.brandId } : {}),
       content: [
@@ -249,5 +252,92 @@ describe("who may read the storefront", () => {
     // the storefront role cannot read what staff read: drafts and the full product list
     const { listProducts } = await import("../src");
     expect(await codeOf(listProducts({}, storefront))).toBe("kernel.forbidden");
+  });
+});
+
+// D-034: prescription medicines never appear on the storefront, by any read path.
+describe("prescription medicines are invisible to the storefront (D-034)", () => {
+  const hiddenKinds = [
+    ["legal_status rx", { legalStatus: "rx" }],
+    ["product_type rx_medicine", { productType: "rx_medicine" }],
+    ["both", { legalStatus: "rx", productType: "rx_medicine" }],
+  ] as const;
+
+  it("keeps them out of the list, the counts, the category tree and the product page", async () => {
+    const cat = await category(null, "Rxcat");
+    const visible = await product({ name: "Visible otc", categoryIds: [cat] });
+    const pharmacyOnly = await product({
+      name: "Visible pharmacy only",
+      legalStatus: "pharmacy_only",
+      categoryIds: [cat],
+    });
+    const device = await product({
+      name: "Visible device",
+      productType: "medical_device",
+      legalStatus: "general_sale",
+      categoryIds: [cat],
+    });
+    const hidden = [];
+    for (const [label, kind] of hiddenKinds) {
+      hidden.push({
+        label,
+        ...(await product({ name: `Hidden ${label}`, categoryIds: [cat], ...kind })),
+      });
+    }
+    const draft = await product({ name: "Hidden draft", categoryIds: [cat], status: "draft" });
+    const archived = await product({
+      name: "Hidden archived",
+      categoryIds: [cat],
+      status: "archived",
+    });
+
+    const tree = await listStorefrontCategories({ locale: "nl" }, storefront);
+    const node = tree.find((c) => c.id === cat);
+    expect(node?.productCount).toBe(3);
+    const slug = node?.slug as string;
+
+    const list = await listStorefrontProducts({ locale: "nl", pageSize: 100 }, storefront);
+    const inCategory = await listStorefrontProducts(
+      { locale: "nl", categorySlug: slug, pageSize: 100 },
+      storefront,
+    );
+    for (const page of [list, inCategory]) {
+      const ids = page.items.map((i) => i.id);
+      for (const h of [...hidden, draft, archived]) expect(ids).not.toContain(h.id);
+      for (const v of [visible, pharmacyOnly, device]) expect(ids).toContain(v.id);
+    }
+    expect(inCategory.total).toBe(3);
+
+    // a category that holds only Rx products is not in the tree at all
+    const rxOnly = await category(null, "Rxonly");
+    await product({ legalStatus: "rx", categoryIds: [rxOnly] });
+    expect(
+      (await listStorefrontCategories({ locale: "nl" }, storefront)).map((c) => c.id),
+    ).not.toContain(rxOnly);
+
+    // a direct CNK lookup is the same "not found" as an unknown CNK
+    for (const h of [...hidden, draft, archived]) {
+      expect(await codeOf(getStorefrontProduct({ cnk: h.cnk, locale: "nl" }, storefront))).toBe(
+        "catalog.product_not_found",
+      );
+    }
+    for (const v of [visible, pharmacyOnly, device]) {
+      expect(await codeOf(getStorefrontProduct({ cnk: v.cnk, locale: "nl" }, storefront))).toBe(
+        "ok",
+      );
+    }
+  });
+
+  it("assertSellable rejects what the storefront must not show, like a missing product", async () => {
+    const ok = await product({});
+    const pharmacyOnly = await product({ legalStatus: "pharmacy_only" });
+    const rx = await product({ legalStatus: "rx" });
+    const rxType = await product({ productType: "rx_medicine" });
+    const draft = await product({ status: "draft" });
+    const ids = [rx.id, rxType.id, draft.id, randomUUID()];
+    const check = (id: string) => codeOf(iso.db.transaction((tx) => assertSellable(tx, id)));
+    expect(await check(ok.id)).toBe("ok");
+    expect(await check(pharmacyOnly.id)).toBe("ok");
+    for (const id of ids) expect(await check(id)).toBe("catalog.product_not_sellable");
   });
 });

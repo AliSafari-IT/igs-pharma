@@ -1,8 +1,10 @@
 import type { Tx } from "@igs/kernel";
+import { PERMISSIONS, type Permission } from "@igs/rbac";
 import { type SQL, and, asc, count, eq, exists, ilike, inArray, like, or, sql } from "drizzle-orm";
 
 import type { VatClass } from "./domain";
 import { productContent, products } from "./schema";
+import { storefrontVisible } from "./visibility";
 
 /**
  * Product references for OTHER modules' kernel operations (igs-pharma#53: inventory). Plain
@@ -83,4 +85,32 @@ export async function searchProductRefs(
     .limit(options.limit)
     .offset(options.offset);
   return { items, total: totalRow?.total ?? 0 };
+}
+
+/**
+ * Like `productRefsById`, but only the storefront-visible products (D-034): an Rx, draft or
+ * archived id is simply absent, like an unknown one. For queries the storefront actor can reach
+ * (price, availability), so it can neither price nor probe a product it must not know.
+ */
+export async function storefrontProductRefsById(
+  tx: Tx,
+  ids: readonly string[],
+): Promise<readonly ProductRef[]> {
+  if (ids.length === 0) return [];
+  return refsWhere(tx, and(inArray(products.id, [...ids]), storefrontVisible()));
+}
+
+/**
+ * The product refs a query may show its actor: every product for staff who hold
+ * `catalog.products.read`, only the storefront-visible ones for anyone else (the storefront actor).
+ * Pass the query context's `can`.
+ */
+export function productRefsForActor(
+  tx: Tx,
+  ids: readonly string[],
+  can: (permission: Permission) => boolean,
+): Promise<readonly ProductRef[]> {
+  return can(PERMISSIONS.catalog.productsRead)
+    ? productRefsById(tx, ids)
+    : storefrontProductRefsById(tx, ids);
 }

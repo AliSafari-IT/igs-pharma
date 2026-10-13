@@ -37,7 +37,13 @@ export {
   updateCategory,
 } from "./categories";
 export { CATALOG_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
-export { type ProductRef, productRefsByCnk, productRefsById, searchProductRefs } from "./refs";
+export {
+  type ProductRef,
+  productRefsByCnk,
+  productRefsById,
+  productRefsForActor,
+  searchProductRefs,
+} from "./refs";
 export {
   type StorefrontCategory,
   type StorefrontProduct,
@@ -47,3 +53,4 @@ export {
   listStorefrontCategories,
   listStorefrontProducts,
 } from "./storefront";
+export { assertSellable, storefrontVisible, storefrontVisibleIds } from "./visibility";
