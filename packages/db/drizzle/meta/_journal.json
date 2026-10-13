@@ -183,6 +183,13 @@
       "when": 1791840612553,
       "tag": "0025_rbac_seed_storefront",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791876769489,
+      "tag": "0026_runtime_grants",
+      "breakpoints": true
     }
   ]
 }

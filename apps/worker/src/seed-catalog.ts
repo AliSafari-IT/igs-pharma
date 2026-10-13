@@ -13,7 +13,13 @@
  * system actor holding `system_seed` (no user can hold it), so every write is audited like an
  * editor's.
  */
-import { parseEnvFor, syntheticSeedAllowed, syntheticSeedEnv, workerEnv } from "@igs/config/env";
+import {
+  adoptMigrateDsn,
+  parseEnvFor,
+  syntheticSeedAllowed,
+  syntheticSeedEnv,
+  workerEnv,
+} from "@igs/config/env";
 import { checkDatabase, closeDatabase, configureKernel, isDomainError } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
@@ -45,6 +51,8 @@ const seedEnv = workerEnv.extend(syntheticSeedEnv.shape);
 async function main() {
   let env: ReturnType<typeof parseEnvFor<typeof seedEnv>>;
   try {
+    // a one-shot operator tool: it runs as the administrative role (igs-pharma#66)
+    adoptMigrateDsn();
     env = parseEnvFor(seedEnv);
   } catch (error) {
     fail(error instanceof Error ? error.message : String(error));

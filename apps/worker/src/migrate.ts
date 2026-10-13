@@ -10,14 +10,22 @@
  * 2. Installs or upgrades pg-boss's `pgboss` schema (D-021): the production worker starts pg-boss
  *    with `migrate: false`, so this is the step that creates it.
  *
- * Exits 0 when the database is up to date (running it again is a no-op), non-zero otherwise.
+ * 3. Creates every pg-boss queue (`createQueue` is DDL, which the runtime roles lack): the kernel's,
+ *    one per registered event topic, and the audit module's. The worker only checks they exist.
+ * 4. Grants the worker role its runtime rights on `pgboss` (DML, no DDL; `igs_app` gets nothing),
+ *    after everything above, so the grants cover the queue tables just created.
+ *
+ * It must run as the administrative role that owns the schemas (`DATABASE_MIGRATE_URL`, igs-pharma#66);
+ * the runtime DSN is refused in production. Exits 0 when the database is up to date (running it again is a no-op), non-zero otherwise.
  */
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { parseEnvFor, workerEnv } from "@igs/config/env";
+import { adoptMigrateDsn, parseEnvFor, workerEnv } from "@igs/config/env";
 import { closeDatabase, migrateDatabase } from "@igs/kernel";
 import PgBoss from "pg-boss";
+
+import { type InstallableBoss, installPgBossQueuesAndGrants } from "./pgboss-install";
 
 /** `/app/drizzle` next to `/app/dist` in the image; the repository's folder under `tsx`. */
 function migrationsFolder(): string {
@@ -32,6 +40,8 @@ function migrationsFolder(): string {
 async function main() {
   let env: ReturnType<typeof parseEnvFor<typeof workerEnv>>;
   try {
+    // the administrative role (DATABASE_MIGRATE_URL), never the runtime DSN (igs-pharma#66)
+    adoptMigrateDsn();
     env = parseEnvFor(workerEnv);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
@@ -59,7 +69,13 @@ async function main() {
   });
   boss.on("error", (err) => logger.error({ err }, "pg-boss error"));
   await boss.start();
-  await boss.stop({ graceful: false, wait: true });
+  try {
+    // getDb() is public in pg-boss 10 but missing from its typings
+    await installPgBossQueuesAndGrants(boss as unknown as InstallableBoss);
+    logger.info("pg-boss queues and runtime grants up to date");
+  } finally {
+    await boss.stop({ graceful: false, wait: true });
+  }
   logger.info("pg-boss schema up to date");
 }
 

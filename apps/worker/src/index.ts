@@ -1,6 +1,8 @@
 import { parseEnvFor, workerEnv } from "@igs/config/env";
 import {
   type JobQueue,
+  PURGE_QUEUE,
+  assertQueuesExist,
   checkDatabase,
   closeDatabase,
   configureKernel,
@@ -21,7 +23,6 @@ import PgBoss from "pg-boss";
 
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
-const PURGE_QUEUE = "kernel.maintenance.purge";
 
 async function main() {
   // Validate configuration first; fail fast with a readable message and a non-zero exit code.
@@ -72,7 +73,8 @@ async function main() {
     logger,
   });
   // Daily housekeeping (K5): published outbox rows > 7 days, expired idempotency keys.
-  await boss.createQueue(PURGE_QUEUE);
+  // queues are created by the migrate entry (DDL); the worker only checks they exist (igs-pharma#66)
+  await assertQueuesExist(boss, [PURGE_QUEUE]);
   await boss.schedule(PURGE_QUEUE, "17 3 * * *", undefined, { tz: "Europe/Brussels" });
   await boss.work(PURGE_QUEUE, async () => {
     const purged = await purgeExpired();

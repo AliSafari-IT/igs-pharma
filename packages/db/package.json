@@ -27,6 +27,10 @@
     "./testing/global-setup": {
       "types": "./src/testing/global-setup.ts",
       "default": "./src/testing/global-setup.ts"
+    },
+    "./grants": {
+      "types": "./src/grants/index.ts",
+      "default": "./src/grants/index.ts"
     }
   },
   "scripts": {
