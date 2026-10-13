@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-import { CONSENT_PURPOSES, CONSENT_SOURCES, DSR_CHANNELS, DSR_STATUSES, DSR_TYPES } from "./domain";
+import {
+  CONSENT_PURPOSES,
+  CONSENT_SOURCES,
+  DSR_CHANNELS,
+  DSR_EXTENSION_REASONS,
+  DSR_STATUSES,
+  DSR_TYPES,
+} from "./domain";
 
 /** Audit actions recorded by the privacy commands (`<domain>.<noun>.<verb>`). */
 export const PRIVACY_AUDIT = {
@@ -8,6 +15,8 @@ export const PRIVACY_AUDIT = {
   dsrCreated: "privacy.dsr.created",
   dsrTransitioned: "privacy.dsr.transitioned",
   retentionPurged: "privacy.retention.purged",
+  dsrExtended: "privacy.dsr.extended",
+  dsrExtensionNoticeRecorded: "privacy.dsr.extension_notice_recorded",
 } as const;
 
 const consentRecorded = z.object({
@@ -26,6 +35,12 @@ const dsrTransitioned = z.object({
   from: z.enum(DSR_STATUSES),
   to: z.enum(DSR_STATUSES),
 });
+const dsrExtended = z.object({
+  requestId: z.uuid(),
+  months: z.union([z.literal(1), z.literal(2)]),
+  reason: z.enum(DSR_EXTENSION_REASONS),
+});
+const dsrExtensionNoticeRecorded = z.object({ requestId: z.uuid() });
 
 const retentionPurged = z.object({
   consentEvents: z.number().int().min(0),
@@ -47,4 +62,6 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(PRIVACY_AUDIT.dsrCreated, dsrCreated);
   register(PRIVACY_AUDIT.dsrTransitioned, dsrTransitioned);
   register(PRIVACY_AUDIT.retentionPurged, retentionPurged);
+  register(PRIVACY_AUDIT.dsrExtended, dsrExtended);
+  register(PRIVACY_AUDIT.dsrExtensionNoticeRecorded, dsrExtensionNoticeRecorded);
 }

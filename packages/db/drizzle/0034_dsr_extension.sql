@@ -1,0 +1,9 @@
+ALTER TABLE "privacy"."dsr_events" ADD COLUMN "kind" text DEFAULT 'status' NOT NULL;--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD COLUMN "original_due_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD COLUMN "extended_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD COLUMN "extension_months" integer;--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD COLUMN "extension_reason" text;--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD COLUMN "extension_notice_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_events" ADD CONSTRAINT "dsr_events_kind_check" CHECK (kind IN ('status', 'extended', 'notice_sent'));--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD CONSTRAINT "dsr_requests_extension_check" CHECK (("privacy"."dsr_requests"."original_due_at" IS NULL AND "privacy"."dsr_requests"."extended_at" IS NULL AND "privacy"."dsr_requests"."extension_months" IS NULL AND "privacy"."dsr_requests"."extension_reason" IS NULL AND "privacy"."dsr_requests"."extension_notice_at" IS NULL) OR ("privacy"."dsr_requests"."original_due_at" IS NOT NULL AND "privacy"."dsr_requests"."extended_at" IS NOT NULL AND "privacy"."dsr_requests"."extension_months" IN (1, 2) AND "privacy"."dsr_requests"."extension_reason" IS NOT NULL AND "privacy"."dsr_requests"."due_at" > "privacy"."dsr_requests"."original_due_at"));--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD CONSTRAINT "dsr_requests_extension_reason_check" CHECK ("privacy"."dsr_requests"."extension_reason" IS NULL OR extension_reason IN ('complex', 'numerous'));

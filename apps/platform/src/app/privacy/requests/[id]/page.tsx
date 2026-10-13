@@ -2,9 +2,11 @@ import { isDomainError } from "@igs/kernel";
 import { DSR_STATUSES, type DsrView, getDsr } from "@igs/module-privacy";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 
+import { DsrExtendDialog, DsrNoticeForm } from "../../../../components/dsr-extension";
 import { DsrStatusDialog } from "../../../../components/dsr-status-dialog";
 import {
   DSR_CHANNEL_LABELS,
+  DSR_EXTENSION_REASON_LABELS,
   DSR_STATUS_BADGE,
   DSR_STATUS_LABELS,
   DSR_TYPE_LABELS,
@@ -20,13 +22,21 @@ export const metadata = { title: "Data request · IGS-Pharma Platform" };
 
 interface Props {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams: Promise<{ created?: string | string[]; moved?: string | string[] }>;
+  readonly searchParams: Promise<{
+    created?: string | string[];
+    moved?: string | string[];
+    extended?: string | string[];
+    notice?: string | string[];
+  }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
-/** One data-subject request: its deadline, its timeline and the Change status dialog. */
+/**
+ * One data-subject request: its deadline (and its art. 12(3) extension, igs-pharma#88), its timeline
+ * and the Change status dialog.
+ */
 export default async function DataRequestPage({ params, searchParams }: Props) {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
@@ -81,6 +91,8 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
                     {DSR_STATUS_LABELS[request.status]}
                   </Badge>
                   {request.overdue ? <Badge variant="error">Overdue</Badge> : null}
+                  {request.extension ? <Badge variant="primary">Extended</Badge> : null}
+                  {request.canExtend ? <DsrExtendDialog requestId={request.id} /> : null}
                   {request.nextStatuses.length > 0 ? (
                     <DsrStatusDialog requestId={request.id} nextStatuses={request.nextStatuses} />
                   ) : null}
@@ -91,6 +103,19 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
                 <Alert variant="success" title="Request logged">
                   The answer is due on {formatDay(request.dueAt)}.
                 </Alert>
+              ) : null}
+              {first(flash.extended) === "1" ? (
+                <Alert variant="success" title="Deadline extended">
+                  The answer is now due on {formatDay(request.dueAt)}. Tell the person, with the
+                  reason, before{" "}
+                  {request.extension
+                    ? formatDay(request.extension.originalDueAt)
+                    : "the first month ends"}
+                  , then record it below.
+                </Alert>
+              ) : null}
+              {first(flash.notice) === "1" ? (
+                <Alert variant="success" title="Notice recorded" />
               ) : null}
               {moved ? (
                 <Alert
@@ -108,7 +133,44 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
                 <dd>
                   {formatDay(request.dueAt)}
                   {request.daysLeft !== null ? ` · ${dueLabel(request.daysLeft)}` : null}
+                  {request.answeredInTime === true ? " · answered in time" : null}
+                  {request.answeredInTime === false ? " · answered late" : null}
                 </dd>
+                {request.extension ? (
+                  <>
+                    <dt className="font-semibold">Original deadline</dt>
+                    <dd>{formatDay(request.extension.originalDueAt)}</dd>
+                    <dt className="font-semibold">Extended</dt>
+                    <dd>
+                      By {request.extension.months} month{request.extension.months > 1 ? "s" : ""}{" "}
+                      on {formatDay(request.extension.extendedAt)} ·{" "}
+                      {DSR_EXTENSION_REASON_LABELS[request.extension.reason]}
+                    </dd>
+                    <dt className="font-semibold">Person told</dt>
+                    <dd>
+                      {request.extension.noticeAt ? (
+                        <>
+                          {formatDay(request.extension.noticeAt)}
+                          {request.extension.noticeInTime ? (
+                            " · within the first month"
+                          ) : (
+                            <Badge variant="error" className="ml-2">
+                              After the first month
+                            </Badge>
+                          )}
+                        </>
+                      ) : (
+                        <Stack gap={2}>
+                          <span>
+                            Not recorded yet: tell them before{" "}
+                            {formatDay(request.extension.originalDueAt)}.
+                          </span>
+                          <DsrNoticeForm requestId={request.id} />
+                        </Stack>
+                      )}
+                    </dd>
+                  </>
+                ) : null}
                 {request.closedAt ? (
                   <>
                     <dt className="font-semibold">Closed</dt>
@@ -135,9 +197,13 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
                     <li key={event.id}>
                       <p>
                         <span className="font-semibold">
-                          {event.fromStatus
-                            ? `${DSR_STATUS_LABELS[event.fromStatus]} → ${DSR_STATUS_LABELS[event.toStatus]}`
-                            : "Request logged"}
+                          {event.kind === "extended"
+                            ? "Deadline extended"
+                            : event.kind === "notice_sent"
+                              ? "Notice of the extension recorded"
+                              : event.fromStatus
+                                ? `${DSR_STATUS_LABELS[event.fromStatus]} → ${DSR_STATUS_LABELS[event.toStatus]}`
+                                : "Request logged"}
                         </span>{" "}
                         <span className="text-sm text-[var(--color-text-subtle)]">
                           {formatMoment(event.at)} · {who(event)}
