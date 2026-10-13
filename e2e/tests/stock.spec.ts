@@ -11,7 +11,7 @@ import { smokeDatabaseUrl, smokeEnv } from "../smoke-env";
  * second factor) uploads a stock count, sees the preview, confirms it, then sees the on-hand and
  * the history, and adjusts with a reason. Needs SMOKE_DATABASE_URL (a migrated database).
  */
-test.skip(!smokeDatabaseUrl || smokeDatabaseUrl.length > 0, "TEMPORARY PROOF: forced skip");
+test.skip(!smokeDatabaseUrl, "set SMOKE_DATABASE_URL to a migrated database to run");
 
 const PLATFORM = "http://localhost:3001";
 
