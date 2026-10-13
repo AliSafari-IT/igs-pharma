@@ -32,6 +32,8 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
+        // CI uploads the traces of failed tests (e2e (smoke) job)
+        trace: "retain-on-failure",
         ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },
     },

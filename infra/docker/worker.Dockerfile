@@ -3,7 +3,8 @@
 # The worker is bundled with tsup (workspace packages inlined, D-007); the runner stage only
 # needs the bundle plus the worker's *production* dependencies.
 
-FROM node:24-alpine AS base
+# Base image pinned by digest (node:24-alpine); Renovate bumps it.
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
@@ -27,7 +28,7 @@ RUN pnpm --filter=@igs/worker run build && \
     pnpm --filter=@igs/worker --prod deploy --legacy /out
 
 # ── runner ────────────────────────────────────────────────────────────────────
-FROM node:24-alpine AS runner
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
