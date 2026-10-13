@@ -11,6 +11,7 @@ import {
   command,
   createOutboxRelay,
   defineEvent,
+  ensureKernelQueues,
   handleOnce,
   pgBossExecutor,
   purgeExpired,
@@ -71,6 +72,8 @@ beforeEach(async () => {
   await q("DELETE FROM pgboss.job");
   kernel = configureKernelForTests({ db: iso.db });
   registerEvents(Approved);
+  // queues are created by the migrate entry, never by the relay (igs-pharma#66)
+  await ensureKernelQueues(boss);
 });
 
 afterEach(() => resetKernelForTests());
@@ -157,7 +160,6 @@ describe("outbox relay", () => {
 
   it("Q6: enqueue + published_at commit or roll back together", async () => {
     await approve({ orderId: "o1" }, pharmacist());
-    await boss.createQueue("orders.review.approved");
     const [row] = await q<{ id: string }>("SELECT id FROM system.outbox");
 
     // rolled back → neither the job nor published_at exist
@@ -185,7 +187,7 @@ describe("outbox relay", () => {
   it("a send failure rolls back that row's enqueue and records the attempt with backoff", async () => {
     await approve({ orderId: "o1" }, pharmacist());
     const failing: JobQueue = {
-      createQueue: async () => {},
+      getQueue: async () => ({}),
       send: async () => {
         throw new Error("secret-looking message that must not be stored");
       },
@@ -216,7 +218,7 @@ describe("outbox relay", () => {
   it("dead-letters after maxAttempts and logs it", async () => {
     await approve({ orderId: "o1" }, pharmacist());
     const failing: JobQueue = {
-      createQueue: async () => {},
+      getQueue: async () => ({}),
       send: async () => {
         throw new Error("down");
       },
@@ -245,7 +247,7 @@ describe("outbox relay", () => {
     }
     const sent: string[] = [];
     const slowQueue: JobQueue = {
-      createQueue: async () => {},
+      getQueue: async () => ({}),
       send: async (_name, data) => {
         sent.push((data as OutboxEnvelope).eventId);
         await new Promise((resolve) => setTimeout(resolve, 20));
@@ -267,7 +269,7 @@ describe("outbox relay", () => {
     await approve({ orderId: "o1" }, pharmacist());
     kernel.clock.advance(30_000);
     const failing: JobQueue = {
-      createQueue: async () => {},
+      getQueue: async () => ({}),
       send: async () => {
         throw new Error("down");
       },
@@ -277,6 +279,17 @@ describe("outbox relay", () => {
       metrics: { increment: () => {}, gauge: (n, v) => void gauges.push([n, v]) },
     }).runOnce();
     expect(gauges).toEqual([["kernel.outbox.lag_seconds", 30]]);
+  });
+
+  it("never creates a queue itself: a missing one fails the attempt (retried with backoff)", async () => {
+    await approve({ orderId: "o1" }, pharmacist());
+    const bare: JobQueue = { getQueue: async () => null, send: async () => "job" };
+    const stats = await relay({ queue: bare }).runOnce();
+    expect(stats).toEqual({ published: 0, failed: 1, dead: 0 });
+    const [row] = await q<{ attempts: number; published_at: Date | null }>(
+      "SELECT attempts, published_at FROM system.outbox",
+    );
+    expect([row?.attempts, row?.published_at]).toEqual([1, null]); // retried later, nothing created
   });
 
   it("start/stop: the timer delivers events", async () => {

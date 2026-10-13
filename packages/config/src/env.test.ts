@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  adoptMigrateDsn,
   appEnv,
   auditEnv,
   authEnv,
   cspEnv,
   cspReportingEnabled,
+  migrateDsn,
   parseEnv,
   parseEnvFor,
   previewSecrets,
@@ -207,5 +209,45 @@ describe("previewSecrets (igs-pharma#62)", () => {
     for (const AUTH_SECRET of [undefined, "", "short"]) {
       expect(previewSecrets({ IGS_PREVIEW_KEY: KEY, AUTH_SECRET }), String(AUTH_SECRET)).toBe(null);
     }
+  });
+});
+
+describe("migrateDsn (igs-pharma#66)", () => {
+  const runtime = "postgresql://igs_app:pw@db:5432/igs";
+  const admin = "postgresql://igs_admin:pw@db:5432/igs";
+
+  it("in production requires DATABASE_MIGRATE_URL, and a different one from DATABASE_URL", () => {
+    const production = { NODE_ENV: "production", DATABASE_URL: runtime };
+    expect(() => migrateDsn(production)).toThrow(/DATABASE_MIGRATE_URL is not set/);
+    expect(() => migrateDsn({ ...production, DATABASE_MIGRATE_URL: "" })).toThrow(/not set/);
+    expect(() => migrateDsn({ ...production, DATABASE_MIGRATE_URL: runtime })).toThrow(
+      /different database user/,
+    );
+    // the same user behind a query string, another host or database is still the runtime role
+    expect(() =>
+      migrateDsn({ ...production, DATABASE_MIGRATE_URL: `${runtime}?sslmode=require` }),
+    ).toThrow(/different database user/);
+    expect(() =>
+      migrateDsn({ ...production, DATABASE_MIGRATE_URL: "postgresql://igs_app:other@db2:5432/x" }),
+    ).toThrow(/different database user/);
+    expect(migrateDsn({ ...production, DATABASE_MIGRATE_URL: admin })).toBe(admin);
+    // the operator may pass only the migrate DSN
+    expect(migrateDsn({ NODE_ENV: "production", DATABASE_MIGRATE_URL: admin })).toBe(admin);
+  });
+
+  it("outside production falls back to DATABASE_URL", () => {
+    expect(migrateDsn({ NODE_ENV: "development", DATABASE_URL: runtime })).toBe(runtime);
+    expect(migrateDsn({ DATABASE_URL: runtime, DATABASE_MIGRATE_URL: admin })).toBe(admin);
+    expect(() => migrateDsn({ NODE_ENV: "development" })).toThrow(/is not set/);
+  });
+
+  it("adoptMigrateDsn points DATABASE_URL at it for this process", () => {
+    const input: NodeJS.ProcessEnv = {
+      NODE_ENV: "production",
+      DATABASE_URL: runtime,
+      DATABASE_MIGRATE_URL: admin,
+    };
+    adoptMigrateDsn(input);
+    expect(input["DATABASE_URL"]).toBe(admin);
   });
 });

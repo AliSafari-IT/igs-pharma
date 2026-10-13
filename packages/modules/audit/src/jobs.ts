@@ -1,4 +1,9 @@
-import { type KernelRuntime, getKernelRuntime } from "@igs/kernel";
+import {
+  type KernelRuntime,
+  type QueueAdmin,
+  assertQueuesExist,
+  getKernelRuntime,
+} from "@igs/kernel";
 import { sql } from "drizzle-orm";
 
 import { verifyChainSnapshot } from "./verify";
@@ -109,32 +114,35 @@ export function reportPartitionsFailed(runtime: KernelRuntime): void {
 
 /** The slice of pg-boss that `registerAuditJobs` uses (structural: the module need not import pg-boss). */
 export interface JobScheduler {
-  createQueue(
-    name: string,
-    options?: { retryLimit?: number; retryDelay?: number; deadLetter?: string },
-  ): Promise<void>;
+  getQueue(name: string): Promise<unknown>;
   schedule(name: string, cron: string, data?: object, options?: { tz?: string }): Promise<void>;
   work(name: string, handler: () => Promise<void>): Promise<unknown>;
 }
 
+/** The slice of pg-boss that `ensureAuditQueues` uses. */
+export interface AuditQueueAdmin extends QueueAdmin {
+  createQueue(
+    name: string,
+    options?: { retryLimit?: number; retryDelay?: number; deadLetter?: string },
+  ): Promise<void>;
+}
+
+/** Every queue of the audit jobs, dead-letter queues first (a queue's `deadLetter` must exist). */
+export const AUDIT_QUEUES: readonly string[] = [
+  AUDIT_JOBS.partitions.deadLetterQueue,
+  AUDIT_JOBS.verify.deadLetterQueue,
+  AUDIT_JOBS.partitions.queue,
+  AUDIT_JOBS.verify.queue,
+];
+
 /**
- * Creates the queues (with retries and dead-letter queues), schedules the daily runs and registers
- * the handlers. Called by the worker's composition root after `configureKernel` and safe to call on
- * every boot (`createQueue` and `schedule` are idempotent in pg-boss 10; a real-pg-boss test proves a
- * restart neither throws nor loses the queue options).
- *
- * The kernel runtime (database, metrics, logger) is taken from the configured kernel **inside the
- * module**: apps never hold a database handle (D-015). Apps must not call `getKernelRuntime()`
- * themselves; the `runtime` parameter is a test seam.
- *
- * Changing a queue's options later is an `updateQueue` concern: `createQueue` leaves existing
- * queues alone.
+ * Creates the queues (with retries and dead-letter queues). `createQueue` is DDL on pg-boss's
+ * schema (it creates the queue's table), so this runs in the **migrate entry** under the
+ * administrative role, never in the worker (igs-pharma#66). Idempotent: `createQueue` leaves an
+ * existing queue alone (changing a queue's options later is an `updateQueue` concern).
  */
-export async function registerAuditJobs(
-  boss: JobScheduler,
-  runtime: KernelRuntime = getKernelRuntime(),
-): Promise<void> {
-  const { partitions, verify, timezone, retryLimit, retryDelaySeconds } = AUDIT_JOBS;
+export async function ensureAuditQueues(boss: AuditQueueAdmin): Promise<void> {
+  const { partitions, verify, retryLimit, retryDelaySeconds } = AUDIT_JOBS;
   const retry = { retryLimit, retryDelay: retryDelaySeconds };
 
   // dead-letter queues first: a queue's deadLetter must exist
@@ -142,6 +150,25 @@ export async function registerAuditJobs(
   await boss.createQueue(verify.deadLetterQueue);
   await boss.createQueue(partitions.queue, { ...retry, deadLetter: partitions.deadLetterQueue });
   await boss.createQueue(verify.queue, { ...retry, deadLetter: verify.deadLetterQueue });
+}
+
+/**
+ * Verifies the queues exist (failing fast with a readable `kernel.queue_missing` when the migrate
+ * entry has not run), schedules the daily runs and registers the handlers. Called by the worker's
+ * composition root after `configureKernel` and safe to call on every boot (`schedule` is idempotent
+ * in pg-boss 10; a real-pg-boss test proves a restart neither throws nor loses the queue options).
+ * The worker has no DDL right: it never creates a queue.
+ *
+ * The kernel runtime (database, metrics, logger) is taken from the configured kernel **inside the
+ * module**: apps never hold a database handle (D-015). Apps must not call `getKernelRuntime()`
+ * themselves; the `runtime` parameter is a test seam.
+ */
+export async function registerAuditJobs(
+  boss: JobScheduler,
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<void> {
+  const { partitions, verify, timezone } = AUDIT_JOBS;
+  await assertQueuesExist(boss, AUDIT_QUEUES);
 
   await boss.schedule(partitions.queue, partitions.cron, undefined, { tz: timezone });
   await boss.schedule(verify.queue, verify.cron, undefined, { tz: timezone });

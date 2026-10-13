@@ -12,10 +12,13 @@ export { canonicalJson } from "./canonical";
 export { GENESIS_HASH, computeHash } from "./chain";
 export {
   AUDIT_JOBS,
+  AUDIT_QUEUES,
+  type AuditQueueAdmin,
   type ChainVerificationResult,
   type JobScheduler,
   MIN_FUTURE_PARTITIONS,
   type PartitionMaintenanceResult,
+  ensureAuditQueues,
   registerAuditJobs,
   reportPartitionsFailed,
   reportVerifyFailed,

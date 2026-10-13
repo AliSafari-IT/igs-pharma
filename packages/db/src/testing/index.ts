@@ -21,6 +21,7 @@ import { withDatabase } from "./migrate";
 import type {} from "./provided-context";
 
 export { applyMigrations } from "./migrate";
+export { type RuntimeRoleDatabase, createRuntimeRoleDatabase } from "./roles";
 
 export type TestDb = ReturnType<typeof drizzle>;
 
