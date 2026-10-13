@@ -12,14 +12,17 @@ export {
   SECURITY_EVENTS,
   type SecurityEventType,
   bootstrapStaff,
+  deletePharmacist,
   deleteUser,
   grantPharmacistRole,
   grantRole,
+  reactivatePharmacist,
   reactivateUser,
   recordSecurityEvent,
   reissueEnrolment,
   revokePharmacistRole,
   revokeRole,
+  suspendPharmacist,
   suspendUser,
 } from "./commands";
 export { IDENTITY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
