@@ -63,11 +63,24 @@ describe("runMigrate", () => {
     });
     await acquired;
 
+    // the run tells us when it found the lock taken and queues behind it (no sleeping): from then
+    // until the holder lets go it cannot get past the lock
+    let queued: () => void = () => {};
+    const queuing = new Promise<void>((resolve) => {
+      queued = resolve;
+    });
+    const waitingLogger = {
+      ...logger,
+      info: (obj: object | string) => {
+        logger.info(obj);
+        if (obj === "Another migrate run holds the database lock; waiting for it") queued();
+      },
+    };
     let finished = false;
-    const run = runMigrate({ folder, env: env(), logger }).then(() => {
+    const run = runMigrate({ folder, env: env(), logger: waitingLogger }).then(() => {
       finished = true;
     });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await queuing;
     expect(finished).toBe(false);
     const [schema] = await iso.sql<{ present: boolean }[]>`
       SELECT to_regclass('drizzle.__drizzle_migrations') IS NOT NULL AS present`;
