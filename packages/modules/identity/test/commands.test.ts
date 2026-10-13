@@ -208,7 +208,7 @@ describe("role grants (Q7, D-030)", () => {
     });
   });
 
-  it("nobody revokes their own role (no lock-out of the last owner or titular)", async () => {
+  it("nobody revokes their own role", async () => {
     const both = await staffWith("owner", "pharmacist_titular");
     expect(await codeOf(revokeRole({ userId: both.id, roleKey: "owner" }, both))).toBe(
       "identity.cannot_revoke_own_role",
