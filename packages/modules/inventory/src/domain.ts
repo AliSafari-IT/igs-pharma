@@ -25,6 +25,8 @@ export const DEFAULT_LOCATION_ID = "0192f000-0000-7000-8000-000000000001";
 
 export const MAX_IMPORT_ROWS = 5_000;
 export const MAX_QUANTITY = 1_000_000;
+/** How long a prepared import (a previewed file) can be confirmed. */
+export const IMPORT_PLAN_TTL_MS = 60 * 60 * 1000;
 /** The CSV import's size limit in characters (5 000 rows fit comfortably). */
 export const MAX_IMPORT_CHARS = 256_000;
 

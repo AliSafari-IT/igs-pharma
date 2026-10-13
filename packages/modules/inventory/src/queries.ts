@@ -4,8 +4,8 @@ import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { DEFAULT_LOCATION_ID, MAX_IMPORT_CHARS, type MovementReason } from "./domain";
-import { type ImportPlan, levelOf, planImport, stockLevels } from "./ledger";
+import { DEFAULT_LOCATION_ID, type MovementReason } from "./domain";
+import { levelOf, stockLevels } from "./ledger";
 import { stockMovements } from "./schema";
 
 /** Inventory queries for the back-office (igs-pharma#53). */
@@ -117,19 +117,6 @@ export const getStock = query({
       ...levelOf(levels, ref.id),
       movements: movements.map((m) => ({ ...m, reason: m.reason as MovementReason })),
     };
-  },
-});
-
-/**
- * The dry run of `inventory.stock.import`: what the file would change, and every problem in it.
- * Behind `inventory.stock.manage`, as only someone who may import needs it.
- */
-export const previewStockImport = query({
-  name: "inventory.stock.import_preview",
-  input: z.object({ csv: z.string().max(MAX_IMPORT_CHARS) }),
-  permission: PERMISSIONS.inventory.stockManage,
-  async handler({ input, ctx }): Promise<ImportPlan> {
-    return planImport(ctx.tx, input.csv);
   },
 });
 

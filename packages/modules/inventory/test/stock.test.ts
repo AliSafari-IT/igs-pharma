@@ -15,12 +15,14 @@ import { loadRbacCatalogue } from "@igs/module-identity";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_LOCATION_ID,
+  IMPORT_PLAN_TTL_MS,
   adjustStock,
   getAvailability,
   getStock,
   importStock,
   listStock,
-  previewStockImport,
+  prepareStockImport,
   registerAuditActions,
   stockImportKey,
 } from "../src";
@@ -96,6 +98,12 @@ async function storefrontProduct(
   return productId;
 }
 
+/** The two-step import of a file: preview (a new plan) then confirm that plan. */
+async function importCsv(csv: string, actor: Actor = owner) {
+  const prepared = await prepareStockImport({ csv }, actor);
+  return importStock({ planId: prepared.planId }, actor);
+}
+
 const codeOf = async (promise: Promise<unknown>) => {
   try {
     await promise;
@@ -118,6 +126,9 @@ const fieldsOf = async (promise: Promise<unknown>) => {
 
 const onHand = async (productId: string) => (await getStock({ productId }, pharmacist)).onHand;
 
+const planCount = async () =>
+  (await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM inventory.import_plans`)[0]?.n;
+
 const movementCount = async () =>
   (await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM inventory.stock_movements`)[0]?.n;
 
@@ -125,7 +136,7 @@ describe("ledger", () => {
   it("on-hand is the sum of the movements", async () => {
     const p = await newProduct();
     expect(await onHand(p.id)).toBe(0);
-    await importStock({ csv: `${p.cnk};10` }, owner);
+    await importCsv(`${p.cnk};10`);
     await adjustStock({ productId: p.id, delta: -3, reason: "adjustment", note: "broken" }, owner);
     await adjustStock(
       { productId: p.id, delta: 1, reason: "correction", note: "miscounted" },
@@ -145,7 +156,7 @@ describe("ledger", () => {
 
   it("refuses to change or remove a movement", async () => {
     const p = await newProduct();
-    await importStock({ csv: `${p.cnk};2` }, owner);
+    await importCsv(`${p.cnk};2`);
     await expect(
       iso.sql`UPDATE inventory.stock_movements SET delta = 5 WHERE product_id = ${p.id}`,
     ).rejects.toThrow(/append-only/);
@@ -159,14 +170,19 @@ describe("inventory.stock.import", () => {
   it("sets absolute counts, writing only the changes, and audits counts only", async () => {
     const a = await newProduct();
     const b = await newProduct();
-    await importStock({ csv: `${a.cnk};4` }, owner);
-    const result = await importStock({ csv: `cnk;quantity\n${a.cnk};4\n${b.cnk};7` }, owner);
+    await importCsv(`${a.cnk};4`);
+    const result = await importCsv(`cnk;quantity\n${a.cnk};4\n${b.cnk};7`);
     expect(result).toMatchObject({ rows: 2, changed: 1 });
     expect(await onHand(a.id)).toBe(4);
     expect(await onHand(b.id)).toBe(7);
     const events = await iso.sql<{ action: string; data: Record<string, unknown> }[]>`
-      SELECT action, data FROM audit.events WHERE entity_id = ${result.importId}`;
+      SELECT action, data FROM audit.events WHERE entity_id = ${result.importId} ORDER BY action`;
+    // the preview and the confirm of one submission share its id (the plan id)
     expect(events).toEqual([
+      {
+        action: "inventory.stock.import_prepared",
+        data: { planId: result.importId, rows: 2 },
+      },
       {
         action: "inventory.stock.imported",
         data: { importId: result.importId, rows: 2, changed: 1 },
@@ -174,11 +190,12 @@ describe("inventory.stock.import", () => {
     ]);
   });
 
-  it("applies nothing when any CNK is unknown, and lists every bad line", async () => {
+  it("stores no plan and lists every bad line when the file has problems", async () => {
     const a = await newProduct();
-    const before = await movementCount();
+    const movements = await movementCount();
+    const plans = await planCount();
     const outcome = await fieldsOf(
-      importStock({ csv: `${a.cnk};5\n9999990;1\nbad\n9999991;2` }, owner),
+      prepareStockImport({ csv: `${a.cnk};5\n9999990;1\nbad\n9999991;2` }, owner),
     );
     expect(outcome).toEqual({
       code: "inventory.import_invalid",
@@ -188,18 +205,34 @@ describe("inventory.stock.import", () => {
         { path: "line.4", code: "inventory.unknown_cnk" },
       ],
     });
-    expect(await movementCount()).toBe(before);
+    expect(await movementCount()).toBe(movements);
+    expect(await planCount()).toBe(plans);
     expect(await onHand(a.id)).toBe(0);
   });
 
-  it("replays a re-upload of the same file instead of importing it twice", async () => {
+  it("D4: the same file previewed again after the stock moved imports again (a new submission)", async () => {
     const a = await newProduct();
     const csv = `${a.cnk};6`;
-    const first = await importStock({ csv }, owner, { idempotencyKey: stockImportKey(csv) });
-    // stock moves in between: replaying the same file must not reset it
+    await importCsv(csv);
+    await adjustStock({ productId: a.id, delta: -6, reason: "adjustment", note: "sold" }, owner);
+    expect(await onHand(a.id)).toBe(0);
+    const again = await importCsv(csv);
+    expect(again.changed).toBe(1);
+    expect(await onHand(a.id)).toBe(6);
+  });
+
+  it("D4: a double click on ONE confirm replays instead of importing twice", async () => {
+    const a = await newProduct();
+    const { planId } = await prepareStockImport({ csv: `${a.cnk};6` }, owner);
+    const key = { idempotencyKey: stockImportKey(planId) };
+    const [first, second] = await Promise.all([
+      importStock({ planId: planId }, owner, key),
+      importStock({ planId: planId }, owner, key),
+    ]);
+    expect(second).toEqual(first);
     await adjustStock({ productId: a.id, delta: -2, reason: "adjustment", note: "sold" }, owner);
-    const again = await importStock({ csv }, owner, { idempotencyKey: stockImportKey(csv) });
-    expect(again).toEqual(first);
+    // a later replay of the same confirm must not reset the stock
+    expect(await importStock({ planId: planId }, owner, key)).toEqual(first);
     expect(await onHand(a.id)).toBe(4);
     const imports = await iso.sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM inventory.stock_movements
@@ -207,23 +240,96 @@ describe("inventory.stock.import", () => {
     expect(imports[0]?.n).toBe(1);
   });
 
-  it("previews without writing", async () => {
+  it("D5: stock that moved between preview and confirm refuses the whole import, writing nothing", async () => {
     const a = await newProduct();
-    await importStock({ csv: `${a.cnk};3` }, owner);
+    const b = await newProduct();
+    const c = await newProduct();
+    await importCsv(`${a.cnk};5\n${b.cnk};5\n${c.cnk};5`);
+    const { planId } = await prepareStockImport(
+      { csv: `${a.cnk};9\n${b.cnk};1\n${c.cnk};5` },
+      owner,
+    );
+    // between preview and confirm: a changes, c (unchanged by the file) also changes
+    await adjustStock({ productId: a.id, delta: -1, reason: "adjustment", note: "sold" }, owner);
+    await adjustStock({ productId: c.id, delta: 2, reason: "correction", note: "found" }, owner);
     const before = await movementCount();
-    const plan = await previewStockImport({ csv: `${a.cnk};8\n9999992;1` }, owner);
-    expect(plan.rows).toEqual([
+    let refusal: { code: string; details?: unknown } | undefined;
+    try {
+      await importStock({ planId: planId }, owner);
+    } catch (error) {
+      if (!isDomainError(error)) throw error;
+      refusal = { code: error.code, details: error.details };
+    }
+    expect(refusal).toEqual({ code: "inventory.import_stale", details: { changedRows: 2 } });
+    expect(await movementCount()).toBe(before);
+    expect(await onHand(a.id)).toBe(4);
+    expect(await onHand(b.id)).toBe(5); // b would have been 1: nothing of the import was applied
+    expect(await onHand(c.id)).toBe(7);
+  });
+
+  it("D5: writes exactly what the preview showed when nothing moved", async () => {
+    const a = await newProduct();
+    const b = await newProduct();
+    await importCsv(`${a.cnk};5`);
+    const prepared = await prepareStockImport({ csv: `${a.cnk};9\n${b.cnk};3` }, owner);
+    expect(prepared.rows.map((r) => [r.cnk, r.onHand, r.target, r.delta])).toEqual([
+      [a.cnk, 5, 9, 4],
+      [b.cnk, 0, 3, 3],
+    ]);
+    const result = await importStock({ planId: prepared.planId }, owner);
+    expect(result).toMatchObject({ rows: 2, changed: 2 });
+    const rows = await iso.sql<{ product_id: string; delta: number }[]>`
+      SELECT product_id, delta FROM inventory.stock_movements
+      WHERE import_id = ${result.importId} ORDER BY delta`;
+    expect(rows.map((r) => r.delta)).toEqual([3, 4]);
+  });
+
+  it("a plan belongs to its preparer, expires after an hour and stores no personal data", async () => {
+    const a = await newProduct();
+    const { planId } = await prepareStockImport({ csv: `${a.cnk};2` }, owner);
+    const other = staff("owner");
+    expect(await codeOf(importStock({ planId: planId }, other))).toBe(
+      "inventory.import_plan_not_found",
+    );
+    expect(await codeOf(importStock({ planId: randomUUID() }, owner))).toBe(
+      "inventory.import_plan_not_found",
+    );
+    const [row] = await iso.sql<{ rows: unknown; ttl_ms: number }[]>`
+      SELECT rows, (extract(epoch FROM expires_at - created_at) * 1000)::int AS ttl_ms
+      FROM inventory.import_plans WHERE id = ${planId}`;
+    expect(row?.ttl_ms).toBe(IMPORT_PLAN_TTL_MS);
+    expect(row?.rows).toEqual([{ productId: a.id, cnk: a.cnk, expectedOnHand: 0, target: 2 }]);
+    kernel.clock.set(new Date(Date.now() + IMPORT_PLAN_TTL_MS + 1_000));
+    expect(await codeOf(importStock({ planId: planId }, owner))).toBe(
+      "inventory.import_plan_expired",
+    );
+    expect(await onHand(a.id)).toBe(0);
+  });
+
+  it("previews without writing stock, and audits the preparation with ids and counts only", async () => {
+    const a = await newProduct();
+    await importCsv(`${a.cnk};3`);
+    const before = await movementCount();
+    const ok = await prepareStockImport({ csv: `${a.cnk};8` }, owner);
+    expect(ok.rows).toEqual([
       expect.objectContaining({ cnk: a.cnk, productId: a.id, onHand: 3, target: 8, delta: 5 }),
     ]);
-    expect(plan.errors).toEqual([{ line: 2, code: "inventory.unknown_cnk" }]);
     expect(await movementCount()).toBe(before);
+    const events = await iso.sql<{ action: string; data: Record<string, unknown> }[]>`
+      SELECT action, data FROM audit.events WHERE entity_id = ${ok.planId}`;
+    expect(events).toEqual([
+      {
+        action: "inventory.stock.import_prepared",
+        data: { planId: ok.planId, rows: 1 },
+      },
+    ]);
   });
 });
 
 describe("inventory.stock.adjust", () => {
   it("refuses to take stock below zero", async () => {
     const a = await newProduct();
-    await importStock({ csv: `${a.cnk};2` }, owner);
+    await importCsv(`${a.cnk};2`);
     const before = await movementCount();
     expect(
       await codeOf(
@@ -232,6 +338,52 @@ describe("inventory.stock.adjust", () => {
     ).toBe("inventory.negative_stock");
     expect(await movementCount()).toBe(before);
     expect(await onHand(a.id)).toBe(2);
+  });
+
+  it("parallel adjustments: exactly as many succeed as there is stock", async () => {
+    const a = await newProduct();
+    await importCsv(`${a.cnk};5`);
+    const outcomes = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        codeOf(
+          adjustStock({ productId: a.id, delta: -1, reason: "adjustment", note: "sold" }, owner),
+        ),
+      ),
+    );
+    expect(outcomes.filter((o) => o === "ok")).toHaveLength(5);
+    expect(outcomes.filter((o) => o === "inventory.negative_stock")).toHaveLength(7);
+    expect(await onHand(a.id)).toBe(0);
+  });
+
+  it("a lost race against a writer that skips the lock still gives the typed error", async () => {
+    const a = await newProduct();
+    await importCsv(`${a.cnk};5`);
+    // a raw writer holds the product's level row (uncommitted -5); the pre-check of the adjustment
+    // still sees 5 and passes, the database then refuses the movement once the raw writer commits
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => {};
+    const isLocked = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const raw = iso.sql.begin(async (tx) => {
+      await tx`
+        INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
+        VALUES (${randomUUID()}, ${a.id}, ${DEFAULT_LOCATION_ID}, -5, 'adjustment', 'system', 'test')`;
+      locked();
+      await held;
+    });
+    await isLocked;
+    const adjusting = codeOf(
+      adjustStock({ productId: a.id, delta: -3, reason: "adjustment", note: "sold" }, owner),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300)); // let it reach the blocked insert
+    release();
+    await raw;
+    expect(await adjusting).toBe("inventory.negative_stock");
+    expect(await onHand(a.id)).toBe(0);
   });
 
   it("requires a reason and a note, and refuses a zero delta", async () => {
@@ -278,7 +430,7 @@ describe("inventory.stock.list", () => {
   it("lists products by CNK with on-hand and last movement, searchable", async () => {
     const a = await newProduct();
     const b = await newProduct();
-    await importStock({ csv: `${a.cnk};9` }, owner);
+    await importCsv(`${a.cnk};9`);
     const page = await listStock({ q: a.cnk.slice(0, 5), pageSize: 100 }, pharmacist);
     const mine = page.items.filter((i) => i.productId === a.id || i.productId === b.id);
     expect(mine).toEqual([
@@ -307,10 +459,10 @@ describe("permissions", () => {
     const a = await newProduct();
     expect(await codeOf(listStock({}, editor))).toBe("kernel.forbidden");
     expect(await codeOf(getStock({ productId: a.id }, editor))).toBe("kernel.forbidden");
-    expect(await codeOf(previewStockImport({ csv: `${a.cnk};1` }, editor))).toBe(
+    expect(await codeOf(prepareStockImport({ csv: `${a.cnk};1` }, editor))).toBe(
       "kernel.forbidden",
     );
-    expect(await codeOf(importStock({ csv: `${a.cnk};1` }, editor))).toBe("kernel.forbidden");
+    expect(await codeOf(importStock({ planId: randomUUID() }, editor))).toBe("kernel.forbidden");
     expect(
       await codeOf(
         adjustStock({ productId: a.id, delta: 1, reason: "adjustment", note: "n" }, editor),

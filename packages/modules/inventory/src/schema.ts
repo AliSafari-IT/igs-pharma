@@ -1,6 +1,16 @@
 import { newId } from "@igs/db/ids";
 import { sql } from "drizzle-orm";
-import { check, index, integer, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  jsonb,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { LOCATION_KINDS, MOVEMENT_REASONS } from "./domain";
 
@@ -58,3 +68,48 @@ export const stockMovements = inventory.table(
     index("stock_movements_import_id_idx").on(t.importId),
   ],
 );
+
+/**
+ * The on-hand per product and location, maintained BY THE DATABASE: a trigger on `stock_movements`
+ * (migration `inventory_stock_levels`) adds each movement's delta here, and the `on_hand >= 0`
+ * check is the guard against overselling, even for an insert that skips the module's writer
+ * (igs-pharma#83, D-037). The ledger stays the truth; this row is derived and nobody writes it
+ * directly (the runtime roles have SELECT only).
+ */
+export const stockLevels = inventory.table(
+  "stock_levels",
+  {
+    productId: uuid("product_id").notNull(),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id, { onDelete: "restrict" }),
+    onHand: integer("on_hand").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.productId, t.locationId] }),
+    check("stock_levels_on_hand_check", sql`${t.onHand} >= 0`),
+  ],
+);
+
+/** One row of a stored import plan: product ids and counts only, never free text. */
+export interface ImportPlanRowData {
+  readonly productId: string;
+  readonly cnk: string;
+  readonly expectedOnHand: number;
+  readonly target: number;
+}
+
+/**
+ * What a stock-file preview showed (igs-pharma#83, D4/D5). The confirm step sends only `id` (the
+ * submission nonce) and applies exactly these rows, refusing the whole import when stock moved since.
+ * Insert-only for the runtime roles; `expires_at` is one hour after `created_at`.
+ */
+export const importPlans = inventory.table("import_plans", {
+  id: uuid("id")
+    .primaryKey()
+    .$defaultFn(() => newId()),
+  actorId: text("actor_id").notNull(),
+  rows: jsonb("rows").$type<readonly ImportPlanRowData[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});

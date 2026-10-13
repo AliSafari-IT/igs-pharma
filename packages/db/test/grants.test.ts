@@ -358,8 +358,18 @@ describe("a database built the old way converges, and the migration is idempoten
   it("0026 brings it to exactly the manifest, and running its SQL again changes nothing", async () => {
     await db.migrate(); // applies only 0026
     await expectDatabaseMatchesManifest(db, admin);
-    const sqlText = renderGrantsSql(APP_SCHEMAS).split("\n--> statement-breakpoint\n");
-    for (const statement of sqlText) await admin.unsafe(statement);
+    // re-running 0026 resets every schema, so the later grants migrations (entries with `since`) run
+    // again after it, in order, exactly as on a fresh database
+    const later = [...new Set([...tables, ...functions].map((o) => o.since ?? 26))]
+      .filter((n) => n > 26)
+      .sort((a, b) => a - b);
+    const script = [
+      renderGrantsSql(APP_SCHEMAS),
+      ...later.map((n) => renderGrantsSql(APP_SCHEMAS, { migration: n })),
+    ].join("\n--> statement-breakpoint\n");
+    for (const statement of script.split("\n--> statement-breakpoint\n")) {
+      if (statement.trim() !== "") await admin.unsafe(statement);
+    }
     await expectDatabaseMatchesManifest(db, admin);
   });
 });
