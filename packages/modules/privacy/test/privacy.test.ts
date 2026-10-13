@@ -226,6 +226,14 @@ describe("privacy.dsr.create", () => {
       nextStatuses: ["in_progress", "rejected"],
     });
     expect(request.dueAt).toEqual(dsrDueAt(receivedAt));
+    // independent of dsrDueAt: the due month is the received month + 1 on the Brussels calendar
+    const brusselsMonth = (date: Date) =>
+      Number(
+        new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Brussels", month: "numeric" }).format(
+          date,
+        ),
+      );
+    expect(brusselsMonth(request.dueAt)).toBe((brusselsMonth(request.receivedAt) % 12) + 1);
     expect(request.events.map((e) => [e.fromStatus, e.toStatus])).toEqual([[null, "received"]]);
     expect(await auditFor(requestId)).toEqual([
       {
