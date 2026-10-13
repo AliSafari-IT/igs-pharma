@@ -7,9 +7,10 @@ import { z } from "zod";
 import {
   LOWEST_PRICE_WINDOW_DAYS,
   type PricePoint,
+  type PriceReduction,
   comparePoints,
-  lowestPriceInWindow,
   priceAt,
+  priceReductionAt,
   splitVat,
 } from "./domain";
 import { prices, vatClasses } from "./schema";
@@ -203,21 +204,20 @@ export const listPrices = query({
 });
 
 /**
- * The lowest web price in force at any moment of the 30 days before `at` (default now), for a price
- * reduction; `amountCents: null` when the product had no price in that window.
+ * The reference price of a price reduction (Omnibus, art. 6a Directive 98/6/EC): when the web price
+ * in force at `at` (default now) is a reduction, the lowest price in force in the 30 Brussels
+ * calendar days BEFORE that price took over, otherwise `reduction: null`. `fullWindow: false` means
+ * the product was priced for less than 30 days before the reduction. Nothing displays it yet.
  */
-export const lowestPriceLast30Days = query({
-  name: "pricing.price.lowest_30d",
+export const referencePrice30Days = query({
+  name: "pricing.price.reference_30d",
   input: z.object({ productId: z.uuid(), at: z.coerce.date().optional() }),
   permission: PERMISSIONS.pricing.priceRead,
-  async handler({ input, ctx }): Promise<{ productId: string; amountCents: number | null }> {
+  async handler({ input, ctx }): Promise<{ productId: string; reduction: PriceReduction | null }> {
     const [ref] = await productRefsForActor(ctx.tx, [input.productId], ctx.can);
     if (!ref) throw notFound("pricing.unknown_product");
     const at = input.at ?? ctx.now;
     const points: PricePoint[] = await pricesUpTo(ctx.tx, [ref.id], at);
-    return {
-      productId: ref.id,
-      amountCents: lowestPriceInWindow(points, at, LOWEST_PRICE_WINDOW_DAYS),
-    };
+    return { productId: ref.id, reduction: priceReductionAt(points, at, LOWEST_PRICE_WINDOW_DAYS) };
   },
 });

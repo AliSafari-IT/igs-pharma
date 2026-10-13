@@ -6,9 +6,12 @@ export {
   PRICE_CHANNELS,
   type PriceChannel,
   type PricePoint,
+  type PriceReduction,
+  type ReferencePrice,
   centsToDecimal,
   isValidAmount,
-  lowestPriceInWindow,
+  lowestPriceBefore,
+  priceReductionAt,
   parseEuros,
   priceAt,
   splitVat,
@@ -23,6 +26,6 @@ export {
   type ProductPrices,
   currentPrices,
   listPrices,
-  lowestPriceLast30Days,
+  referencePrice30Days,
 } from "./queries";
 export { PRICING_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";

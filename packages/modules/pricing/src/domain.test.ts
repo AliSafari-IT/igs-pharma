@@ -4,9 +4,10 @@ import {
   type PricePoint,
   centsToDecimal,
   isValidAmount,
-  lowestPriceInWindow,
+  lowestPriceBefore,
   parseEuros,
   priceAt,
+  priceReductionAt,
   splitVat,
   vatPartCents,
 } from "./domain";
@@ -94,36 +95,154 @@ describe("priceAt", () => {
   });
 });
 
-describe("lowestPriceInWindow (30 days)", () => {
-  it("counts the price that was in force when the window opened", () => {
-    expect(lowestPriceInWindow([point(500, daysAgo(60))], at)).toBe(500);
+describe("lowestPriceBefore: the reference price of a reduction (Omnibus)", () => {
+  // January: no clock change in the window, so 30 calendar days = 30 × 24 h here
+  const applied = new Date("2026-01-20T12:00:00Z");
+  const daysBefore = (n: number) => new Date(applied.getTime() - n * DAY);
+  const windowOpens = daysBefore(30);
+
+  it("never counts the reduction itself, only what came before it", () => {
+    // 1000 for 40 days, then 700: the old maths answered 700 at the start of the reduction
+    const points = [point(1000, daysBefore(40)), point(700, applied)];
+    expect(lowestPriceBefore(points, applied)).toEqual({ cents: 1000, fullWindow: true });
+  });
+
+  it.each([
+    ["a price that ended exactly when the window opens does not count", 0, 800],
+    ["a price that ended 1 ms after the window opened does", 1, 300],
+  ])("%s", (_name, overlapMs, expected) => {
+    const points = [
+      point(300, daysBefore(50)),
+      point(900, new Date(windowOpens.getTime() + overlapMs)),
+      point(800, daysBefore(10)),
+    ];
+    expect(lowestPriceBefore(points, applied)?.cents).toBe(expected);
   });
 
   it("keeps a drop inside the window after a later rise", () => {
-    const points = [point(1000, daysAgo(45)), point(800, daysAgo(20)), point(1200, daysAgo(5))];
-    expect(lowestPriceInWindow(points, at)).toBe(800);
-    // 16 days later the drop (in force until 5 days ago) is still in the window
-    expect(lowestPriceInWindow(points, new Date(at.getTime() + 16 * DAY))).toBe(800);
-    // 26 days later the window opens after the rise: the drop has left it
-    expect(lowestPriceInWindow(points, new Date(at.getTime() + 26 * DAY))).toBe(1200);
+    const points = [
+      point(1000, daysBefore(40)),
+      point(800, daysBefore(20)),
+      point(1200, daysBefore(5)),
+    ];
+    expect(lowestPriceBefore(points, applied)?.cents).toBe(800);
   });
 
-  it("ignores a price that ended before the window and a scheduled one", () => {
+  it("ignores a scheduled price and a price that starts exactly at the reduction", () => {
     const points = [
-      point(300, daysAgo(50)),
-      point(900, daysAgo(30)), // takes over exactly when the window opens
-      point(100, new Date(at.getTime() + DAY)),
+      point(1000, daysBefore(40)),
+      point(100, applied),
+      point(50, new Date(applied.getTime() + DAY)),
     ];
-    expect(lowestPriceInWindow(points, at)).toBe(900);
+    expect(lowestPriceBefore(points, applied)?.cents).toBe(1000);
   });
 
   it("ignores a row overtaken at the same moment (never in force)", () => {
-    const start = daysAgo(3);
-    expect(lowestPriceInWindow([point(100, start), point(700, start)], at)).toBe(700);
+    const start = daysBefore(3);
+    expect(
+      lowestPriceBefore([point(100, start), point(700, start), point(600, applied)], applied)
+        ?.cents,
+    ).toBe(700);
   });
 
-  it("is null without any price yet", () => {
-    expect(lowestPriceInWindow([], at)).toBeNull();
-    expect(lowestPriceInWindow([point(100, new Date(at.getTime() + 1))], at)).toBeNull();
+  it("says when the history is shorter than the window, using what exists", () => {
+    const points = [point(1000, daysBefore(10)), point(700, applied)];
+    expect(lowestPriceBefore(points, applied)).toEqual({ cents: 1000, fullWindow: false });
+  });
+
+  it("is full when a price was already in force as the window opened", () => {
+    expect(lowestPriceBefore([point(500, daysBefore(60))], applied)).toEqual({
+      cents: 500,
+      fullWindow: true,
+    });
+    // priced exactly when the window opens: still the whole window
+    expect(lowestPriceBefore([point(500, windowOpens)], applied)?.fullWindow).toBe(true);
+    expect(
+      lowestPriceBefore([point(500, new Date(windowOpens.getTime() + 1))], applied)?.fullWindow,
+    ).toBe(false);
+  });
+
+  it("is null without any price before the reduction", () => {
+    expect(lowestPriceBefore([], applied)).toBeNull();
+    expect(lowestPriceBefore([point(100, applied)], applied)).toBeNull();
+  });
+
+  describe("30 calendar days in Europe/Brussels, not 30 × 24 h", () => {
+    it("autumn: the clocks went back on 25 Oct, so the window opens an hour 'earlier' in UTC", () => {
+      // reduction on 2 Nov 2026 12:00 CET (11:00Z); 3 Oct 12:00 CEST is 10:00Z. 30 × 24 h would
+      // open the window at 11:00Z
+      const reduction = new Date("2026-11-02T11:00:00Z");
+      const endedAt = (iso: string) => [
+        point(400, new Date("2026-09-01T00:00:00Z")),
+        point(900, new Date(iso)),
+        point(800, new Date("2026-10-20T00:00:00Z")),
+      ];
+      // the 400 ends 30 minutes after the (calendar) window opened: it counts
+      expect(lowestPriceBefore(endedAt("2026-10-03T10:30:00Z"), reduction)?.cents).toBe(400);
+      // the 400 ends exactly when it opens: it does not
+      expect(lowestPriceBefore(endedAt("2026-10-03T10:00:00Z"), reduction)?.cents).toBe(800);
+    });
+
+    it("spring: the clocks went forward on 29 Mar, so the window opens an hour 'later' in UTC", () => {
+      // reduction on 5 Apr 2026 12:00 CEST (10:00Z); 6 Mar 12:00 CET is 11:00Z. 30 × 24 h would
+      // open the window at 10:00Z and count the 400 that ended at 10:30Z
+      const reduction = new Date("2026-04-05T10:00:00Z");
+      const points = [
+        point(400, new Date("2026-02-01T00:00:00Z")),
+        point(900, new Date("2026-03-06T10:30:00Z")),
+        point(950, new Date("2026-03-20T00:00:00Z")),
+      ];
+      expect(lowestPriceBefore(points, reduction)?.cents).toBe(900);
+    });
+  });
+});
+
+describe("priceReductionAt", () => {
+  const applied = new Date("2026-01-20T12:00:00Z");
+  const daysBefore = (n: number) => new Date(applied.getTime() - n * DAY);
+
+  it("starts exactly at the moment the reduction applies: 1 ms before it there is none", () => {
+    const points = [point(1000, daysBefore(40)), point(700, applied)];
+    expect(priceReductionAt(points, new Date(applied.getTime() - 1))).toBeNull();
+    const expected = {
+      currentCents: 700,
+      appliedAt: applied,
+      referenceCents: 1000,
+      fullWindow: true,
+    };
+    expect(priceReductionAt(points, applied)).toEqual(expected);
+    // and it stays 1000 for as long as the reduction lasts, not 700
+    expect(priceReductionAt(points, new Date(applied.getTime() + 20 * DAY))).toEqual(expected);
+  });
+
+  it("measures a reduction after a reduction against the window before the LATEST one", () => {
+    const points = [point(1000, daysBefore(60)), point(800, daysBefore(20)), point(600, applied)];
+    expect(priceReductionAt(points, applied)).toMatchObject({
+      currentCents: 600,
+      referenceCents: 800,
+    });
+    // just before it, the earlier reduction is the one in force
+    expect(priceReductionAt(points, new Date(applied.getTime() - 1))).toMatchObject({
+      currentCents: 800,
+      referenceCents: 1000,
+      appliedAt: daysBefore(20),
+    });
+  });
+
+  it.each([
+    ["a rise", [point(700, daysBefore(40)), point(1000, applied)]],
+    ["the same price again", [point(700, daysBefore(40)), point(700, applied)]],
+    ["a first price", [point(700, applied)]],
+    ["no price yet", [point(700, new Date(applied.getTime() + 1))]],
+  ])("is none for %s", (_name, points) => {
+    expect(priceReductionAt(points, applied)).toBeNull();
+  });
+
+  it("carries the short-history flag of the reference", () => {
+    const points = [point(1000, daysBefore(10)), point(700, applied)];
+    expect(priceReductionAt(points, applied)).toMatchObject({
+      referenceCents: 1000,
+      fullWindow: false,
+    });
   });
 });

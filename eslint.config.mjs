@@ -20,6 +20,7 @@ const infra = [
   "kernel",
   "rbac",
   "security-headers",
+  "time",
 ];
 
 /** Test code: the only place `@igs/db/testing` may be imported from. */
@@ -118,6 +119,7 @@ export default [
                 "config",
                 "kernel",
                 "rbac",
+                "time",
                 ["module", { module: "!${from.module}" }],
               ],
             },
@@ -140,6 +142,8 @@ export default [
             { from: "observability", allow: ["config"] },
             // T-016 option C: the RBAC catalogue is a leaf, so kernel, auth and modules share it cycle-free
             { from: "rbac", allow: [] },
+            // calendar arithmetic is a pure leaf shared by modules (igs-pharma#83)
+            { from: "time", allow: [] },
             { from: "i18n", allow: [] },
             { from: "crypto", allow: [] },
             { from: "config", allow: [] },
