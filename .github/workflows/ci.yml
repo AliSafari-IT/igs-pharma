@@ -442,7 +442,6 @@ jobs:
       - name: Run the smoke, axe and gate specs
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ github.workspace }}/e2e/smoke-results.json
-          SMOKE_DATABASE_URL: "" # TEMPORARY PROOF (revert next commit): DB-backed specs must skip and fail the job
         run: pnpm --filter @igs/e2e smoke --reporter=github,json
       # No silent skips: a spec that skips (e.g. the DB-backed ones without SMOKE_DATABASE_URL)
       # proves nothing, so any skipped test fails the job.
