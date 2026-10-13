@@ -260,6 +260,43 @@ describe("2-step login guard (36b)", () => {
     });
   });
 
+  it("a user actor without kind is treated as staff when it holds a staff role (D8, fails closed)", async () => {
+    const kindless = { type: "user" as const, id: "u-2", roles: ["pharmacist"] };
+    await expect(createItem({ id: "a" }, kindless)).rejects.toMatchObject({
+      code: "kernel.mfa_required",
+    });
+    await expect(listOrders({}, { ...kindless, mfaVerified: false })).rejects.toMatchObject({
+      code: "kernel.mfa_required",
+    });
+    expect(await createItem({ id: "ok" }, { ...kindless, mfaVerified: true })).toEqual({
+      id: "ok",
+    });
+    expect(transactionCalls).toBe(1);
+  });
+
+  it("a wrong kind does not hide a staff role: customer kind with a staff role still needs MFA", async () => {
+    const odd = {
+      type: "user" as const,
+      id: "u-3",
+      roles: ["pharmacist"],
+      kind: "customer" as const,
+    };
+    await expect(createItem({ id: "a" }, odd)).rejects.toMatchObject({
+      code: "kernel.mfa_required",
+    });
+  });
+
+  it("a kind-less user without any staff role is not asked for MFA (and holds no staff permission)", async () => {
+    const nobody = { type: "user" as const, id: "u-4", roles: ["customer"] };
+    await expect(createItem({ id: "a" }, nobody)).rejects.toMatchObject({
+      code: "kernel.forbidden",
+    });
+    const unknown = { type: "user" as const, id: "u-5", roles: ["superuser"] };
+    await expect(createItem({ id: "a" }, unknown)).rejects.toMatchObject({
+      code: "kernel.forbidden",
+    });
+  });
+
   it("ctx.can and authorizeResource grant such staff nothing, even inside a public operation", async () => {
     const staff = actors.user({ roles: ["owner"], kind: "staff", mfaVerified: false });
     expect(await probe({}, staff)).toEqual({ can: false, reached: false });

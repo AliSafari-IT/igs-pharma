@@ -13,13 +13,13 @@ import {
   assertSellable,
   createBrand,
   createCategory,
-  createProduct,
+  createProductRegulated,
   getStorefrontProduct,
   listStorefrontCategories,
   listStorefrontProducts,
   registerAuditActions,
   setProductCategories,
-  setProductStatus,
+  setProductStatusRegulated,
 } from "../src";
 
 let iso: IsolatedDatabase;
@@ -46,6 +46,8 @@ const staff = (...roles: string[]): Actor => ({
   mfaVerified: true,
 });
 const editor = staff("content_editor");
+/** Medicines and other regulated products are created and activated by a pharmacist (D-034). */
+const pharmacist = staff("pharmacist");
 /** The storefront's actor: a system role that can only read active products. */
 const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
 
@@ -76,11 +78,13 @@ interface NewProduct {
 async function product(options: NewProduct = {}): Promise<{ id: string; cnk: string }> {
   const cnk = String(nextCnk++);
   const name = options.name ?? `Demo ${++n}`;
-  const { productId } = await createProduct(
+  const { productId } = await createProductRegulated(
     {
       cnk,
-      productType: options.productType ?? "otc_medicine",
-      legalStatus: options.legalStatus ?? "otc",
+      // consistent on purpose: the command refuses a type/status mismatch (#79); a row from before
+      // that rule is written directly below, which is what the D-034 tests need to exist
+      productType: "otc_medicine",
+      legalStatus: "otc",
       vatClass: "BE_6",
       ...(options.brandId ? { brandId: options.brandId } : {}),
       content: [
@@ -95,13 +99,20 @@ async function product(options: NewProduct = {}): Promise<{ id: string; cnk: str
         ...(options.content ?? []),
       ],
     },
-    editor,
+    pharmacist,
   );
+  if (options.productType || options.legalStatus) {
+    await iso.sql`
+      UPDATE catalog.products
+      SET product_type = ${options.productType ?? "otc_medicine"},
+          legal_status = ${options.legalStatus ?? "otc"}
+      WHERE id = ${productId}`;
+  }
   if (options.categoryIds) {
     await setProductCategories({ productId, categoryIds: [...options.categoryIds] }, editor);
   }
   const status = options.status ?? "active";
-  if (status !== "draft") await setProductStatus({ productId, status }, editor);
+  if (status !== "draft") await setProductStatusRegulated({ productId, status }, pharmacist);
   return { id: productId, cnk };
 }
 

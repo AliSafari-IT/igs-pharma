@@ -76,6 +76,12 @@ const ERRORS: Record<string, string> = {
   "catalog.category_has_children":
     "This category still has sub-categories. Move or delete them first.",
   "catalog.category_in_use": "Products are still in this category. Take them out first.",
+  "catalog.regulated_fields_require_pharmacist":
+    "Only a pharmacist can set or change the product type, legal status or VAT class.",
+  "catalog.medicine_activation_requires_pharmacist":
+    "Only a pharmacist can make a medicine active.",
+  "catalog.product_type_legal_status_mismatch":
+    "The legal status does not fit the product type (an OTC medicine is OTC, a prescription medicine is prescription-only).",
   "kernel.forbidden": "You don't have permission to change the catalogue.",
   "kernel.mfa_required": "Confirm your 2-step login first.",
   "kernel.validation_failed": "Some fields are not filled in correctly.",

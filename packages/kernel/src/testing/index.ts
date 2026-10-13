@@ -5,6 +5,7 @@ import type { Db } from "@igs/db";
  * TEST-ONLY (A8): importable only from test code (*.test.ts files, test/ folders and
  * vitest.config.ts) — enforced by the boundaries config, like `@igs/db/testing`.
  */
+import { ROLES } from "@igs/rbac";
 import { useCodeRbacCatalogue } from "@igs/rbac/testing";
 
 import type { Actor } from "../actor";
@@ -69,7 +70,12 @@ export const actors = {
     id: options.id ?? nextId("user"),
     roles: options.roles ?? [],
     ...(options.kind ? { kind: options.kind } : {}),
-    ...(options.kind === "staff" || options.mfaVerified !== undefined
+    // staff (by `kind` or by a staff role) are MFA-verified unless `mfaVerified: false` is passed
+    ...(options.kind === "staff" ||
+    options.mfaVerified !== undefined ||
+    (options.roles ?? []).some(
+      (role) => Object.hasOwn(ROLES, role) && ROLES[role as keyof typeof ROLES].kind === "staff",
+    )
       ? { mfaVerified: options.mfaVerified ?? true }
       : {}),
   }),

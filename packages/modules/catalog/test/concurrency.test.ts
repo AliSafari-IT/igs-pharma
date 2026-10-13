@@ -64,9 +64,9 @@ const en = { locale: "en", name: "Cough syrup" } as const;
 
 const fields = (overrides: Record<string, unknown> = {}) => ({
   cnk: newCnk(),
-  productType: "otc_medicine",
-  legalStatus: "otc",
-  vatClass: "BE_6",
+  productType: "general",
+  legalStatus: "general_sale",
+  vatClass: "BE_21",
   content: [nl, fr],
   ...overrides,
 });
@@ -181,19 +181,19 @@ describe("D2: optimistic concurrency on products", () => {
 
   it("the stale form, literally: a save from an old form is refused and loses nothing", async () => {
     // both editors open the product; it has Dutch and French
-    const { productId } = await createProduct(fields({ ageMin: 6 }), editor);
+    const { productId } = await createProduct(fields({ coldChain: false }), editor);
     const formA = await load(productId);
     const formB = await load(productId);
 
     // editor B adds an English translation and changes a core field, and saves first
     await updateProduct(
-      asForm(formB, { ageMin: 12, content: [...asForm(formB).content, en] }),
+      asForm(formB, { coldChain: true, content: [...asForm(formB).content, en] }),
       editor,
     );
 
-    // editor A's form still shows Dutch + French only and the old age; it is refused
+    // editor A's form still shows Dutch + French only and the old cold-chain flag; it is refused
     const stale = updateProduct(
-      asForm(formA, { requiresPharmacistReview: true, content: [{ ...nl, name: "A's edit" }] }),
+      asForm(formA, { brandId: null, coldChain: false, content: [{ ...nl, name: "A's edit" }] }),
       editor,
     );
     expect(await codeOf(stale)).toBe("catalog.stale_version");
@@ -202,14 +202,16 @@ describe("D2: optimistic concurrency on products", () => {
     const after = await load(productId);
     expect(after.content.map((c) => c.locale).sort()).toEqual(["en", "fr", "nl"]);
     expect(after.content.find((c) => c.locale === "nl")?.name).toBe(nl.name);
-    expect(after.ageMin).toBe(12);
-    expect(after.requiresPharmacistReview).toBe(false);
+    expect(after.coldChain).toBe(true);
     expect(after.version).toBe(2);
 
     // A reloads and applies the change again: it works
-    await updateProduct(asForm(await load(productId), { requiresPharmacistReview: true }), editor);
+    await updateProduct(
+      asForm(await load(productId), { content: [{ ...nl, name: "A's edit" }, fr, en] }),
+      editor,
+    );
     const final = await load(productId);
-    expect(final.requiresPharmacistReview).toBe(true);
+    expect(final.content.find((c) => c.locale === "nl")?.name).toBe("A's edit");
     expect(final.content.map((c) => c.locale).sort()).toEqual(["en", "fr", "nl"]);
     expect(final.version).toBe(3);
   });
@@ -250,7 +252,7 @@ describe("D2: optimistic concurrency on products", () => {
       const view = await load(productId);
       const results = await Promise.all([
         codeOf(updateProduct(asForm(view, { coldChain: true }), editor)),
-        codeOf(updateProduct(asForm(view, { ageMin: 18 }), editor)),
+        codeOf(updateProduct(asForm(view, { content: [{ ...nl, name: "Second" }, fr] }), editor)),
       ]);
       expect(results.sort(), `round ${round}`).toEqual(["catalog.stale_version", "ok"]);
     }
@@ -268,8 +270,8 @@ describe("D3: the CNK is a business key", () => {
     const after = await load(productId);
     expect([after.cnk, after.version]).toEqual([view.cnk, view.version]);
     // the same CNK, other fields: an active product can still be edited
-    await updateProduct(asForm(view, { ageMin: 16 }), editor);
-    expect((await load(productId)).ageMin).toBe(16);
+    await updateProduct(asForm(view, { coldChain: true }), editor);
+    expect((await load(productId)).coldChain).toBe(true);
   });
 
   it("on a draft or archived product the change is audited with both CNKs", async () => {
@@ -288,7 +290,7 @@ describe("D3: the CNK is a business key", () => {
       { productId, fromCnk: second, toCnk: third },
     ]);
     // an edit that keeps the CNK records no cnk_changed
-    await updateProduct(asForm(await load(productId), { ageMin: 3 }), editor);
+    await updateProduct(asForm(await load(productId), { coldChain: true }), editor);
     expect(
       (await auditFor(productId)).filter((a) => a.action === "catalog.product.cnk_changed"),
     ).toHaveLength(2);

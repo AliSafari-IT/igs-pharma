@@ -25,16 +25,89 @@ async function fresh() {
 describe("hasPermission (code catalogue installed)", () => {
   beforeAll(() => useCodeRbacCatalogue());
 
-  it("owner has every staff permission except the pharmacist- and system-only ones (K2, D-030)", () => {
+  // The owner's exact set (#64 C7). Changing the owner's permissions must change this list in the
+  // same PR, so every addition is reviewed; a new permission is NOT granted to the owner by default.
+  const OWNER_PERMISSIONS = [
+    "catalog.manage",
+    "catalog.products.manage",
+    "catalog.products.read",
+    "catalog.read",
+    "catalog.storefront.read",
+    "inventory.availability.read",
+    "inventory.stock.manage",
+    "inventory.stock.read",
+    "orders.read",
+    "pricing.price.manage",
+    "pricing.price.read",
+    "privacy.consent.read",
+    "privacy.consent.record",
+    "privacy.dsr.manage",
+    "privacy.dsr.read",
+    "staff.invite",
+    "staff.manage",
+  ];
+
+  it("the owner's permission set is pinned exactly (C7, D-030)", () => {
+    const held = ALL_PERMISSIONS.filter((permission) => hasPermission(["owner"], permission));
+    expect([...held].sort()).toEqual([...OWNER_PERMISSIONS].sort());
+  });
+
+  it("the owner never holds a pharmacist-only, system-only or customer-scoped permission", () => {
     for (const permission of ALL_PERMISSIONS) {
-      const expected =
-        !PHARMACIST_ONLY.includes(permission) &&
-        !SYSTEM_ONLY.includes(permission) &&
-        !permission.endsWith(".own");
-      expect(hasPermission(["owner"], permission), permission).toBe(expected);
+      const forbidden =
+        PHARMACIST_ONLY.includes(permission) ||
+        SYSTEM_ONLY.includes(permission) ||
+        permission.endsWith(".own") ||
+        permission === PERMISSIONS.orders.create;
+      if (forbidden) expect(hasPermission(["owner"], permission), permission).toBe(false);
     }
     expect(hasPermission(["owner"], PERMISSIONS.orders.reviewDecide)).toBe(false);
     expect(hasPermission(["owner"], PERMISSIONS.pharmacy.pharmacistsManage)).toBe(false);
+  });
+
+  it("the owner set against the previous 'everything except …' derivation (#79 C7 review diff)", () => {
+    // How the owner used to be computed, kept here only to print and pin what changed.
+    const previous = ALL_PERMISSIONS.filter(
+      (p) => !PHARMACIST_ONLY.includes(p) && !SYSTEM_ONLY.includes(p) && !p.endsWith(".own"),
+    );
+    const current = ALL_PERMISSIONS.filter((p) => hasPermission(["owner"], p));
+    const removed = previous.filter((p) => !current.includes(p)).sort();
+    const added = current.filter((p) => !previous.includes(p)).sort();
+    // eslint-disable-next-line no-console -- the PR body quotes this output
+    console.info(`owner permissions: previous=${previous.length} current=${current.length}`);
+    // eslint-disable-next-line no-console
+    console.info(
+      `owner removed: ${removed.join(", ") || "(none)"}; added: ${added.join(", ") || "(none)"}`,
+    );
+    // the one removal: orders.create is a customer action (customers hold it); nothing was added
+    expect(removed).toEqual(["orders.create"]);
+    expect(added).toEqual([]);
+  });
+
+  it("regulated product fields are pharmacist-only (D-034, D-030)", () => {
+    const regulated = PERMISSIONS.catalog.productsRegulatedManage;
+    expect(PHARMACIST_ONLY).toContain(regulated);
+    for (const role of ["pharmacist", "pharmacist_titular", "system_seed"]) {
+      expect(hasPermission([role], regulated), role).toBe(true);
+    }
+    for (const role of [
+      "owner",
+      "content_editor",
+      "pharmacy_assistant",
+      "customer_service",
+      "customer",
+    ]) {
+      expect(hasPermission([role], regulated), role).toBe(false);
+    }
+    // editors keep the content permission, so they edit text but not the regulated fields
+    expect(hasPermission(["content_editor"], PERMISSIONS.catalog.productsManage)).toBe(true);
+  });
+
+  it("every permission is held by at least one role (no orphaned permission)", () => {
+    for (const permission of ALL_PERMISSIONS) {
+      const holders = ROLE_KEYS.filter((role) => hasPermission([role], permission));
+      expect(holders.length, permission).toBeGreaterThan(0);
+    }
   });
 
   it("an owner who is also a pharmacist holds both (K2)", () => {
@@ -107,6 +180,7 @@ describe("catalogue invariants (T-016)", () => {
     expect(ROLE_PERMISSIONS.system_seed).toEqual([
       "catalog.products.read",
       "catalog.products.manage",
+      "catalog.products.regulated.manage",
       "inventory.stock.read",
       "inventory.stock.manage",
       "pricing.price.read",
@@ -142,7 +216,15 @@ describe("catalogue invariants (T-016)", () => {
   it("pharmacist-only permissions are held by pharmacist roles only (D-030)", () => {
     for (const permission of PHARMACIST_ONLY) {
       const holders = ROLE_KEYS.filter((r) => ROLE_PERMISSIONS[r].includes(permission));
-      expect(holders.every((r) => r === "pharmacist" || r === "pharmacist_titular")).toBe(true);
+      // the synthetic seed CLI (a system role, dev and staging only) creates Rx products; no user role
+      const allowed =
+        permission === PERMISSIONS.catalog.productsRegulatedManage
+          ? ["pharmacist", "pharmacist_titular", "system_seed"]
+          : ["pharmacist", "pharmacist_titular"];
+      expect(
+        holders.every((r) => allowed.includes(r)),
+        permission,
+      ).toBe(true);
     }
     expect(
       ROLE_KEYS.filter((r) => ROLE_PERMISSIONS[r].includes("pharmacy.pharmacists.manage")),

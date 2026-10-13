@@ -93,7 +93,10 @@ test("owner: list, create with Dutch and French, then make active", async ({ pag
   await expectAxeClean(page);
 
   await page.getByLabel("CNK").fill(cnk);
-  await page.getByLabel("VAT").selectOption("BE_21");
+  // the regulated fields are a pharmacist's (igs-pharma#79): the owner sees them read-only
+  await expect(page.getByLabel("VAT")).toBeDisabled();
+  await expect(page.getByLabel("VAT")).toHaveValue("BE_21");
+  await expect(page.getByText(/set by a pharmacist/)).toBeVisible();
   await page.getByRole("tab", { name: /French/ }).click();
   await page.getByLabel("Name (French)").fill(`Démo E2E ${cnk}`);
   await page.getByRole("button", { name: "Create product" }).click();

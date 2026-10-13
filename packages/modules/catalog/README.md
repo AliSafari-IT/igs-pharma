@@ -36,3 +36,13 @@ A product is **storefront-visible** only if `status = 'active'` AND `legal_statu
   (`fromCnk`, `toCnk`). To correct a live product's CNK: archive it, correct the CNK, activate it
   again (the id, stock and price history stay). A lost race for a CNK is `catalog.cnk_taken`, never
   the unique index's raw error.
+- **Regulated fields and approval (igs-pharma#79, D-034).** Two command families, one static
+  permission each. The content commands (`createProduct`, `updateProduct`, `setProductStatus`;
+  `catalog.products.manage`) create only the general envelope, accept regulated values only when
+  they equal the stored ones (`catalog.regulated_fields_require_pharmacist`) and never activate a
+  medicine (`catalog.medicine_activation_requires_pharmacist`). The `*Regulated` commands
+  (`catalog.products.regulated.manage`, pharmacists only) change them, and check type against
+  legal status (`catalog.product_type_legal_status_mismatch`). `approved_by` on product content
+  means "a pharmacist read this text": it is stamped only by an editor's save on a general product
+  or a pharmacist's save with `approveContent: true` (default `false`). Any other save keeps the
+  approval of a locale whose text is unchanged and leaves a changed or new locale unapproved.

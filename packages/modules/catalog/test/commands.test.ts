@@ -53,11 +53,12 @@ const cnk = () => String(nextCnk++);
 const nl = { locale: "nl", name: "Demo Hoestsiroop" } as const;
 const fr = { locale: "fr", name: "Démo Sirop contre la toux" } as const;
 
+/** What a content editor may create: a general product (D-034). */
 const product = (overrides: Record<string, unknown> = {}) => ({
   cnk: cnk(),
-  productType: "otc_medicine",
-  legalStatus: "otc",
-  vatClass: "BE_6",
+  productType: "general",
+  legalStatus: "general_sale",
+  vatClass: "BE_21",
   content: [nl, fr],
   ...overrides,
 });
@@ -89,7 +90,12 @@ describe("catalog.product.create", () => {
     const { productId } = await createProduct(input, editor);
 
     const view = await getProduct({ productId }, editor);
-    expect(view).toMatchObject({ cnk: input.cnk, status: "draft", vatClass: "BE_6", ageMin: null });
+    expect(view).toMatchObject({
+      cnk: input.cnk,
+      status: "draft",
+      vatClass: "BE_21",
+      ageMin: null,
+    });
     expect(view.content.map((c) => c.locale)).toEqual(["fr", "nl"]);
     const dutch = view.content.find((c) => c.locale === "nl");
     expect(dutch).toMatchObject({
@@ -181,10 +187,10 @@ describe("catalog.product.update", () => {
       product({ content: [nl, fr, { locale: "en", name: "Demo" }] }),
       editor,
     );
-    const next = product({ vatClass: "BE_21", ageMin: 12, coldChain: true, content: [nl, fr] });
+    const next = product({ coldChain: true, content: [nl, fr] });
     await updateProduct({ productId, expectedVersion: await pv(productId), ...next }, editor);
     const view = await getProduct({ productId }, editor);
-    expect(view).toMatchObject({ cnk: next.cnk, vatClass: "BE_21", ageMin: 12, coldChain: true });
+    expect(view).toMatchObject({ cnk: next.cnk, coldChain: true });
     expect(view.content.map((c) => c.locale)).toEqual(["fr", "nl"]);
   });
 

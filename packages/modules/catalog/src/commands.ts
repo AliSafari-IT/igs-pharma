@@ -1,5 +1,5 @@
-import { type Ctx, command, conflict, notFound, validationFailed } from "@igs/kernel";
-import { PERMISSIONS } from "@igs/rbac";
+import { type Ctx, command, conflict, forbidden, notFound, validationFailed } from "@igs/kernel";
+import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { and, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 
@@ -10,20 +10,37 @@ import {
   LEGAL_STATUSES,
   PRODUCT_STATUSES,
   PRODUCT_TYPES,
+  type RegulatedValues,
   VAT_CLASSES,
+  changedRegulatedFields,
+  isGeneralEnvelope,
+  isMedicine,
   isValidCnk,
+  legalStatusFits,
   missingForActivation,
 } from "./domain";
 import { brands, productContent, products } from "./schema";
 
 /**
- * Catalog commands (igs-pharma#50). Every one runs through the kernel: authorize → validate → one
- * transaction (handler + audit), all behind `catalog.products.manage`. A product is created as a
- * `draft`; it becomes `active` only with Dutch and French content (`catalog.content_missing`).
+ * Catalog commands (igs-pharma#50, #79). Every one runs through the kernel: authorize → validate →
+ * one transaction (handler + audit). A product is created as a `draft`; it becomes `active` only
+ * with Dutch and French content (`catalog.content_missing`).
+ *
+ * Two command families, one static permission each (D-005, D-034):
+ * - content (`catalog.products.manage`: content editor, owner): text, brand, cold chain. They may
+ *   carry the regulated values, but only to GUARD them: a change is refused with
+ *   `catalog.regulated_fields_require_pharmacist`, a medicine is never activated
+ *   (`catalog.medicine_activation_requires_pharmacist`), and a new product must be in the general
+ *   envelope (`isGeneralEnvelope`).
+ * - regulated (`catalog.products.regulated.manage`: pharmacist, titular; never the owner, D-030):
+ *   `createProductRegulated`, `updateProductRegulated`, `setProductStatusRegulated`.
  *
  * Content is saved as a whole set: the locales in the input are written, the others removed.
- * Saving content stamps `approved_by`/`approved_at` with the saving actor: in v1 every text is
- * written by hand by a content editor, so writing it is approving it (source `manual`).
+ * Approval (D-034): `approved_by` means "a pharmacist read this text". Saving content stamps the
+ * saving actor on every locale it writes (source `manual`) in two cases only: an editor's save on
+ * a general product, and a pharmacist's save with `approveContent: true`. Any other save (an
+ * editor's on a medicine; a pharmacist's without `approveContent`) keeps the approval of a locale
+ * whose text is unchanged and leaves a changed or new locale unapproved.
  */
 
 const nullableText = (max: number) =>
@@ -62,12 +79,16 @@ const productFields = {
 };
 
 const createInput = z.object(productFields);
+/** `approveContent`: the pharmacist read the text in this save and approves it (default: no). */
+const approveContent = { approveContent: z.boolean().default(false) };
+const createRegulatedInput = createInput.extend(approveContent);
 /** `expectedVersion`: the version the edit form loaded (igs-pharma#80); a stale one is refused. */
 const updateInput = z.object({
   productId: z.uuid(),
   expectedVersion: z.number().int().min(1),
   ...productFields,
 });
+const updateRegulatedInput = updateInput.extend(approveContent);
 type ProductFields = z.infer<typeof createInput>;
 
 const productIdOutput = z.object({ productId: z.uuid() });
@@ -98,8 +119,54 @@ const coreValues = (input: ProductFields) => ({
   brandId: input.brandId,
 });
 
+const regulatedOf = (input: RegulatedValues): RegulatedValues => ({
+  productType: input.productType,
+  legalStatus: input.legalStatus,
+  vatClass: input.vatClass,
+  requiresPharmacistReview: input.requiresPharmacistReview,
+  ageMin: input.ageMin,
+});
+
+/** `otc_medicine` must be `otc`, `rx_medicine` `rx`, anything else `pharmacy_only` or `general_sale`. */
+function requireConsistent(input: ProductFields): void {
+  if (!legalStatusFits(input.productType, input.legalStatus)) {
+    throw validationFailed("catalog.product_type_legal_status_mismatch", [
+      { path: "legalStatus", code: "product_type_legal_status_mismatch" },
+    ]);
+  }
+}
+
+const REGULATED_REQUIRED = "catalog.regulated_fields_require_pharmacist";
+
+/**
+ * Who approves the text a save writes: the saving actor ("actor"), or nobody new ("keep": a locale
+ * whose text is unchanged keeps its approval, a changed or new one is unapproved).
+ */
+type Approval = "actor" | "keep";
+
+async function currentContent(ctx: Ctx, productId: string) {
+  const rows = await ctx.tx
+    .select({
+      locale: productContent.locale,
+      name: productContent.name,
+      shortDescription: productContent.shortDescription,
+      description: productContent.description,
+      warnings: productContent.warnings,
+      approvedBy: productContent.approvedBy,
+      approvedAt: productContent.approvedAt,
+    })
+    .from(productContent)
+    .where(eq(productContent.productId, productId));
+  return new Map(rows.map((row) => [row.locale, row]));
+}
+
 /** Replaces the product's content with `content` (see the module comment). */
-async function saveContent(ctx: Ctx, productId: string, content: ProductFields["content"]) {
+async function saveContent(
+  ctx: Ctx,
+  productId: string,
+  content: ProductFields["content"],
+  approval: Approval,
+) {
   const locales = content.map((c) => c.locale);
   await ctx.tx
     .delete(productContent)
@@ -109,8 +176,19 @@ async function saveContent(ctx: Ctx, productId: string, content: ProductFields["
         : and(eq(productContent.productId, productId), notInArray(productContent.locale, locales)),
     );
   if (content.length === 0) return;
-  const approvedBy = ctx.actor.type === "user" ? ctx.actor.id : null;
+  const approved = approval === "actor" && ctx.actor.type === "user";
+  const existing = approval === "keep" ? await currentContent(ctx, productId) : new Map();
   for (const item of content) {
+    const before = existing.get(item.locale);
+    const unchanged =
+      before !== undefined &&
+      before.name === item.name &&
+      before.shortDescription === item.shortDescription &&
+      before.description === item.description &&
+      before.warnings === item.warnings;
+    const keep = approval === "keep" && unchanged;
+    const approvedBy = approved ? ctx.actor.id : keep ? before.approvedBy : null;
+    const approvedAt = approved ? ctx.now : keep ? before.approvedAt : null;
     const values = {
       name: item.name,
       shortDescription: item.shortDescription,
@@ -118,7 +196,7 @@ async function saveContent(ctx: Ctx, productId: string, content: ProductFields["
       warnings: item.warnings,
       source: "manual",
       approvedBy,
-      approvedAt: ctx.now,
+      approvedAt,
       updatedAt: ctx.now,
     };
     await ctx.tx
@@ -131,149 +209,259 @@ async function saveContent(ctx: Ctx, productId: string, content: ProductFields["
   }
 }
 
-/** Creates a `draft` product with its content. */
+async function insertProduct(
+  ctx: Ctx,
+  input: ProductFields,
+  approval: Approval,
+): Promise<{ productId: string; version: number }> {
+  requireValidCnk(input.cnk);
+  await requireBrand(ctx, input.brandId);
+  const [product] = await ctx.tx
+    .insert(products)
+    .values({ ...coreValues(input), status: "draft" })
+    .onConflictDoNothing({ target: products.cnk })
+    .returning({ id: products.id });
+  if (!product) throw conflict("catalog.cnk_taken");
+  await saveContent(ctx, product.id, input.content, approval);
+  await ctx.audit.record({
+    action: CATALOG_AUDIT.productCreated,
+    entityType: "product",
+    entityId: product.id,
+    data: { productId: product.id, cnk: input.cnk, version: 1 },
+  });
+  return { productId: product.id, version: 1 };
+}
+
+/**
+ * Creates a `draft` product in the general envelope (a non-medicine in general sale, default VAT
+ * class, no pharmacist review, no age limit). Medicines and other regulated values need
+ * `createProductRegulated`.
+ */
 export const createProduct = command({
   name: "catalog.product.create",
   input: createInput,
   output: productWriteOutput,
   permission: PERMISSIONS.catalog.productsManage,
   async handler({ input, ctx }) {
-    requireValidCnk(input.cnk);
-    await requireBrand(ctx, input.brandId);
-    const [product] = await ctx.tx
-      .insert(products)
-      .values({ ...coreValues(input), status: "draft" })
-      .onConflictDoNothing({ target: products.cnk })
-      .returning({ id: products.id });
-    if (!product) throw conflict("catalog.cnk_taken");
-    await saveContent(ctx, product.id, input.content);
-    await ctx.audit.record({
-      action: CATALOG_AUDIT.productCreated,
-      entityType: "product",
-      entityId: product.id,
-      data: { productId: product.id, cnk: input.cnk, version: 1 },
-    });
-    return { productId: product.id, version: 1 };
+    if (!isGeneralEnvelope(regulatedOf(input))) throw forbidden(REGULATED_REQUIRED);
+    return insertProduct(ctx, input, "actor");
   },
 });
 
 /**
- * Replaces a product's core fields and content. `expectedVersion` is the version the form loaded
- * (`catalog.stale_version` otherwise, before anything is written). An `active` product must keep its
- * Dutch and French content (`catalog.content_missing`) and its CNK (`catalog.cnk_locked`: archive it
- * first to correct the CNK); its status changes only through `setProductStatus`. A CNK change on a
- * draft or archived product is audited (`catalog.product.cnk_changed`).
+ * Creates a `draft` product with any regulated values (a pharmacist; D-034). The text is approved
+ * only with `approveContent: true`.
+ */
+export const createProductRegulated = command({
+  name: "catalog.product.create_regulated",
+  input: createRegulatedInput,
+  output: productWriteOutput,
+  permission: PERMISSIONS.catalog.productsRegulatedManage,
+  async handler({ input, ctx }) {
+    requireConsistent(input);
+    return insertProduct(ctx, input, input.approveContent ? "actor" : "keep");
+  },
+});
+
+type Family = "content" | "regulated";
+
+/** The update both families share; `family` decides who may change the regulated fields. */
+async function applyUpdate(
+  ctx: Ctx,
+  input: z.infer<typeof updateInput> & { readonly approveContent?: boolean },
+  family: Family,
+) {
+  requireValidCnk(input.cnk);
+  const [current] = await ctx.tx
+    .select({
+      id: products.id,
+      cnk: products.cnk,
+      status: products.status,
+      version: products.version,
+      productType: products.productType,
+      legalStatus: products.legalStatus,
+      vatClass: products.vatClass,
+      requiresPharmacistReview: products.requiresPharmacistReview,
+      ageMin: products.ageMin,
+    })
+    .from(products)
+    .where(eq(products.id, input.productId))
+    .for("update");
+  if (!current) throw notFound("catalog.product_not_found");
+  requireVersion(current.version, input.expectedVersion);
+  const changed = changedRegulatedFields(current, regulatedOf(input));
+  if (family === "content") {
+    // equal values pass, so the full form keeps working; a different one is a pharmacist's change
+    if (changed.length > 0) throw forbidden(REGULATED_REQUIRED, { fields: changed.join(",") });
+  } else {
+    requireConsistent(input);
+  }
+  if (current.status === "active") {
+    const missing = missingForActivation(input.content.map((c) => c.locale));
+    if (missing.length > 0)
+      throw conflict("catalog.content_missing", { missing: missing.join(",") });
+  }
+  await requireBrand(ctx, input.brandId);
+  const cnkChanged = input.cnk !== current.cnk;
+  if (cnkChanged) {
+    // the CNK is a business key (igs-pharma#80): a live product keeps it; correct it by archiving first
+    if (current.status === "active") throw conflict("catalog.cnk_locked");
+    const [taken] = await ctx.tx
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.cnk, input.cnk));
+    if (taken) throw conflict("catalog.cnk_taken");
+  }
+  const version = current.version + 1;
+  try {
+    // a savepoint: a lost race for the CNK (the SELECT above is not a lock) is a typed conflict,
+    // not the unique index's raw error
+    await ctx.tx.transaction((sp) =>
+      sp
+        .update(products)
+        .set({ ...coreValues(input), version, updatedAt: ctx.now })
+        .where(eq(products.id, input.productId)),
+    );
+  } catch (error) {
+    if (isUniqueViolation(error, CNK_UNIQUE)) throw conflict("catalog.cnk_taken");
+    throw error;
+  }
+  // only a pharmacist approves medicine text (D-034), and only when they say so (`approveContent`)
+  const approval: Approval =
+    family === "regulated"
+      ? input.approveContent
+        ? "actor"
+        : "keep"
+      : isMedicine(current.productType, current.legalStatus)
+        ? "keep"
+        : "actor";
+  await saveContent(ctx, input.productId, input.content, approval);
+  await ctx.audit.record({
+    action: CATALOG_AUDIT.productUpdated,
+    entityType: "product",
+    entityId: input.productId,
+    data: { productId: input.productId, cnk: input.cnk, version },
+  });
+  if (cnkChanged) {
+    await ctx.audit.record({
+      action: CATALOG_AUDIT.productCnkChanged,
+      entityType: "product",
+      entityId: input.productId,
+      data: { productId: input.productId, fromCnk: current.cnk, toCnk: input.cnk },
+    });
+  }
+  if (changed.length > 0) {
+    await ctx.audit.record({
+      action: CATALOG_AUDIT.productRegulatedChanged,
+      entityType: "product",
+      entityId: input.productId,
+      data: { productId: input.productId, changed: changed.join(",") },
+    });
+  }
+  return { productId: input.productId, version };
+}
+
+/**
+ * Replaces a product's content and non-regulated fields (content editor, owner). The regulated
+ * values in the input must equal the stored ones (`catalog.regulated_fields_require_pharmacist`).
+ * `expectedVersion` is the version the form loaded (`catalog.stale_version` otherwise, before
+ * anything is written). An `active` product must keep its Dutch and French content
+ * (`catalog.content_missing`) and its CNK (`catalog.cnk_locked`: archive it first to correct the
+ * CNK); its status changes only through `setProductStatus`. A CNK change on a draft or archived
+ * product is audited (`catalog.product.cnk_changed`). On a medicine the saved text is left unapproved.
  */
 export const updateProduct = command({
   name: "catalog.product.update",
   input: updateInput,
   output: productWriteOutput,
   permission: PERMISSIONS.catalog.productsManage,
-  async handler({ input, ctx }) {
-    requireValidCnk(input.cnk);
-    const [current] = await ctx.tx
-      .select({
-        id: products.id,
-        cnk: products.cnk,
-        status: products.status,
-        version: products.version,
-      })
-      .from(products)
-      .where(eq(products.id, input.productId))
-      .for("update");
-    if (!current) throw notFound("catalog.product_not_found");
-    requireVersion(current.version, input.expectedVersion);
-    if (current.status === "active") {
-      const missing = missingForActivation(input.content.map((c) => c.locale));
-      if (missing.length > 0)
-        throw conflict("catalog.content_missing", { missing: missing.join(",") });
-    }
-    await requireBrand(ctx, input.brandId);
-    const cnkChanged = input.cnk !== current.cnk;
-    if (cnkChanged) {
-      // the CNK is a business key (igs-pharma#80): a live product keeps it; correct it by archiving first
-      if (current.status === "active") throw conflict("catalog.cnk_locked");
-      const [taken] = await ctx.tx
-        .select({ id: products.id })
-        .from(products)
-        .where(eq(products.cnk, input.cnk));
-      if (taken) throw conflict("catalog.cnk_taken");
-    }
-    const version = current.version + 1;
-    try {
-      // a savepoint: a lost race for the CNK (the SELECT above is not a lock) is a typed conflict,
-      // not the unique index's raw error
-      await ctx.tx.transaction((sp) =>
-        sp
-          .update(products)
-          .set({ ...coreValues(input), version, updatedAt: ctx.now })
-          .where(eq(products.id, input.productId)),
-      );
-    } catch (error) {
-      if (isUniqueViolation(error, CNK_UNIQUE)) throw conflict("catalog.cnk_taken");
-      throw error;
-    }
-    await saveContent(ctx, input.productId, input.content);
-    await ctx.audit.record({
-      action: CATALOG_AUDIT.productUpdated,
-      entityType: "product",
-      entityId: input.productId,
-      data: { productId: input.productId, cnk: input.cnk, version },
-    });
-    if (cnkChanged) {
-      await ctx.audit.record({
-        action: CATALOG_AUDIT.productCnkChanged,
-        entityType: "product",
-        entityId: input.productId,
-        data: { productId: input.productId, fromCnk: current.cnk, toCnk: input.cnk },
-      });
-    }
-    return { productId: input.productId, version };
-  },
+  handler: ({ input, ctx }) => applyUpdate(ctx, input, "content"),
 });
 
-/** Moves a product between `draft`, `active` and `archived`; `active` needs NL and FR content. */
+/**
+ * Replaces a product's core fields, regulated ones included, and content (a pharmacist). Saving
+ * does not approve the text: only `approveContent: true` does.
+ */
+export const updateProductRegulated = command({
+  name: "catalog.product.update_regulated",
+  input: updateRegulatedInput,
+  output: productWriteOutput,
+  permission: PERMISSIONS.catalog.productsRegulatedManage,
+  handler: ({ input, ctx }) => applyUpdate(ctx, input, "regulated"),
+});
+
+const statusInput = z.object({ productId: z.uuid(), status: z.enum(PRODUCT_STATUSES) });
+const statusOutput = z.object({
+  productId: z.uuid(),
+  status: z.enum(PRODUCT_STATUSES),
+  version: z.number().int().min(1),
+});
+
+async function applyStatus(ctx: Ctx, input: z.infer<typeof statusInput>, family: Family) {
+  const [current] = await ctx.tx
+    .select({
+      id: products.id,
+      status: products.status,
+      version: products.version,
+      productType: products.productType,
+      legalStatus: products.legalStatus,
+    })
+    .from(products)
+    .where(eq(products.id, input.productId))
+    .for("update");
+  if (!current) throw notFound("catalog.product_not_found");
+  const from = current.status as (typeof PRODUCT_STATUSES)[number];
+  if (from === input.status) throw conflict("catalog.status_unchanged", { status: from });
+  if (
+    family === "content" &&
+    input.status === "active" &&
+    isMedicine(current.productType, current.legalStatus)
+  ) {
+    throw forbidden("catalog.medicine_activation_requires_pharmacist");
+  }
+  if (input.status === "active") {
+    const rows = await ctx.tx
+      .select({ locale: productContent.locale })
+      .from(productContent)
+      .where(eq(productContent.productId, input.productId));
+    const missing = missingForActivation(rows.map((r) => r.locale));
+    if (missing.length > 0)
+      throw conflict("catalog.content_missing", { missing: missing.join(",") });
+  }
+  // every write bumps the version, so an edit form loaded before this change is refused (igs-pharma#80)
+  const version = current.version + 1;
+  await ctx.tx
+    .update(products)
+    .set({ status: input.status, version, updatedAt: ctx.now })
+    .where(eq(products.id, input.productId));
+  await ctx.audit.record({
+    action: CATALOG_AUDIT.productStatusChanged,
+    entityType: "product",
+    entityId: input.productId,
+    data: { productId: input.productId, from, to: input.status, version },
+  });
+  return { productId: input.productId, status: input.status, version };
+}
+
+/**
+ * Moves a product between `draft`, `active` and `archived`; `active` needs NL and FR content.
+ * Activating a medicine needs a pharmacist (`setProductStatusRegulated`).
+ */
 export const setProductStatus = command({
   name: "catalog.product.set_status",
-  input: z.object({ productId: z.uuid(), status: z.enum(PRODUCT_STATUSES) }),
-  output: z.object({
-    productId: z.uuid(),
-    status: z.enum(PRODUCT_STATUSES),
-    version: z.number().int().min(1),
-  }),
+  input: statusInput,
+  output: statusOutput,
   permission: PERMISSIONS.catalog.productsManage,
-  async handler({ input, ctx }) {
-    const [current] = await ctx.tx
-      .select({ id: products.id, status: products.status, version: products.version })
-      .from(products)
-      .where(eq(products.id, input.productId))
-      .for("update");
-    if (!current) throw notFound("catalog.product_not_found");
-    const from = current.status as (typeof PRODUCT_STATUSES)[number];
-    if (from === input.status) throw conflict("catalog.status_unchanged", { status: from });
-    if (input.status === "active") {
-      const rows = await ctx.tx
-        .select({ locale: productContent.locale })
-        .from(productContent)
-        .where(eq(productContent.productId, input.productId));
-      const missing = missingForActivation(rows.map((r) => r.locale));
-      if (missing.length > 0)
-        throw conflict("catalog.content_missing", { missing: missing.join(",") });
-    }
-    // every write bumps the version, so an edit form loaded before this change is refused (igs-pharma#80)
-    const version = current.version + 1;
-    await ctx.tx
-      .update(products)
-      .set({ status: input.status, version, updatedAt: ctx.now })
-      .where(eq(products.id, input.productId));
-    await ctx.audit.record({
-      action: CATALOG_AUDIT.productStatusChanged,
-      entityType: "product",
-      entityId: input.productId,
-      data: { productId: input.productId, from, to: input.status, version },
-    });
-    return { productId: input.productId, status: input.status, version };
-  },
+  handler: ({ input, ctx }) => applyStatus(ctx, input, "content"),
+});
+
+/** Moves any product between statuses, medicines included (a pharmacist; D-034). */
+export const setProductStatusRegulated = command({
+  name: "catalog.product.set_status_regulated",
+  input: statusInput,
+  output: statusOutput,
+  permission: PERMISSIONS.catalog.productsRegulatedManage,
+  handler: ({ input, ctx }) => applyStatus(ctx, input, "regulated"),
 });
 
 /** Creates a brand; its slug (lowercase letters, digits and dashes) is unique. */
@@ -305,3 +493,11 @@ export const createBrand = command({
     return { brandId: brand.id };
   },
 });
+
+/**
+ * Whether these roles may create or change regulated fields and activate medicines. For the
+ * back-office to choose the command family and show the fields read-only; the commands still
+ * enforce it (D-005).
+ */
+export const canManageRegulated = (roles: readonly string[]): boolean =>
+  hasPermission(roles, PERMISSIONS.catalog.productsRegulatedManage);

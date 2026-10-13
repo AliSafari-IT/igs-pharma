@@ -24,6 +24,11 @@ export const PERMISSIONS = {
     productsRead: "catalog.products.read",
     /** Back-office: create and edit products, brands, categories and content; change product status. */
     productsManage: "catalog.products.manage",
+    /**
+     * Pharmacist-only (D-034): set a product's regulated fields (type, legal status, VAT class,
+     * pharmacist review, minimum age), activate a medicine and approve medicine content.
+     */
+    productsRegulatedManage: "catalog.products.regulated.manage",
     /** Storefront: read active products and the category tree, never drafts (igs-pharma#62). */
     storefrontRead: "catalog.storefront.read",
   },
@@ -125,6 +130,7 @@ export const ROLE_KEYS = Object.keys(ROLES) as RoleKey[];
 export const PHARMACIST_ONLY: readonly Permission[] = [
   PERMISSIONS.orders.reviewDecide,
   PERMISSIONS.pharmacy.pharmacistsManage,
+  PERMISSIONS.catalog.productsRegulatedManage,
 ];
 
 /** Roles that only a holder of `pharmacy.pharmacists.manage` may grant or revoke (Q7). */
@@ -133,18 +139,38 @@ export const PHARMACIST_ROLES: readonly RoleKey[] = ["pharmacist", "pharmacist_t
 /** System-only permissions (36b): held by `system` roles, never implied by `owner`. */
 export const SYSTEM_ONLY: readonly Permission[] = Object.values(PERMISSIONS.identity);
 
-const isOwnScoped = (permission: string) => permission.endsWith(".own");
-
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
 export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> = {
-  owner: ALL_PERMISSIONS.filter(
-    (p) => !PHARMACIST_ONLY.includes(p) && !SYSTEM_ONLY.includes(p) && !isOwnScoped(p),
-  ),
+  // EXPLICIT (#64 C7): a permission added later reaches the owner only when it is listed here, so a
+  // forgotten one can never leak to the owner. `catalogue.test.ts` pins this exact set. Not here on
+  // purpose: the pharmacist- and system-only permissions (D-030) and customer permissions
+  // (`orders.create`, `.own`). The two storefront reads stay: staff use the same queries to see every
+  // product, the storefront actor only the visible ones (inventory/catalog tests rely on it).
+  owner: [
+    PERMISSIONS.orders.read,
+    PERMISSIONS.catalog.read,
+    PERMISSIONS.catalog.manage,
+    PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.catalog.productsManage,
+    PERMISSIONS.catalog.storefrontRead,
+    PERMISSIONS.inventory.stockRead,
+    PERMISSIONS.inventory.stockManage,
+    PERMISSIONS.inventory.availabilityRead,
+    PERMISSIONS.pricing.priceRead,
+    PERMISSIONS.pricing.priceManage,
+    PERMISSIONS.privacy.consentRead,
+    PERMISSIONS.privacy.consentRecord,
+    PERMISSIONS.privacy.dsrRead,
+    PERMISSIONS.privacy.dsrManage,
+    PERMISSIONS.staff.invite,
+    PERMISSIONS.staff.manage,
+  ],
   pharmacist_titular: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.catalog.productsRegulatedManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
     PERMISSIONS.pharmacy.pharmacistsManage,
@@ -155,6 +181,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
+    PERMISSIONS.catalog.productsRegulatedManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
   ],
@@ -184,6 +211,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   system_seed: [
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.catalog.productsManage,
+    PERMISSIONS.catalog.productsRegulatedManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
     PERMISSIONS.pricing.priceRead,
