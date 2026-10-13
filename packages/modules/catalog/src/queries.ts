@@ -1,6 +1,21 @@
 import { notFound, query } from "@igs/kernel";
 import { PERMISSIONS } from "@igs/rbac";
-import { type SQL, and, asc, count, desc, eq, exists, ilike, inArray, like, or } from "drizzle-orm";
+import {
+  type SQL,
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  like,
+  not,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -180,5 +195,45 @@ export const listBrands = query({
       .from(brands)
       .orderBy(asc(brands.name));
     return input.slugs ? select.where(inArray(brands.slug, input.slugs)) : select.limit(1000);
+  },
+});
+
+export interface InconsistentProduct {
+  readonly productId: string;
+  readonly cnk: string;
+  readonly productType: ProductType;
+  readonly legalStatus: LegalStatus;
+}
+
+/**
+ * Read-only report (igs-pharma#79): products whose `product_type` and `legal_status` disagree
+ * (the same rule as `legalStatusFits`). Nothing is rewritten; a pharmacist fixes each one with
+ * `updateProductRegulated`. Shows identifiers and enums only.
+ */
+export const listInconsistentProducts = query({
+  name: "catalog.product.list_inconsistent",
+  input: z.object({}),
+  permission: PERMISSIONS.catalog.productsRead,
+  async handler({ ctx }): Promise<readonly InconsistentProduct[]> {
+    const fits = or(
+      and(eq(products.productType, "otc_medicine"), eq(products.legalStatus, "otc")),
+      and(eq(products.productType, "rx_medicine"), eq(products.legalStatus, "rx")),
+      and(
+        notInArray(products.productType, ["otc_medicine", "rx_medicine"]),
+        inArray(products.legalStatus, ["pharmacy_only", "general_sale"]),
+      ),
+    );
+    const rows = await ctx.tx
+      .select({
+        productId: products.id,
+        cnk: products.cnk,
+        productType: products.productType,
+        legalStatus: products.legalStatus,
+      })
+      .from(products)
+      .where(not(sql`coalesce(${fits}, false)`))
+      .orderBy(asc(products.cnk))
+      .limit(1000);
+    return rows as InconsistentProduct[];
   },
 });

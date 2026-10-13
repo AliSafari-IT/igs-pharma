@@ -13,13 +13,13 @@ import {
   type VatClass,
   createBrand,
   createCategory,
-  createProduct,
+  createProductRegulated,
   getProduct,
   listBrands,
   listCategories,
   listProducts,
   setProductCategories,
-  setProductStatus,
+  setProductStatusRegulated,
 } from "@igs/module-catalog";
 import { importStock, listStock } from "@igs/module-inventory";
 
@@ -91,7 +91,7 @@ export const PRODUCTS: readonly SeedProduct[] = [
     names: { nl: "Demo Pijnstiller 500", fr: "Démo Antidouleur 500" },
     categories: ["pain-fever"],
     type: "otc_medicine",
-    legal: "pharmacy_only",
+    legal: "otc", // an otc_medicine is `otc` (igs-pharma#79); the review flag below is what asks for a pharmacist
     vat: "BE_6",
     brand: "demo-pharma",
     status: "active",
@@ -238,7 +238,7 @@ export const PRODUCTS: readonly SeedProduct[] = [
     names: { nl: "Demo Allergietabletten", fr: "Démo Comprimés antiallergiques" },
     categories: ["allergy"],
     type: "otc_medicine",
-    legal: "pharmacy_only",
+    legal: "otc",
     vat: "BE_6",
     brand: "demo-pharma",
     status: "active",
@@ -313,7 +313,7 @@ export async function seedSyntheticCatalog(actor: Actor = SEED_ACTOR): Promise<S
     );
     let productId: string;
     try {
-      ({ productId } = await createProduct(
+      ({ productId } = await createProductRegulated(
         {
           cnk,
           productType: seed.type,
@@ -344,7 +344,7 @@ export async function seedSyntheticCatalog(actor: Actor = SEED_ACTOR): Promise<S
       restored++;
     }
     if (seed.status !== "draft") {
-      await setProductStatus({ productId, status: seed.status }, actor);
+      await setProductStatusRegulated({ productId, status: seed.status }, actor);
     }
   }
   return { created, restored, skipped };

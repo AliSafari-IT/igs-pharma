@@ -7,9 +7,9 @@ import { type Actor, isDomainError } from "@igs/kernel";
 import { type KernelTestHandles, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
-  createProduct,
+  createProductRegulated,
   registerAuditActions as registerCatalogAudit,
-  setProductStatus,
+  setProductStatusRegulated,
 } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -60,7 +60,7 @@ let nextCnk = 9_800_100;
 /** A catalog product with Dutch content; returns its id and CNK. */
 async function newProduct(): Promise<{ id: string; cnk: string }> {
   const cnk = String(nextCnk++);
-  const { productId } = await createProduct(
+  const { productId } = await createProductRegulated(
     {
       cnk,
       productType: "otc_medicine",
@@ -68,7 +68,7 @@ async function newProduct(): Promise<{ id: string; cnk: string }> {
       vatClass: "BE_6",
       content: [{ locale: "nl", name: `Demo ${cnk}` }],
     },
-    owner,
+    pharmacist,
   );
   return { id: productId, cnk };
 }
@@ -79,20 +79,27 @@ async function storefrontProduct(
   productType: "otc_medicine" | "rx_medicine" = "otc_medicine",
 ): Promise<string> {
   const cnk = String(nextCnk++);
-  const { productId } = await createProduct(
+  // created consistent (the command refuses a type/status mismatch, #79); a row from before that
+  // rule, which the D-034 tests need, is written directly
+  const { productId } = await createProductRegulated(
     {
       cnk,
-      productType,
-      legalStatus,
+      productType: "otc_medicine",
+      legalStatus: "otc",
       vatClass: "BE_6",
       content: [
         { locale: "nl", name: `Demo ${cnk}` },
         { locale: "fr", name: `Demo ${cnk} FR` },
       ],
     },
-    owner,
+    pharmacist,
   );
-  await setProductStatus({ productId, status: "active" }, owner);
+  if (productType !== "otc_medicine" || legalStatus !== "otc") {
+    await iso.sql`
+      UPDATE catalog.products SET product_type = ${productType}, legal_status = ${legalStatus}
+      WHERE id = ${productId}`;
+  }
+  await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
   return productId;
 }
 

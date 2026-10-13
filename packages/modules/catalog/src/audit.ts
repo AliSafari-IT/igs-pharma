@@ -1,12 +1,13 @@
 import { z } from "zod";
 
-import { PRODUCT_STATUSES } from "./domain";
+import { PRODUCT_STATUSES, REGULATED_FIELDS } from "./domain";
 
 /** Audit actions recorded by the catalog commands (`<domain>.<noun>.<verb>`). */
 export const CATALOG_AUDIT = {
   productCreated: "catalog.product.created",
   productUpdated: "catalog.product.updated",
   productStatusChanged: "catalog.product.status_changed",
+  productRegulatedChanged: "catalog.product.regulated_changed",
   brandCreated: "catalog.brand.created",
   categoryCreated: "catalog.category.created",
   categoryUpdated: "catalog.category.updated",
@@ -20,6 +21,19 @@ const statusChange = z.object({
   productId: z.uuid(),
   from: z.enum(PRODUCT_STATUSES),
   to: z.enum(PRODUCT_STATUSES),
+});
+/**
+ * Which regulated fields changed: their names, comma-separated, never their values (D-028; audit
+ * data holds flat values only).
+ */
+const regulatedChange = z.object({
+  productId: z.uuid(),
+  changed: z
+    .string()
+    .min(1)
+    .refine((names) =>
+      names.split(",").every((n) => (REGULATED_FIELDS as readonly string[]).includes(n)),
+    ),
 });
 const brandCreated = z.object({ brandId: z.uuid(), slug: z.string() });
 const categoryCreated = z.object({
@@ -53,6 +67,7 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(CATALOG_AUDIT.productCreated, productChange);
   register(CATALOG_AUDIT.productUpdated, productChange);
   register(CATALOG_AUDIT.productStatusChanged, statusChange);
+  register(CATALOG_AUDIT.productRegulatedChanged, regulatedChange);
   register(CATALOG_AUDIT.brandCreated, brandCreated);
   register(CATALOG_AUDIT.categoryCreated, categoryCreated);
   register(CATALOG_AUDIT.categoryUpdated, categoryChange);

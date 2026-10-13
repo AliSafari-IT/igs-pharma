@@ -21,6 +21,63 @@ export type LegalStatus = (typeof LEGAL_STATUSES)[number];
 export const PRODUCT_STATUSES = ["draft", "active", "archived"] as const;
 export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
 
+/**
+ * Regulated fields (D-034, igs-pharma#79): only a pharmacist sets them. Names are the product
+ * fields, also used in audit records (field names, never values).
+ */
+export const REGULATED_FIELDS = [
+  "productType",
+  "legalStatus",
+  "vatClass",
+  "requiresPharmacistReview",
+  "ageMin",
+] as const;
+export type RegulatedField = (typeof REGULATED_FIELDS)[number];
+
+/** The regulated values of a product. */
+export interface RegulatedValues {
+  readonly productType: string;
+  readonly legalStatus: string;
+  readonly vatClass: string;
+  readonly requiresPharmacistReview: boolean;
+  readonly ageMin: number | null;
+}
+
+/** The regulated fields whose value differs between `a` and `b`, in `REGULATED_FIELDS` order. */
+export const changedRegulatedFields = (a: RegulatedValues, b: RegulatedValues): RegulatedField[] =>
+  REGULATED_FIELDS.filter((field) => a[field] !== b[field]);
+
+/** A medicine: by product type or by legal status (`otc` and `rx` are medicines' statuses). */
+export const isMedicine = (productType: string, legalStatus: string): boolean =>
+  productType === "otc_medicine" ||
+  productType === "rx_medicine" ||
+  legalStatus === "otc" ||
+  legalStatus === "rx";
+
+/**
+ * Whether `legalStatus` fits `productType`: `otc_medicine` is `otc`, `rx_medicine` is `rx`, every
+ * other type is `pharmacy_only` or `general_sale`.
+ */
+export function legalStatusFits(productType: string, legalStatus: string): boolean {
+  if (productType === "otc_medicine") return legalStatus === "otc";
+  if (productType === "rx_medicine") return legalStatus === "rx";
+  return legalStatus === "pharmacy_only" || legalStatus === "general_sale";
+}
+
+/** The VAT class a content editor's new product gets; a pharmacist adjusts it (D-034). */
+export const DEFAULT_EDITOR_VAT_CLASS = "BE_21";
+
+/**
+ * What a content editor may create: a non-medicine in general sale, no pharmacist review, no age
+ * limit, and the default VAT class. Anything else needs a pharmacist (`createProductRegulated`).
+ */
+export const isGeneralEnvelope = (values: RegulatedValues): boolean =>
+  !isMedicine(values.productType, values.legalStatus) &&
+  values.legalStatus === "general_sale" &&
+  values.vatClass === DEFAULT_EDITOR_VAT_CLASS &&
+  !values.requiresPharmacistReview &&
+  values.ageMin === null;
+
 /** Belgian VAT rates that apply to the catalogue: 6 % (medicines, most care products) and 21 %. */
 export const VAT_CLASSES = ["BE_6", "BE_21"] as const;
 export type VatClass = (typeof VAT_CLASSES)[number];

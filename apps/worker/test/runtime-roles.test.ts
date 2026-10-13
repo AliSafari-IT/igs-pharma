@@ -26,12 +26,12 @@ import {
 } from "@igs/module-audit";
 import {
   createCategory,
-  createProduct,
+  createProductRegulated,
   getStorefrontProduct,
   listStorefrontProducts,
   registerAuditActions as registerCatalogAudit,
   setProductCategories,
-  setProductStatus,
+  setProductStatusRegulated,
 } from "@igs/module-catalog";
 import {
   ensureRbacCatalogue,
@@ -80,6 +80,14 @@ const owner: Actor = {
   type: "user",
   id: randomUUID(),
   roles: ["owner"],
+  kind: "staff",
+  mfaVerified: true,
+};
+/** Regulated products are created and activated by a pharmacist (D-034, #79). */
+const pharmacist: Actor = {
+  type: "user",
+  id: randomUUID(),
+  roles: ["pharmacist"],
   kind: "staff",
   mfaVerified: true,
 };
@@ -149,7 +157,7 @@ describe("the application as igs_app", () => {
       },
       owner,
     );
-    const { productId } = await createProduct(
+    const { productId } = await createProductRegulated(
       {
         cnk: "9900123",
         productType: "otc_medicine",
@@ -160,10 +168,10 @@ describe("the application as igs_app", () => {
           { locale: "fr", name: "Produit rôles" },
         ],
       },
-      owner,
+      pharmacist,
     );
     await setProductCategories({ productId, categoryIds: [categoryId] }, owner);
-    await setProductStatus({ productId, status: "active" }, owner);
+    await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
     await setPrice({ productId, amountCents: 599, reason: "launch" }, owner);
     await adjustStock({ productId, delta: 5, reason: "adjustment", note: "found" }, owner);
     await recordConsent(

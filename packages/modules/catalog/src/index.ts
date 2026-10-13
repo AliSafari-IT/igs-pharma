@@ -13,12 +13,27 @@ export {
   type VatClass,
   MAX_CATEGORIES_PER_PRODUCT,
   MAX_CATEGORY_DEPTH,
+  DEFAULT_EDITOR_VAT_CLASS,
+  REGULATED_FIELDS,
+  type RegulatedField,
+  isMedicine,
   isValidCnk,
+  legalStatusFits,
   missingForActivation,
 } from "./domain";
-export { createBrand, createProduct, setProductStatus, updateProduct } from "./commands";
+export {
+  createBrand,
+  createProduct,
+  createProductRegulated,
+  setProductStatus,
+  setProductStatusRegulated,
+  updateProduct,
+  updateProductRegulated,
+} from "./commands";
 export {
   type BrandView,
+  type InconsistentProduct,
+  listInconsistentProducts,
   type ProductContentView,
   type ProductListItem,
   type ProductPage,
@@ -37,6 +52,7 @@ export {
   updateCategory,
 } from "./categories";
 export { CATALOG_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
+export { canManageRegulated } from "./commands";
 export {
   type ProductRef,
   productRefsByCnk,

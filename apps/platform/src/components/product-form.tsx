@@ -36,6 +36,10 @@ const fieldError = (code: string | undefined) =>
 interface Props {
   readonly product?: ProductView;
   readonly brands: readonly BrandView[];
+  /** A pharmacist sets the regulated fields; for everyone else they are read-only. */
+  readonly canRegulate?: boolean;
+  /** The VAT class a non-pharmacist's new product gets (shown read-only). */
+  readonly editorVatClass?: string;
 }
 
 /** The submitted value when a save was refused, else the product's own value. */
@@ -49,11 +53,23 @@ const valueFrom =
  * Hidden tab panels stay in the form (`hidden`, not unmounted), so every language is submitted.
  * Dutch and French are needed before the product can be made active.
  */
-export function ProductForm({ product, brands }: Props) {
+export function ProductForm({
+  product,
+  brands,
+  canRegulate = false,
+  editorVatClass = "BE_21",
+}: Props) {
   const [state, action, pending] = useActionState(saveProduct, {});
   const value = valueFrom(state);
   const checked = (name: string, fallback: boolean) =>
     state.values ? state.values[name] === "on" : fallback;
+  // read-only for non-pharmacists: always the stored value (a disabled field posts nothing)
+  const regulated = (
+    name: string,
+    stored: string | undefined,
+    pharmacistDefault: string,
+    editorDefault: string,
+  ) => (canRegulate ? value(name, stored ?? pharmacistDefault) : (stored ?? editorDefault));
   const contentOf = (locale: ContentLocale) => product?.content.find((c) => c.locale === locale);
   const errors = state.fields ?? {};
   const id = useId();
@@ -92,7 +108,7 @@ export function ProductForm({ product, brands }: Props) {
     label: string,
     options: Record<string, string>,
     current: string,
-    extra?: { readonly empty?: string },
+    extra?: { readonly empty?: string; readonly readOnly?: boolean },
   ) => {
     const fieldId = `${id}-${name}`;
     const error = fieldError(errors[name]);
@@ -106,6 +122,7 @@ export function ProductForm({ product, brands }: Props) {
           name={name}
           defaultValue={current}
           required={!extra?.empty}
+          disabled={extra?.readOnly}
           invalid={Boolean(error)}
           aria-describedby={error ? `${fieldId}-error` : undefined}
         >
@@ -154,19 +171,27 @@ export function ProductForm({ product, brands }: Props) {
           "productType",
           "Product type",
           PRODUCT_TYPE_LABELS,
-          value("productType", product?.productType ?? "otc_medicine"),
+          regulated("productType", product?.productType, "otc_medicine", "general"),
+          { readOnly: !canRegulate },
         )}
         {select(
           "legalStatus",
           "Legal status",
           LEGAL_STATUS_LABELS,
-          value("legalStatus", product?.legalStatus ?? "otc"),
+          regulated("legalStatus", product?.legalStatus, "otc", "general_sale"),
+          { readOnly: !canRegulate },
         )}
         {select(
           "vatClass",
           "VAT",
           VAT_CLASS_LABELS,
-          value("vatClass", product?.vatClass ?? "BE_6"),
+          regulated("vatClass", product?.vatClass, "BE_6", editorVatClass),
+          { readOnly: !canRegulate },
+        )}
+        {canRegulate ? null : (
+          <p className="text-sm text-[var(--color-text-subtle)] sm:col-span-2">
+            Product type, legal status and VAT class are set by a pharmacist.
+          </p>
         )}
         <TextField
           label="Minimum age"
@@ -175,7 +200,8 @@ export function ProductForm({ product, brands }: Props) {
           min={0}
           max={120}
           hint="Leave empty when there is none"
-          defaultValue={value("ageMin", product?.ageMin)}
+          defaultValue={canRegulate ? value("ageMin", product?.ageMin) : (product?.ageMin ?? "")}
+          disabled={!canRegulate}
           error={fieldError(errors["ageMin"])}
         />
         <Stack gap={2} className="sm:col-span-2">
@@ -183,10 +209,12 @@ export function ProductForm({ product, brands }: Props) {
             <input
               type="checkbox"
               name="requiresPharmacistReview"
-              defaultChecked={checked(
-                "requiresPharmacistReview",
-                product?.requiresPharmacistReview ?? false,
-              )}
+              disabled={!canRegulate}
+              defaultChecked={
+                canRegulate
+                  ? checked("requiresPharmacistReview", product?.requiresPharmacistReview ?? false)
+                  : (product?.requiresPharmacistReview ?? false)
+              }
               className="size-5 accent-[var(--color-primary)]"
             />
             Needs a pharmacist's review before it ships

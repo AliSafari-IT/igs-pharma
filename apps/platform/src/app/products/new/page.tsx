@@ -1,5 +1,10 @@
 import { isDomainError } from "@igs/kernel";
-import { type BrandView, listBrands } from "@igs/module-catalog";
+import {
+  type BrandView,
+  DEFAULT_EDITOR_VAT_CLASS,
+  canManageRegulated,
+  listBrands,
+} from "@igs/module-catalog";
 import { Alert, Container, Link, Stack } from "@igs/ui";
 
 import { catalogErrorMessage } from "../../../components/catalog-labels";
@@ -30,7 +35,11 @@ export default async function NewProductPage() {
             New product
           </h1>
           {brands ? (
-            <ProductForm brands={brands} />
+            <ProductForm
+              brands={brands}
+              canRegulate={canManageRegulated(actor.roles)}
+              editorVatClass={DEFAULT_EDITOR_VAT_CLASS}
+            />
           ) : (
             <Alert variant="error" title="You can't see the catalogue">
               {catalogErrorMessage(error ?? undefined)}

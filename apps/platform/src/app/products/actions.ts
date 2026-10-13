@@ -3,10 +3,16 @@
 import { isDomainError } from "@igs/kernel";
 import {
   CONTENT_LOCALES,
+  DEFAULT_EDITOR_VAT_CLASS,
+  canManageRegulated,
   createProduct,
+  createProductRegulated,
+  getProduct,
   setProductCategories,
   setProductStatus,
+  setProductStatusRegulated,
   updateProduct,
+  updateProductRegulated,
 } from "@igs/module-catalog";
 import { parseEuros, setPrice } from "@igs/module-pricing";
 import { revalidatePath } from "next/cache";
@@ -95,10 +101,35 @@ export async function saveProduct(
   const options = { origin: await requestOrigin() };
   let savedId: string;
   try {
-    const result = productId
-      ? await updateProduct({ productId, ...input }, actor, options)
-      : await createProduct(input, actor, options);
-    savedId = result.productId;
+    if (canManageRegulated(actor.roles)) {
+      const result = productId
+        ? await updateProductRegulated({ productId, ...input }, actor, options)
+        : await createProductRegulated(input, actor, options);
+      savedId = result.productId;
+    } else {
+      // the regulated fields are read-only for this person: they keep what is stored (or the
+      // general envelope on create), whatever the form posted
+      const kept = productId
+        ? await getProduct({ productId }, actor)
+        : {
+            productType: "general",
+            legalStatus: "general_sale",
+            vatClass: DEFAULT_EDITOR_VAT_CLASS,
+          };
+      const content = {
+        ...input,
+        productType: kept.productType,
+        legalStatus: kept.legalStatus,
+        vatClass: kept.vatClass,
+        requiresPharmacistReview:
+          "requiresPharmacistReview" in kept ? kept.requiresPharmacistReview : false,
+        ageMin: "ageMin" in kept ? kept.ageMin : null,
+      };
+      const result = productId
+        ? await updateProduct({ productId, ...content }, actor, options)
+        : await createProduct(content, actor, options);
+      savedId = result.productId;
+    }
   } catch (error) {
     return refused(error, input, form);
   }
@@ -114,7 +145,8 @@ export async function changeStatus(form: FormData): Promise<void> {
   const status = text(form, "status");
   let query: string;
   try {
-    await setProductStatus({ productId, status }, actor, { origin: await requestOrigin() });
+    const run = canManageRegulated(actor.roles) ? setProductStatusRegulated : setProductStatus;
+    await run({ productId, status }, actor, { origin: await requestOrigin() });
     query = `status=${encodeURIComponent(status)}`;
   } catch (error) {
     if (!isDomainError(error)) throw error;

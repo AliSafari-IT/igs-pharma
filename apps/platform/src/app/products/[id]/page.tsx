@@ -4,6 +4,7 @@ import {
   type CategoryNode,
   type ProductStatus,
   type ProductView,
+  canManageRegulated,
   getProduct,
   listBrands,
   listCategories,
@@ -316,7 +317,12 @@ export default async function ProductPage({ params, searchParams }: Props) {
             )}
           </section>
 
-          <ProductForm key={product.updatedAt.toISOString()} product={product} brands={brands} />
+          <ProductForm
+            key={product.updatedAt.toISOString()}
+            product={product}
+            brands={brands}
+            canRegulate={canManageRegulated(actor.roles)}
+          />
         </Stack>
       </main>
     </Container>

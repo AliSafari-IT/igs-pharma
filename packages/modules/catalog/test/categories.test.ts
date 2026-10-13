@@ -13,7 +13,7 @@ import {
   type CategoryNode,
   MAX_CATEGORY_DEPTH,
   createCategory,
-  createProduct,
+  createProductRegulated,
   deleteCategory,
   getProduct,
   listCategories,
@@ -63,7 +63,7 @@ const category = async (parentId: string | null = null, base?: string) =>
 let nextCnk = 9_800_100;
 const product = async () =>
   (
-    await createProduct(
+    await createProductRegulated(
       {
         cnk: String(nextCnk++),
         productType: "otc_medicine",
@@ -71,7 +71,7 @@ const product = async () =>
         vatClass: "BE_6",
         content: [{ locale: "nl", name: "Demo product" }],
       },
-      editor,
+      pharmacist,
     )
   ).productId;
 
