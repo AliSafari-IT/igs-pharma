@@ -367,11 +367,13 @@ jobs:
             -e POSTGRES_USER=ci -e POSTGRES_PASSWORD=ci -e POSTGRES_DB=ci \
             postgres:17-alpine \
             -c ssl=on -c ssl_cert_file=/certs/server.crt -c ssl_key_file=/certs/server.key
-          for i in $(seq 1 30); do
-            docker exec smoke-db pg_isready -U ci -d ci && break
+          # -h 127.0.0.1: the image's init server listens on the unix socket only and is replaced by
+          # the real one (with TLS) afterwards; a TCP answer means the final server is up
+          for i in $(seq 1 60); do
+            docker exec smoke-db pg_isready -h 127.0.0.1 -U ci -d ci && break
             sleep 1
           done
-          docker exec smoke-db pg_isready -U ci -d ci
+          docker exec smoke-db pg_isready -h 127.0.0.1 -U ci -d ci
           test "$(docker exec smoke-db psql -U ci -d ci -Atc 'SHOW ssl')" = "on"
       - name: Migrate the smoke database
         run: DATABASE_URL="$SMOKE_DATABASE_URL" pnpm db:migrate
