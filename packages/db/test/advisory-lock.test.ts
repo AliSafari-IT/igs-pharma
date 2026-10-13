@@ -40,31 +40,41 @@ const lockHolders = async () =>
       SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND granted AND objid = ${KEY}`
   )[0]?.n;
 
+/** A promise and its resolver: the barrier the tests use instead of sleeping. */
+function gate() {
+  let open: () => void = () => {};
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { open, opened };
+}
+
 describe("withAdvisoryLock", () => {
   it("serialises concurrent holders: the second starts only after the first finished", async () => {
     const order: string[] = [];
-    let waited = false;
+    const firstHolds = gate();
+    const secondQueued = gate();
+    const releaseFirst = gate();
     const first = withAdvisoryLock(KEY, async () => {
       order.push("first:start");
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      firstHolds.open();
+      await releaseFirst.opened;
       order.push("first:end");
     });
-    await new Promise((resolve) => setTimeout(resolve, 150)); // the first one holds it now
+    await firstHolds.opened; // the first one holds it now (no sleeping: it told us so)
     const second = withAdvisoryLock(
       KEY,
       async () => {
         order.push("second:start");
         order.push("second:end");
       },
-      {
-        onWait: () => {
-          waited = true;
-        },
-      },
+      { onWait: secondQueued.open },
     );
+    await secondQueued.opened; // the second found the lock taken and queues behind it
+    expect(order).toEqual(["first:start"]);
+    releaseFirst.open();
     await Promise.all([first, second]);
     expect(order).toEqual(["first:start", "first:end", "second:start", "second:end"]);
-    expect(waited).toBe(true);
     expect(await lockHolders()).toBe(0);
   });
 
@@ -79,11 +89,18 @@ describe("withAdvisoryLock", () => {
   });
 
   it("a waiter gives up with a readable message instead of hanging", async () => {
-    const holder = withAdvisoryLock(KEY, () => new Promise((resolve) => setTimeout(resolve, 2500)));
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    const holds = gate();
+    const release = gate();
+    const holder = withAdvisoryLock(KEY, async () => {
+      holds.open();
+      await release.opened;
+    });
+    await holds.opened;
+    // the 1-second lock_timeout is the only clock here; the holder lets go only after the waiter failed
     await expect(withAdvisoryLock(KEY, async () => "never", { waitSeconds: 1 })).rejects.toThrow(
       /Another migrate run holds the database lock/,
     );
+    release.open();
     await holder;
     expect(await lockHolders()).toBe(0);
   });
