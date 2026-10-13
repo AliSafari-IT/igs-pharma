@@ -73,3 +73,21 @@ schemas** and is the only one that runs DDL. This is code, not server folklore:
   `infra/db/create-login-roles.sql` (passwords are set with `\password`).
 - **Tests**: `createRuntimeRoleDatabase()` (`@igs/db/testing`) migrates as a non-superuser
   administrator and hands out connections as members of the two groups.
+
+## TLS to PostgreSQL and the migrate lock (igs-pharma#77)
+
+- **One TLS rule for every connection** (`buildDbSsl()` in `@igs/config/db-ssl`): the `@igs/db` client
+  (web, platform, worker, bootstrap-owner, seed-catalog), the worker's and the migrate entry's pg-boss
+  instances and `drizzle.config.ts`. `DATABASE_SSL=verify` checks the certificate chain and host name
+  against the system trust store plus the optional `DATABASE_SSL_CA` (PEM or a file path); it is the
+  default in production, where `off` is refused. `insecure-dev` encrypts without verifying and is an
+  explicit opt-in (one warning on stderr in production; the CI smoke run uses it against its
+  self-signed Postgres). Outside production the default is plain TCP. A CA setting that is set but
+  unusable fails at first use with a readable message; neither the DSN nor the CA is ever logged.
+- **The migrate entry holds a session-level advisory lock** (`withAdvisoryLock`, key
+  `MIGRATE_LOCK_KEY`) around Drizzle migrations, the pg-boss install, queue creation and the grants:
+  two concurrent starts serialise. It lives on its own connection, is released in `finally` (or by
+  Postgres when the process dies) and a waiter gives up after ten minutes with a readable message.
+- **`pnpm db:check`** also checks the journal (`checkJournal`): `idx` without gaps, `when` strictly
+  increasing (Drizzle silently skips an entry that is not newer than the last applied one), every
+  entry has its SQL and snapshot, no orphan SQL file.

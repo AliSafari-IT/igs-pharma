@@ -39,7 +39,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
-    "db:grants:generate": "tsx scripts/generate-grants.ts"
+    "db:grants:generate": "tsx scripts/generate-grants.ts",
+    "db:check:journal": "tsx scripts/check-journal.ts"
   },
   "dependencies": {
     "@igs/config": "workspace:*",

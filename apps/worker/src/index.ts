@@ -1,3 +1,4 @@
+import { buildDbSsl } from "@igs/config/db-ssl";
 import { parseEnvFor, workerEnv } from "@igs/config/env";
 import {
   type JobQueue,
@@ -64,8 +65,8 @@ async function main() {
     connectionString: env.DATABASE_URL,
     max: 4,
     migrate: env.NODE_ENV !== "production",
-    // mirrors @igs/db's `ssl: "require"`; explicit DATABASE_SSL handling arrives with B-08
-    ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    // the same TLS rule as every other connection: verified in production (igs-pharma#77)
+    ssl: buildDbSsl(env).options,
   });
   boss.on("error", (err) => logger.error({ err }, "pg-boss error"));
   await boss.start();

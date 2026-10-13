@@ -60,6 +60,7 @@ export {
   closeDatabase,
   getKernelRuntime,
   migrateDatabase,
+  withMigrateLock,
 } from "./lifecycle";
 export { type PurgeOptions, type PurgeResult, purgeExpired } from "./maintenance";
 export {
