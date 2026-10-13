@@ -9,8 +9,9 @@ import { brands, categories, productCategories, productContent, products } from 
 import { storefrontVisible } from "./visibility";
 
 /**
- * Storefront reads (igs-pharma#62), behind `catalog.storefront.read`: ACTIVE, non-prescription products (`storefrontVisible`, D-034) and the
- * categories that have some, in the shopper's language. A draft or archived product does not exist
+ * Storefront reads (igs-pharma#62), behind `catalog.storefront.read`: products the storefront may
+ * show (`storefrontVisible`, D-034: active, not prescription-only) and the categories that have
+ * some, in the shopper's language. A draft or archived product does not exist
  * for these queries. Names fall back to Dutch (German and English content is optional); a product's
  * texts come from one language row, never a mix.
  */
@@ -148,8 +149,10 @@ export interface StorefrontProductPage {
 }
 
 /**
- * Active products by name, paged. With `categorySlug`, those in that category or below it
- * (`catalog.category_not_found` for an unknown slug).
+ * Storefront-visible products (active, never prescription medicines: D-034) by name, paged. With
+ * `categorySlug`, those in that category or below it. `catalog.category_not_found` for an unknown
+ * slug AND for a category with no visible product in its subtree, like the category tree, so a
+ * hidden category cannot be told from a missing one.
  */
 export const listStorefrontProducts = query({
   name: "catalog.storefront.products",
@@ -169,6 +172,10 @@ export const listStorefrontProducts = query({
       if (!root) throw notFound("catalog.category_not_found");
       category = { slug: root.slug, name: categoryName(root, input.locale) };
       const ids = subtreeIds(rows, root.id);
+      const inSubtree = new Set(ids);
+      if (!rows.some((row) => inSubtree.has(row.id) && row.direct > 0)) {
+        throw notFound("catalog.category_not_found");
+      }
       filters.push(
         exists(
           ctx.tx

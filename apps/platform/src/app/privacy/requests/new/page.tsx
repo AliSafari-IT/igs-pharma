@@ -20,7 +20,8 @@ export default async function NewDataRequestPage() {
             New data request
           </h1>
           <p className="max-w-prose text-[var(--color-text-subtle)]">
-            The 30-day deadline starts on the day the request was received, not the day you log it.
+            The one-month deadline starts on the day the request was received, not the day you log
+            it.
           </p>
           <DsrRequestForm today={today} />
         </Stack>

@@ -341,3 +341,63 @@ describe("prescription medicines are invisible to the storefront (D-034)", () =>
     for (const id of ids) expect(await check(id)).toBe("catalog.product_not_sellable");
   });
 });
+
+describe("a category with nothing the storefront may show does not exist (D-034)", () => {
+  const slugOf = async (id: string) =>
+    (await iso.sql<{ slug: string }[]>`SELECT slug FROM catalog.categories WHERE id = ${id}`)[0]
+      ?.slug as string;
+  const notFoundCode = (slug: string) =>
+    codeOf(listStorefrontProducts({ locale: "nl", categorySlug: slug }, storefront));
+
+  it("gives an Rx-only, a draft-only, an archived-only and an empty category the same error as an unknown slug", async () => {
+    const rxOnly = await category(null, "Antibioticsrx");
+    const draftOnly = await category(null, "Draftonly");
+    const archivedOnly = await category(null, "Archivedonly");
+    const empty = await category(null, "Emptycat");
+    await product({ legalStatus: "rx", categoryIds: [rxOnly] });
+    await product({ productType: "rx_medicine", categoryIds: [rxOnly] });
+    await product({ status: "draft", categoryIds: [draftOnly] });
+    await product({ status: "archived", categoryIds: [archivedOnly] });
+
+    const unknown = await notFoundCode("does-not-exist");
+    expect(unknown).toBe("catalog.category_not_found");
+    for (const id of [rxOnly, draftOnly, archivedOnly, empty]) {
+      expect(await notFoundCode(await slugOf(id)), id).toBe(unknown);
+    }
+  });
+
+  it("still shows a category that has a visible product next to hidden ones", async () => {
+    const mixed = await category(null, "Mixedcat");
+    const visible = await product({ categoryIds: [mixed] });
+    await product({ legalStatus: "rx", categoryIds: [mixed] });
+    const page = await listStorefrontProducts(
+      { locale: "nl", categorySlug: await slugOf(mixed) },
+      storefront,
+    );
+    expect(page.items.map((i) => i.id)).toEqual([visible.id]);
+    expect(page.total).toBe(1);
+  });
+
+  it("shows a parent whose only visible product is in a nested child, and hides the child that has none", async () => {
+    const parent = await category(null, "Nestedparent");
+    const visibleChild = await category(parent, "Visiblechild");
+    const hiddenChild = await category(parent, "Hiddenchild");
+    const visible = await product({ categoryIds: [visibleChild] });
+    await product({ legalStatus: "rx", categoryIds: [hiddenChild] });
+
+    const page = await listStorefrontProducts(
+      { locale: "nl", categorySlug: await slugOf(parent) },
+      storefront,
+    );
+    expect(page.items.map((i) => i.id)).toEqual([visible.id]);
+    expect(await notFoundCode(await slugOf(hiddenChild))).toBe("catalog.category_not_found");
+    expect(
+      await codeOf(
+        listStorefrontProducts(
+          { locale: "nl", categorySlug: await slugOf(visibleChild) },
+          storefront,
+        ),
+      ),
+    ).toBe("ok");
+  });
+});
