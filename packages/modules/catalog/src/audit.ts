@@ -1,11 +1,12 @@
 import { z } from "zod";
 
-import { PRODUCT_STATUSES } from "./domain";
+import { CNK_PATTERN, PRODUCT_STATUSES } from "./domain";
 
 /** Audit actions recorded by the catalog commands (`<domain>.<noun>.<verb>`). */
 export const CATALOG_AUDIT = {
   productCreated: "catalog.product.created",
   productUpdated: "catalog.product.updated",
+  productCnkChanged: "catalog.product.cnk_changed",
   productStatusChanged: "catalog.product.status_changed",
   brandCreated: "catalog.brand.created",
   categoryCreated: "catalog.category.created",
@@ -15,11 +16,15 @@ export const CATALOG_AUDIT = {
   productCategoriesSet: "catalog.product.categories_set",
 } as const;
 
-const productChange = z.object({ productId: z.uuid(), cnk: z.string() });
+const cnk = z.string().regex(CNK_PATTERN);
+/** `version` is the row's version AFTER the write (igs-pharma#80): an integer, never personal data. */
+const productChange = z.object({ productId: z.uuid(), cnk, version: z.number().int().min(1) });
+const cnkChange = z.object({ productId: z.uuid(), fromCnk: cnk, toCnk: cnk });
 const statusChange = z.object({
   productId: z.uuid(),
   from: z.enum(PRODUCT_STATUSES),
   to: z.enum(PRODUCT_STATUSES),
+  version: z.number().int().min(1),
 });
 const brandCreated = z.object({ brandId: z.uuid(), slug: z.string() });
 const categoryCreated = z.object({
@@ -28,11 +33,13 @@ const categoryCreated = z.object({
   parentId: z.uuid().nullable(),
 });
 const categoryChange = z.object({ categoryId: z.uuid(), slug: z.string() });
+const categoryUpdated = categoryChange.extend({ version: z.number().int().min(1) });
 const categoryMoved = z.object({
   categoryId: z.uuid(),
   fromParentId: z.uuid().nullable(),
   toParentId: z.uuid().nullable(),
   position: z.number().int(),
+  version: z.number().int().min(1),
 });
 const productCategoriesSet = z.object({
   productId: z.uuid(),
@@ -52,10 +59,11 @@ export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawSha
 export function registerAuditActions(register: RegisterAuditAction): void {
   register(CATALOG_AUDIT.productCreated, productChange);
   register(CATALOG_AUDIT.productUpdated, productChange);
+  register(CATALOG_AUDIT.productCnkChanged, cnkChange);
   register(CATALOG_AUDIT.productStatusChanged, statusChange);
   register(CATALOG_AUDIT.brandCreated, brandCreated);
   register(CATALOG_AUDIT.categoryCreated, categoryCreated);
-  register(CATALOG_AUDIT.categoryUpdated, categoryChange);
+  register(CATALOG_AUDIT.categoryUpdated, categoryUpdated);
   register(CATALOG_AUDIT.categoryMoved, categoryMoved);
   register(CATALOG_AUDIT.categoryDeleted, categoryChange);
   register(CATALOG_AUDIT.productCategoriesSet, productCategoriesSet);

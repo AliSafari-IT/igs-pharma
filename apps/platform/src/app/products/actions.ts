@@ -96,7 +96,11 @@ export async function saveProduct(
   let savedId: string;
   try {
     const result = productId
-      ? await updateProduct({ productId, ...input }, actor, options)
+      ? await updateProduct(
+          { productId, expectedVersion: Number.parseInt(text(form, "version"), 10), ...input },
+          actor,
+          options,
+        )
       : await createProduct(input, actor, options);
     savedId = result.productId;
   } catch (error) {

@@ -92,6 +92,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
             </p>
             <form action={moveCategoryAction} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="categoryId" value={node.id} />
+              <input type="hidden" name="version" value={String(node.version)} />
               <input type="hidden" name="position" value="10000" />
               <input type="hidden" name="from" value="edit" />
               <div className="flex min-w-64 flex-1 flex-col gap-1.5">

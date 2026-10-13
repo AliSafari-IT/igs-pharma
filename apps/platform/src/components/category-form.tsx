@@ -22,6 +22,7 @@ export interface CategoryFormValues {
   readonly nameFr: string;
   readonly nameDe: string | null;
   readonly nameEn: string | null;
+  readonly version: number;
 }
 
 /** A parent the new category can go under, already indented for the select. */
@@ -57,6 +58,7 @@ export function CategoryForm({ category, parents, defaultParentId }: Props) {
   return (
     <form action={action} noValidate className="flex flex-col gap-4">
       {category ? <input type="hidden" name="categoryId" value={category.id} /> : null}
+      {category ? <input type="hidden" name="version" value={String(category.version)} /> : null}
       {state.error ? (
         <Alert variant="error" title="The category was not saved">
           {catalogErrorMessage(state.error)}

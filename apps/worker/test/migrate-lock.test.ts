@@ -1,5 +1,6 @@
 // The migrate entry under its advisory lock (igs-pharma#77), against real Postgres: two concurrent
 // starts (a rolling deploy) serialise and the second finds nothing left to do.
+import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { parseEnvFor, workerEnv } from "@igs/config/env";
@@ -29,6 +30,11 @@ afterAll(async () => {
   }
   await iso?.drop();
 });
+
+// every committed migration, counted from the journal so a new one does not break this test
+const committed = (
+  JSON.parse(fs.readFileSync(`${folder}/meta/_journal.json`, "utf8")) as { entries: unknown[] }
+).entries.length;
 
 const logs: string[] = [];
 const logger = {
@@ -72,7 +78,7 @@ describe("runMigrate", () => {
     await holder;
     await run;
     expect(finished).toBe(true);
-    expect(await journalRows()).toBe(27);
+    expect(await journalRows()).toBe(committed);
   }, 120_000);
 
   it("two concurrent runs both succeed, apply each migration once and create the queues once", async () => {
@@ -80,7 +86,7 @@ describe("runMigrate", () => {
       runMigrate({ folder, env: env(), logger }),
       runMigrate({ folder, env: env(), logger }),
     ]);
-    expect(await journalRows()).toBe(27);
+    expect(await journalRows()).toBe(committed);
     const queues = await iso.sql<{ name: string }[]>`SELECT name FROM pgboss.queue ORDER BY name`;
     expect(queues.map((q) => q.name)).toEqual(
       expect.arrayContaining([

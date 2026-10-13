@@ -24,6 +24,9 @@ const text = (form: FormData, name: string) => {
   return typeof value === "string" ? value : "";
 };
 
+/** The version the page loaded (a hidden field); 0 when missing, which the command refuses. */
+const versionOf = (form: FormData) => Number.parseInt(text(form, "version"), 10) || 0;
+
 const fieldsOf = (form: FormData) => ({
   slug: text(form, "slug"),
   nameNl: text(form, "nameNl"),
@@ -58,7 +61,11 @@ export async function saveCategory(
   let savedId: string;
   try {
     const result = categoryId
-      ? await updateCategory({ categoryId, ...fieldsOf(form) }, actor, options)
+      ? await updateCategory(
+          { categoryId, expectedVersion: versionOf(form), ...fieldsOf(form) },
+          actor,
+          options,
+        )
       : await createCategory({ parentId: parentId || null, ...fieldsOf(form) }, actor, options);
     savedId = result.categoryId;
   } catch (error) {
@@ -82,16 +89,22 @@ export async function moveCategoryAction(form: FormData): Promise<void> {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const categoryId = text(form, "categoryId");
+  const direction = text(form, "direction");
   const parentId = text(form, "parentId");
   const position = Number.parseInt(text(form, "position"), 10);
+  const expectedVersion = versionOf(form);
   let query: string;
   try {
     await moveCategory(
-      {
-        categoryId,
-        parentId: parentId || null,
-        position: Number.isNaN(position) ? 10_000 : position,
-      },
+      direction === "up" || direction === "down"
+        ? // one place among the siblings as they are NOW, not a position computed when the page rendered
+          { categoryId, expectedVersion, direction }
+        : {
+            categoryId,
+            expectedVersion,
+            parentId: parentId || null,
+            position: Number.isNaN(position) ? 10_000 : position,
+          },
       actor,
       { origin: await requestOrigin() },
     );
