@@ -18,18 +18,31 @@ export interface PaginationProps extends React.HTMLAttributes<HTMLElement> {
   };
 }
 
-/** The page numbers to show: the first, the last, and the current one with its neighbours. */
-export function pageWindow(page: number, pages: number): (number | "gap")[] {
+/** One entry of the pager: a page number, or the gap between two runs of them. */
+export interface PageItem {
+  /** Stable across renders: `p3`, or `gap-after-3`. */
+  readonly key: string;
+  /** The page number; `null` for a gap. */
+  readonly page: number | null;
+}
+
+/** The entries to show: the first, the last, and the current page with its neighbours. */
+export function pageItems(page: number, pages: number): PageItem[] {
   const wanted = new Set([1, pages, page - 1, page, page + 1]);
   const numbers = [...wanted].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
-  const out: (number | "gap")[] = [];
+  const out: PageItem[] = [];
+  let before = 0;
   for (const n of numbers) {
-    const before = out[out.length - 1];
-    if (typeof before === "number" && n - before > 1) out.push("gap");
-    out.push(n);
+    if (before > 0 && n - before > 1) out.push({ key: `gap-after-${before}`, page: null });
+    out.push({ key: `p${n}`, page: n });
+    before = n;
   }
   return out;
 }
+
+/** The page numbers to show, with `"gap"` between two runs (see `pageItems`). */
+export const pageWindow = (page: number, pages: number): (number | "gap")[] =>
+  pageItems(page, pages).map((entry) => entry.page ?? "gap");
 
 const item =
   "inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--radius-md)] px-3";
@@ -47,17 +60,17 @@ export function Pagination({ page, pages, hrefFor, labels, className, ...props }
             </Link>
           </li>
         ) : null}
-        {pageWindow(page, pages).map((entry, index) =>
-          entry === "gap" ? (
+        {pageItems(page, pages).map(({ key, page: entry }) =>
+          entry === null ? (
             <li
-              key={`gap-${index}`}
+              key={key}
               aria-hidden="true"
               className={cn(item, "text-[var(--color-text-subtle)]")}
             >
               …
             </li>
           ) : (
-            <li key={entry}>
+            <li key={key}>
               {entry === page ? (
                 <span
                   aria-current="page"

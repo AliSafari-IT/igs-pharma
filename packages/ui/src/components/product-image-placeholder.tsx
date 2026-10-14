@@ -29,6 +29,7 @@ export function ProductImagePlaceholder({
         strokeLinecap="round"
         strokeLinejoin="round"
       >
+        <title>Product image placeholder</title>
         <path d="M18 6h12M20 6v6l-5 7v21a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V19l-5-7V6" />
         <path d="M15 26h18" />
       </svg>
