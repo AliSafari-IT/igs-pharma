@@ -46,6 +46,18 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, AUTH_SECRET: "short" })).toThrow(/AUTH_SECRET/);
   });
 
+  it("accepts an OTLP endpoint and refuses one that carries a login (#100)", () => {
+    const ok = "https://otel.example.test:4318";
+    expect(
+      parseEnv({ ...valid, OTEL_EXPORTER_OTLP_ENDPOINT: ok }).OTEL_EXPORTER_OTLP_ENDPOINT,
+    ).toBe(ok);
+    for (const bad of ["https://user:pw@otel.example.test", "https://token@otel.example.test"]) {
+      expect(() => parseEnv({ ...valid, OTEL_EXPORTER_OTLP_ENDPOINT: bad })).toThrow(
+        /OTEL_EXPORTER_OTLP_ENDPOINT/,
+      );
+    }
+  });
+
   it("rejects an invalid URL and an invalid enum value", () => {
     expect(() => parseEnv({ ...valid, AUTH_URL: "not-a-url" })).toThrow(/AUTH_URL/);
     expect(() => parseEnv({ ...valid, LOG_LEVEL: "loud" })).toThrow(/LOG_LEVEL/);

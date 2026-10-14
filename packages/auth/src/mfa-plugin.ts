@@ -1,16 +1,22 @@
 import type { Db } from "@igs/db";
 import {
+  FRESH_MFA_MS,
   type MfaMethod,
+  type PriorSession,
   deleteNewestPasskey,
   deletePasskey,
   enforceSessionLimits,
   factorCount,
   markSessionFromEnrolment,
   markSessionMfaVerified,
+  markSessionPasskeyChecked,
   mfaFactors,
+  readPriorSession,
   redeemEnrolmentToken,
+  rotateSession,
   sessionFromEnrolment,
   sessionMfaVerified,
+  sessionPasskeyCheckedAt,
   userKind,
 } from "@igs/module-identity";
 import type { BetterAuthPlugin } from "better-auth";
@@ -109,6 +115,7 @@ const REMOVING_PATHS: ReadonlyMap<string, MfaMethod> = new Map([
 /** Stable codes the platform UI maps to text (no user-facing text here, D-006). */
 export const MFA_ERROR_CODES = {
   MFA_REQUIRED: "MFA_REQUIRED",
+  FRESH_PASSKEY_REQUIRED: "FRESH_PASSKEY_REQUIRED",
   LAST_FACTOR: "LAST_FACTOR",
   LAST_PASSKEY: "LAST_PASSKEY",
   PASSKEY_FIRST: "PASSKEY_FIRST",
@@ -189,26 +196,37 @@ async function requestSession(ctx: HookCtx) {
 }
 
 /**
- * #95: a passkey check made inside a session that is still within its limits is a fresh proof for
- * THAT session, not a new sign-in. Better Auth's `/passkey/verify-authentication` always creates a
- * new session; that would restart the 8-hour clock, so the new one is dropped and the browser keeps
- * the session it had (now marked as verified). An ended session was already deleted by the limits
- * hook, so nothing is revived: the check is then an ordinary sign-in with a new session. A passkey
- * of ANOTHER user is a plain sign-in as that user.
+ * #95, #100: a second-factor check made inside a session that is still within its limits is a proof
+ * for THAT login, not a new sign-in. Better Auth's `/passkey/verify-authentication` always creates a
+ * new session, and `/two-factor/verify-totp` does when it confirms a new authenticator app; the
+ * browser moves to it (new token, so a copied old cookie dies) but it inherits the old session's
+ * clocks (`created_at`, `last_activity_at`, `expires_at`), so the 8-hour limit never restarts. An
+ * ended session was already deleted by the limits hook, so nothing is revived: the check is then an
+ * ordinary sign-in. A factor of ANOTHER user is a plain sign-in as that user. Only a passkey check
+ * marks the session passkey-checked now, the only thing that makes a proof fresh; a TOTP check
+ * keeps the old session's value.
  */
-async function keepPriorSession(
+async function recordCheck(
+  db: Db,
   ctx: HookCtx,
-  created: { userId: string; sessionId: string },
-): Promise<{ userId: string; sessionId: string } | null> {
-  const prior = await requestSession(ctx);
-  if (!prior || prior.user.id !== created.userId || prior.session.id === created.sessionId) {
-    return null;
+  acting: { userId: string; sessionId: string },
+  passkeyChecked: boolean,
+): Promise<void> {
+  const at = new Date();
+  const prior = ctx.request ? priorSessions.get(ctx.request) : undefined;
+  if (prior && prior.userId === acting.userId && prior.id !== acting.sessionId) {
+    await rotateSession(db, { prior, newId: acting.sessionId, at, passkeyChecked });
+    return;
   }
-  const newToken = ctx.context.newSession?.session.token;
-  if (newToken) await ctx.context.internalAdapter.deleteSession(newToken);
-  await setSessionCookie(ctx, { session: prior.session, user: prior.user });
-  return { userId: prior.user.id, sessionId: prior.session.id };
+  if (passkeyChecked) await markSessionPasskeyChecked(db, acting.sessionId, at);
+  else await markSessionMfaVerified(db, acting.sessionId, at);
 }
+
+/**
+ * The session each request arrived with, read after the limits check and BEFORE the endpoint runs:
+ * Better Auth deletes the old session when it creates a new one, so the after-hook could not read it.
+ */
+const priorSessions = new WeakMap<Request, PriorSession>();
 
 export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): BetterAuthPlugin {
   const { db, onSecurityEvent } = options;
@@ -252,6 +270,9 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
               now: new Date(),
               touch: ctx.request?.method === "POST" && !BACKGROUND_PATHS.has(ctx.path ?? ""),
             });
+            // an ended session was just deleted: nothing to carry over, so a check is a new sign-in
+            const row = await readPriorSession(db, prior.session.id);
+            if (row && ctx.request) priorSessions.set(ctx.request, row);
           }),
         },
         {
@@ -281,6 +302,14 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
                 count === 0 && !removing && (await sessionFromEnrolment(db, userId, sessionId));
               if (!firstFactor && !(await sessionMfaVerified(db, userId, sessionId))) {
                 throw fail("FORBIDDEN", MFA_ERROR_CODES.MFA_REQUIRED);
+              }
+              // #100: ADDING a factor (or reading factor secrets) needs a passkey check in the last
+              // 10 minutes: a TOTP code or a fresh registration marks the session verified, never fresh
+              if (!firstFactor && !removing) {
+                const checkedAt = await sessionPasskeyCheckedAt(db, userId, sessionId);
+                if (!checkedAt || Date.now() - checkedAt.getTime() >= FRESH_MFA_MS) {
+                  throw fail("FORBIDDEN", MFA_ERROR_CODES.FRESH_PASSKEY_REQUIRED);
+                }
               }
               // fast refusals; `removeFactor` checks again under a row lock (concurrent removals)
               if (removing && count <= 1) throw fail("BAD_REQUEST", MFA_ERROR_CODES.LAST_FACTOR);
@@ -332,10 +361,11 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
           matcher: (ctx) => VERIFYING_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
             if (isAPIError(ctx.context.returned)) return;
-            let acting = await actingSession(ctx);
+            const acting = await actingSession(ctx);
             if (!acting) return;
             if (ctx.path === "/passkey/verify-authentication") {
-              acting = (await keepPriorSession(ctx, acting)) ?? acting;
+              await recordCheck(db, ctx, acting, true);
+              return;
             }
             if (ctx.path === "/passkey/verify-registration") {
               try {
@@ -353,7 +383,7 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
                 throw fail("INTERNAL_SERVER_ERROR", MFA_ERROR_CODES.AUDIT_FAILED);
               }
             }
-            await markSessionMfaVerified(db, acting.sessionId);
+            await recordCheck(db, ctx, acting, false);
           }),
         },
       ],

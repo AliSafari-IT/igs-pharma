@@ -10,7 +10,7 @@ import {
   factorCount,
   identitySchema,
   loadActor,
-  markSessionMfaVerified,
+  markSessionPasskeyChecked,
   mfaFactors,
   newEnrolmentToken,
   storeEnrolmentToken,
@@ -170,12 +170,13 @@ async function addPasskey(userId: string) {
 
 /**
  * A staff user who enrolled a passkey through the link: the passkey row plus what
- * `/passkey/verify-registration` does to the session (the ceremony itself: e2e two-step.spec.ts).
+ * `/passkey/verify-registration` does to the session plus a passkey check (the real ceremonies:
+ * fresh-check.test.ts and e2e two-step.spec.ts).
  */
 async function passkeyBrowser(userId: string) {
   const b = await enrolledBrowser(userId);
   await addPasskeyRow(userId);
-  await markSessionMfaVerified(iso.db, String((await b.session())?.id));
+  await markSessionPasskeyChecked(iso.db, String((await b.session())?.id));
   return b;
 }
 

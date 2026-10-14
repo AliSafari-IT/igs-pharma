@@ -55,15 +55,18 @@ export const FRESH_MFA_MS = 10 * 60 * 1000;
 const sensitiveOutput = z.object({ ok: z.literal(true) });
 
 /**
- * #95: refuses unless the acting session proved a second factor within `FRESH_MFA_MS`
- * (`identity.fresh_mfa_required`). It only proves who is acting NOW; it never grants a permission
- * (the kernel checked that already), and it is the handler's first step, so a refused attempt
- * changes nothing and its idempotency key stays unused for the retry.
+ * #95, #100: refuses unless the acting session passed a PASSKEY check within `FRESH_MFA_MS`
+ * (`identity.fresh_mfa_required`). Only a passkey check counts: a TOTP code, a new passkey or a
+ * backup code verify the session (the 2-step login gate, `mfaVerifiedAt`) but never prove who is
+ * acting now. Exactly `FRESH_MFA_MS` ago is already too old (the same rule as the session limits).
+ * It only proves who is acting NOW; it never grants a permission (the kernel checked that already),
+ * and callers run it AFTER the checks that need no proof, so a refused attempt changes nothing and
+ * its idempotency key stays unused for the retry.
  */
 function requireFreshMfa(ctx: Ctx): void {
   if (ctx.actor.type !== "user") throw forbidden("kernel.forbidden");
-  const verifiedAt = ctx.actor.mfaVerifiedAt;
-  if (!verifiedAt || ctx.now.getTime() - verifiedAt.getTime() > FRESH_MFA_MS) {
+  const checkedAt = ctx.actor.passkeyCheckedAt;
+  if (!checkedAt || ctx.now.getTime() - checkedAt.getTime() >= FRESH_MFA_MS) {
     throw forbidden("identity.fresh_mfa_required");
   }
 }
@@ -580,7 +583,7 @@ export const resetStaffSignIn = command({
   output: bootstrapOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
-    requireFreshMfa(ctx);
+    // refusals that need no proof come first (#100): asking for a passkey is pointless for them
     if (ctx.actor.type !== "user" || ctx.actor.id === input.userId) {
       throw forbidden("identity.cannot_reset_own_sign_in");
     }
@@ -596,6 +599,7 @@ export const resetStaffSignIn = command({
     if (isPharmacist && !ctx.can(PERMISSIONS.pharmacy.pharmacistsManage)) {
       throw forbidden("identity.pharmacist_access_requires_titular");
     }
+    requireFreshMfa(ctx);
     return resetSignIn(ctx, input.userId);
   },
 });

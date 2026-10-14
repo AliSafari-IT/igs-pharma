@@ -264,6 +264,8 @@ async function acting(roles: string[], proofAgeMs: number | null) {
     kind: resolved.kind,
     mfaVerified: true,
     mfaVerifiedAt: proofAgeMs === null ? null : new Date(kernel.clock.now().getTime() - proofAgeMs),
+    passkeyCheckedAt:
+      proofAgeMs === null ? null : new Date(kernel.clock.now().getTime() - proofAgeMs),
   };
 }
 
@@ -377,9 +379,12 @@ describe("sensitive changes need a fresh passkey check (#95)", () => {
       expect(await c.changed(target)).toBe(false);
     });
 
-    it(`${c.name}: passes with a proof exactly at the limit, once`, async () => {
+    it(`${c.name}: a proof exactly at the limit is already too old; 1 ms younger passes, once`, async () => {
       const target = await user("staff", ...c.targetRoles);
-      const actor = await acting(c.actorRoles, FRESH_MFA_MS);
+      const atLimit = await acting(c.actorRoles, FRESH_MFA_MS);
+      expect(await codeOf(c.run(target, atLimit))).toBe("identity.fresh_mfa_required");
+      expect(await c.changed(target)).toBe(false);
+      const actor = await acting(c.actorRoles, FRESH_MFA_MS - 1);
       expect(await codeOf(c.run(target, actor))).toBe("ok");
       expect(await c.changed(target)).toBe(true);
     });
@@ -440,7 +445,7 @@ describe("sensitive changes need a fresh passkey check (#95)", () => {
     expect(await rolesOf(target)).toEqual([]);
 
     // the passkey check happened: the SAME request, with the same key, now goes through
-    const fresh = { ...stale, mfaVerifiedAt: kernel.clock.now() };
+    const fresh = { ...stale, passkeyCheckedAt: kernel.clock.now() };
     const options = { idempotencyKey: key };
     expect(await grantRole({ userId: target, roleKey: "content_editor" }, fresh, options)).toEqual({
       ok: true,

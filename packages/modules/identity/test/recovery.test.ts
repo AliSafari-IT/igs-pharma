@@ -61,6 +61,7 @@ function actorOf(id: string, roles: string[], ageMs = 0) {
     kind: "staff",
     mfaVerified: true,
     mfaVerifiedAt: new Date(kernel.clock.now().getTime() - ageMs),
+    passkeyCheckedAt: new Date(kernel.clock.now().getTime() - ageMs),
   });
 }
 
