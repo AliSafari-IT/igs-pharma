@@ -5,8 +5,10 @@ import {
   STAFF_CONSENT_SOURCES,
   type SubjectConsents,
   createDsr,
+  extendDsr,
   getConsents,
   recordConsent,
+  recordDsrExtensionNotice,
   transitionDsr,
 } from "@igs/module-privacy";
 import { revalidatePath } from "next/cache";
@@ -105,6 +107,53 @@ export async function changeStatus(
   }
   revalidatePath("/privacy/requests");
   redirect(`/privacy/requests/${encodeURIComponent(requestId)}?moved=${values.to}`);
+}
+
+/** The Extend deadline dialog and the Record notice form on a request page (igs-pharma#88). */
+export interface DsrExtensionState {
+  readonly error?: string;
+}
+
+export async function extendRequest(
+  _previous: DsrExtensionState,
+  form: FormData,
+): Promise<DsrExtensionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const requestId = text(form, "requestId");
+  try {
+    await extendDsr(
+      { requestId, months: text(form, "months"), reason: text(form, "reason") },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/privacy/requests");
+  redirect(`/privacy/requests/${encodeURIComponent(requestId)}?extended=1`);
+}
+
+export async function recordNotice(
+  _previous: DsrExtensionState,
+  form: FormData,
+): Promise<DsrExtensionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const requestId = text(form, "requestId");
+  try {
+    await recordDsrExtensionNotice(
+      { requestId, sentAt: receivedAtOf(text(form, "sentOn"), new Date()) },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/privacy/requests");
+  redirect(`/privacy/requests/${encodeURIComponent(requestId)}?notice=1`);
 }
 
 /**

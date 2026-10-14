@@ -65,11 +65,43 @@ const DAY_MS = 86_400_000;
  * that month when it has no such date. We add one calendar month on the Europe/Brussels calendar
  * (D-003), keep the local time of day and clamp to the month's last day. We do NOT extend a
  * deadline that falls on a weekend or holiday: an earlier internal deadline is safe, and
- * `isDsrOverdue` flagging a day early is acceptable. (Art. 12(3)'s extension is not modelled.)
+ * `isDsrOverdue` flagging a day early is acceptable. The extension is `dsrExtendedDueAt`.
  */
 export function dsrDueAt(receivedAt: Date): Date {
   return addBrusselsMonths(receivedAt, 1);
 }
+
+/**
+ * Art. 12(3) GDPR (igs-pharma#88 C9): the one-month deadline may be extended by up to two further
+ * months for complex or numerous requests, with notice and reasons to the person within the first
+ * month. Reason codes only (no free text: it could hold personal data).
+ */
+export const DSR_EXTENSION_REASONS = ["complex", "numerous"] as const;
+export type DsrExtensionReason = (typeof DSR_EXTENSION_REASONS)[number];
+
+/** By how many calendar months a deadline may be extended. */
+export const DSR_EXTENSION_MONTHS = [1, 2] as const;
+export type DsrExtensionMonths = (typeof DSR_EXTENSION_MONTHS)[number];
+
+/** What a timeline entry records: a status change, the extension, or the notice sent about it. */
+export const DSR_EVENT_KINDS = ["status", "extended", "notice_sent"] as const;
+export type DsrEventKind = (typeof DSR_EVENT_KINDS)[number];
+
+/** The extended deadline: the original one plus `months` calendar months (Europe/Brussels). */
+export function dsrExtendedDueAt(originalDueAt: Date, months: DsrExtensionMonths): Date {
+  return addBrusselsMonths(originalDueAt, months);
+}
+
+/**
+ * Whether an open request may still be extended at `now`: once, and only before its original
+ * deadline (the notice must reach the person within the first month).
+ */
+export const canExtendDsr = (
+  status: DsrStatus,
+  extended: boolean,
+  originalDueAt: Date,
+  now: Date,
+): boolean => !isFinalDsrStatus(status) && !extended && now.getTime() < originalDueAt.getTime();
 
 /** An open request whose deadline has passed. */
 export const isDsrOverdue = (status: DsrStatus, dueAt: Date, now: Date): boolean =>

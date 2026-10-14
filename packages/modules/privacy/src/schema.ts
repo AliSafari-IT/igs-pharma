@@ -15,6 +15,8 @@ import {
   CONSENT_PURPOSES,
   CONSENT_SOURCES,
   DSR_CHANNELS,
+  DSR_EVENT_KINDS,
+  DSR_EXTENSION_REASONS,
   DSR_STATUSES,
   DSR_TYPES,
   RETENTION_KEYS,
@@ -68,7 +70,10 @@ export const dsrRequests = privacy.table(
     type: text("type").notNull(),
     channel: text("channel").notNull(),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull(),
-    /** `received_at` + one calendar month (Brussels), computed in the domain (`dsrDueAt`). */
+    /**
+     * The CURRENT deadline: `received_at` + one calendar month (Brussels, `dsrDueAt`), or the
+     * extended one once extended (`dsrExtendedDueAt`, igs-pharma#88 C9).
+     */
     dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
     status: text("status").notNull(),
     /** Free text written by staff; never copied into the audit trail. */
@@ -77,12 +82,29 @@ export const dsrRequests = privacy.table(
     closedAt: timestamp("closed_at", { withTimezone: true }),
     closedReason: text("closed_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // art. 12(3) extension (igs-pharma#88 C9): all four set, or none
+    /** The one-month deadline the extension replaced. */
+    originalDueAt: timestamp("original_due_at", { withTimezone: true }),
+    extendedAt: timestamp("extended_at", { withTimezone: true }),
+    extensionMonths: integer("extension_months"),
+    /** A reason code (`DSR_EXTENSION_REASONS`), never free text. */
+    extensionReason: text("extension_reason"),
+    /** When staff told the person about the extension (the system sends nothing, D-019). */
+    extensionNoticeAt: timestamp("extension_notice_at", { withTimezone: true }),
   },
   (t) => [
     check("dsr_requests_type_check", oneOf("type", DSR_TYPES)),
     check("dsr_requests_channel_check", oneOf("channel", DSR_CHANNELS)),
     check("dsr_requests_status_check", oneOf("status", DSR_STATUSES)),
     check("dsr_requests_due_check", sql`${t.dueAt} > ${t.receivedAt}`),
+    check(
+      "dsr_requests_extension_check",
+      sql`(${t.originalDueAt} IS NULL AND ${t.extendedAt} IS NULL AND ${t.extensionMonths} IS NULL AND ${t.extensionReason} IS NULL AND ${t.extensionNoticeAt} IS NULL) OR (${t.originalDueAt} IS NOT NULL AND ${t.extendedAt} IS NOT NULL AND ${t.extensionMonths} IN (1, 2) AND ${t.extensionReason} IS NOT NULL AND ${t.dueAt} > ${t.originalDueAt})`,
+    ),
+    check(
+      "dsr_requests_extension_reason_check",
+      sql`${t.extensionReason} IS NULL OR ${oneOf("extension_reason", DSR_EXTENSION_REASONS)}`,
+    ),
     index("dsr_requests_status_due_idx").on(t.status, t.dueAt),
     index("dsr_requests_subject_ref_idx").on(t.subjectRef),
   ],
@@ -102,9 +124,15 @@ export const dsrEvents = privacy.table(
     actorType: text("actor_type").notNull(),
     actorId: text("actor_id").notNull(),
     at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+    /**
+     * `status` (a status change), `extended` (the deadline was extended) or `notice_sent` (staff told
+     * the person). For the last two the status stays: `from_status` = `to_status` (igs-pharma#88 C9).
+     */
+    kind: text("kind").notNull().default("status"),
   },
   (t) => [
     check("dsr_events_to_status_check", oneOf("to_status", DSR_STATUSES)),
+    check("dsr_events_kind_check", oneOf("kind", DSR_EVENT_KINDS)),
     index("dsr_events_request_at_idx").on(t.requestId, t.at),
   ],
 );

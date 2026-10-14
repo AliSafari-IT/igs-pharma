@@ -239,6 +239,13 @@
       "when": 1791931491553,
       "tag": "0033_retention_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791934986110,
+      "tag": "0034_dsr_extension",
+      "breakpoints": true
     }
   ]
 }
