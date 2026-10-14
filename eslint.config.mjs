@@ -46,7 +46,12 @@ const KERNEL_MESSAGE =
  * entry-point options. `dbRules` decides what may be imported from @igs/db; `kernelAllow` which
  * kernel entries are importable (test code additionally gets `src/testing/**`, A8).
  */
-const entryPoint = (dbRules, kernelAllow = "src/index.ts", rbacAllow = "src/index.ts") => [
+const entryPoint = (
+  dbRules,
+  kernelAllow = "src/index.ts",
+  rbacAllow = "src/index.ts",
+  storefrontAllow = "src/index.ts",
+) => [
   "error",
   {
     default: "disallow",
@@ -54,6 +59,8 @@ const entryPoint = (dbRules, kernelAllow = "src/index.ts", rbacAllow = "src/inde
     rules: [
       // modules expose src/index.ts only; infra packages expose their package.json#exports
       { target: "module", allow: "src/index.ts" },
+      // the fixtures of the storefront contract are for test code (see the test block below)
+      { target: "storefront-module", allow: storefrontAllow },
       {
         target: [
           ...infra.filter((name) => name !== "db" && name !== "kernel" && name !== "rbac"),
@@ -94,6 +101,9 @@ export default [
       },
       "boundaries/elements": [
         { type: "app", pattern: "apps/*", capture: ["app"] },
+        // the storefront read model (igs-pharma#103) composes other modules; only apps import it
+        // (must come before the generic module entry)
+        { type: "storefront-module", pattern: "packages/modules/storefront" },
         // must come before the generic packages entries: packages/modules/<name>
         { type: "module", pattern: "packages/modules/*", capture: ["module"] },
         ...infra.map((name) => ({ type: name, pattern: `packages/${name}` })),
@@ -107,7 +117,15 @@ export default [
           message: "${file.type} must not import ${dependency.type} (see module-anatomy.md)",
           rules: [
             // apps may import packages and modules, never another app
-            { from: "app", allow: [...infra, "module", ["app", { app: "${from.app}" }]] },
+            {
+              from: "app",
+              allow: [...infra, "module", "storefront-module", ["app", { app: "${from.app}" }]],
+            },
+            // the read model: kernel + rbac + the modules it composes; no module imports it back
+            {
+              from: "storefront-module",
+              allow: ["kernel", "rbac", "config", "observability", "time", "module"],
+            },
             // modules: infra + other modules (public entry point only, enforced below)
             {
               from: "module",
@@ -191,6 +209,7 @@ export default [
         [{ target: "db", allow: "**" }],
         ["src/index.ts", "src/testing/**"],
         ["src/index.ts", "src/testing.ts"],
+        ["src/index.ts", "src/fixtures.ts"],
       ),
     },
   },

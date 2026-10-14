@@ -193,6 +193,47 @@ mustPass(
   'import { addBrusselsDays } from "@igs/time";\nconsole.log(addBrusselsDays);\n',
 );
 
+// --- the storefront read model (igs-pharma#103): composes modules, imported by apps only ------------
+mustFail(
+  "module -> @igs/module-storefront (no module imports the read model back)",
+  "packages/modules/inventory/src/x.ts",
+  'import { listStorefrontProducts } from "@igs/module-storefront";\nconsole.log(listStorefrontProducts);\n',
+  "boundaries/element-types",
+);
+mustPass(
+  "app -> @igs/module-storefront",
+  "apps/web/src/x.ts",
+  'import { listStorefrontProducts } from "@igs/module-storefront";\nconsole.log(listStorefrontProducts);\n',
+);
+mustPass(
+  "storefront module -> catalog, pricing, inventory public entries",
+  "packages/modules/storefront/src/x.ts",
+  'import { storefrontVisible } from "@igs/module-catalog";\nimport { setPrice } from "@igs/module-pricing";\nimport { adjustStock } from "@igs/module-inventory";\nconsole.log(storefrontVisible, setPrice, adjustStock);\n',
+);
+mustFail(
+  "storefront module -> a module's tables (deep import into its schema)",
+  "packages/modules/storefront/src/x.ts",
+  'import { products } from "@igs/module-catalog/schema";\nconsole.log(products);\n',
+  "boundaries/entry-point",
+);
+mustFail(
+  "storefront module -> @igs/db (it owns no tables and reads through modules)",
+  "packages/modules/storefront/src/x.ts",
+  'import { newId } from "@igs/db/ids";\nconsole.log(newId);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "app source -> the storefront fixtures (test code only)",
+  "apps/web/src/x.ts",
+  'import { FIXTURE_PRODUCTS } from "@igs/module-storefront/fixtures";\nconsole.log(FIXTURE_PRODUCTS);\n',
+  "boundaries/entry-point",
+);
+mustPass(
+  "app test -> the storefront fixtures",
+  "apps/web/test/x.ts",
+  'import { FIXTURE_PRODUCTS } from "@igs/module-storefront/fixtures";\nconsole.log(FIXTURE_PRODUCTS);\n',
+);
+
 // --- sanity: legitimate imports stay legal --------------------------------------------------
 mustPass(
   "auth -> module-identity public entry (D-011 exception)",
