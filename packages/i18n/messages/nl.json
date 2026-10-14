@@ -14,7 +14,8 @@
   },
   "notFound": {
     "title": "Pagina niet gevonden",
-    "backHome": "Terug naar de startpagina"
+    "backHome": "Terug naar de startpagina",
+    "body": "De pagina die u zoekt bestaat niet of is niet meer beschikbaar."
   },
   "comingSoon": {
     "title": "Binnenkort open",
@@ -46,6 +47,30 @@
     "viewProduct": "Bekijk {name}",
     "backTo": "Terug naar {name}",
     "unavailable": "De producten zijn tijdelijk niet beschikbaar. Probeer het later opnieuw.",
-    "skipToContent": "Naar de inhoud"
+    "skipToContent": "Naar de inhoud",
+    "tagline": "Online apotheek in België. Online bestellen kan binnenkort.",
+    "home": "Startpagina",
+    "breadcrumb": "Kruimelpad",
+    "categoriesHeading": "Producten per categorie",
+    "productsHeading": "Producten",
+    "productCount": "{count, plural, one {# product} other {# producten}}",
+    "showCategories": "Categorieën",
+    "pageNumber": "Pagina {page}",
+    "footerAbout": "Over deze apotheek",
+    "address": "Adres",
+    "phone": "Telefoon",
+    "email": "E-mail",
+    "pharmacistTitular": "Titularis",
+    "authorisationNumber": "Erkenningsnummer",
+    "openingHours": "Openingsuren",
+    "placeholderNote": "Voorlopige gegevens, nog te vervangen.",
+    "legal": "Juridische informatie",
+    "terms": "Algemene voorwaarden",
+    "privacy": "Privacy",
+    "cookies": "Cookies",
+    "euLogo": "Gemeenschappelijk Europees logo voor online apotheken",
+    "euLogoLink": "Lijst van geregistreerde online apotheken (FAGG)",
+    "legalPending": "De tekst van deze pagina volgt.",
+    "legalBack": "Terug naar de startpagina"
   }
 }

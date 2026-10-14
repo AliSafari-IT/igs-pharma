@@ -14,7 +14,8 @@
   },
   "notFound": {
     "title": "Seite nicht gefunden",
-    "backHome": "Zur Startseite"
+    "backHome": "Zur Startseite",
+    "body": "Die gesuchte Seite existiert nicht oder ist nicht mehr verfügbar."
   },
   "comingSoon": {
     "title": "Bald geöffnet",
@@ -46,6 +47,30 @@
     "viewProduct": "{name} ansehen",
     "backTo": "Zurück zu {name}",
     "unavailable": "Die Produkte sind vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
-    "skipToContent": "Zum Inhalt springen"
+    "skipToContent": "Zum Inhalt springen",
+    "tagline": "Online-Apotheke in Belgien. Online bestellen ist bald möglich.",
+    "home": "Startseite",
+    "breadcrumb": "Brotkrumennavigation",
+    "categoriesHeading": "Produkte nach Kategorie",
+    "productsHeading": "Produkte",
+    "productCount": "{count, plural, one {# Produkt} other {# Produkte}}",
+    "showCategories": "Kategorien",
+    "pageNumber": "Seite {page}",
+    "footerAbout": "Über diese Apotheke",
+    "address": "Adresse",
+    "phone": "Telefon",
+    "email": "E-Mail",
+    "pharmacistTitular": "Verantwortlicher Apotheker",
+    "authorisationNumber": "Zulassungsnummer",
+    "openingHours": "Öffnungszeiten",
+    "placeholderNote": "Vorläufige Angaben, noch zu ersetzen.",
+    "legal": "Rechtliche Informationen",
+    "terms": "Allgemeine Geschäftsbedingungen",
+    "privacy": "Datenschutz",
+    "cookies": "Cookies",
+    "euLogo": "Gemeinsames EU-Logo für Online-Apotheken",
+    "euLogoLink": "Liste der registrierten Online-Apotheken (FAGG)",
+    "legalPending": "Der Text dieser Seite folgt.",
+    "legalBack": "Zur Startseite"
   }
 }

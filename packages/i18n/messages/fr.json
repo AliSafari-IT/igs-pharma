@@ -14,7 +14,8 @@
   },
   "notFound": {
     "title": "Page introuvable",
-    "backHome": "Retour à l'accueil"
+    "backHome": "Retour à l'accueil",
+    "body": "La page que vous cherchez n'existe pas ou n'est plus disponible."
   },
   "comingSoon": {
     "title": "Bientôt ouvert",
@@ -46,6 +47,30 @@
     "viewProduct": "Voir {name}",
     "backTo": "Retour à {name}",
     "unavailable": "Les produits sont temporairement indisponibles. Réessayez plus tard.",
-    "skipToContent": "Aller au contenu"
+    "skipToContent": "Aller au contenu",
+    "tagline": "Pharmacie en ligne en Belgique. La commande en ligne sera bientôt possible.",
+    "home": "Accueil",
+    "breadcrumb": "Fil d'Ariane",
+    "categoriesHeading": "Produits par catégorie",
+    "productsHeading": "Produits",
+    "productCount": "{count, plural, one {# produit} other {# produits}}",
+    "showCategories": "Catégories",
+    "pageNumber": "Page {page}",
+    "footerAbout": "À propos de cette pharmacie",
+    "address": "Adresse",
+    "phone": "Téléphone",
+    "email": "E-mail",
+    "pharmacistTitular": "Pharmacien titulaire",
+    "authorisationNumber": "Numéro d'agrément",
+    "openingHours": "Heures d'ouverture",
+    "placeholderNote": "Informations provisoires, à remplacer.",
+    "legal": "Informations légales",
+    "terms": "Conditions générales",
+    "privacy": "Confidentialité",
+    "cookies": "Cookies",
+    "euLogo": "Logo commun européen des pharmacies en ligne",
+    "euLogoLink": "Liste des pharmacies en ligne enregistrées (AFMPS)",
+    "legalPending": "Le texte de cette page suivra.",
+    "legalBack": "Retour à l'accueil"
   }
 }
