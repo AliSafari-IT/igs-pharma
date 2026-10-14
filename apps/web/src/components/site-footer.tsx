@@ -7,8 +7,13 @@ import { getTranslations } from "next-intl/server";
  * The footer of every storefront page (igs-pharma#104, backlog C11): who runs the pharmacy, from
  * the one typed config (`PHARMACY_IDENTITY`), and the legal pages. While the config still holds
  * stand-ins the footer says so, in plain words, so nobody mistakes them for the real details. The
- * EU common logo shows only when its flag is on, which it must not be before the pharmacy is
- * registered; it is text-only here, the approved artwork comes from the owner.
+ * EU common logo shows only when its flag is on AND the identity is no longer a stand-in: a logo
+ * on a pharmacy that is not registered would claim a registration it does not have. It is
+ * text-only here, the approved artwork comes from the owner.
+ *
+ * Release checklist: confirm `EU_COMMON_LOGO_LIST_URL` is the FAMHP list of registered online
+ * pharmacies before turning `NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO` on (today it points at the FAMHP
+ * home page).
  */
 export async function SiteFooter({ locale }: { readonly locale: ContentLocale }) {
   const t = await getTranslations({ locale, namespace: "storefront" });
@@ -55,7 +60,7 @@ export async function SiteFooter({ locale }: { readonly locale: ContentLocale })
               {t("placeholderNote")}
             </p>
           ) : null}
-          {euCommonLogo ? (
+          {euCommonLogo && !identity.isPlaceholder ? (
             <p data-testid="eu-logo" className="mt-4 text-sm">
               <span className="font-semibold">{t("euLogo")}</span>
               {" · "}

@@ -1,9 +1,9 @@
-import type { StorefrontCategory } from "@igs/module-catalog";
+import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { describe, expect, it } from "vitest";
 
 import { categoryPath, topLevel } from "../src/lib/category-path";
 
-const cat = (id: string, parentId: string | null, depth: number): StorefrontCategory => ({
+const cat = (id: string, parentId: string | null, depth: number): StorefrontCategoryNode => ({
   id,
   parentId,
   slug: id,

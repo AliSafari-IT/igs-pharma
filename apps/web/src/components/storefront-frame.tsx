@@ -1,5 +1,5 @@
 import { locales } from "@igs/i18n";
-import type { StorefrontCategory } from "@igs/module-catalog";
+import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
 import { Container, Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
@@ -10,6 +10,7 @@ import type { ContentLocale } from "@igs/module-catalog";
 import { PREVIEW_HEADER } from "../preview";
 import { categoryTree } from "../server/storefront";
 import { CategoryNav } from "./category-nav";
+import { SearchForm } from "./search-form";
 import { SiteFooter } from "./site-footer";
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -23,6 +24,8 @@ interface Props {
   readonly locale: ContentLocale;
   /** The page's path below the locale, with its query (`""`, `/c/slug?page=2`), for the language links. */
   readonly path: string;
+  /** The search text to keep in the header field (search page only). */
+  readonly query?: string | undefined;
   /** The category being browsed, if any. */
   readonly activeSlug?: string | undefined;
   readonly children: ReactNode;
@@ -33,11 +36,11 @@ interface Props {
  * language links, the category tree as navigation, and the main content. The banner shows only on a
  * request the proxy marked as a verified preview.
  */
-export async function StorefrontFrame({ locale, path, activeSlug, children }: Props) {
+export async function StorefrontFrame({ locale, path, activeSlug, query, children }: Props) {
   const t = await getTranslations({ locale, namespace: "storefront" });
   const preview = (await headers()).get(PREVIEW_HEADER) === "1";
 
-  let tree: readonly StorefrontCategory[] = [];
+  let tree: readonly StorefrontCategoryNode[] = [];
   try {
     tree = await categoryTree(locale);
   } catch (error) {
@@ -93,6 +96,9 @@ export async function StorefrontFrame({ locale, path, activeSlug, children }: Pr
               ))}
             </ul>
           </nav>
+        </Container>
+        <Container className="pb-3">
+          <SearchForm locale={locale} defaultValue={query} />
         </Container>
       </header>
       <div className="flex-1">

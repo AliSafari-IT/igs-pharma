@@ -1,4 +1,5 @@
-import type { ContentLocale, StorefrontCategory } from "@igs/module-catalog";
+import type { ContentLocale } from "@igs/module-catalog";
+import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
@@ -7,7 +8,7 @@ const INDENT: Record<number, string> = { 1: "", 2: "pl-4", 3: "pl-8", 4: "pl-12"
 
 interface Props {
   readonly locale: ContentLocale;
-  readonly tree: readonly StorefrontCategory[];
+  readonly tree: readonly StorefrontCategoryNode[];
   readonly activeSlug?: string | undefined;
 }
 
