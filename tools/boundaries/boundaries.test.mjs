@@ -355,3 +355,34 @@ test("rejects: a circular package dependency (auth <-> module-identity)", () => 
 test("allows: the real workspace graph has no cycle", () => {
   assert.equal(findCycle(loadWorkspaceGraph()), null);
 });
+
+// --- @igs/mail (igs-pharma#114): SMTP only from the worker ----------------------------------------
+mustPass(
+  "worker app -> @igs/mail",
+  "apps/worker/src/x.ts",
+  'import { createMailer } from "@igs/mail";\nconsole.log(createMailer);\n',
+);
+mustFail(
+  "web app -> @igs/mail (no SMTP from a request)",
+  "apps/web/src/x.ts",
+  'import { createMailer } from "@igs/mail";\nconsole.log(createMailer);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "platform app -> @igs/mail",
+  "apps/platform/src/x.ts",
+  'import { createMailer } from "@igs/mail";\nconsole.log(createMailer);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "module -> @igs/mail (modules ask for mail through the outbox)",
+  "packages/modules/identity/src/x.ts",
+  'import { createMailer } from "@igs/mail";\nconsole.log(createMailer);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "auth package -> @igs/mail",
+  "packages/auth/src/x.ts",
+  'import { createMailer } from "@igs/mail";\nconsole.log(createMailer);\n',
+  "boundaries/element-types",
+);
