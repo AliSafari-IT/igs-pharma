@@ -398,3 +398,85 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
     expect(history.history).toHaveLength(1);
   });
 });
+
+describe("the price history's previous amounts (igs-pharma#96 regression)", () => {
+  const view = (rows: readonly { amountCents: number; previousAmountCents: number | null }[]) =>
+    rows.map((r) => [r.amountCents, r.previousAmountCents]);
+
+  it("an empty history has no rows and no current price", async () => {
+    const productId = await newProduct();
+    const prices = await listPrices({ productId }, owner);
+    expect(prices.current).toBeNull();
+    expect(prices.history).toEqual([]);
+    expect(prices.scheduled).toEqual([]);
+  });
+
+  it("one entry replaced nothing", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    const { history } = await listPrices({ productId }, owner);
+    expect(view(history)).toEqual([[1000, null]]);
+  });
+
+  it("the same amount twice: the second one replaced the first", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 700, reason: "launch" }, owner);
+    kernel.clock.set(later(DAY));
+    await setPrice({ productId, amountCents: 700, reason: "again" }, owner);
+    kernel.clock.set(later(2 * DAY));
+    const { history } = await listPrices({ productId }, owner);
+    expect(view(history)).toEqual([
+      [700, 700],
+      [700, null],
+    ]);
+  });
+
+  it("price changes, newest first, and scheduled changes replace the price in force before them", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    kernel.clock.set(later(DAY));
+    await setPrice({ productId, amountCents: 900, reason: "sale" }, owner);
+    kernel.clock.set(later(2 * DAY));
+    await setPrice({ productId, amountCents: 1100, reason: "back" }, owner);
+    await setPrice(
+      { productId, amountCents: 800, validFrom: later(10 * DAY).toISOString(), reason: "later" },
+      owner,
+    );
+    await setPrice(
+      {
+        productId,
+        amountCents: 750,
+        validFrom: later(20 * DAY).toISOString(),
+        reason: "later still",
+      },
+      owner,
+    );
+    const { history, scheduled, current } = await listPrices({ productId }, owner);
+    expect(current?.amountCents).toBe(1100);
+    expect(view(history)).toEqual([
+      [1100, 900],
+      [900, 1000],
+      [1000, null],
+    ]);
+    // soonest first, as before: the scheduled rows keep their own order
+    expect(view(scheduled)).toEqual([
+      [800, 1100],
+      [750, 800],
+    ]);
+  });
+
+  it("two prices that start at the same instant both replaced the price before that instant", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    const at = later(5 * DAY).toISOString();
+    await setPrice({ productId, amountCents: 900, validFrom: at, reason: "first" }, owner);
+    await setPrice({ productId, amountCents: 800, validFrom: at, reason: "second" }, owner);
+    kernel.clock.set(later(6 * DAY));
+    const { history } = await listPrices({ productId }, owner);
+    // the row written last wins at that instant (newest first); both replaced the 1000
+    expect(history.map((r) => r.previousAmountCents).sort()).toEqual([1000, 1000, null].sort());
+    expect(history.filter((r) => r.amountCents !== 1000).map((r) => r.previousAmountCents)).toEqual(
+      [1000, 1000],
+    );
+  });
+});
