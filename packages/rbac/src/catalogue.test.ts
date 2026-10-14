@@ -194,7 +194,7 @@ describe("catalogue invariants (T-016)", () => {
     expect(ROLE_PERMISSIONS.system_storefront).toEqual([
       "catalog.storefront.read",
       "inventory.availability.read",
-      "pricing.price.read",
+      "pricing.storefront.read",
     ]);
     // the worker's maintenance jobs (igs-pharma#88) may purge expired personal data and do nothing else
     expect(ROLE_PERMISSIONS.system_maintenance).toEqual(["privacy.retention.purge"]);

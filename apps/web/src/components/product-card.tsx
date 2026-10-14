@@ -1,5 +1,5 @@
 import type { ContentLocale, StorefrontProductItem } from "@igs/module-catalog";
-import type { CurrentPrice } from "@igs/module-pricing";
+import type { StorefrontPrice } from "@igs/module-pricing";
 import { Badge, Link, Price } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
@@ -14,7 +14,7 @@ export const formatRate = (rateBp: number, locale: ContentLocale): string =>
 
 interface PriceLineProps {
   readonly locale: ContentLocale;
-  readonly price: CurrentPrice | undefined;
+  readonly price: StorefrontPrice | undefined;
 }
 
 /** The price including VAT with its "incl. 6 % VAT" label, or "price to follow". */
@@ -46,7 +46,7 @@ export async function StockBadge({
 interface CardProps {
   readonly locale: ContentLocale;
   readonly item: StorefrontProductItem;
-  readonly price: CurrentPrice | undefined;
+  readonly price: StorefrontPrice | undefined;
   readonly inStock: boolean;
 }
 

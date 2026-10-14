@@ -1,5 +1,10 @@
 import { type Tx, notFound, query } from "@igs/kernel";
-import { type VatClass, productRefsForActor } from "@igs/module-catalog";
+import {
+  type ProductRef,
+  type VatClass,
+  productRefsForActor,
+  storefrontProductRefsById,
+} from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq, inArray, lte } from "drizzle-orm";
 import { z } from "zod";
@@ -99,6 +104,39 @@ const byProduct = <P extends { productId: string }>(rows: readonly P[]) => {
   return map;
 };
 
+/** The current price of each of `refs`, in the order of `refs`; a product without one is skipped. */
+async function currentPricesOf(
+  tx: Tx,
+  refs: readonly ProductRef[],
+  now: Date,
+): Promise<readonly CurrentPrice[]> {
+  if (refs.length === 0) return [];
+  const rows = byProduct(
+    await pricesUpTo(
+      tx,
+      refs.map((r) => r.id),
+      now,
+    ),
+  );
+  const rates = await vatRatesAt(tx, now);
+  return refs.flatMap((ref) => {
+    const current = priceAt(rows.get(ref.id) ?? [], now);
+    if (!current) return [];
+    const vatRateBp = rateOf(rates, ref.vatClass);
+    return [
+      {
+        productId: ref.id,
+        priceId: current.id,
+        amountCents: current.amountCents,
+        validFrom: current.validFrom,
+        vatClass: ref.vatClass,
+        vatRateBp,
+        ...splitVat(current.amountCents, vatRateBp),
+      },
+    ];
+  });
+}
+
 /**
  * The current web price of each of these products, with its VAT part; a product without a price
  * (or an unknown id) is simply absent. For the product list's Price column and the Price panel.
@@ -108,33 +146,43 @@ export const currentPrices = query({
   input: z.object({ productIds: z.array(z.uuid()).min(1).max(100) }),
   permission: PERMISSIONS.pricing.priceRead,
   async handler({ input, ctx }): Promise<readonly CurrentPrice[]> {
-    // the storefront actor prices storefront-visible products only (D-034)
     const refs = await productRefsForActor(ctx.tx, input.productIds, ctx.can);
-    if (refs.length === 0) return [];
-    const rows = byProduct(
-      await pricesUpTo(
-        ctx.tx,
-        refs.map((r) => r.id),
-        ctx.now,
-      ),
-    );
-    const rates = await vatRatesAt(ctx.tx, ctx.now);
-    return refs.flatMap((ref) => {
-      const current = priceAt(rows.get(ref.id) ?? [], ctx.now);
-      if (!current) return [];
-      const vatRateBp = rateOf(rates, ref.vatClass);
-      return [
-        {
-          productId: ref.id,
-          priceId: current.id,
-          amountCents: current.amountCents,
-          validFrom: current.validFrom,
-          vatClass: ref.vatClass,
-          vatRateBp,
-          ...splitVat(current.amountCents, vatRateBp),
-        },
-      ];
-    });
+    return currentPricesOf(ctx.tx, refs, ctx.now);
+  },
+});
+
+/** What the storefront may know about a price: the amount and its VAT part, nothing else. */
+export interface StorefrontPrice {
+  readonly productId: string;
+  /** Including VAT. */
+  readonly amountCents: number;
+  readonly vatClass: VatClass;
+  readonly vatRateBp: number;
+  readonly vatCents: number;
+  readonly exVatCents: number;
+}
+
+/**
+ * The CURRENT web price of each of these ACTIVE products (igs-pharma#96), behind its own narrow
+ * permission `pricing.storefront.read`. The storefront actor holds this and not `pricing.price.read`,
+ * so it cannot call the history, schedule or reference-price queries (`kernel.forbidden`), and the
+ * answer here carries no price id, start time, reason or author.
+ */
+export const storefrontPrices = query({
+  name: "pricing.storefront.current",
+  input: z.object({ productIds: z.array(z.uuid()).min(1).max(100) }),
+  permission: PERMISSIONS.pricing.storefrontRead,
+  async handler({ input, ctx }): Promise<readonly StorefrontPrice[]> {
+    const refs = await storefrontProductRefsById(ctx.tx, input.productIds);
+    const current = await currentPricesOf(ctx.tx, refs, ctx.now);
+    return current.map(({ productId, amountCents, vatClass, vatRateBp, vatCents, exVatCents }) => ({
+      productId,
+      amountCents,
+      vatClass,
+      vatRateBp,
+      vatCents,
+      exVatCents,
+    }));
   },
 });
 
