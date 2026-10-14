@@ -66,10 +66,10 @@ test.beforeAll(async () => {
     const id = (product as { id: string }).id;
     productIds.push(id);
     await sql`
-      INSERT INTO catalog.product_content (product_id, locale, name, description, warnings, source)
+      INSERT INTO catalog.product_content (product_id, locale, name, description, warnings, source, approved_by, approved_at)
       VALUES
-        (${id}, 'nl', ${item.name}, ${`Beschrijving van ${item.name}`}, ${`Let op: ${item.name}`}, 'manual'),
-        (${id}, 'fr', ${`${item.name} (FR)`}, ${`Description de ${item.name}`}, NULL, 'manual')`;
+        (${id}, 'nl', ${item.name}, ${`Beschrijving van ${item.name}`}, ${`Let op: ${item.name}`}, 'manual', gen_random_uuid(), now()),
+        (${id}, 'fr', ${`${item.name} (FR)`}, ${`Description de ${item.name}`}, NULL, 'manual', gen_random_uuid(), now())`;
     await sql`
       INSERT INTO catalog.product_categories (product_id, category_id)
       VALUES (${id}, ${(category as { id: string }).id})`;

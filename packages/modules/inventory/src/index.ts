@@ -46,9 +46,13 @@ export {
   type StockListItem,
   type StockMovementView,
   type StockPage,
+  type AvailabilityStatus,
+  DEFAULT_LOW_STOCK,
+  availabilityStatus,
   getAvailability,
   getStock,
   listStock,
+  storefrontAvailability,
 } from "./queries";
 export { INVENTORY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {

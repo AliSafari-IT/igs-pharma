@@ -13,6 +13,7 @@ import {
   missingForActivation,
 } from "@igs/module-catalog";
 import { type PriceHistoryRow, type ProductPrices, listPrices } from "@igs/module-pricing";
+import { type ProductVisibility, productVisibility } from "@igs/module-storefront";
 import { Alert, Badge, Button, Container, Link, Stack } from "@igs/ui";
 import { notFound } from "next/navigation";
 
@@ -27,6 +28,7 @@ import { PriceDialog } from "../../../components/price-dialog";
 import { formatEuros, formatRate, vatLine } from "../../../components/price-labels";
 import { ProductForm } from "../../../components/product-form";
 import { formatMoment } from "../../../components/stock-labels";
+import { visibilityReasonLabel } from "../../../components/storefront-labels";
 import { requireStaffActor } from "../../../server/actor";
 import { ensureKernelConfigured } from "../../../server/kernel";
 import { changeStatus, saveProductCategories } from "../actions";
@@ -92,6 +94,15 @@ export default async function ProductPage({ params, searchParams }: Props) {
   if (product) {
     try {
       prices = await listPrices({ productId: product.id }, actor);
+    } catch (e) {
+      if (!isDomainError(e)) throw e;
+    }
+  }
+  // "is it in the webshop, and if not, why": the same rules the shop applies
+  let visibility: ProductVisibility | null = null;
+  if (product) {
+    try {
+      visibility = await productVisibility({ productId: product.id }, actor);
     } catch (e) {
       if (!isDomainError(e)) throw e;
     }
@@ -173,6 +184,30 @@ export default async function ProductPage({ params, searchParams }: Props) {
               ))}
             </div>
           </section>
+
+          {visibility ? (
+            <section aria-labelledby="storefront-heading" className="flex flex-col gap-3">
+              <h2 id="storefront-heading" className="font-display text-xl font-semibold">
+                Webshop
+              </h2>
+              {visibility.visible ? (
+                <p data-testid="storefront-visibility">
+                  <Badge variant="success">Visible in the webshop</Badge>
+                </p>
+              ) : (
+                <div data-testid="storefront-visibility" className="flex flex-col gap-2">
+                  <p>
+                    <Badge variant="amber">Not visible in the webshop</Badge>
+                  </p>
+                  <ul className="list-disc pl-6">
+                    {visibility.reasons.map((reason) => (
+                      <li key={reason.code}>{visibilityReasonLabel(reason)}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          ) : null}
 
           {prices ? (
             <section id="price" aria-labelledby="price-heading" className="flex flex-col gap-3">

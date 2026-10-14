@@ -127,9 +127,3 @@ export async function composeListing(
     q: input.q ?? null,
   };
 }
-
-/** `available` above the threshold, `low` from 1 up to it, `out` at zero or below. Never a count. */
-export function statusOf(onHand: number, lowStock: number): AvailabilityStatus {
-  if (onHand <= 0) return "out";
-  return onHand <= lowStock ? "low" : "available";
-}

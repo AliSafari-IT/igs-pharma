@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { type Candidate, composeListing, statusOf } from "./compose";
+import { availabilityStatus as statusOf } from "@igs/module-inventory";
+
+import { type Candidate, composeListing } from "./compose";
 import { type AvailabilityStatus, type StorefrontPriceView, listInputSchema } from "./contract";
 import { fixtureListProducts } from "./fixtures";
 

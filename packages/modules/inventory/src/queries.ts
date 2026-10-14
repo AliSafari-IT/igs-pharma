@@ -1,5 +1,10 @@
-import { notFound, query } from "@igs/kernel";
-import { productRefsById, productRefsForActor, searchProductRefs } from "@igs/module-catalog";
+import { type Tx, notFound, query } from "@igs/kernel";
+import {
+  productRefsById,
+  productRefsForActor,
+  searchProductRefs,
+  storefrontVisibleIds,
+} from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -208,3 +213,35 @@ export const getAvailability = query({
     }));
   },
 });
+
+/** What a shelf looks like to a shopper: never a count. `low` is 1..threshold available. */
+export type AvailabilityStatus = "available" | "low" | "out";
+
+/** The default threshold at or below which availability counts as `low` (igs-pharma#103). */
+export const DEFAULT_LOW_STOCK = 3;
+
+/** `available` above the threshold, `low` from 1 up to it, `out` at zero. */
+export function availabilityStatus(available: number, lowStock: number): AvailabilityStatus {
+  if (available <= 0) return "out";
+  return available <= lowStock ? "low" : "available";
+}
+
+/**
+ * The availability of these products for the storefront read model (igs-pharma#103): a plain
+ * function on the caller's transaction (the calling query has authorized the actor). It builds on
+ * `availabilityFor`, so "available" already means on hand minus holds and orders (#99). Only
+ * STOREFRONT-VISIBLE products are answered; a hidden or unknown id is simply absent. Never a count.
+ */
+export async function storefrontAvailability(
+  tx: Tx,
+  productIds: readonly string[],
+  now: Date,
+  lowStock: number = DEFAULT_LOW_STOCK,
+): Promise<ReadonlyMap<string, AvailabilityStatus>> {
+  if (productIds.length === 0) return new Map();
+  const visible = await storefrontVisibleIds(tx, [...new Set(productIds)]);
+  const availability = await availabilityFor(tx, visible, now);
+  return new Map(
+    visible.map((id) => [id, availabilityStatus(availability.get(id)?.available ?? 0, lowStock)]),
+  );
+}
