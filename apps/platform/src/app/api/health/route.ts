@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { dbHealthCheck } from "@igs/db/health";
-import { logger } from "@igs/observability";
+import { logger } from "@igs/observability/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

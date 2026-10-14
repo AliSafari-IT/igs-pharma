@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dbHealthCheck = vi.fn();
 const logger = { debug: vi.fn(), warn: vi.fn() };
 vi.mock("@igs/db/health", () => ({ dbHealthCheck }));
-vi.mock("@igs/observability", () => ({ logger }));
+vi.mock("@igs/observability/logger", () => ({ logger }));
 
 beforeEach(() => {
   dbHealthCheck.mockReset();
