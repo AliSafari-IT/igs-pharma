@@ -13,7 +13,15 @@ import { smokeDatabaseUrl, smokePreviewKey } from "../smoke-env";
  * SMOKE_DATABASE_URL (a migrated database).
  */
 const GATED = "http://localhost:3002";
-const PREVIEW = `${GATED}/preview?key=${smokePreviewKey}`;
+/** igs-pharma#91: the key is typed into the form at /preview and POSTed, never put in a URL. */
+async function openPreview(page: Page, key = smokePreviewKey) {
+  await page.goto(`${GATED}/preview`);
+  await page.getByLabel("Preview key").fill(key);
+  await Promise.all([
+    page.waitForLoadState("networkidle"),
+    page.getByRole("button", { name: "Open the preview" }).click(),
+  ]);
+}
 
 let sql: postgres.Sql | undefined;
 const suffix = randomUUID().slice(0, 8);
@@ -99,13 +107,21 @@ test("without the cookie every storefront page is coming-soon, and robots disall
   expect(await (await request.get(`${GATED}/robots.txt`)).text()).toMatch(/Disallow: \//);
 });
 
-test("a wrong or missing key gets coming-soon and no cookie", async ({ page, context }) => {
-  for (const path of ["/preview", "/preview?key=", "/preview?key=not-the-key"]) {
+test("a key in the URL or a wrong key gets coming-soon and no cookie", async ({
+  page,
+  context,
+}) => {
+  for (const path of [`/preview?key=${smokePreviewKey}`, "/preview?key=", "/preview?key=x"]) {
     const response = await page.goto(`${GATED}${path}`);
     expect(response?.status(), path).toBe(200);
     await expect(page.getByText("Binnenkort open"), path).toBeVisible();
     expect(await context.cookies(), path).toEqual([]);
   }
+  await page.goto(`${GATED}/preview`);
+  await expectAxeClean(page);
+  await openPreview(page, "not-the-key");
+  await expect(page.getByText("Binnenkort open")).toBeVisible();
+  expect(await context.cookies()).toEqual([]);
 });
 
 test("with the key: banner, a category, a product with price, VAT and availability", async ({
@@ -113,8 +129,9 @@ test("with the key: banner, a category, a product with price, VAT and availabili
   context,
 }) => {
   test.skip(!sql, "set SMOKE_DATABASE_URL to a migrated database to run");
-  const response = await page.goto(PREVIEW, { waitUntil: "networkidle" });
+  await openPreview(page);
   expect(new URL(page.url()).pathname).toBe("/nl");
+  const response = await page.reload({ waitUntil: "networkidle" });
   expect(response?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
   expect(response?.headers()["cache-control"]).toBe("no-store");
 
@@ -191,7 +208,7 @@ test("a private window without the cookie still sees coming-soon; ending the pre
   await expect(stranger.getByText("Binnenkort open")).toBeVisible();
   await privateWindow.close();
 
-  await page.goto(PREVIEW, { waitUntil: "networkidle" });
+  await openPreview(page);
   await expect(page.getByText("Preview — not public")).toBeVisible();
   await page.getByRole("link", { name: "End preview" }).click();
   await expect(page.getByText("Binnenkort open")).toBeVisible();

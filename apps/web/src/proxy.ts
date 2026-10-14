@@ -15,10 +15,8 @@ import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "@igs/secur
 
 import {
   PREVIEW_COOKIE,
+  PREVIEW_COOKIE_OPTIONS,
   PREVIEW_HEADER,
-  PREVIEW_TTL_SECONDS,
-  createPreviewCookie,
-  keyMatches,
   verifyPreviewCookie,
 } from "./preview";
 
@@ -39,6 +37,8 @@ export const COMING_SOON_PATH = "/coming-soon";
 /** The entry and the exit of the storefront preview pass (igs-pharma#62). */
 export const PREVIEW_PATH = "/preview";
 export const PREVIEW_END_PATH = "/preview/end";
+/** The internal route of the preview key form (`src/app/preview-key`); reachable only by rewrite. */
+export const PREVIEW_FORM_PATH = "/preview-key";
 
 /**
  * What stays reachable while the storefront is closed (igs-pharma#46, IGS-D4): health checks, the
@@ -63,32 +63,25 @@ function passesGate(pathname: string, preview: boolean): boolean {
   return preview || isOpenPath(pathname);
 }
 
-/** The preview cookie: HttpOnly, Secure and SameSite=Lax, for this site only. */
-const COOKIE_OPTIONS = { httpOnly: true, secure: true, sameSite: "lax", path: "/" } as const;
-
 /**
- * `GET /preview?key=…`: with the right key, sets the signed cookie and redirects to the storefront.
- * Anything else (no key configured, no key given, a wrong key) returns `null`, so the request falls
- * through to the gate and gets the coming-soon page, with no hint that a preview exists.
+ * The preview entry (igs-pharma#91: the key never travels in a URL). Only while the gate is on AND a
+ * key is configured:
+ * - `GET /preview` with no query string shows the key form;
+ * - `POST /preview` goes to the route handler (`src/app/preview/route.ts`), which checks the key in
+ *   constant time, sets the signed cookie and redirects.
+ * Anything else, `GET /preview?key=…` included, returns `null`: it falls through to the gate and
+ * gets the coming-soon page, with no hint that a preview exists.
  */
 function previewEntry(
   request: NextRequest,
   secrets: ReturnType<typeof previewSecrets>,
-  now: number,
 ): NextResponse | null {
-  if (!secrets || request.nextUrl.pathname !== PREVIEW_PATH || request.method !== "GET") {
-    return null;
+  if (!secrets || request.nextUrl.pathname !== PREVIEW_PATH) return null;
+  if (request.method === "POST") return NextResponse.next({ request });
+  if (request.method === "GET" && request.nextUrl.search === "") {
+    return NextResponse.rewrite(new URL(PREVIEW_FORM_PATH, request.url), { request });
   }
-  const given = request.nextUrl.searchParams.get("key");
-  if (!given || !keyMatches(given, secrets)) return null;
-  const response = NextResponse.redirect(new URL("/nl", request.url));
-  response.cookies.set({
-    name: PREVIEW_COOKIE,
-    value: createPreviewCookie(secrets, now),
-    ...COOKIE_OPTIONS,
-    maxAge: PREVIEW_TTL_SECONDS,
-  });
-  return response;
+  return null;
 }
 
 /**
@@ -104,7 +97,7 @@ export default function proxy(request: NextRequest) {
   const headers = buildSecurityHeaders({
     nonce,
     app: "web",
-    isDev: process.env.NODE_ENV === "development",
+    isDev: parseEnvFor(appEnv).NODE_ENV === "development",
     ...reportOptions(),
   });
 
@@ -122,15 +115,16 @@ export default function proxy(request: NextRequest) {
   const now = Date.now();
 
   let response: NextResponse;
-  const entry = gated ? previewEntry(request, secrets, now) : null;
+  const entry = gated ? previewEntry(request, secrets) : null;
   const preview =
     gated && verifyPreviewCookie(secrets, request.cookies.get(PREVIEW_COOKIE)?.value, now);
   if (entry) {
     response = entry;
-  } else if (gated && pathname === PREVIEW_END_PATH) {
-    // leaving the preview: drop the cookie and land on whatever the public sees
+  } else if (gated && secrets && pathname === PREVIEW_END_PATH) {
+    // leaving the preview: drop the cookie and land on whatever the public sees. With no key
+    // configured this path is just another closed URL (no hint that a preview exists, #91)
     response = NextResponse.redirect(new URL("/", request.url));
-    response.cookies.set({ name: PREVIEW_COOKIE, value: "", ...COOKIE_OPTIONS, maxAge: 0 });
+    response.cookies.set({ name: PREVIEW_COOKIE, value: "", ...PREVIEW_COOKIE_OPTIONS, maxAge: 0 });
   } else if (gated && !passesGate(pathname, preview)) {
     // every other URL renders the static page in place (no redirect: nothing to follow or index)
     response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });
