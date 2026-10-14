@@ -15,7 +15,7 @@ import {
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { type SecurityEvent, createAuth } from "./index";
+import { type SecurityEvent, createAuth } from "@igs/auth";
 import {
   BASE_URL,
   SoftwarePasskey,
@@ -23,7 +23,7 @@ import {
   type TestBrowser,
   createBrowser,
   totpCodeFor,
-} from "./test-support";
+} from "./support/auth";
 
 const { sessions, userRoles, users } = identitySchema;
 

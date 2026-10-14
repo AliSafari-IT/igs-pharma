@@ -32,8 +32,6 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@igs/kernel": "workspace:*",
-    "@igs/module-audit": "workspace:*",
     "@igs/tsconfig": "workspace:*",
     "@testcontainers/postgresql": "12.2.0",
     "@types/node": "24.19.1",

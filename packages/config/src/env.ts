@@ -59,7 +59,15 @@ export const cryptoEnv = z.object({
 });
 
 export const observabilityEnv = z.object({
-  OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
+  // classified not-sensitive (D-023), so it must not carry a login: credentials go in headers
+  OTEL_EXPORTER_OTLP_ENDPOINT: z
+    .string()
+    .url()
+    .refine((value) => {
+      const { username, password } = new URL(value);
+      return username === "" && password === "";
+    }, "must not contain a username or password")
+    .optional(),
   SENTRY_DSN: z.string().url().optional(),
 });
 
@@ -227,7 +235,7 @@ export function adoptMigrateDsn(input: NodeJS.ProcessEnv = process.env): void {
 }
 
 /** Full set used by `web` / `platform` (and `getEnv()`). */
-const envSchema = z.object({
+export const envSchema = z.object({
   ...dbEnv.shape,
   ...authEnv.shape,
   ...appEnv.shape,

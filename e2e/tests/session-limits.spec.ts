@@ -57,8 +57,8 @@ async function staffUser(name: string, role: string, passkey = true) {
 async function session(userId: string, signedInAgo = "1 minute", activeAgo: string | null = null) {
   const token = randomUUID();
   await sql`
-    INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at, created_at, last_activity_at)
-    VALUES (gen_random_uuid(), ${userId}, ${token}, now() + interval '8 hours', now(),
+    INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at, passkey_checked_at, created_at, last_activity_at)
+    VALUES (gen_random_uuid(), ${userId}, ${token}, now() + interval '8 hours', now(), now(),
       now() - ${signedInAgo}::interval,
       ${activeAgo === null ? null : sql`now() - ${activeAgo}::interval`})`;
   return token;
@@ -185,6 +185,55 @@ test("an idle tab clears its content and offers to sign in again", async ({ page
   await expect(page).toHaveURL(`${PLATFORM}/sign-in?reason=idle`);
 });
 
+test("work in another tab keeps a tab from clearing itself, and a tab does not sign the person out (#100)", async ({
+  browser,
+}) => {
+  const owner = await staffUser(`Two Tabs ${tag}`, "owner");
+  const token = await session(owner, "1 minute");
+  const context = await browser.newContext();
+  await signIn(context, token);
+  const quiet = await context.newPage();
+  const busy = await context.newPage();
+  await context.clock.install(); // one clock for the whole browser context, shared by both tabs
+  await quiet.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
+  await busy.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
+
+  // 25 minutes in, the person types in the busy tab; at 35 minutes the quiet tab must not have cleared
+  await context.clock.fastForward("25:00");
+  await busy.keyboard.press("Shift");
+  await context.clock.fastForward("10:00");
+  await expect(quiet.getByTestId("idle-prompt")).toHaveCount(0);
+  await expect(quiet.getByText(`Two Tabs ${tag}`)).toBeVisible();
+
+  // nobody types for 30 more minutes: both tabs clear, and no tab signed the session out
+  await context.clock.fastForward("21:00");
+  await expect(quiet.getByTestId("idle-prompt")).toBeVisible();
+  await expect(busy.getByTestId("idle-prompt")).toBeVisible();
+  const [row] = await sql<
+    { id: string }[]
+  >`SELECT id FROM identity.sessions WHERE token = ${token}`;
+  expect(row).toBeDefined();
+  await context.close();
+});
+
+test("a tab that was asleep clears the moment it wakes, not 30 minutes later (#100)", async ({
+  page,
+  context,
+}) => {
+  const owner = await staffUser(`Sleeper ${tag}`, "owner");
+  const token = await session(owner, "1 minute");
+  await signIn(context, token);
+  await page.clock.install();
+  await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
+  await expect(page.getByText(`Sleeper ${tag}`)).toBeVisible();
+
+  // the laptop sleeps for an hour: the clock jumps, no timer ran
+  await page.clock.setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByTestId("idle-prompt")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(`Sleeper ${tag}`);
+});
+
 // ── the fresh passkey check, with a real WebAuthn ceremony ─────────────────────────────────────
 
 async function virtualAuthenticator(page: Page) {
@@ -202,7 +251,7 @@ async function virtualAuthenticator(page: Page) {
   });
 }
 
-test("a role change asks for the passkey, then applies once, in the SAME session", async ({
+test("a role change asks for the passkey, then applies once, in a new session that keeps the 8-hour clock", async ({
   page,
 }) => {
   const owner = await staffUser(`Fresh Owner ${tag}`, "owner", false);
@@ -223,7 +272,9 @@ test("a role change asks for the passkey, then applies once, in the SAME session
   // that session proved the passkey 20 minutes ago: verified, but not fresh, and signed in 3 hours ago
   await sql`
     UPDATE identity.sessions
-    SET mfa_verified_at = now() - interval '20 minutes', created_at = now() - interval '3 hours'
+    SET mfa_verified_at = now() - interval '20 minutes',
+      passkey_checked_at = now() - interval '20 minutes',
+      created_at = now() - interval '3 hours', last_activity_at = now()
     WHERE user_id = ${owner}`;
   const [{ id: sessionId, created_at: signedInAt } = { id: "", created_at: new Date(0) }] =
     await sql<{ id: string; created_at: Date }[]>`
@@ -246,12 +297,12 @@ test("a role change asks for the passkey, then applies once, in the SAME session
   await dialog.getByRole("button", { name: "Confirm with your passkey" }).click();
   await expect.poll(held).toEqual(["content_editor", "pharmacy_assistant"]);
 
-  // the passkey check refreshed THIS session's proof and did not start a new session
+  // the passkey check moved the browser to a NEW session (new token) that keeps the 8-hour clock
   const sessions = await sql<{ id: string; created_at: Date; fresh: boolean }[]>`
-    SELECT id, created_at, mfa_verified_at > now() - interval '1 minute' AS fresh
+    SELECT id, created_at, passkey_checked_at > now() - interval '1 minute' AS fresh
     FROM identity.sessions WHERE user_id = ${owner}`;
   expect(sessions).toHaveLength(1);
-  expect(sessions[0]?.id).toBe(sessionId);
+  expect(sessions[0]?.id).not.toBe(sessionId);
   expect(sessions[0]?.created_at.getTime()).toBe(signedInAt.getTime());
   expect(sessions[0]?.fresh).toBe(true);
 

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { isInteractiveRequest } from "../src/server/activity";
 
-const request = (headers: Record<string, string>) => new Headers(headers);
+/** A request the way a browser sends it from one of our own pages. */
+const request = (headers: Record<string, string>) =>
+  new Headers({ "sec-fetch-site": "same-origin", ...headers });
 
 describe("what counts as the person's own activity (#95)", () => {
   it("a page navigation or form post is interactive", () => {
@@ -40,5 +42,18 @@ describe("what counts as the person's own activity (#95)", () => {
     expect(isInteractiveRequest(request({}))).toBe(false);
     expect(isInteractiveRequest(request({ "sec-fetch-dest": "empty" }))).toBe(false);
     expect(isInteractiveRequest(request({ accept: "application/json" }))).toBe(false);
+  });
+
+  it("needs the browser's own Sec-Fetch-Site: a script adding next-action or rsc is background (#100)", () => {
+    const bare = (headers: Record<string, string>) => new Headers(headers);
+    expect(isInteractiveRequest(bare({ "next-action": "abc123" }))).toBe(false);
+    expect(isInteractiveRequest(bare({ rsc: "1" }))).toBe(false);
+    expect(isInteractiveRequest(bare({ "sec-fetch-dest": "document" }))).toBe(false);
+    expect(
+      isInteractiveRequest(request({ "sec-fetch-site": "cross-site", "next-action": "abc" })),
+    ).toBe(false);
+    expect(
+      isInteractiveRequest(request({ "sec-fetch-site": "none", "sec-fetch-dest": "document" })),
+    ).toBe(true);
   });
 });

@@ -15,7 +15,7 @@ import type { IsolatedDatabase } from "@igs/db/testing";
 import { identitySchema } from "@igs/module-identity";
 import { eq } from "drizzle-orm";
 
-import type { createAuth } from "./index";
+import type { createAuth } from "@igs/auth";
 
 const { sessions, passkeys } = identitySchema;
 

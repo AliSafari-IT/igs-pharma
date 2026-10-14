@@ -4,7 +4,7 @@ import { authClient } from "@igs/auth/client";
 import { Alert, Button, Stack } from "@igs/ui";
 import { useId, useState } from "react";
 
-import { authErrorMessage } from "./auth-errors";
+import { authErrorMessage, withFreshPasskey } from "./auth-errors";
 
 type Pending = { readonly key: string; readonly backupCodes: readonly string[] };
 
@@ -40,7 +40,10 @@ export function TotpSetup() {
 
   const start = () =>
     run(async () => {
-      const result = await authClient.twoFactor.enable({});
+      const result = await withFreshPasskey(
+        () => authClient.twoFactor.enable({}),
+        () => authClient.signIn.passkey(),
+      );
       if (result.data?.method === "totp") {
         setPending({
           key: new URL(result.data.totpURI).searchParams.get("secret") ?? "",
