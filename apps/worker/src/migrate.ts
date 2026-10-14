@@ -6,7 +6,7 @@
  *   (dev: pnpm --filter @igs/worker migrate)
  *
  * 1. Applies the committed Drizzle migrations (`packages/db/drizzle`, copied into the image as
- *    `/app/drizzle`), each once: the same chain and journal as `pnpm db:migrate` (migrations.md).
+ *    `/app/drizzle`), each once: the same chain and journal as `pnpm db:migrate` (asafarim-docs:ventures/igs-pharma/06-engineering/migrations.md).
  *    The whole run holds a session-level advisory lock, so concurrent starts serialise (#77).
  * 2. Installs or upgrades pg-boss's `pgboss` schema (D-021): the production worker starts pg-boss
  *    with `migrate: false`, so this is the step that creates it.

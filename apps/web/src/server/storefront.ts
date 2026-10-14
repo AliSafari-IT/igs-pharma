@@ -2,14 +2,14 @@ import { routing } from "@igs/i18n/routing";
 import type { Actor } from "@igs/kernel";
 import type { ContentLocale } from "@igs/module-catalog";
 import { getAvailability } from "@igs/module-inventory";
-import { type CurrentPrice, currentPrices } from "@igs/module-pricing";
+import { type StorefrontPrice, storefrontPrices } from "@igs/module-pricing";
 
 import { ensureKernelConfigured } from "./kernel";
 
 /**
  * The storefront reads (igs-pharma#62) through the modules' public queries, as `apps/platform` does,
  * but as a READ-ONLY system actor: `system_storefront` holds `catalog.storefront.read` (active
- * products only), `inventory.availability.read` (in or out, never counts) and `pricing.price.read`.
+ * products only), `inventory.availability.read` (in or out, never counts) and `pricing.storefront.read` (the current price only, never history or schedule).
  * It holds no write permission and no staff read permission, so a bug here cannot show a draft, a
  * stock level or change anything.
  */
@@ -26,7 +26,7 @@ export function localeOf(value: string): ContentLocale | null {
 
 /** Prices (VAT included) and availability of these products, by product id. */
 export interface PriceAndStock {
-  readonly prices: ReadonlyMap<string, CurrentPrice>;
+  readonly prices: ReadonlyMap<string, StorefrontPrice>;
   readonly inStock: ReadonlyMap<string, boolean>;
 }
 
@@ -36,7 +36,7 @@ export async function priceAndStock(productIds: readonly string[]): Promise<Pric
   if (productIds.length === 0) return { prices: new Map(), inStock: new Map() };
   const ids = [...productIds];
   const [prices, availability] = await Promise.all([
-    currentPrices({ productIds: ids }, STOREFRONT_ACTOR),
+    storefrontPrices({ productIds: ids }, STOREFRONT_ACTOR),
     getAvailability({ productIds: ids }, STOREFRONT_ACTOR),
   ]);
   return {

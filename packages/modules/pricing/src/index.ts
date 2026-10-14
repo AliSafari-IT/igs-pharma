@@ -24,8 +24,10 @@ export {
   type PriceHistoryRow,
   type PriceView,
   type ProductPrices,
+  type StorefrontPrice,
   currentPrices,
   listPrices,
   referencePrice30Days,
+  storefrontPrices,
 } from "./queries";
 export { PRICING_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";

@@ -54,6 +54,29 @@ export interface PricePoint {
 export const comparePoints = (a: PricePoint, b: PricePoint): number =>
   a.validFrom.getTime() - b.validFrom.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+/**
+ * For each row of a price history sorted by `comparePoints`, the amount it replaced: the amount of
+ * the last row with a STRICTLY earlier `validFrom`, or `null` for the first one. Rows that start at
+ * the same instant all replaced what was in force before that instant. One pass with a running
+ * "previous" value (igs-pharma#96); it used to rescan every earlier row for each row.
+ */
+export function previousAmounts(
+  rows: readonly { readonly validFrom: Date; readonly amountCents: number }[],
+): (number | null)[] {
+  let previous: number | null = null; // the last row of the group before the current instant
+  let groupStart: number | null = null; // the instant of the current group
+  let groupLast: number | null = null; // the last amount seen in the current group
+  return rows.map((row) => {
+    const start = row.validFrom.getTime();
+    if (start !== groupStart) {
+      previous = groupLast;
+      groupStart = start;
+    }
+    groupLast = row.amountCents;
+    return previous;
+  });
+}
+
 /** The price in force at `at`: the last row (in `comparePoints` order) with `validFrom <= at`. */
 export function priceAt<P extends PricePoint>(points: readonly P[], at: Date): P | null {
   let current: P | null = null;

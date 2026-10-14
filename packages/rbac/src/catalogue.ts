@@ -45,6 +45,8 @@ export const PERMISSIONS = {
     priceRead: "pricing.price.read",
     /** Back-office: set a product's price from now or schedule a change. */
     priceManage: "pricing.price.manage",
+    /** Storefront: the CURRENT price of an active product, never its history or schedule (igs-pharma#96). */
+    storefrontRead: "pricing.storefront.read",
   },
   privacy: {
     /** Back-office: a subject's current consents and their history (igs-pharma#58). */
@@ -146,6 +148,8 @@ export const PHARMACIST_ROLES: readonly RoleKey[] = ["pharmacist", "pharmacist_t
 export const SYSTEM_ONLY: readonly Permission[] = [
   ...Object.values(PERMISSIONS.identity),
   PERMISSIONS.privacy.retentionPurge,
+  // the storefront's narrow price read (#96): staff read prices with `pricing.price.read`
+  PERMISSIONS.pricing.storefrontRead,
 ];
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
@@ -184,7 +188,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.inventory.stockManage,
     PERMISSIONS.pharmacy.pharmacistsManage,
   ],
-  // pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
+  // asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
   pharmacist: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
@@ -202,7 +206,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.inventory.stockManage,
   ],
   customer_service: [PERMISSIONS.orders.read],
-  // pharmacy-platform-backoffice.md: the catalogue screens belong to the content editor
+  // asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md: the catalogue screens belong to the content editor
   content_editor: [
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.manage,
@@ -215,7 +219,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   system_storefront: [
     PERMISSIONS.catalog.storefrontRead,
     PERMISSIONS.inventory.availabilityRead,
-    PERMISSIONS.pricing.priceRead,
+    PERMISSIONS.pricing.storefrontRead,
   ],
   system_seed: [
     PERMISSIONS.catalog.productsRead,

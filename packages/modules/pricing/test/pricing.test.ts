@@ -20,6 +20,7 @@ import {
   referencePrice30Days,
   registerAuditActions,
   setPrice,
+  storefrontPrices,
 } from "../src";
 
 let iso: IsolatedDatabase;
@@ -326,7 +327,7 @@ describe("permissions and audit", () => {
 describe("the storefront prices storefront-visible products only (D-034)", () => {
   const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
 
-  it("prices OTC and pharmacy-only products; a prescription, draft or unknown id is absent or unknown", async () => {
+  it("prices OTC and pharmacy-only products; a prescription, draft or unknown id is simply absent", async () => {
     const otc = await storefrontProduct();
     const pharmacyOnly = await storefrontProduct("pharmacy_only");
     const rx = await storefrontProduct("rx");
@@ -337,20 +338,145 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
       await setPrice({ productId, amountCents: 500, reason: "launch" }, owner);
     }
 
-    const seen = await currentPrices({ productIds: [...everyone, randomUUID()] }, storefront);
+    const seen = await storefrontPrices({ productIds: [...everyone, randomUUID()] }, storefront);
     expect(seen.map((p) => p.productId).sort()).toEqual([otc, pharmacyOnly].sort());
-
-    for (const hidden of [rx, rxType, draft, randomUUID()]) {
-      expect(await codeOf(listPrices({ productId: hidden }, storefront)), hidden).toBe(
-        "pricing.unknown_product",
-      );
-      expect(await codeOf(referencePrice30Days({ productId: hidden }, storefront)), hidden).toBe(
-        "pricing.unknown_product",
-      );
-    }
-    expect(await codeOf(listPrices({ productId: otc }, storefront))).toBe("ok");
 
     // staff still price every product
     expect(await currentPrices({ productIds: everyone }, owner)).toHaveLength(5);
+  });
+
+  it("answers with the current price and its VAT part only: no price id, start, reason or author", async () => {
+    const productId = await storefrontProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "supplier-letter-xyz" }, owner);
+    const [price] = await storefrontPrices({ productIds: [productId] }, storefront);
+    expect(Object.keys(price ?? {}).sort()).toEqual([
+      "amountCents",
+      "exVatCents",
+      "productId",
+      "vatCents",
+      "vatClass",
+      "vatRateBp",
+    ]);
+    expect(JSON.stringify(price)).not.toContain("supplier-letter-xyz");
+  });
+
+  it("never sees a scheduled price before it starts, nor an old one after it ends", async () => {
+    const productId = await storefrontProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    await setPrice(
+      { productId, amountCents: 700, validFrom: later(2 * DAY).toISOString(), reason: "sale" },
+      owner,
+    );
+    const now = await storefrontPrices({ productIds: [productId] }, storefront);
+    expect(now.map((p) => p.amountCents)).toEqual([1000]);
+    kernel.clock.set(later(3 * DAY));
+    const afterSale = await storefrontPrices({ productIds: [productId] }, storefront);
+    expect(afterSale.map((p) => p.amountCents)).toEqual([700]);
+  });
+
+  it("is refused history, scheduled prices and the reference price, by direct call (kernel.forbidden)", async () => {
+    const productId = await storefrontProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    expect(await codeOf(listPrices({ productId }, storefront))).toBe("kernel.forbidden");
+    expect(await codeOf(referencePrice30Days({ productId }, storefront))).toBe("kernel.forbidden");
+    expect(await codeOf(currentPrices({ productIds: [productId] }, storefront))).toBe(
+      "kernel.forbidden",
+    );
+    expect(await codeOf(setPrice({ productId, amountCents: 1 }, storefront))).toBe(
+      "kernel.forbidden",
+    );
+  });
+
+  it("staff without pricing.storefront.read cannot use the storefront query; the owner's results are unchanged", async () => {
+    const productId = await storefrontProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    expect(await codeOf(storefrontPrices({ productIds: [productId] }, owner))).toBe(
+      "kernel.forbidden",
+    );
+    const history = await listPrices({ productId }, owner);
+    expect(history.current?.amountCents).toBe(1000);
+    expect(history.history).toHaveLength(1);
+  });
+});
+
+describe("the price history's previous amounts (igs-pharma#96 regression)", () => {
+  const view = (rows: readonly { amountCents: number; previousAmountCents: number | null }[]) =>
+    rows.map((r) => [r.amountCents, r.previousAmountCents]);
+
+  it("an empty history has no rows and no current price", async () => {
+    const productId = await newProduct();
+    const prices = await listPrices({ productId }, owner);
+    expect(prices.current).toBeNull();
+    expect(prices.history).toEqual([]);
+    expect(prices.scheduled).toEqual([]);
+  });
+
+  it("one entry replaced nothing", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    const { history } = await listPrices({ productId }, owner);
+    expect(view(history)).toEqual([[1000, null]]);
+  });
+
+  it("the same amount twice: the second one replaced the first", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 700, reason: "launch" }, owner);
+    kernel.clock.set(later(DAY));
+    await setPrice({ productId, amountCents: 700, reason: "again" }, owner);
+    kernel.clock.set(later(2 * DAY));
+    const { history } = await listPrices({ productId }, owner);
+    expect(view(history)).toEqual([
+      [700, 700],
+      [700, null],
+    ]);
+  });
+
+  it("price changes, newest first, and scheduled changes replace the price in force before them", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    kernel.clock.set(later(DAY));
+    await setPrice({ productId, amountCents: 900, reason: "sale" }, owner);
+    kernel.clock.set(later(2 * DAY));
+    await setPrice({ productId, amountCents: 1100, reason: "back" }, owner);
+    await setPrice(
+      { productId, amountCents: 800, validFrom: later(10 * DAY).toISOString(), reason: "later" },
+      owner,
+    );
+    await setPrice(
+      {
+        productId,
+        amountCents: 750,
+        validFrom: later(20 * DAY).toISOString(),
+        reason: "later still",
+      },
+      owner,
+    );
+    const { history, scheduled, current } = await listPrices({ productId }, owner);
+    expect(current?.amountCents).toBe(1100);
+    expect(view(history)).toEqual([
+      [1100, 900],
+      [900, 1000],
+      [1000, null],
+    ]);
+    // soonest first, as before: the scheduled rows keep their own order
+    expect(view(scheduled)).toEqual([
+      [800, 1100],
+      [750, 800],
+    ]);
+  });
+
+  it("two prices that start at the same instant both replaced the price before that instant", async () => {
+    const productId = await newProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    const at = later(5 * DAY).toISOString();
+    await setPrice({ productId, amountCents: 900, validFrom: at, reason: "first" }, owner);
+    await setPrice({ productId, amountCents: 800, validFrom: at, reason: "second" }, owner);
+    kernel.clock.set(later(6 * DAY));
+    const { history } = await listPrices({ productId }, owner);
+    // the row written last wins at that instant (newest first); both replaced the 1000
+    expect(history.map((r) => r.previousAmountCents).sort()).toEqual([1000, 1000, null].sort());
+    expect(history.filter((r) => r.amountCents !== 1000).map((r) => r.previousAmountCents)).toEqual(
+      [1000, 1000],
+    );
   });
 });

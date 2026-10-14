@@ -132,6 +132,9 @@ async function checkApi(url) {
   const body = await res.json();
   const expected = res.status === 200 ? "ok" : "degraded";
   assert.equal(body.status, expected, `${url}: health status mismatch (HTTP ${res.status})`);
+  // igs-pharma#96: the public answer carries no app version and no database latency
+  assert.deepEqual(Object.keys(body).sort(), ["checks", "status"], `${url}: health body keys`);
+  assert.deepEqual(body.checks, { database: { ok: res.status === 200 } }, `${url}: health checks`);
   assert.equal(res.headers.get("x-content-type-options"), "nosniff", `${url}: nosniff`);
   console.info(`ok ${url} (${res.status} ${body.status}, served by the route handler)`);
 }

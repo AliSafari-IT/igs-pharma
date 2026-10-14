@@ -59,6 +59,7 @@ export {
   productRefsById,
   productRefsForActor,
   searchProductRefs,
+  storefrontProductRefsById,
 } from "./refs";
 export {
   type StorefrontCategory,

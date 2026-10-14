@@ -4,7 +4,7 @@
  */
 import { formatPrice } from "@igs/ui";
 
-/** The back-office is English-only (pharmacy-platform-backoffice.md). */
+/** The back-office is English-only (asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md). */
 export const BACK_OFFICE_LOCALE = "en-GB";
 
 /** Whole cents as euros for the English back-office: `599` → `"€5.99"` (Intl, via `@igs/ui`). */

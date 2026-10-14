@@ -21,4 +21,9 @@ export {
   uiGalleryEnv,
   workerEnv,
 } from "./env";
+export {
+  ENV_SENSITIVITY,
+  SENSITIVE_ENV_NAMES,
+  type EnvName,
+} from "./env-sensitivity";
 export { getFeatureFlags, type FeatureFlags } from "./feature-flags";
