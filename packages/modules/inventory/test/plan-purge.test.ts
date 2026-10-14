@@ -106,9 +106,14 @@ describe("the job", () => {
   it("is scheduled outside the Brussels hour that DST skips or repeats", () => {
     expect(Number(INVENTORY_JOBS.purgePlans.cron.split(" ")[1])).not.toBe(2);
     expect(INVENTORY_JOBS.timezone).toBe("Europe/Brussels");
+    // the reservation expiry runs every minute, so the skipped or repeated hour changes nothing: it is
+    // idempotent (igs-pharma#99)
+    expect(INVENTORY_JOBS.expireReservations.cron).toBe("* * * * *");
     expect(INVENTORY_QUEUES).toEqual([
       INVENTORY_JOBS.purgePlans.deadLetterQueue,
       INVENTORY_JOBS.purgePlans.queue,
+      INVENTORY_JOBS.expireReservations.deadLetterQueue,
+      INVENTORY_JOBS.expireReservations.queue,
     ]);
   });
 

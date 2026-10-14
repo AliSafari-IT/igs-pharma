@@ -4,12 +4,14 @@ import { productRefsByCnk } from "@igs/module-catalog";
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 
 import {
+  type Availability,
   DEFAULT_LOCATION_ID,
   type MovementReason,
   type StockCsvError,
+  availabilityOf,
   parseStockCsv,
 } from "./domain";
-import { stockMovements } from "./schema";
+import { reservations, stockMovements } from "./schema";
 
 /** Reading the ledger: on-hand is always the sum of the movements, never a stored number. */
 
@@ -41,6 +43,53 @@ export async function stockLevels(
     .groupBy(stockMovements.productId);
   return new Map(
     rows.map((r) => [r.productId, { onHand: r.onHand, lastMovementAt: r.lastMovementAt }]),
+  );
+}
+
+/**
+ * What is set aside per product at the default location, at `now` (igs-pharma#99). A hold counts
+ * only while `now < expires_at`: at `expires_at` exactly it is over, whether or not the expiry job
+ * has marked it yet. An order counts until it is released or consumed, however old it is.
+ */
+export async function reservedQuantities(
+  tx: Tx,
+  productIds: readonly string[],
+  now: Date,
+): Promise<ReadonlyMap<string, { readonly held: number; readonly ordered: number }>> {
+  if (productIds.length === 0) return new Map();
+  const rows = await tx
+    .select({
+      productId: reservations.productId,
+      held: sql<number>`coalesce(sum(${reservations.quantity}) FILTER (WHERE ${reservations.kind} = 'hold' AND ${reservations.expiresAt} > ${now.toISOString()}::timestamptz), 0)::int`,
+      ordered: sql<number>`coalesce(sum(${reservations.quantity}) FILTER (WHERE ${reservations.kind} = 'order'), 0)::int`,
+    })
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.status, "active"),
+        eq(reservations.locationId, DEFAULT_LOCATION_ID),
+        inArray(reservations.productId, [...productIds]),
+      ),
+    )
+    .groupBy(reservations.productId);
+  return new Map(rows.map((r) => [r.productId, { held: r.held, ordered: r.ordered }]));
+}
+
+/** On hand, reserved, available and short per product (absent products have none of it), at `now`. */
+export async function availabilityFor(
+  tx: Tx,
+  productIds: readonly string[],
+  now: Date,
+): Promise<ReadonlyMap<string, Availability>> {
+  const [levels, reserved] = await Promise.all([
+    stockLevels(tx, productIds),
+    reservedQuantities(tx, productIds, now),
+  ]);
+  return new Map(
+    productIds.map((id) => {
+      const r = reserved.get(id);
+      return [id, availabilityOf(levelOf(levels, id).onHand, r?.held ?? 0, r?.ordered ?? 0)];
+    }),
   );
 }
 

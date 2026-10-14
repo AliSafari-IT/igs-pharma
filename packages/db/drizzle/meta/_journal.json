@@ -260,6 +260,27 @@
       "when": 1791978386492,
       "tag": "0036_rbac_seed_storefront_price",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791981462438,
+      "tag": "0037_inventory_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791981493798,
+      "tag": "0038_inventory_reservations_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791981516337,
+      "tag": "0039_rbac_seed_reservations",
+      "breakpoints": true
     }
   ]
 }

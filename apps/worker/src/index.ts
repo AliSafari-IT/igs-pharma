@@ -20,7 +20,11 @@ import {
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
-import { type InventoryJobScheduler, registerInventoryJobs } from "@igs/module-inventory";
+import {
+  type InventoryJobScheduler,
+  registerAuditActions as registerInventoryAuditActions,
+  registerInventoryJobs,
+} from "@igs/module-inventory";
 import {
   type PrivacyJobScheduler,
   registerAuditActions as registerPrivacyAuditActions,
@@ -53,6 +57,7 @@ async function main() {
   // if one ever arrives. Audit action registrations of auditing modules go here, before configureKernel.
   registerIdentityAuditActions(registerAuditAction);
   registerPrivacyAuditActions(registerAuditAction); // the retention purge audits its counts
+  registerInventoryAuditActions(registerAuditAction); // the reservation expiry audits each hold it ends
   configureKernel({ audit: createAuditPort(), logger });
   registerWorkerEvents(); // the topics the relay publishes; migrate creates their queues (./events)
 
