@@ -1,4 +1,9 @@
-import { type ResolvedActor, type SessionResolution, resolveSession } from "@igs/auth";
+import {
+  type ResolvedActor,
+  type SessionResolution,
+  resolveSession,
+  sessionTokenFromCookies,
+} from "@igs/auth";
 import type { Origin } from "@igs/kernel";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -13,8 +18,10 @@ import { ensureAuthConfigured } from "./kernel";
  * background one does not, and a session over its 8-hour or 30-minute limit is gone (`ended`).
  */
 const currentSession = cache(async (): Promise<SessionResolution | null> => {
-  ensureAuthConfigured();
   const requestHeaders = await headers();
+  // signed out: no auth setup, no database (the root layout asks on every page, 404s included)
+  if (!sessionTokenFromCookies(requestHeaders.get("cookie"))) return null;
+  ensureAuthConfigured();
   return resolveSession(requestHeaders, { interactive: isInteractiveRequest(requestHeaders) });
 });
 
