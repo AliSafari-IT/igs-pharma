@@ -286,7 +286,9 @@ describe("retries", () => {
     const holderRef = holder();
     await reserveStock({ productId, quantity: 3, holderRef }, checkout);
     for (const quantity of [2, 4]) {
-      await expect(reserveStock({ productId, quantity, holderRef }, checkout)).rejects.toMatchObject({
+      await expect(
+        reserveStock({ productId, quantity, holderRef }, checkout),
+      ).rejects.toMatchObject({
         code: "inventory.reservation_quantity_mismatch",
         details: { held: 3 },
       });
@@ -435,21 +437,18 @@ describe("confirmReservation", () => {
     const holderRef = holder();
     await reserveStock({ productId, quantity: 2, holderRef }, checkout);
     kernel.clock.set(at(15 * MINUTE));
-    expect(await codeOf(confirm(holderRef, checkout))).toBe(
-      "inventory.reservation_expired",
-    );
+    expect(await codeOf(confirm(holderRef, checkout))).toBe("inventory.reservation_expired");
     expect((await rowsOf(productId))[0]?.kind).toBe("hold");
     // after the job has marked it, the answer is the same
     await runReservationExpiry();
-    expect(await codeOf(confirm(holderRef, checkout))).toBe(
-      "inventory.reservation_expired",
-    );
     expect(
       await codeOf(
-        confirmReservation(
-          { holderRef: holder(), items: [{ productId, quantity: 2 }] },
-          checkout,
-        ),
+        confirmReservation({ holderRef, items: [{ productId, quantity: 2 }] }, checkout),
+      ),
+    ).toBe("inventory.reservation_expired");
+    expect(
+      await codeOf(
+        confirmReservation({ holderRef: holder(), items: [{ productId, quantity: 2 }] }, checkout),
       ),
     ).toBe("inventory.reservation_not_found");
   });
@@ -462,9 +461,7 @@ describe("confirmReservation", () => {
     kernel.clock.advance(10 * MINUTE);
     await reserveStock({ productId: b, quantity: 1, holderRef }, checkout);
     kernel.clock.advance(6 * MINUTE); // a's hold (15 min) has lapsed, b's has not
-    expect(await codeOf(confirm(holderRef, checkout))).toBe(
-      "inventory.reservation_expired",
-    );
+    expect(await codeOf(confirm(holderRef, checkout))).toBe("inventory.reservation_expired");
     expect((await rowsOf(b))[0]?.kind).toBe("hold");
   });
 
@@ -528,7 +525,10 @@ describe("confirmReservation", () => {
     // a line the holder does not have
     expect(
       await codeOf(
-        confirmReservation({ holderRef, items: [{ productId: randomUUID(), quantity: 1 }] }, checkout),
+        confirmReservation(
+          { holderRef, items: [{ productId: randomUUID(), quantity: 1 }] },
+          checkout,
+        ),
       ),
     ).toBe(mismatch);
     // a different quantity
@@ -548,7 +548,9 @@ describe("confirmReservation", () => {
     ).toBe(mismatch);
     // the holder has MORE than the basket
     expect(
-      await codeOf(confirmReservation({ holderRef, items: [{ productId: a, quantity: 2 }] }, checkout)),
+      await codeOf(
+        confirmReservation({ holderRef, items: [{ productId: a, quantity: 2 }] }, checkout),
+      ),
     ).toBe(mismatch);
     expect((await rowsOf(a))[0]?.kind).toBe("hold");
     expect((await rowsOf(b))[0]?.kind).toBe("hold");
@@ -565,7 +567,13 @@ describe("confirmReservation", () => {
     );
     expect(ok.reservations).toHaveLength(2);
     // a basket without items, or with a product twice, is not valid input
-    for (const items of [[], [{ productId: a, quantity: 1 }, { productId: a, quantity: 1 }]]) {
+    for (const items of [
+      [],
+      [
+        { productId: a, quantity: 1 },
+        { productId: a, quantity: 1 },
+      ],
+    ]) {
       expect(await codeOf(confirmReservation({ holderRef, items }, checkout))).toBe(
         "kernel.validation_failed",
       );
@@ -783,9 +791,7 @@ describe("who may call what", () => {
       expect(await codeOf(reserveStock({ productId, quantity: 1, holderRef }, actor)), label).toBe(
         "kernel.forbidden",
       );
-      expect(await codeOf(confirm(holderRef, actor)), label).toBe(
-        "kernel.forbidden",
-      );
+      expect(await codeOf(confirm(holderRef, actor)), label).toBe("kernel.forbidden");
       expect(
         await codeOf(releaseReservation({ holderRef, reason: "refunded" }, actor)),
         label,
@@ -858,23 +864,30 @@ describe("the database enforces the lifecycle whoever writes", () => {
          created_by_type, created_by_id, updated_by_type, updated_by_id)
       VALUES (gen_random_uuid(), ${productId}, '0192f000-0000-7000-8000-000000000001', ${quantity}, ${kind},
         ${holderRef}, ${status}, NULL, 'system', 'raw', 'system', 'raw')`;
-    expect(await raw(() => insert(0, "order", "active", "ok-1"))).toContain(
+    expect(await raw(() => insert(0, "order", "active", `order:${newId()}`))).toContain(
       "reservations_quantity_check",
     );
-    expect(await raw(() => insert(1, "cart", "active", "ok-2"))).toMatch(
+    expect(await raw(() => insert(1, "cart", "active", `order:${newId()}`))).toMatch(
       /reservations_kind_check|reservations_expires_at_check/,
     );
-    expect(await raw(() => insert(1, "order", "pending", "ok-3"))).toContain(
+    expect(await raw(() => insert(1, "order", "pending", `order:${newId()}`))).toContain(
       "reservations_status_check",
     );
-    expect(await raw(() => insert(1, "order", "active", "jan@example.be"))).toContain(
-      "reservations_holder_ref_check",
-    );
+    for (const personal of [
+      "jan@example.be",
+      "jan.peeters",
+      "85073003328",
+      `order:${randomUUID()}`,
+    ]) {
+      expect(await raw(() => insert(1, "order", "active", personal)), personal).toContain(
+        "reservations_holder_ref_check",
+      );
+    }
     // an order cannot be expired, a hold cannot be consumed
-    expect(await raw(() => insert(1, "order", "expired", "ok-4"))).toContain(
+    expect(await raw(() => insert(1, "order", "expired", `order:${newId()}`))).toContain(
       "reservations_only_holds_expire_check",
     );
-    expect(await raw(() => insert(1, "order", "released", "ok-5"))).toContain(
+    expect(await raw(() => insert(1, "order", "released", `order:${newId()}`))).toContain(
       "reservations_release_reason_check",
     );
   });
@@ -961,5 +974,108 @@ describe("audit", () => {
       },
     ]);
     expect(JSON.stringify(events)).not.toContain(holderRef);
+  });
+
+  it("every state change writes its audit row: release (holder and staff) and both expiry paths (#101 review)", async () => {
+    const actionsOf = async (productId: string) =>
+      (
+        await iso.sql<{ action: string; data: { reservationId?: string; reason?: string } }[]>`
+          SELECT action, data FROM audit.events
+          WHERE entity_id = ${productId} AND action LIKE 'inventory.reservation.%' ORDER BY seq`
+      ).map((e) => e.action);
+
+    // release by the holder
+    const a = await stocked(5);
+    const holderA = holder();
+    await reserveStock({ productId: a, quantity: 1, holderRef: holderA }, checkout);
+    await releaseReservation({ holderRef: holderA, reason: "checkout_cancelled" }, checkout);
+    expect(await actionsOf(a)).toEqual([
+      "inventory.reservation.reserved",
+      "inventory.reservation.released",
+    ]);
+
+    // release by staff, with the reason in the entry
+    const b = await stocked(5);
+    const { reservationId } = await reserveStock(
+      { productId: b, quantity: 1, holderRef: holder() },
+      checkout,
+    );
+    await releaseReservationByStaff({ reservationId, reason: "staff_correction" }, owner);
+    expect(await actionsOf(b)).toEqual([
+      "inventory.reservation.reserved",
+      "inventory.reservation.released",
+    ]);
+
+    // expiry by the job
+    const c = await stocked(5);
+    await reserveStock({ productId: c, quantity: 1, holderRef: holder() }, checkout);
+    kernel.clock.advance(16 * MINUTE);
+    expect(await runReservationExpiry()).toBeGreaterThanOrEqual(1);
+    expect(await actionsOf(c)).toEqual([
+      "inventory.reservation.reserved",
+      "inventory.reservation.expired",
+    ]);
+
+    // expiry inline: a new reserve replaces a lapsed hold the job has not marked yet
+    const d = await stocked(5);
+    const holderD = holder();
+    await reserveStock({ productId: d, quantity: 1, holderRef: holderD }, checkout);
+    kernel.clock.advance(16 * MINUTE);
+    await reserveStock({ productId: d, quantity: 1, holderRef: holderD }, checkout);
+    expect(await actionsOf(d)).toEqual([
+      "inventory.reservation.reserved",
+      "inventory.reservation.expired",
+      "inventory.reservation.reserved",
+    ]);
+  });
+
+  it("a command that changes nothing writes no audit row (a retried confirm, an empty release)", async () => {
+    const productId = await stocked(5);
+    const holderRef = holder();
+    await reserveStock({ productId, quantity: 1, holderRef }, checkout);
+    await confirm(holderRef, checkout);
+    await confirm(holderRef, checkout);
+    await releaseReservation({ holderRef: holder(), reason: "checkout_cancelled" }, checkout);
+    const [row] = await iso.sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM audit.events
+      WHERE entity_id = ${productId} AND action LIKE 'inventory.reservation.%'`;
+    expect(row?.n).toBe(2); // reserved + confirmed
+  });
+});
+
+describe("consume (#101 review)", () => {
+  it("pairs each reservation with the movement of ITS product, by id", async () => {
+    const a = await stocked(9);
+    const b = await stocked(9);
+    const holderRef = holder();
+    await reserveStock({ productId: b, quantity: 3, holderRef }, checkout);
+    await reserveStock({ productId: a, quantity: 2, holderRef }, checkout);
+    await confirm(holderRef, checkout);
+    const { reservations } = await consumeReservation({ holderRef }, checkout);
+    expect(reservations).toHaveLength(2);
+    for (const r of reservations) {
+      const [movement] = await iso.sql<{ product_id: string; delta: number }[]>`
+        SELECT product_id, delta FROM inventory.stock_movements WHERE id = ${r.movementId}`;
+      expect(movement).toEqual({ product_id: r.productId, delta: -r.quantity });
+    }
+  });
+
+  it("a consume racing a retried reserve for the same holder and product ends cleanly", async () => {
+    for (let round = 0; round < 8; round++) {
+      const productId = await stocked(10);
+      const holderRef = holder();
+      await reserveStock({ productId, quantity: 2, holderRef }, checkout);
+      await confirm(holderRef, checkout);
+      const results = await Promise.allSettled([
+        consumeReservation({ holderRef }, checkout),
+        reserveStock({ productId, quantity: 2, holderRef }, checkout),
+      ]);
+      for (const result of results) {
+        if (result.status === "rejected") {
+          // the only acceptable refusals are the typed ones, never a deadlock
+          expect(isDomainError(result.reason), String(result.reason)).toBe(true);
+        }
+      }
+    }
   });
 });
