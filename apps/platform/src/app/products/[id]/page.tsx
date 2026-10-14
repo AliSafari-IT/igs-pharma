@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { isDomainError } from "@igs/kernel";
 import {
   type BrandView,
@@ -204,6 +206,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
                 <PriceDialog
                   productId={product.id}
                   currentCents={prices.current?.amountCents ?? null}
+                  submissionId={randomUUID()}
                 />
               </div>
 
