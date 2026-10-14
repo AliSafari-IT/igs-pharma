@@ -153,9 +153,10 @@ export const adjustStock = command({
     await lockStock(ctx.tx);
     const { onHand } = levelOf(await stockLevels(ctx.tx, [product.id]), product.id);
     if (onHand + input.delta < 0) throw conflict("inventory.negative_stock", { onHand });
-    const [movementId = ""] = await recordMovements(ctx.tx, ctx, [
+    const [movement] = await recordMovements(ctx.tx, ctx, [
       { productId: product.id, delta: input.delta, reason: input.reason, note: input.note },
     ]);
+    const movementId = movement?.id ?? "";
     await ctx.audit.record({
       action: INVENTORY_AUDIT.stockAdjusted,
       entityType: "product",

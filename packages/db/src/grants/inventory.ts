@@ -16,7 +16,25 @@ export const inventory: SchemaGrants = {
       note: "a stock-file preview, insert-only for the runtime by grant; expired rows are purged by a definer function (follow-up)",
       since: 29,
     }),
+    table("inventory.reservations", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "stock set aside for a checkout or an order (igs-pharma#99); no DELETE for anyone (a trigger refuses it), and a trigger enforces the lifecycle",
+      since: 39,
+    }),
     fn("inventory.reject_mutation()", { note: "trigger function" }),
+    fn("inventory.reservation_guard()", {
+      note: "trigger function: the reservation lifecycle",
+      since: 39,
+    }),
+    fn("inventory.reservation_reject_delete()", {
+      note: "trigger function: reservations are kept",
+      since: 39,
+    }),
+    fn("inventory.lock_stock_level(uuid,uuid)", {
+      app: true,
+      note: "SECURITY DEFINER: takes a product's stock-level row lock (FOR UPDATE needs UPDATE, which the runtime lacks) and returns on-hand; a reservation calls it before reading what is available",
+      since: 39,
+    }),
     fn("inventory.purge_expired_import_plans()", {
       worker: true,
       note: "SECURITY DEFINER, zero arguments: the worker's daily purge of expired import plans (igs-pharma#88)",

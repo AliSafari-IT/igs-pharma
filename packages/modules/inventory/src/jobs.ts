@@ -1,10 +1,14 @@
 import {
+  type Actor,
   type KernelRuntime,
   type QueueAdmin,
   assertQueuesExist,
   getKernelRuntime,
 } from "@igs/kernel";
 import { sql } from "drizzle-orm";
+
+import { EXPIRY_BATCH } from "./domain";
+import { expireReservations } from "./reservations";
 
 /**
  * Background job of the inventory module (igs-pharma#88): the daily purge of expired import plans
@@ -23,11 +27,53 @@ export const INVENTORY_JOBS = {
     deadLetterQueue: "inventory.plans.purge.failed",
     cron: "12 4 * * *",
   },
+  /**
+   * igs-pharma#99: marks holds past their `expires_at` as expired, every minute. The money-relevant
+   * truth does not wait for it (availability ignores a lapsed hold at once); the job keeps the
+   * table and the audit trail honest. It never touches an order.
+   */
+  expireReservations: {
+    queue: "inventory.reservations.expire",
+    deadLetterQueue: "inventory.reservations.expire.failed",
+    cron: "* * * * *",
+  },
   timezone: "Europe/Brussels",
   /** Only thrown errors are retried (connection, lock timeout). */
   retryLimit: 2,
   retryDelaySeconds: 60,
 } as const;
+
+/** The expiry job's actor: `system_reservations` is a system role no user can hold. */
+export const RESERVATION_EXPIRY_ACTOR: Actor = {
+  type: "system",
+  id: "reservation-expiry",
+  roles: ["system_reservations"],
+};
+
+/** The most batches one run handles (a safety stop; the next minute continues). */
+const MAX_EXPIRY_BATCHES = 50;
+
+/** Expires the lapsed holds, batch by batch, and returns how many it marked. Safe to run twice. */
+export async function runReservationExpiry(
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<number> {
+  let total = 0;
+  for (let batch = 0; batch < MAX_EXPIRY_BATCHES; batch += 1) {
+    const { expired } = await expireReservations({}, RESERVATION_EXPIRY_ACTOR);
+    total += expired;
+    if (expired < EXPIRY_BATCH) break;
+  }
+  if (total > 0) runtime.logger.info?.({ expired: total }, "inventory.reservations.expired");
+  return total;
+}
+
+/** A job that failed all its retries: lapsed holds stay marked active (availability still ignores them). */
+export function reportReservationExpiryFailed(runtime: KernelRuntime = getKernelRuntime()): void {
+  runtime.logger.warn?.(
+    { alarm: "inventory.reservations.expire_failed" },
+    "inventory.reservations.expire_failed: the reservation expiry failed after all retries",
+  );
+}
 
 /** How long after `expires_at` a plan is kept (mirrors the constant in the SQL function). */
 export const IMPORT_PLAN_GRACE_HOURS = 24;
@@ -73,16 +119,24 @@ export interface InventoryQueueAdmin extends QueueAdmin {
 export const INVENTORY_QUEUES: readonly string[] = [
   INVENTORY_JOBS.purgePlans.deadLetterQueue,
   INVENTORY_JOBS.purgePlans.queue,
+  INVENTORY_JOBS.expireReservations.deadLetterQueue,
+  INVENTORY_JOBS.expireReservations.queue,
 ];
 
 /** Creates the queues. DDL on pg-boss's schema: runs in the migrate entry, never in the worker. Idempotent. */
 export async function ensureInventoryQueues(boss: InventoryQueueAdmin): Promise<void> {
-  const { purgePlans, retryLimit, retryDelaySeconds } = INVENTORY_JOBS;
+  const { purgePlans, expireReservations: expiry, retryLimit, retryDelaySeconds } = INVENTORY_JOBS;
   await boss.createQueue(purgePlans.deadLetterQueue);
   await boss.createQueue(purgePlans.queue, {
     retryLimit,
     retryDelay: retryDelaySeconds,
     deadLetter: purgePlans.deadLetterQueue,
+  });
+  await boss.createQueue(expiry.deadLetterQueue);
+  await boss.createQueue(expiry.queue, {
+    retryLimit,
+    retryDelay: retryDelaySeconds,
+    deadLetter: expiry.deadLetterQueue,
   });
 }
 
@@ -94,11 +148,16 @@ export async function registerInventoryJobs(
   boss: InventoryJobScheduler,
   runtime: KernelRuntime = getKernelRuntime(),
 ): Promise<void> {
-  const { purgePlans, timezone } = INVENTORY_JOBS;
+  const { purgePlans, expireReservations: expiry, timezone } = INVENTORY_JOBS;
   await assertQueuesExist(boss, INVENTORY_QUEUES);
   await boss.schedule(purgePlans.queue, purgePlans.cron, undefined, { tz: timezone });
+  await boss.schedule(expiry.queue, expiry.cron, undefined, { tz: timezone });
   await boss.work(purgePlans.queue, async () => {
     await runImportPlanPurge(runtime);
   });
   await boss.work(purgePlans.deadLetterQueue, async () => reportImportPlanPurgeFailed(runtime));
+  await boss.work(expiry.queue, async () => {
+    await runReservationExpiry(runtime);
+  });
+  await boss.work(expiry.deadLetterQueue, async () => reportReservationExpiryFailed(runtime));
 }
