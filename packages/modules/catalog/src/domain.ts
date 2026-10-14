@@ -172,3 +172,61 @@ export function subtreeHeight(links: readonly CategoryLink[], categoryId: string
   };
   return height(categoryId, new Set());
 }
+
+/**
+ * Storefront search folding (igs-pharma#103): the text a shopper types and the text we search are
+ * both lower-cased and stripped of accents, so "creme" finds "crème". The database does it with
+ * `lower(translate(…))` in a generated column (`product_content.search_text`), the application with
+ * `foldSearch` below; both are built from THIS table, and a test keeps them in step.
+ *
+ * `translate` maps one character to one character. Multi-character folds are NOT covered, and the
+ * decision is explicit: `œ`, `æ`, `ß` (and `þ`, `ð`) are left as they are (only lower-cased), so
+ * "oeuf" does not find "œuf" and "strasse" does not find "Straße". Mapping them to one letter
+ * would give wrong matches; a search table with `oe`/`ae`/`ss` expansions is a later decision.
+ */
+const FOLD_GROUPS: readonly (readonly [string, string])[] = [
+  ["àáâãäåāăą", "a"],
+  ["çćĉċč", "c"],
+  ["ďđ", "d"],
+  ["èéêëēĕėęě", "e"],
+  ["ĝğġģ", "g"],
+  ["ĥħ", "h"],
+  ["ìíîïĩīĭįı", "i"],
+  ["ĵ", "j"],
+  ["ķ", "k"],
+  ["ĺļľł", "l"],
+  ["ñńņň", "n"],
+  ["òóôõöøōŏő", "o"],
+  ["ŕŗř", "r"],
+  ["śŝşš", "s"],
+  ["ţťŧ", "t"],
+  ["ùúûüũūŭůűų", "u"],
+  ["ŵ", "w"],
+  ["ýÿŷ", "y"],
+  ["źżž", "z"],
+];
+
+/** Characters `translate` replaces, and what it replaces them with (same length, one to one). */
+export const SEARCH_FOLD_FROM = FOLD_GROUPS.map(([chars]) => chars).join("");
+export const SEARCH_FOLD_TO = FOLD_GROUPS.map(([chars, to]) => to.repeat([...chars].length)).join(
+  "",
+);
+
+/** The shopper's text or a product text, as the search compares it. */
+export function foldSearch(text: string): string {
+  let out = "";
+  for (const char of text.toLowerCase()) {
+    const at = SEARCH_FOLD_FROM.indexOf(char);
+    out += at === -1 ? char : (SEARCH_FOLD_TO[at] ?? char);
+  }
+  return out;
+}
+
+/** `%`, `_` and `\` are LIKE wildcards: match them literally. */
+export const escapeLikeTerm = (value: string): string => value.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/** The words of a search query, folded; every one must match (AND). */
+export const searchTerms = (query: string): string[] =>
+  foldSearch(query)
+    .split(/\s+/)
+    .filter((term) => term !== "");

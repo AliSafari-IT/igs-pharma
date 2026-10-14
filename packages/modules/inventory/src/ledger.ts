@@ -1,6 +1,6 @@
 import { newId } from "@igs/db/ids";
 import { type Actor, type Tx, conflict } from "@igs/kernel";
-import { productRefsByCnk } from "@igs/module-catalog";
+import { inUuidSet, productRefsByCnk } from "@igs/module-catalog";
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 
 import {
@@ -9,7 +9,7 @@ import {
   type StockCsvError,
   parseStockCsv,
 } from "./domain";
-import { stockMovements } from "./schema";
+import { stockLevels as stockLevelRows, stockMovements } from "./schema";
 
 /** Reading the ledger: on-hand is always the sum of the movements, never a stored number. */
 
@@ -166,4 +166,45 @@ export async function planImport(tx: Tx, csv: string): Promise<ImportPlan> {
   }
   errors.sort((a, b) => a.line - b.line);
   return { rows, errors };
+}
+
+/** What a shelf looks like to a shopper: never a count. `low` is 1..threshold on hand. */
+export type AvailabilityStatus = "available" | "low" | "out";
+
+/** The default threshold below which stock counts as `low` (configuration; igs-pharma#103). */
+export const DEFAULT_LOW_STOCK = 3;
+
+/** `available` above the threshold, `low` from 1 up to it, `out` at zero or below. */
+export function availabilityStatus(onHand: number, lowStock: number): AvailabilityStatus {
+  if (onHand <= 0) return "out";
+  return onHand <= lowStock ? "low" : "available";
+}
+
+/**
+ * THE availability function (igs-pharma#103): the status of each product at the default location,
+ * read from the database-maintained level (`inventory.stock_levels`, equal to the ledger sum). A
+ * product with no level row has nothing on the shelf: `out`. Every consumer (`getAvailability`, the
+ * storefront read model) goes through here, so a change of definition, such as subtracting live
+ * reservations, happens in this one place.
+ */
+export async function statusesFor(
+  tx: Tx,
+  productIds: readonly string[],
+  lowStock: number = DEFAULT_LOW_STOCK,
+): Promise<ReadonlyMap<string, AvailabilityStatus>> {
+  const onHand = new Map<string, number>();
+  const ids = [...new Set(productIds)];
+  if (ids.length > 0) {
+    const rows = await tx
+      .select({ productId: stockLevelRows.productId, onHand: stockLevelRows.onHand })
+      .from(stockLevelRows)
+      .where(
+        and(
+          eq(stockLevelRows.locationId, DEFAULT_LOCATION_ID),
+          inUuidSet(stockLevelRows.productId, ids),
+        ),
+      );
+    for (const row of rows) onHand.set(row.productId, row.onHand);
+  }
+  return new Map(ids.map((id) => [id, availabilityStatus(onHand.get(id) ?? 0, lowStock)]));
 }

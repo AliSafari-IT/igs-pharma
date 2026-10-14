@@ -71,3 +71,18 @@ export {
   listStorefrontProducts,
 } from "./storefront";
 export { assertSellable, storefrontVisible, storefrontVisibleIds } from "./visibility";
+export {
+  CategoryNotFound,
+  type CandidateFilters,
+  type CandidateSet,
+  type StorefrontCandidate,
+  type StorefrontCategoryIndex,
+  type StorefrontProductDetail,
+  type VisibilityFacts,
+  getStorefrontProductDetail,
+  productVisibilityFacts,
+  searchStorefrontCandidates,
+  storefrontCategoryIndex,
+} from "./listing";
+export { SEARCH_FOLD_FROM, SEARCH_FOLD_TO, foldSearch, searchTerms } from "./domain";
+export { approvedForStorefront, inUuidSet, isMedicineSql } from "./visibility";

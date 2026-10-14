@@ -267,6 +267,13 @@
       "when": 1791984092806,
       "tag": "0037_session_passkey_checked",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791992844128,
+      "tag": "0038_storefront_search",
+      "breakpoints": true
     }
   ]
 }

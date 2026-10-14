@@ -1,11 +1,16 @@
-import { notFound, query } from "@igs/kernel";
-import { productRefsById, productRefsForActor, searchProductRefs } from "@igs/module-catalog";
+import { type Tx, notFound, query } from "@igs/kernel";
+import {
+  productRefsById,
+  productRefsForActor,
+  searchProductRefs,
+  storefrontVisibleIds,
+} from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { DEFAULT_LOCATION_ID, type MovementReason } from "./domain";
-import { levelOf, stockLevels } from "./ledger";
+import { type AvailabilityStatus, levelOf, statusesFor, stockLevels } from "./ledger";
 import { stockMovements } from "./schema";
 
 /** Inventory queries for the back-office (igs-pharma#53). */
@@ -138,13 +143,29 @@ export const getAvailability = query({
   async handler({ input, ctx }): Promise<readonly ProductAvailability[]> {
     // the storefront actor sees storefront-visible products only (D-034)
     const refs = await productRefsForActor(ctx.tx, input.productIds, ctx.can);
-    const levels = await stockLevels(
+    const statuses = await statusesFor(
       ctx.tx,
       refs.map((ref) => ref.id),
     );
     return refs.map((ref) => ({
       productId: ref.id,
-      inStock: levelOf(levels, ref.id).onHand > 0,
+      inStock: statuses.get(ref.id) !== "out",
     }));
   },
 });
+
+/**
+ * The availability of these products for the storefront read model (igs-pharma#103): a plain function
+ * on the caller's transaction (the calling query has authorized the actor), through the same
+ * `statusesFor` as `getAvailability`. Only STOREFRONT-VISIBLE products are answered; a hidden or
+ * unknown id is simply absent. Never a count.
+ */
+export async function storefrontAvailability(
+  tx: Tx,
+  productIds: readonly string[],
+  lowStock?: number,
+): Promise<ReadonlyMap<string, AvailabilityStatus>> {
+  if (productIds.length === 0) return new Map();
+  const visible = await storefrontVisibleIds(tx, productIds);
+  return statusesFor(tx, visible, lowStock);
+}

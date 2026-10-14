@@ -16,6 +16,11 @@ export {
   parseStockCsv,
 } from "./domain";
 export type { ImportPlan, ImportPlanRow } from "./ledger";
+export {
+  type AvailabilityStatus,
+  DEFAULT_LOW_STOCK,
+  availabilityStatus,
+} from "./ledger";
 export { adjustStock, importStock, prepareStockImport, stockImportKey } from "./commands";
 export {
   MOVEMENT_HISTORY_LIMIT,
@@ -27,6 +32,7 @@ export {
   getAvailability,
   getStock,
   listStock,
+  storefrontAvailability,
 } from "./queries";
 export { INVENTORY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {

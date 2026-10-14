@@ -169,6 +169,7 @@ describe("the application as igs_app", () => {
         productType: "otc_medicine",
         legalStatus: "otc",
         vatClass: "BE_6",
+        approveContent: true, // a medicine is storefront-visible only with approved text (#103)
         content: [
           { locale: "nl", name: "Rollen product" },
           { locale: "fr", name: "Produit rôles" },

@@ -71,6 +71,8 @@ interface NewProduct {
   readonly productType?: "otc_medicine" | "rx_medicine" | "medical_device";
   readonly legalStatus?: "otc" | "rx" | "pharmacy_only" | "general_sale";
   readonly categoryIds?: readonly string[];
+  /** Whether the pharmacist approves the text when creating it (default: yes; igs-pharma#103 gate). */
+  readonly approved?: boolean;
   /** Extra content rows; Dutch and French are always written. */
   readonly content?: readonly { locale: "nl" | "fr" | "de" | "en"; name: string }[];
 }
@@ -87,6 +89,7 @@ async function product(options: NewProduct = {}): Promise<{ id: string; cnk: str
       legalStatus: "otc",
       vatClass: "BE_6",
       ...(options.brandId ? { brandId: options.brandId } : {}),
+      approveContent: options.approved ?? true,
       content: [
         {
           locale: "nl",

@@ -13,6 +13,7 @@ import {
   previewSecrets,
   siteGateEnabled,
   siteGateEnv,
+  storefrontEnv,
   syntheticSeedAllowed,
   syntheticSeedEnv,
   uiGalleryEnabled,
@@ -261,5 +262,26 @@ describe("migrateDsn (igs-pharma#66)", () => {
     };
     adoptMigrateDsn(input);
     expect(input["DATABASE_URL"]).toBe(admin);
+  });
+});
+
+describe("storefrontEnv (igs-pharma#103)", () => {
+  const threshold = (value: string | undefined) =>
+    storefrontEnv.parse({ STOREFRONT_LOW_STOCK_THRESHOLD: value }).STOREFRONT_LOW_STOCK_THRESHOLD;
+
+  it("defaults to 3 when unset or empty", () => {
+    expect(threshold(undefined)).toBe(3);
+    expect(threshold("")).toBe(3);
+  });
+
+  it("accepts whole numbers 0–50", () => {
+    expect(threshold("0")).toBe(0);
+    expect(threshold("50")).toBe(50);
+  });
+
+  it("refuses out-of-range and non-integer values", () => {
+    for (const bad of ["-1", "51", "2.5", "abc"]) {
+      expect(() => threshold(bad), bad).toThrow();
+    }
   });
 });
