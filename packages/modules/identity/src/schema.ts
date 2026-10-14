@@ -120,6 +120,12 @@ export const sessions = identity.table(
      * Server-owned like `mfaVerifiedAt` (`input: false`).
      */
     enrolmentAt: timestamp("enrolment_at", { withTimezone: true }),
+    /**
+     * #95: the last interactive request this session made (NULL = none since sign-in, so the idle
+     * clock starts at `created_at`). Background requests never write it. A staff session with no
+     * activity for 30 minutes is refused; each session has its own clock.
+     */
+    lastActivityAt: timestamp("last_activity_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

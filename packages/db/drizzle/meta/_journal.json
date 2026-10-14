@@ -246,6 +246,13 @@
       "when": 1791934986110,
       "tag": "0034_dsr_extension",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791976080508,
+      "tag": "0035_staff_session_activity",
+      "breakpoints": true
     }
   ]
 }

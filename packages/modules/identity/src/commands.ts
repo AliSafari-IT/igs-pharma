@@ -45,6 +45,29 @@ type RoleGrantInput = z.infer<typeof roleGrantInput>;
 
 const userInput = z.object({ userId: z.uuid() });
 
+/**
+ * How recent the acting person's own passkey check must be for a sensitive change (#90 C4, #95): a
+ * session left open on a shared counter PC cannot be used for it.
+ */
+export const FRESH_MFA_MS = 10 * 60 * 1000;
+
+/** What a sensitive change returns, so it can carry an idempotency key (a retry replays this). */
+const sensitiveOutput = z.object({ ok: z.literal(true) });
+
+/**
+ * #95: refuses unless the acting session proved a second factor within `FRESH_MFA_MS`
+ * (`identity.fresh_mfa_required`). It only proves who is acting NOW; it never grants a permission
+ * (the kernel checked that already), and it is the handler's first step, so a refused attempt
+ * changes nothing and its idempotency key stays unused for the retry.
+ */
+function requireFreshMfa(ctx: Ctx): void {
+  if (ctx.actor.type !== "user") throw forbidden("kernel.forbidden");
+  const verifiedAt = ctx.actor.mfaVerifiedAt;
+  if (!verifiedAt || ctx.now.getTime() - verifiedAt.getTime() > FRESH_MFA_MS) {
+    throw forbidden("identity.fresh_mfa_required");
+  }
+}
+
 const isPharmacistRole = (roleKey: RoleKey) => PHARMACIST_ROLES.includes(roleKey);
 
 /**
@@ -186,10 +209,13 @@ function requirePharmacistRole(roleKey: RoleKey): void {
 export const grantRole = command({
   name: "identity.role.grant",
   input: roleGrantInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     requireNonPharmacistRole(input.roleKey);
     await grant(ctx, input);
+    return { ok: true as const };
   },
 });
 
@@ -197,10 +223,13 @@ export const grantRole = command({
 export const revokeRole = command({
   name: "identity.role.revoke",
   input: roleGrantInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     requireNonPharmacistRole(input.roleKey);
     await revoke(ctx, input);
+    return { ok: true as const };
   },
 });
 
@@ -208,10 +237,13 @@ export const revokeRole = command({
 export const grantPharmacistRole = command({
   name: "identity.pharmacist_role.grant",
   input: roleGrantInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.pharmacy.pharmacistsManage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     requirePharmacistRole(input.roleKey);
     await grant(ctx, input);
+    return { ok: true as const };
   },
 });
 
@@ -219,10 +251,13 @@ export const grantPharmacistRole = command({
 export const revokePharmacistRole = command({
   name: "identity.pharmacist_role.revoke",
   input: roleGrantInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.pharmacy.pharmacistsManage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     requirePharmacistRole(input.roleKey);
     await revoke(ctx, input);
+    return { ok: true as const };
   },
 });
 
@@ -271,8 +306,10 @@ async function setStatus(
 export const suspendUser = command({
   name: "identity.user.suspend",
   input: userInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     await setStatus(
       ctx,
       input.userId,
@@ -281,6 +318,7 @@ export const suspendUser = command({
       IDENTITY_AUDIT.userSuspended,
       "staff",
     );
+    return { ok: true as const };
   },
 });
 
@@ -288,8 +326,10 @@ export const suspendUser = command({
 export const reactivateUser = command({
   name: "identity.user.reactivate",
   input: userInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     await setStatus(
       ctx,
       input.userId,
@@ -298,6 +338,7 @@ export const reactivateUser = command({
       IDENTITY_AUDIT.userReactivated,
       "staff",
     );
+    return { ok: true as const };
   },
 });
 
@@ -308,8 +349,10 @@ export const reactivateUser = command({
 export const deleteUser = command({
   name: "identity.user.delete",
   input: userInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     await setStatus(
       ctx,
       input.userId,
@@ -318,6 +361,7 @@ export const deleteUser = command({
       IDENTITY_AUDIT.userDeleted,
       "staff",
     );
+    return { ok: true as const };
   },
 });
 
@@ -325,8 +369,10 @@ export const deleteUser = command({
 export const suspendPharmacist = command({
   name: "identity.pharmacist.suspend",
   input: userInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.pharmacy.pharmacistsManage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     await setStatus(
       ctx,
       input.userId,
@@ -335,6 +381,7 @@ export const suspendPharmacist = command({
       IDENTITY_AUDIT.userSuspended,
       "pharmacist",
     );
+    return { ok: true as const };
   },
 });
 
@@ -342,8 +389,10 @@ export const suspendPharmacist = command({
 export const reactivatePharmacist = command({
   name: "identity.pharmacist.reactivate",
   input: userInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.pharmacy.pharmacistsManage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     await setStatus(
       ctx,
       input.userId,
@@ -352,6 +401,7 @@ export const reactivatePharmacist = command({
       IDENTITY_AUDIT.userReactivated,
       "pharmacist",
     );
+    return { ok: true as const };
   },
 });
 
@@ -359,8 +409,10 @@ export const reactivatePharmacist = command({
 export const deletePharmacist = command({
   name: "identity.pharmacist.delete",
   input: userInput,
+  output: sensitiveOutput,
   permission: PERMISSIONS.pharmacy.pharmacistsManage,
   async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
     await setStatus(
       ctx,
       input.userId,
@@ -369,6 +421,7 @@ export const deletePharmacist = command({
       IDENTITY_AUDIT.userDeleted,
       "pharmacist",
     );
+    return { ok: true as const };
   },
 });
 
@@ -494,12 +547,6 @@ export const reissueEnrolment = command({
 // ── igs-pharma#90: sign-in recovery ───────────────────────────────────────────────────────────
 
 /**
- * How recent the acting owner's own 2-step proof must be to reset someone else's sign-in (#90 C4):
- * a session left open on a shared counter PC cannot be used for it.
- */
-export const FRESH_MFA_MS = 10 * 60 * 1000;
-
-/**
  * The reset itself, in the caller's transaction: every passkey and TOTP of `userId` goes, every
  * session ends (a session that verified with a deleted factor must not stay verified), earlier
  * enrolment links are dropped, and ONE new 15-minute link is issued. Audited as
@@ -533,11 +580,9 @@ export const resetStaffSignIn = command({
   output: bootstrapOutput,
   permission: PERMISSIONS.staff.manage,
   async handler({ input, ctx }) {
-    if (ctx.actor.type !== "user") throw forbidden("kernel.forbidden");
-    if (ctx.actor.id === input.userId) throw forbidden("identity.cannot_reset_own_sign_in");
-    const verifiedAt = ctx.actor.mfaVerifiedAt;
-    if (!verifiedAt || ctx.now.getTime() - verifiedAt.getTime() > FRESH_MFA_MS) {
-      throw forbidden("identity.fresh_mfa_required");
+    requireFreshMfa(ctx);
+    if (ctx.actor.type !== "user" || ctx.actor.id === input.userId) {
+      throw forbidden("identity.cannot_reset_own_sign_in");
     }
     const user = await targetUser(ctx, input.userId);
     if (user.status !== "active" || user.kind !== "staff") {

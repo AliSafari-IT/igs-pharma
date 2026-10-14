@@ -69,6 +69,9 @@ importers:
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@igs/rbac':
+        specifier: workspace:*
+        version: link:../../packages/rbac
       '@igs/security-headers':
         specifier: workspace:*
         version: link:../../packages/security-headers

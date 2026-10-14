@@ -1,6 +1,9 @@
 import { fontDisplay, fontSans } from "@igs/ui/fonts";
 import type { ReactNode } from "react";
 
+import { IdleGuard } from "../components/idle-guard";
+import { currentActor } from "../server/actor";
+
 // Tailwind + @igs/ui tokens + global base styles (one entry, T-015)
 import "./globals.css";
 
@@ -13,11 +16,14 @@ export const metadata = {
   description: "Pharmacy back-office and management platform",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // #95: a signed-in staff tab clears itself after 30 minutes without input; the server refuses
+  // the next request either way
+  const actor = await currentActor();
   return (
     <html lang="en" className={`${fontSans.variable} ${fontDisplay.variable}`}>
       <body className="bg-[var(--color-surface)] text-[var(--color-text)] font-sans antialiased">
-        {children}
+        {actor?.kind === "staff" ? <IdleGuard>{children}</IdleGuard> : children}
       </body>
     </html>
   );

@@ -7,11 +7,15 @@ import { getDb } from "@igs/db/client";
 import { newId } from "@igs/db/ids";
 import {
   type ResolvedActor,
+  STAFF_SESSION_MAX_MS,
+  type SessionEnd,
   disableTotp,
+  enforceSessionLimits,
   ensureRbacCatalogue,
   identitySchema,
   loadActor,
   sessionAllowed,
+  sessionByToken,
 } from "@igs/module-identity";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -63,6 +67,11 @@ export function createAuth({ db, secret, baseURL, onSecurityEvent }: AuthDeps) {
     session: {
       // T-016 Q2: no roles/status in a signed cookie; every request re-reads the session row
       cookieCache: { enabled: false },
+      // #95: a session ends 8 hours after sign-in and is never renewed (Better Auth's default is
+      // 7 days, renewed on every visit). The 30-minute idle limit is the igs-mfa plugin's and
+      // `resolveActor`'s: they read `identity.sessions.last_activity_at`.
+      expiresIn: STAFF_SESSION_MAX_MS / 1000,
+      disableSessionRefresh: true,
       // 36b: written by the igs-mfa plugin only, never from a request body
       additionalFields: {
         mfaVerifiedAt: { type: "date", input: false, required: false },
@@ -175,21 +184,70 @@ export type User = Session["user"];
 export type { ResolvedActor, RoleGrant } from "@igs/module-identity";
 export { MFA_ERROR_CODES, type OnSecurityEvent, type SecurityEvent } from "./mfa-plugin";
 
+/** What the edge learns about a request's session: the actor, or why a staff session just ended. */
+export type SessionResolution =
+  | { readonly actor: ResolvedActor; readonly ended?: undefined }
+  | { readonly actor?: undefined; readonly ended: SessionEnd };
+
+/** The Better Auth session token in a `Cookie` header (`__Secure-` prefixed over HTTPS), or `null`. */
+export function sessionTokenFromCookies(cookie: string | null): string | null {
+  const match = /(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=([^;]+)/.exec(cookie ?? "");
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]).split(".")[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * The edge adapter's actor for this request (T-016 Q2): validates the Better Auth session, then
- * loads the user's status, kind and role grants from the database. `null` when there is no valid
- * session or the user is not `active`. `mfaVerified` is for THIS session (36b). Loads the RBAC
- * catalogue on first use. Memoise per request
- * in the app (React `cache()`), never across requests.
+ * The edge adapter's actor for this request (T-016 Q2): validates the Better Auth session, applies
+ * the staff session limits (#95: 8 hours after sign-in, 30 minutes without activity), then loads
+ * the user's status, kind and role grants from the database. `null` when there is no valid session
+ * or the user is not `active`; `{ ended }` when a staff session has just run out (it is deleted
+ * here, so nothing can revive it) so the sign-in page can say why.
+ *
+ * `interactive` says whether the request is something the person did (a navigation, a form or
+ * Server Action): only then does it restart the idle clock. Background requests (the browser's own
+ * session check, prefetches, polling) pass `false` and never keep a session alive. `mfaVerified` is
+ * for THIS session (36b). Loads the RBAC catalogue on first use. Memoise per request in the app
+ * (React `cache()`), never across requests.
  */
-export async function resolveActor(
+export async function resolveSession(
   headers: Headers,
-  options: { locationId?: string | null } = {},
-): Promise<ResolvedActor | null> {
+  options: { locationId?: string | null; interactive: boolean; now?: Date },
+): Promise<SessionResolution | null> {
+  const token = sessionTokenFromCookies(headers.get("cookie"));
+  if (token) {
+    const db = getDb();
+    const named = await sessionByToken(db, token);
+    if (named) {
+      const ended = await enforceSessionLimits(db, {
+        userId: named.userId,
+        sessionId: named.id,
+        now: options.now ?? new Date(),
+        touch: options.interactive,
+      });
+      if (ended) return { ended };
+    }
+  }
   // no session cookie → no database work at all (public pages stay cheap)
   const session = await getAuth().api.getSession({ headers });
   if (!session) return null;
   const db = getDb();
   await ensureRbacCatalogue(db);
-  return loadActor(db, session.user.id, { ...options, sessionId: session.session.id });
+  const actor = await loadActor(db, session.user.id, {
+    ...(options.locationId === undefined ? {} : { locationId: options.locationId }),
+    sessionId: session.session.id,
+  });
+  return actor ? { actor } : null;
+}
+
+/** `resolveSession` for callers that only need the actor (an ended session is "no actor"). */
+export async function resolveActor(
+  headers: Headers,
+  options: { locationId?: string | null; interactive?: boolean; now?: Date } = {},
+): Promise<ResolvedActor | null> {
+  const resolved = await resolveSession(headers, { interactive: false, ...options });
+  return resolved?.actor ?? null;
 }

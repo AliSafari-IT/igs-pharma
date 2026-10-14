@@ -21,6 +21,7 @@
     "@igs/module-pricing": "workspace:*",
     "@igs/module-privacy": "workspace:*",
     "@igs/observability": "workspace:*",
+    "@igs/rbac": "workspace:*",
     "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",
     "next": "16.0.11",

@@ -447,6 +447,85 @@ describe("removing a factor", () => {
   });
 });
 
+describe("staff session limits (#95)", () => {
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+  const row = async (b: ReturnType<typeof browser>) => {
+    const session = await b.session();
+    if (!session) throw new Error("no session");
+    return session;
+  };
+  const setSession = (id: string, values: Partial<typeof sessions.$inferInsert>) =>
+    iso.db.update(sessions).set(values).where(eq(sessions.id, id));
+
+  it("a session lasts 8 hours from sign-in, not Better Auth's 7 days", async () => {
+    const b = await passkeyBrowser(await createStaff());
+    const session = await row(b);
+    expect(session.expiresAt.getTime() - session.createdAt.getTime()).toBe(8 * HOUR);
+  });
+
+  it("the browser's own session check (GET get-session) never moves the idle clock", async () => {
+    const b = await passkeyBrowser(await createStaff());
+    const id = (await row(b)).id;
+    await setSession(id, { lastActivityAt: new Date(Date.now() - 20 * MINUTE) });
+    const before = (await row(b)).lastActivityAt?.getTime();
+    for (let i = 0; i < 3; i += 1) expect((await b.call("/get-session")).json).not.toBeNull();
+    expect((await row(b)).lastActivityAt?.getTime()).toBe(before);
+    // and an expiry time Better Auth would have pushed back stays put
+    expect((await row(b)).expiresAt.getTime()).toBe((await row(b)).createdAt.getTime() + 8 * HOUR);
+  });
+
+  it("an interactive request (a POST) moves it", async () => {
+    const b = await passkeyBrowser(await createStaff());
+    const id = (await row(b)).id;
+    await setSession(id, { lastActivityAt: new Date(Date.now() - 20 * MINUTE) });
+    expect((await b.call("/two-factor/enable", {})).status).toBe(200);
+    const moved = (await row(b)).lastActivityAt?.getTime() ?? 0;
+    expect(Date.now() - moved).toBeLessThan(MINUTE);
+  });
+
+  it("30 minutes without activity: the session is refused and gone, even with a valid cookie", async () => {
+    const b = await passkeyBrowser(await createStaff());
+    const id = (await row(b)).id;
+    await setSession(id, { lastActivityAt: new Date(Date.now() - 30 * MINUTE - 1000) });
+    expect((await b.call("/get-session")).json).toBeNull();
+    expect((await iso.db.select().from(sessions).where(eq(sessions.id, id))).length).toBe(0);
+    expect((await b.call("/two-factor/enable", {})).status).toBe(401);
+  });
+
+  it("29 minutes without activity is still fine", async () => {
+    const b = await passkeyBrowser(await createStaff());
+    await setSession((await row(b)).id, {
+      lastActivityAt: new Date(Date.now() - 29 * MINUTE),
+    });
+    expect((await b.call("/get-session")).json).not.toBeNull();
+  });
+
+  it("8 hours after sign-in the session is refused however active it was", async () => {
+    const b = await passkeyBrowser(await createStaff());
+    const id = (await row(b)).id;
+    await setSession(id, {
+      createdAt: new Date(Date.now() - 8 * HOUR - 1000),
+      lastActivityAt: new Date(),
+    });
+    expect((await b.call("/get-session")).json).toBeNull();
+    expect((await iso.db.select().from(sessions).where(eq(sessions.id, id))).length).toBe(0);
+  });
+
+  it("two sessions of one person have separate idle clocks", async () => {
+    const userId = await createStaff();
+    const counter = await passkeyBrowser(userId);
+    const office = await passkeyBrowser(userId);
+    await setSession((await row(counter)).id, {
+      lastActivityAt: new Date(Date.now() - 31 * MINUTE),
+    });
+    // activity on the office workstation does not rescue the counter one
+    expect((await office.call("/two-factor/enable", {})).status).toBe(200);
+    expect((await counter.call("/get-session")).json).toBeNull();
+    expect((await office.call("/get-session")).json).not.toBeNull();
+  });
+});
+
 describe("sign-up (#91)", () => {
   it("is closed: no account can be created through Better Auth", async () => {
     const email = `${crypto.randomUUID()}@example.test`;

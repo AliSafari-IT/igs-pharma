@@ -1,13 +1,18 @@
 import { isDomainError } from "@igs/kernel";
 import { type StaffMember, listStaff } from "@igs/module-identity";
+import { PHARMACIST_ROLES, ROLES, ROLE_KEYS } from "@igs/rbac";
 import { Alert, Badge, Container, Stack } from "@igs/ui";
 
 import { identityErrorMessage } from "../../components/identity-labels";
 import { ResetSignInDialog } from "../../components/reset-sign-in-dialog";
+import { StaffAccessDialog } from "../../components/staff-access-dialog";
 import { requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
 
 export const metadata = { title: "Staff · IGS-Pharma Platform" };
+
+/** The roles a staff account can hold (customer and system roles are not for people on this page). */
+const STAFF_ROLES = ROLE_KEYS.filter((role) => ROLES[role].kind === "staff");
 
 const signInMethods = (member: StaffMember) =>
   [
@@ -90,9 +95,23 @@ export default async function StaffPage() {
                     </td>
                     <td className="py-3 pr-4">{signInMethods(member)}</td>
                     <td className="py-3">
-                      {member.id !== actor.id && member.status === "active" ? (
-                        <ResetSignInDialog userId={member.id} name={member.name} />
-                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        {member.id !== actor.id ? (
+                          <StaffAccessDialog
+                            userId={member.id}
+                            name={member.name}
+                            status={member.status}
+                            roles={member.roles}
+                            grantable={STAFF_ROLES.filter((role) => !member.roles.includes(role))}
+                            pharmacist={member.roles.some((role) =>
+                              (PHARMACIST_ROLES as readonly string[]).includes(role),
+                            )}
+                          />
+                        ) : null}
+                        {member.id !== actor.id && member.status === "active" ? (
+                          <ResetSignInDialog userId={member.id} name={member.name} />
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { AddPasskey } from "../../components/add-passkey";
 import { TotpSetup } from "../../components/totp-setup";
-import { currentActor, needsTwoStep } from "../../server/actor";
+import { currentActor, needsTwoStep, signInPath } from "../../server/actor";
 
 /**
  * Read-only account page (T-016, 36a): who the signed-in person is and the roles **resolved from
@@ -121,6 +121,11 @@ function Account({ actor }: { actor: ResolvedActor }) {
 export default async function AccountPage() {
   const actor = await currentActor();
   if (actor && needsTwoStep(actor)) redirect("/setup");
+  if (!actor) {
+    // a staff session that just ran out says why on the sign-in page (#95)
+    const path = await signInPath();
+    if (path !== "/sign-in") redirect(path);
+  }
   return (
     <Container asChild size="md">
       <main className="py-10">
