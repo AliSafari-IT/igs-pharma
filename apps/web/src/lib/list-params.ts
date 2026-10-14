@@ -1,10 +1,18 @@
-import {
-  LIST_SORTS,
-  type ListSort,
-  MAX_PAGE,
-  MAX_QUERY_LENGTH,
-  MIN_QUERY_LENGTH,
-} from "@igs/module-storefront";
+import type { ListSort } from "@igs/module-storefront";
+
+// The contract's limits (`@igs/module-storefront`: MIN_QUERY_LENGTH, MAX_QUERY_LENGTH, MAX_PAGE,
+// LIST_SORTS). Copied, not imported: that package is server-only, and this parser must run in unit
+// tests; the types below keep the sort list in step with the contract.
+const MIN_QUERY_LENGTH = 2;
+const MAX_QUERY_LENGTH = 100;
+const MAX_PAGE = 10_000;
+export const ALL_SORTS: readonly ListSort[] = [
+  "relevance",
+  "latest",
+  "name",
+  "price_asc",
+  "price_desc",
+];
 
 /** Next's `searchParams` values: absent, one string, or repeated. */
 export type RawParams = Readonly<Record<string, string | string[] | undefined>>;
@@ -29,7 +37,7 @@ const first = (value: string | string[] | undefined): string | undefined =>
  */
 export function parseListParams(
   raw: RawParams,
-  allowedSorts: readonly ListSort[] = LIST_SORTS,
+  allowedSorts: readonly ListSort[] = ALL_SORTS,
 ): ListParams {
   const text = first(raw["q"])?.trim().slice(0, MAX_QUERY_LENGTH);
   const q = text ? text : undefined;

@@ -239,7 +239,7 @@ test.describe("a phone, 360 px wide", () => {
       page.getByRole("searchbox"),
       page.getByRole("search").getByRole("button"),
       page.getByLabel("Sorteren op"),
-      page.getByLabel("Alleen op voorraad"),
+      page.locator("label[for=list-in-stock]"), // the whole label is the target
       page.getByRole("button", { name: "Toepassen" }),
     ]) {
       const box = await target.boundingBox();
