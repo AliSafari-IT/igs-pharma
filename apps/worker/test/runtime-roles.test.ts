@@ -43,9 +43,9 @@ import {
   registerInventoryJobs,
 } from "@igs/module-inventory";
 import {
-  currentPrices,
   registerAuditActions as registerPricingAudit,
   setPrice,
+  storefrontPrices,
 } from "@igs/module-pricing";
 import {
   PRIVACY_JOBS,
@@ -205,7 +205,7 @@ describe("the application as igs_app", () => {
     expect((await getStorefrontProduct({ cnk: "9900123", locale: "nl" }, storefront)).name).toBe(
       "Rollen product",
     );
-    expect(await currentPrices({ productIds: [productId] }, storefront)).toHaveLength(1);
+    expect(await storefrontPrices({ productIds: [productId] }, storefront)).toHaveLength(1);
 
     // an idempotent command publishing an outbox event: idempotency_keys INSERT/UPDATE, outbox INSERT
     registerEvents(Pinged);
