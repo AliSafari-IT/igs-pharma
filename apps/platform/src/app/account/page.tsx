@@ -2,6 +2,8 @@ import type { ResolvedActor } from "@igs/auth";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 import { redirect } from "next/navigation";
 
+import { AddPasskey } from "../../components/add-passkey";
+import { TotpSetup } from "../../components/totp-setup";
 import { currentActor, needsTwoStep } from "../../server/actor";
 
 /**
@@ -49,6 +51,32 @@ function Account({ actor }: { actor: ResolvedActor }) {
             .join(", ") || "not set up"}
         </dd>
       </dl>
+
+      {actor.kind === "staff" ? (
+        <section aria-labelledby="two-step-heading" className="flex flex-col gap-4">
+          <h2 id="two-step-heading" className="font-display text-xl font-semibold">
+            2-step login
+          </h2>
+          <p className="max-w-prose text-[var(--color-text-subtle)]">
+            You sign in with a passkey. Add a second one on another device or a security key, so
+            losing one device does not lock you out. If you lose them all, the owner can reset your
+            sign-in.
+          </p>
+          <AddPasskey
+            label={profile.factors.passkeys > 0 ? "Add another passkey" : "Add a passkey"}
+          />
+          {profile.factors.passkeys > 0 && !profile.factors.totp ? (
+            <>
+              <h3 className="font-semibold">Authenticator app (optional)</h3>
+              <p className="max-w-prose text-[var(--color-text-subtle)]">
+                A code from an app on your phone can confirm it's you on a device that is already
+                signed in. It does not replace your passkey for signing in.
+              </p>
+              <TotpSetup />
+            </>
+          ) : null}
+        </section>
+      ) : null}
 
       <section aria-labelledby="roles-heading" className="flex flex-col gap-3">
         <h2 id="roles-heading" className="font-display text-xl font-semibold">

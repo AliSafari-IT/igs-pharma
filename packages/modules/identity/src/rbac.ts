@@ -8,7 +8,7 @@ import {
 } from "@igs/rbac";
 import { and, eq, isNull, or } from "drizzle-orm";
 
-import { factorCount, mfaFactors, sessionMfaVerified } from "./mfa";
+import { factorCount, mfaFactors, sessionMfaVerifiedAt } from "./mfa";
 import { rolePermissions, userRoles, users } from "./schema";
 
 /** Anything that can run a select (the pool, or a transaction in tests). */
@@ -76,6 +76,8 @@ export interface ResolvedActor {
    * when no `sessionId` was given. The kernel refuses staff without it (`kernel.mfa_required`).
    */
   readonly mfaVerified: boolean;
+  /** When this session last proved a second factor (`null`: never, or no session given). */
+  readonly mfaVerifiedAt: Date | null;
   readonly profile: {
     readonly name: string;
     readonly email: string;
@@ -113,10 +115,11 @@ export async function loadActor(
   if (!user || user.status !== "active") return null;
 
   const sessionId = options.sessionId ?? null;
-  const [factors, sessionVerified] = await Promise.all([
+  const [factors, verifiedAt] = await Promise.all([
     mfaFactors(db, userId),
-    sessionId === null ? false : sessionMfaVerified(db, userId, sessionId),
+    sessionId === null ? null : sessionMfaVerifiedAt(db, userId, sessionId),
   ]);
+  const mfaVerified = verifiedAt !== null && factorCount(factors) > 0;
 
   const grants = await db
     .select({ roleKey: userRoles.roleKey, locationId: userRoles.locationId })
@@ -137,7 +140,8 @@ export async function loadActor(
     roles: [...new Set(grants.map((g) => g.roleKey))],
     kind: user.kind,
     locationId,
-    mfaVerified: sessionVerified && factorCount(factors) > 0,
+    mfaVerified,
+    mfaVerifiedAt: mfaVerified ? verifiedAt : null,
     profile: {
       name: user.name,
       email: user.email,

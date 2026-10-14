@@ -7,9 +7,15 @@
  * `--reissue --email <e>` issues a new link (replacing unused ones) when the first expired or was
  * lost: only for an active owner or titular with no second factor yet (`identity.enrolment.reissued`).
  *
+ * `--reset-factors --email <e>` is the last resort (igs-pharma#90) when an owner or titular lost
+ * their passkey and nobody else can use "Reset sign-in" on the Staff page: it deletes all their
+ * passkeys and authenticator apps, ends their sessions and prints a new link
+ * (`identity.factors.reset`). Server only: whoever runs it already holds the database's owner role.
+ *
  *   node dist/bootstrap-owner.js --email owner@example.be --name "An Owner" \
  *     --base-url https://platform.example.be [--role pharmacist_titular]
  *   node dist/bootstrap-owner.js --reissue --email owner@example.be --base-url https://platform.example.be
+ *   node dist/bootstrap-owner.js --reset-factors --email owner@example.be --base-url https://platform.example.be
  *   (dev: pnpm --filter @igs/worker bootstrap-owner -- --email … --name … --base-url http://localhost:3001)
  *
  * Runs through the kernel as a system actor holding `system_bootstrap` (no user can hold it), so the
@@ -26,11 +32,13 @@ import {
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
   reissueEnrolment,
+  resetSignInByOperator,
 } from "@igs/module-identity";
 
 const USAGE = [
   "usage: bootstrap-owner --email <e-mail> --name <full name> --base-url <platform URL> [--role owner|pharmacist_titular]",
   "       bootstrap-owner --reissue --email <e-mail> --base-url <platform URL>",
+  "       bootstrap-owner --reset-factors --email <e-mail> --base-url <platform URL>",
 ].join("\n");
 
 const BOOTSTRAP_ACTOR = {
@@ -68,11 +76,14 @@ async function main() {
       role: { type: "string", default: "owner" },
       "base-url": { type: "string" },
       reissue: { type: "boolean", default: false },
+      "reset-factors": { type: "boolean", default: false },
     },
     strict: true,
   });
   const reissue = values.reissue === true;
-  if (!values.email || !values["base-url"] || (!reissue && !values.name)) fail(USAGE);
+  const reset = values["reset-factors"] === true;
+  if (reissue && reset) fail(USAGE);
+  if (!values.email || !values["base-url"] || (!reissue && !reset && !values.name)) fail(USAGE);
   // validate the URL before touching the database
   try {
     enrolmentLink(values["base-url"], "x");
@@ -93,17 +104,21 @@ async function main() {
   try {
     await checkDatabase();
     await ensureRbacCatalogue();
-    const { token, expiresAt } = reissue
-      ? await reissueEnrolment({ email: values.email }, BOOTSTRAP_ACTOR)
-      : await bootstrapStaff(
-          { email: values.email, name: values.name, roleKey: values.role },
-          BOOTSTRAP_ACTOR,
-        );
+    const { token, expiresAt } = reset
+      ? await resetSignInByOperator({ email: values.email }, BOOTSTRAP_ACTOR)
+      : reissue
+        ? await reissueEnrolment({ email: values.email }, BOOTSTRAP_ACTOR)
+        : await bootstrapStaff(
+            { email: values.email, name: values.name, roleKey: values.role },
+            BOOTSTRAP_ACTOR,
+          );
     process.stdout.write(
       [
-        reissue
-          ? `New enrolment link for ${values.email}; earlier links no longer work.`
-          : `Created ${values.role} ${values.email}.`,
+        reset
+          ? `Sign-in of ${values.email} reset: their passkeys and authenticator apps are deleted and they are signed out everywhere.`
+          : reissue
+            ? `New enrolment link for ${values.email}; earlier links no longer work.`
+            : `Created ${values.role} ${values.email}.`,
         "Send them this link through a channel you trust. It works once, until",
         `${expiresAt.toISOString()}:`,
         "",

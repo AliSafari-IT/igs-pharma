@@ -4,8 +4,14 @@
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import {
   ENROLMENT_TTL_MS,
+  clearOtherSessionsMfa,
+  deletePasskey,
+  disableTotp,
+  factorCount,
   identitySchema,
   loadActor,
+  markSessionMfaVerified,
+  mfaFactors,
   newEnrolmentToken,
   storeEnrolmentToken,
 } from "@igs/module-identity";
@@ -21,6 +27,22 @@ const BASE_URL = "http://localhost:3001";
 let iso: IsolatedDatabase;
 let auth: ReturnType<typeof createAuth>;
 let events: SecurityEvent[] = [];
+/** Simulates the audit store being down: the next `onSecurityEvent` throws, changing nothing. */
+let auditDown = false;
+
+/**
+ * The composition root's job, without the kernel: a removal is done HERE (the real one runs
+ * `removeFactor`, removal and audit in one transaction: identity's recovery.test.ts).
+ */
+async function onSecurityEvent(event: SecurityEvent) {
+  if (auditDown) throw new Error("audit store unavailable");
+  events.push(event);
+  if (event.type !== "mfa.removed") return;
+  if (event.method === "passkey") await deletePasskey(iso.db, event.userId, event.passkeyId);
+  else await disableTotp(iso.db, event.userId);
+  const left = factorCount(await mfaFactors(iso.db, event.userId));
+  await clearOtherSessionsMfa(iso.db, event.userId, left > 0 ? event.keepSessionId : null);
+}
 
 beforeAll(async () => {
   iso = await createIsolatedDatabase();
@@ -28,7 +50,7 @@ beforeAll(async () => {
     db: iso.db,
     secret: "test-secret-test-secret-test-secret-0123",
     baseURL: BASE_URL,
-    onSecurityEvent: async (event) => void events.push(event),
+    onSecurityEvent,
   });
 });
 afterAll(async () => {
@@ -36,6 +58,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
   events = [];
+  auditDown = false;
 });
 
 /** A browser: keeps the cookies Better Auth sets, sends them back, and the Origin it checks. */
@@ -139,6 +162,23 @@ const addPasskeyRow = (userId: string) =>
     backedUp: false,
   });
 
+/** The passkey row's id. */
+async function addPasskey(userId: string) {
+  const [row] = await addPasskeyRow(userId).returning({ id: passkeys.id });
+  return String(row?.id);
+}
+
+/**
+ * A staff user who enrolled a passkey through the link: the passkey row plus what
+ * `/passkey/verify-registration` does to the session (the ceremony itself: e2e two-step.spec.ts).
+ */
+async function passkeyBrowser(userId: string) {
+  const b = await enrolledBrowser(userId);
+  await addPasskeyRow(userId);
+  await markSessionMfaVerified(iso.db, String((await b.session())?.id));
+  return b;
+}
+
 describe("enrolment link", () => {
   it("starts one session that has NOT proved a second factor; the link works once", async () => {
     const userId = await createStaff();
@@ -189,10 +229,42 @@ describe("enrolment link", () => {
   });
 });
 
-describe("TOTP (backup factor)", () => {
-  it("enrolling TOTP on the link session verifies the new session and reports mfa.enrolled", async () => {
+describe("passkey first (#90 C4)", () => {
+  it("a staff user's first factor cannot be TOTP: enable, URI and backup codes are refused", async () => {
     const userId = await createStaff();
     const b = await enrolledBrowser(userId);
+    for (const path of ["/two-factor/enable", "/two-factor/get-totp-uri"]) {
+      expect(await b.call(path, {}), path).toMatchObject({
+        status: 400,
+        json: { code: "PASSKEY_FIRST" },
+      });
+    }
+    // registering a passkey is what the link session is for
+    expect((await b.call("/passkey/generate-register-options")).status).toBe(200);
+    expect(await mfaFactors(iso.db, userId)).toEqual({ passkeys: 0, totp: false });
+    expect(events).toEqual([]);
+  });
+
+  it("the first factor needs a session the enrolment link started", async () => {
+    const userId = await createStaff();
+    const b = await enrolledBrowser(userId);
+    expect((await b.session())?.enrolmentAt).toBeInstanceOf(Date);
+    // a session from any other sign-in method (simulated: same session without the link origin)
+    await iso.db
+      .update(sessions)
+      .set({ enrolmentAt: null })
+      .where(eq(sessions.id, String((await b.session())?.id)));
+    expect(await b.call("/passkey/generate-register-options")).toMatchObject({
+      status: 403,
+      json: { code: "MFA_REQUIRED" },
+    });
+  });
+});
+
+describe("TOTP (an extra, after a passkey)", () => {
+  it("added on a verified session after a passkey: verifies and reports mfa.enrolled", async () => {
+    const userId = await createStaff();
+    const b = await passkeyBrowser(userId);
     await enrolTotp(b);
 
     const session = await b.session();
@@ -200,12 +272,28 @@ describe("TOTP (backup factor)", () => {
     expect((await loadActor(iso.db, userId, { sessionId: session?.id ?? null }))?.mfaVerified).toBe(
       true,
     );
+    expect(await mfaFactors(iso.db, userId)).toEqual({ passkeys: 1, totp: true });
     expect(events).toEqual([{ type: "mfa.enrolled", userId, method: "totp" }]);
   });
 
-  it("a TOTP code verifies an existing unverified session; a wrong code does not", async () => {
+  it("if the enrolment cannot be audited, TOTP is not turned on (#90 C5)", async () => {
     const userId = await createStaff();
-    const uri = await enrolTotp(await enrolledBrowser(userId));
+    const b = await passkeyBrowser(userId);
+    const enabled = await b.call("/two-factor/enable", {});
+    expect(enabled.status).toBe(200);
+    auditDown = true;
+    const verified = await b.call("/two-factor/verify-totp", {
+      code: await codeFor(String(enabled.json?.totpURI)),
+    });
+    expect(verified).toMatchObject({ status: 500, json: { code: "AUDIT_FAILED" } });
+    expect(await mfaFactors(iso.db, userId)).toEqual({ passkeys: 1, totp: false });
+    const [user] = await iso.db.select().from(users).where(eq(users.id, userId));
+    expect(user?.twoFactorEnabled).toBe(false);
+  });
+
+  it("a TOTP code verifies an existing unverified session and ends its link origin", async () => {
+    const userId = await createStaff();
+    const uri = await enrolTotp(await passkeyBrowser(userId));
     events = [];
 
     const later = await enrolledBrowser(userId); // e.g. a recovery link: not verified
@@ -215,13 +303,15 @@ describe("TOTP (backup factor)", () => {
     expect((await later.call("/two-factor/verify-totp", { code: await codeFor(uri) })).status).toBe(
       200,
     );
-    expect((await later.session())?.mfaVerifiedAt).toBeInstanceOf(Date);
+    const session = await later.session();
+    expect(session?.mfaVerifiedAt).toBeInstanceOf(Date);
+    expect(session?.enrolmentAt).toBeNull();
     expect(events).toEqual([]); // verifying is not enrolling
   });
 
   it("an unverified staff session cannot read the TOTP secret or add a factor once one exists", async () => {
     const userId = await createStaff();
-    await enrolTotp(await enrolledBrowser(userId));
+    await enrolTotp(await passkeyBrowser(userId));
     const later = await enrolledBrowser(userId);
     for (const path of ["/two-factor/get-totp-uri", "/two-factor/enable"]) {
       expect(await later.call(path, {}), path).toMatchObject({
@@ -232,47 +322,47 @@ describe("TOTP (backup factor)", () => {
     expect((await later.call("/passkey/generate-register-options")).status).toBe(403);
   });
 
-  it("the first factor needs a session the enrolment link started; verifying ends that origin", async () => {
+  it("new backup codes are audited before they are written; no audit, no new codes (#90 C5)", async () => {
     const userId = await createStaff();
-    const b = await enrolledBrowser(userId);
-    expect((await b.session())?.enrolmentAt).toBeInstanceOf(Date);
-    // a session from any other sign-in method (simulated: same session without the link origin)
-    await iso.db
-      .update(sessions)
-      .set({ enrolmentAt: null })
-      .where(eq(sessions.id, String((await b.session())?.id)));
-    for (const path of ["/passkey/generate-register-options", "/two-factor/enable"]) {
-      const body = path === "/two-factor/enable" ? {} : undefined;
-      expect(await b.call(path, body), path).toMatchObject({
-        status: 403,
-        json: { code: "MFA_REQUIRED" },
-      });
-    }
+    const b = await passkeyBrowser(userId);
+    await enrolTotp(b);
+    events = [];
+    const codes = async () =>
+      (await iso.db.select().from(twoFactors).where(eq(twoFactors.userId, userId)))[0]?.backupCodes;
 
-    const linked = await enrolledBrowser(userId);
-    await enrolTotp(linked);
-    const session = await linked.session();
-    expect(session?.mfaVerifiedAt).toBeInstanceOf(Date);
-    expect(session?.enrolmentAt).toBeNull();
+    const before = await codes();
+    auditDown = true;
+    expect((await b.call("/two-factor/generate-backup-codes", {})).status).toBe(500);
+    expect(await codes()).toBe(before);
+
+    auditDown = false;
+    expect((await b.call("/two-factor/generate-backup-codes", {})).status).toBe(200);
+    expect(await codes()).not.toBe(before);
+    expect(events).toEqual([{ type: "mfa.backup_codes_regenerated", userId, method: "totp" }]);
   });
 });
 
 describe("removing a factor", () => {
-  it("a staff user cannot remove their last factor", async () => {
+  it("a staff user cannot remove their last passkey, even with TOTP on", async () => {
     const userId = await createStaff();
-    const b = await enrolledBrowser(userId);
-    await enrolTotp(b);
-    expect(await b.call("/two-factor/disable", {})).toMatchObject({
+    const b = await passkeyBrowser(userId);
+    const [only] = await iso.db.select().from(passkeys).where(eq(passkeys.userId, userId));
+    expect(await b.call("/passkey/delete-passkey", { id: only?.id })).toMatchObject({
       status: 400,
       json: { code: "LAST_FACTOR" },
     });
-    const [user] = await iso.db.select().from(users).where(eq(users.id, userId));
-    expect(user?.twoFactorEnabled).toBe(true);
+    await enrolTotp(b);
+    expect(await b.call("/passkey/delete-passkey", { id: only?.id })).toMatchObject({
+      status: 400,
+      json: { code: "LAST_PASSKEY" },
+    });
+    expect((await mfaFactors(iso.db, userId)).passkeys).toBe(1);
+    expect(events.filter((e) => e.type === "mfa.removed")).toEqual([]);
   });
 
   it("removal needs a verified session", async () => {
     const userId = await createStaff();
-    await enrolTotp(await enrolledBrowser(userId));
+    await enrolTotp(await passkeyBrowser(userId));
     await addPasskeyRow(userId);
     const later = await enrolledBrowser(userId);
     expect(await later.call("/two-factor/disable", {})).toMatchObject({
@@ -281,11 +371,10 @@ describe("removing a factor", () => {
     });
   });
 
-  it("with another factor left: removed, other sessions lose their mark, mfa.removed reported", async () => {
+  it("TOTP removed through onSecurityEvent (removal + audit together); other sessions lose their mark", async () => {
     const userId = await createStaff();
-    const acting = await enrolledBrowser(userId);
+    const acting = await passkeyBrowser(userId);
     await enrolTotp(acting);
-    await addPasskeyRow(userId);
     const other = await enrolledBrowser(userId);
     await iso.db
       .update(sessions)
@@ -293,17 +382,63 @@ describe("removing a factor", () => {
       .where(eq(sessions.id, String((await other.session())?.id)));
     events = [];
 
-    expect((await acting.call("/two-factor/disable", {})).status).toBe(200);
-    expect(events).toEqual([{ type: "mfa.removed", userId, method: "totp" }]);
+    expect(await acting.call("/two-factor/disable", {})).toMatchObject({
+      status: 200,
+      json: { status: true },
+    });
+    const keepSessionId = String((await acting.session())?.id);
+    expect(events).toEqual([{ type: "mfa.removed", userId, method: "totp", keepSessionId }]);
     expect(await iso.db.select().from(twoFactors).where(eq(twoFactors.userId, userId))).toEqual([]);
-    // Better Auth replaced the acting session; the replacement keeps its mark
     expect((await acting.session())?.mfaVerifiedAt).toBeInstanceOf(Date);
     expect((await other.session())?.mfaVerifiedAt).toBeNull();
   });
 
+  it("a passkey is removed through onSecurityEvent, never by Better Auth's endpoint", async () => {
+    const userId = await createStaff();
+    const b = await passkeyBrowser(userId);
+    const second = await addPasskey(userId);
+    events = [];
+    expect(await b.call("/passkey/delete-passkey", { id: second })).toMatchObject({
+      status: 200,
+      json: { status: true },
+    });
+    expect(events).toEqual([
+      {
+        type: "mfa.removed",
+        userId,
+        method: "passkey",
+        passkeyId: second,
+        keepSessionId: String((await b.session())?.id),
+      },
+    ]);
+    expect((await mfaFactors(iso.db, userId)).passkeys).toBe(1);
+  });
+
+  it("when the removal cannot be audited, the factor stays (#90 C5)", async () => {
+    const userId = await createStaff();
+    const b = await passkeyBrowser(userId);
+    await enrolTotp(b);
+    const second = await addPasskey(userId);
+    auditDown = true;
+    expect((await b.call("/passkey/delete-passkey", { id: second })).status).toBe(500);
+    expect((await b.call("/two-factor/disable", {})).status).toBe(500);
+    expect(await mfaFactors(iso.db, userId)).toEqual({ passkeys: 2, totp: true });
+  });
+
+  it("someone else's passkey is never removed", async () => {
+    const userId = await createStaff();
+    const b = await passkeyBrowser(userId);
+    await addPasskeyRow(userId);
+    const victim = await createStaff();
+    await addPasskeyRow(victim);
+    const victimKey = await addPasskey(victim);
+    await b.call("/passkey/delete-passkey", { id: victimKey });
+    expect((await mfaFactors(iso.db, victim)).passkeys).toBe(2);
+  });
+
   it("disabling TOTP that was never enabled is refused (no false mfa.removed)", async () => {
     const userId = await createStaff();
-    const b = await enrolledBrowser(userId);
+    const b = await passkeyBrowser(userId);
     expect(await b.call("/two-factor/disable", {})).toMatchObject({
       status: 400,
       json: { code: "TOTP_NOT_ENABLED" },

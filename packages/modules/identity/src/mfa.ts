@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Db } from "@igs/db";
-import { and, count, eq, gt, isNotNull, like, ne } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, like, ne } from "drizzle-orm";
 
 import { passkeys, sessions, twoFactors, users, verifications } from "./schema";
 
@@ -49,6 +49,19 @@ export const factorCount = (factors: MfaFactors) => factors.passkeys + (factors.
 export async function userKind(db: Reader, userId: string): Promise<"customer" | "staff" | null> {
   const [row] = await db.select({ kind: users.kind }).from(users).where(eq(users.id, userId));
   return row?.kind ?? null;
+}
+
+/** When `sessionId` (of `userId`) last proved a second factor, or `null` if it has not. */
+export async function sessionMfaVerifiedAt(
+  db: Reader,
+  userId: string,
+  sessionId: string,
+): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sessions.mfaVerifiedAt })
+    .from(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)));
+  return row?.at ?? null;
 }
 
 /** Whether `sessionId` (of `userId`) has proved a second factor. */
@@ -132,6 +145,50 @@ export async function clearOtherSessionsMfa(
         ...(keepSessionId ? [ne(sessions.id, keepSessionId)] : []),
       ),
     );
+}
+
+// ── removing factors (igs-pharma#90) ──────────────────────────────────────────────────────────
+
+/**
+ * Deletes one passkey of `userId`. Returns whether it existed: a passkey of another user is never
+ * touched (the same ownership rule as Better Auth's `/passkey/delete-passkey`).
+ */
+export async function deletePasskey(
+  db: Executor,
+  userId: string,
+  passkeyId: string,
+): Promise<boolean> {
+  const removed = await db
+    .delete(passkeys)
+    .where(and(eq(passkeys.id, passkeyId), eq(passkeys.userId, userId)))
+    .returning({ id: passkeys.id });
+  return removed.length > 0;
+}
+
+/**
+ * Deletes the newest passkey of `userId`: the undo of a registration whose response carried no id
+ * (#90 C5). Returns whether one was deleted.
+ */
+export async function deleteNewestPasskey(db: Executor, userId: string): Promise<boolean> {
+  const [newest] = await db
+    .select({ id: passkeys.id })
+    .from(passkeys)
+    .where(eq(passkeys.userId, userId))
+    .orderBy(desc(passkeys.createdAt))
+    .limit(1);
+  return newest ? deletePasskey(db, userId, newest.id) : false;
+}
+
+/** Turns TOTP off for `userId`: the secret and backup codes go, as `/two-factor/disable` does. */
+export async function disableTotp(db: Executor, userId: string): Promise<void> {
+  await db.delete(twoFactors).where(eq(twoFactors.userId, userId));
+  await db.update(users).set({ twoFactorEnabled: false }).where(eq(users.id, userId));
+}
+
+/** Deletes every second factor of `userId` (all passkeys and TOTP): a sign-in reset. */
+export async function deleteAllFactors(db: Executor, userId: string): Promise<void> {
+  await db.delete(passkeys).where(eq(passkeys.userId, userId));
+  await disableTotp(db, userId);
 }
 
 // ── enrolment links (bootstrap CLI) ────────────────────────────────────────────────────────────

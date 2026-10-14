@@ -1,4 +1,4 @@
-import { type Ctx, command, conflict, forbidden, notFound } from "@igs/kernel";
+import { type Ctx, command, conflict, forbidden, notFound, query } from "@igs/kernel";
 import { PERMISSIONS, PHARMACIST_ROLES, ROLES, ROLE_KEYS, type RoleKey } from "@igs/rbac";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -6,7 +6,11 @@ import { z } from "zod";
 import { IDENTITY_AUDIT } from "./audit";
 import {
   ENROLMENT_TTL_MS,
+  clearOtherSessionsMfa,
+  deleteAllFactors,
   deleteEnrolmentTokens,
+  deletePasskey,
+  disableTotp,
   factorCount,
   mfaFactors,
   newEnrolmentToken,
@@ -487,30 +491,297 @@ export const reissueEnrolment = command({
   },
 });
 
-/** Sign-in factor changes Better Auth reports through `@igs/auth`'s `onSecurityEvent` (36b). */
-export const SECURITY_EVENTS = ["mfa.enrolled", "mfa.removed"] as const;
+// ── igs-pharma#90: sign-in recovery ───────────────────────────────────────────────────────────
+
+/**
+ * How recent the acting owner's own 2-step proof must be to reset someone else's sign-in (#90 C4):
+ * a session left open on a shared counter PC cannot be used for it.
+ */
+export const FRESH_MFA_MS = 10 * 60 * 1000;
+
+/**
+ * The reset itself, in the caller's transaction: every passkey and TOTP of `userId` goes, every
+ * session ends (a session that verified with a deleted factor must not stay verified), earlier
+ * enrolment links are dropped, and ONE new 15-minute link is issued. Audited as
+ * `identity.factors.reset` (ids only). The token is returned once, never stored in clear.
+ */
+async function resetSignIn(ctx: Ctx, userId: string) {
+  await deleteAllFactors(ctx.tx, userId);
+  await ctx.tx.delete(sessions).where(eq(sessions.userId, userId));
+  await deleteEnrolmentTokens(ctx.tx, userId);
+  const token = newEnrolmentToken();
+  const expiresAt = new Date(ctx.now.getTime() + ENROLMENT_TTL_MS);
+  await storeEnrolmentToken(ctx.tx, userId, token, expiresAt);
+  await ctx.audit.record({
+    action: IDENTITY_AUDIT.factorsReset,
+    entityType: "user",
+    entityId: userId,
+    data: { userId },
+  });
+  return { userId, token, expiresAt };
+}
+
+/**
+ * "Reset sign-in" on the Staff page (#90 C4): an owner (`staff.manage`, with a 2-step proof from
+ * the last 10 minutes) resets ANOTHER active staff user who lost their passkey. A target holding
+ * `pharmacist` or `pharmacist_titular` also needs `pharmacy.pharmacists.manage` (R-2, D-035).
+ * Never one's own sign-in: that would let a stolen session lock the real owner out.
+ */
+export const resetStaffSignIn = command({
+  name: "identity.factors.reset",
+  input: userInput,
+  output: bootstrapOutput,
+  permission: PERMISSIONS.staff.manage,
+  async handler({ input, ctx }) {
+    if (ctx.actor.type !== "user") throw forbidden("kernel.forbidden");
+    if (ctx.actor.id === input.userId) throw forbidden("identity.cannot_reset_own_sign_in");
+    const verifiedAt = ctx.actor.mfaVerifiedAt;
+    if (!verifiedAt || ctx.now.getTime() - verifiedAt.getTime() > FRESH_MFA_MS) {
+      throw forbidden("identity.fresh_mfa_required");
+    }
+    const user = await targetUser(ctx, input.userId);
+    if (user.status !== "active" || user.kind !== "staff") {
+      throw notFound("identity.user_not_found");
+    }
+    const held = await ctx.tx
+      .select({ roleKey: userRoles.roleKey })
+      .from(userRoles)
+      .where(eq(userRoles.userId, input.userId));
+    const isPharmacist = held.some((row) => PHARMACIST_ROLES.includes(row.roleKey as RoleKey));
+    if (isPharmacist && !ctx.can(PERMISSIONS.pharmacy.pharmacistsManage)) {
+      throw forbidden("identity.pharmacist_access_requires_titular");
+    }
+    return resetSignIn(ctx, input.userId);
+  },
+});
+
+/**
+ * The last-resort path (#90 C4): `bootstrap-owner --reset-factors --email …`, run on the server
+ * when nobody who could use "Reset sign-in" can sign in. Only for an active staff user holding
+ * `owner` or `pharmacist_titular`. Same actor and permission as `bootstrapStaff`, same effects and
+ * audit as `resetStaffSignIn`.
+ */
+export const resetSignInByOperator = command({
+  name: "identity.factors.reset_by_operator",
+  input: z.object({ email: z.email().max(254) }),
+  output: bootstrapOutput,
+  permission: PERMISSIONS.identity.bootstrap,
+  async handler({ input, ctx }) {
+    await ctx.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('identity.owner.bootstrap'))`);
+    const [user] = await ctx.tx
+      .select({ id: users.id, kind: users.kind, status: users.status })
+      .from(users)
+      .where(eq(users.email, input.email))
+      .for("update");
+    if (!user || user.status !== "active" || user.kind !== "staff") {
+      throw notFound("identity.user_not_found");
+    }
+    const [holds] = await ctx.tx
+      .select({ id: userRoles.id })
+      .from(userRoles)
+      .where(and(eq(userRoles.userId, user.id), inArray(userRoles.roleKey, [...BOOTSTRAP_ROLES])))
+      .limit(1);
+    if (!holds) throw conflict("identity.not_a_bootstrap_holder");
+    return resetSignIn(ctx, user.id);
+  },
+});
+
+/** One row of the Staff page. */
+export interface StaffMember {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly status: "active" | "suspended";
+  readonly roles: readonly string[];
+  readonly passkeys: number;
+  readonly totp: boolean;
+}
+
+/** The staff accounts (not deleted), by name, with their roles and second factors (#90). */
+export const listStaff = query({
+  name: "identity.staff.list",
+  input: z.object({}),
+  permission: PERMISSIONS.staff.manage,
+  async handler({ ctx }): Promise<readonly StaffMember[]> {
+    const rows = await ctx.tx
+      .select({ id: users.id, name: users.name, email: users.email, status: users.status })
+      .from(users)
+      .where(and(eq(users.kind, "staff"), inArray(users.status, ["active", "suspended"])))
+      .orderBy(users.name, users.email)
+      .limit(500);
+    const grants =
+      rows.length === 0
+        ? []
+        : await ctx.tx
+            .select({ userId: userRoles.userId, roleKey: userRoles.roleKey })
+            .from(userRoles)
+            .where(
+              inArray(
+                userRoles.userId,
+                rows.map((r) => r.id),
+              ),
+            )
+            .orderBy(userRoles.roleKey);
+    const members: StaffMember[] = [];
+    for (const row of rows) {
+      const factors = await mfaFactors(ctx.tx, row.id);
+      members.push({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        status: row.status === "suspended" ? "suspended" : "active",
+        roles: [...new Set(grants.filter((g) => g.userId === row.id).map((g) => g.roleKey))],
+        passkeys: factors.passkeys,
+        totp: factors.totp,
+      });
+    }
+    return members;
+  },
+});
+
+/** Sign-in factor changes Better Auth reports through `@igs/auth`'s `onSecurityEvent` (36b, #90). */
+export const SECURITY_EVENTS = [
+  "mfa.enrolled",
+  "mfa.removed",
+  "mfa.backup_codes_regenerated",
+] as const;
 export type SecurityEventType = (typeof SECURITY_EVENTS)[number];
 
 /**
- * Audits a sign-in factor change (`identity.mfa.enrolled|removed {userId, method}`). Run by each
- * app's composition root from `configureAuth({ onSecurityEvent })` as a system actor holding
- * `system_auth`, so `@igs/auth` never depends on `@igs/module-audit` (dependency inversion).
+ * Audits a sign-in factor change that Better Auth already made (`identity.mfa.enrolled
+ * {userId, method}`) or is about to make (`identity.mfa.backup_codes_regenerated {userId}`, audited
+ * BEFORE the new codes are written, so codes never change without an entry). Run by each app's
+ * composition root from `configureAuth({ onSecurityEvent })` as a system actor holding
+ * `system_auth`, so `@igs/auth` never depends on `@igs/module-audit` (dependency inversion). If it
+ * fails, `@igs/auth` takes the new factor away again (#90 C5). Removals go through `removeFactor`.
  */
 export const recordSecurityEvent = command({
   name: "identity.security_event.record",
   input: z.object({
     userId: z.uuid(),
-    type: z.enum(SECURITY_EVENTS),
+    type: z.enum(["mfa.enrolled", "mfa.backup_codes_regenerated"]),
     method: z.enum(["passkey", "totp"]),
   }),
   permission: PERMISSIONS.identity.securityEventsRecord,
   async handler({ input, ctx }) {
+    if (input.type === "mfa.backup_codes_regenerated") {
+      await ctx.audit.record({
+        action: IDENTITY_AUDIT.backupCodesRegenerated,
+        entityType: "user",
+        entityId: input.userId,
+        data: { userId: input.userId },
+      });
+      return;
+    }
     await ctx.audit.record({
-      action:
-        input.type === "mfa.enrolled" ? IDENTITY_AUDIT.mfaEnrolled : IDENTITY_AUDIT.mfaRemoved,
+      action: IDENTITY_AUDIT.mfaEnrolled,
       entityType: "user",
       entityId: input.userId,
       data: { userId: input.userId, method: input.method },
     });
   },
 });
+
+/**
+ * Removes a sign-in factor AND audits it in ONE transaction (#90 C5): `@igs/auth` calls it instead
+ * of letting Better Auth delete the row, so a removal can never stick without its
+ * `identity.mfa.removed` entry. In the same transaction, under a lock on the user row (two
+ * concurrent removals cannot both pass):
+ * - a staff user keeps at least one passkey, the only factor staff sign in with (#90 C4);
+ * - the user's OTHER sessions lose their verified mark (Q5); `keepSessionId` is the acting one.
+ */
+export const removeFactor = command({
+  name: "identity.mfa.remove",
+  input: z.discriminatedUnion("method", [
+    z.object({
+      method: z.literal("passkey"),
+      userId: z.uuid(),
+      passkeyId: z.string().min(1).max(200),
+      keepSessionId: z.string().min(1).max(200).nullable(),
+    }),
+    z.object({
+      method: z.literal("totp"),
+      userId: z.uuid(),
+      keepSessionId: z.string().min(1).max(200).nullable(),
+    }),
+  ]),
+  permission: PERMISSIONS.identity.securityEventsRecord,
+  async handler({ input, ctx }) {
+    const [user] = await ctx.tx
+      .select({ id: users.id, kind: users.kind })
+      .from(users)
+      .where(eq(users.id, input.userId))
+      .for("update");
+    if (!user) throw notFound("identity.user_not_found");
+    const before = await mfaFactors(ctx.tx, input.userId);
+    if (input.method === "passkey") {
+      if (user.kind === "staff" && before.passkeys <= 1) throw conflict("identity.last_passkey");
+      if (!(await deletePasskey(ctx.tx, input.userId, input.passkeyId))) {
+        throw notFound("identity.factor_not_found");
+      }
+    } else {
+      if (!before.totp) throw conflict("identity.totp_not_enabled");
+      // a staff user without a passkey (enrolled before #90) keeps the factor they have
+      if (user.kind === "staff" && before.passkeys === 0) throw conflict("identity.last_passkey");
+      await disableTotp(ctx.tx, input.userId);
+    }
+    const left = factorCount(await mfaFactors(ctx.tx, input.userId));
+    await clearOtherSessionsMfa(ctx.tx, input.userId, left > 0 ? input.keepSessionId : null);
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.mfaRemoved,
+      entityType: "user",
+      entityId: input.userId,
+      data: { userId: input.userId, method: input.method },
+    });
+  },
+});
+
+/** What `@igs/auth` reports (its `SecurityEvent`, structurally). */
+export type SecurityEventInput =
+  | {
+      readonly type: "mfa.enrolled" | "mfa.backup_codes_regenerated";
+      readonly userId: string;
+      readonly method: "passkey" | "totp";
+    }
+  | {
+      readonly type: "mfa.removed";
+      readonly userId: string;
+      readonly method: "passkey";
+      readonly passkeyId: string;
+      readonly keepSessionId: string | null;
+    }
+  | {
+      readonly type: "mfa.removed";
+      readonly userId: string;
+      readonly method: "totp";
+      readonly keepSessionId: string | null;
+    };
+
+/**
+ * The composition roots' `onSecurityEvent` (36b, #90): a removal runs `removeFactor` (removal and
+ * audit in one transaction), anything else `recordSecurityEvent`. `actor` is the app's `system_auth`
+ * actor.
+ */
+export async function applySecurityEvent(
+  event: SecurityEventInput,
+  actor: Parameters<typeof recordSecurityEvent>[1],
+): Promise<void> {
+  if (event.type !== "mfa.removed") {
+    await recordSecurityEvent(
+      { userId: event.userId, type: event.type, method: event.method },
+      actor,
+    );
+    return;
+  }
+  await removeFactor(
+    event.method === "passkey"
+      ? {
+          method: "passkey",
+          userId: event.userId,
+          passkeyId: event.passkeyId,
+          keepSessionId: event.keepSessionId,
+        }
+      : { method: "totp", userId: event.userId, keepSessionId: event.keepSessionId },
+    actor,
+  );
+}

@@ -7,6 +7,7 @@ import { getDb } from "@igs/db/client";
 import { newId } from "@igs/db/ids";
 import {
   type ResolvedActor,
+  disableTotp,
   ensureRbacCatalogue,
   identitySchema,
   loadActor,
@@ -14,9 +15,15 @@ import {
 } from "@igs/module-identity";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { twoFactor } from "better-auth/plugins";
 
-import { type OnSecurityEvent, igsMfa, requireUserVerification } from "./mfa-plugin";
+import {
+  MFA_ERROR_CODES,
+  type OnSecurityEvent,
+  igsMfa,
+  requireUserVerification,
+} from "./mfa-plugin";
 
 export interface AuthDeps {
   readonly db: Db;
@@ -87,8 +94,16 @@ export function createAuth({ db, secret, baseURL, onSecurityEvent }: AuthDeps) {
         update: {
           // 36b: confirming a TOTP secret (the only user update /two-factor/verify-totp makes)
           after: async (user, ctx) => {
-            if (ctx?.path === "/two-factor/verify-totp" && user.twoFactorEnabled === true) {
+            if (ctx?.path !== "/two-factor/verify-totp" || user.twoFactorEnabled !== true) return;
+            try {
               await onSecurityEvent({ type: "mfa.enrolled", userId: user.id, method: "totp" });
+            } catch {
+              // #90 C5: no audit entry, no authenticator app; the request fails
+              await disableTotp(db, user.id);
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                code: MFA_ERROR_CODES.AUDIT_FAILED,
+                message: MFA_ERROR_CODES.AUDIT_FAILED,
+              });
             }
           },
         },

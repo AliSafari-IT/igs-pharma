@@ -12,18 +12,16 @@ interface Props {
   readonly totp: boolean;
 }
 
-type Totp = { readonly key: string; readonly backupCodes: readonly string[] };
-
 const done = () => window.location.assign("/account");
 
 /**
- * "Set up 2-step login" (36b): passkey first, an authenticator app (TOTP) as the backup. With a
- * factor already enrolled the same screen asks to confirm with it instead.
+ * "Set up 2-step login" (36b): a passkey, which is also how staff sign in (igs-pharma#90: an
+ * authenticator app can only be added afterwards, on the account page). With a factor already
+ * enrolled the same screen asks to confirm with it instead.
  */
 export function TwoStepSetup({ passkeys, totp }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pendingTotp, setPendingTotp] = useState<Totp | null>(null);
   const [code, setCode] = useState("");
   const codeId = useId();
   const enrolled = passkeys > 0 || totp;
@@ -53,18 +51,6 @@ export function TwoStepSetup({ passkeys, totp }: Props) {
   const confirmWithPasskey = async () => {
     if (await run(() => authClient.signIn.passkey())) done();
   };
-  const startTotp = () =>
-    run(async () => {
-      const result = await authClient.twoFactor.enable({});
-      if (result.data?.method === "totp") {
-        const uri = result.data.totpURI;
-        setPendingTotp({
-          key: new URL(uri).searchParams.get("secret") ?? "",
-          backupCodes: result.data.backupCodes,
-        });
-      }
-      return result;
-    });
   const verifyCode = async (event: React.FormEvent) => {
     event.preventDefault();
     if (await run(() => authClient.twoFactor.verifyTotp({ code: code.trim() }))) done();
@@ -118,55 +104,20 @@ export function TwoStepSetup({ passkeys, totp }: Props) {
           {totp ? codeForm : null}
         </section>
       ) : (
-        <>
-          <section aria-labelledby="passkey-heading" className="flex flex-col gap-3">
-            <h2 id="passkey-heading" className="font-display text-xl font-semibold">
-              Add a passkey (recommended)
-            </h2>
-            <p className="text-[var(--color-text-muted)]">
-              Your phone, computer or security key signs you in after your PIN, fingerprint or face.
-              Nobody can phish it.
-            </p>
-            <div>
-              <Button type="button" onClick={addPasskey} disabled={busy}>
-                Add a passkey
-              </Button>
-            </div>
-          </section>
-
-          <section aria-labelledby="totp-heading" className="flex flex-col gap-3">
-            <h2 id="totp-heading" className="font-display text-xl font-semibold">
-              Or use an authenticator app
-            </h2>
-            {pendingTotp ? (
-              <>
-                <p>Add this setup key to your authenticator app, then enter the code it shows.</p>
-                <p>
-                  Setup key: <code className="break-all">{pendingTotp.key}</code>
-                </p>
-                {pendingTotp.backupCodes.length > 0 ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="font-medium">
-                      Backup codes: keep them somewhere safe. Each works once.
-                    </p>
-                    <ul className="grid grid-cols-2 gap-1 font-mono">
-                      {pendingTotp.backupCodes.map((backup) => (
-                        <li key={backup}>{backup}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {codeForm}
-              </>
-            ) : (
-              <div>
-                <Button type="button" variant="secondary" onClick={startTotp} disabled={busy}>
-                  Set up an authenticator app
-                </Button>
-              </div>
-            )}
-          </section>
-        </>
+        <section aria-labelledby="passkey-heading" className="flex flex-col gap-3">
+          <h2 id="passkey-heading" className="font-display text-xl font-semibold">
+            Add a passkey
+          </h2>
+          <p className="text-[var(--color-text-muted)]">
+            Your phone, computer or security key signs you in after your PIN, fingerprint or face.
+            Nobody can phish it. It is how you sign in to the back-office from now on.
+          </p>
+          <div>
+            <Button type="button" onClick={addPasskey} disabled={busy}>
+              Add a passkey
+            </Button>
+          </div>
+        </section>
       )}
     </Stack>
   );
