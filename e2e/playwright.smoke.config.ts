@@ -26,6 +26,7 @@ export default defineConfig({
     "prices.spec.ts",
     "storefront-preview.spec.ts",
     "session-limits.spec.ts",
+    "reservations.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",

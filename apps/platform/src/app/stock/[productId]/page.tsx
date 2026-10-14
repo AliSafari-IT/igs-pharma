@@ -3,7 +3,14 @@ import { type ProductStock, getStock } from "@igs/module-inventory";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 
 import { AdjustDialog } from "../../../components/adjust-dialog";
-import { REASON_LABELS, formatMoment, stockErrorMessage } from "../../../components/stock-labels";
+import { ReleaseDialog } from "../../../components/release-dialog";
+import {
+  KIND_LABELS,
+  REASON_LABELS,
+  formatAge,
+  formatMoment,
+  stockErrorMessage,
+} from "../../../components/stock-labels";
 import { requireStaffActor } from "../../../server/actor";
 import { ensureKernelConfigured } from "../../../server/kernel";
 
@@ -11,7 +18,7 @@ export const metadata = { title: "Stock history · IGS-Pharma Platform" };
 
 interface Props {
   readonly params: Promise<{ productId: string }>;
-  readonly searchParams: Promise<{ adjusted?: string | string[] }>;
+  readonly searchParams: Promise<{ adjusted?: string | string[]; released?: string | string[] }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,7 +30,8 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const { productId } = await params;
-  const { adjusted } = await searchParams;
+  const { adjusted, released } = await searchParams;
+  const now = new Date();
 
   let stock: ProductStock | null = null;
   let error: string | null = null;
@@ -78,9 +86,98 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
                 </Alert>
               ) : null}
 
+              {first(released) === "1" ? (
+                <Alert variant="success" title="Stock released">
+                  The reservation ended and its stock is available again.
+                </Alert>
+              ) : null}
+
+              {stock.short > 0 ? (
+                <Alert variant="error" title={`Short by ${stock.short}`}>
+                  The orders set aside {stock.ordered} but only {stock.onHand} are on hand. Count
+                  the shelf, restock, or release an order below.
+                </Alert>
+              ) : null}
+
               <p className="text-2xl">
                 On hand: <strong data-testid="on-hand">{stock.onHand}</strong>
               </p>
+              <dl className="flex flex-wrap gap-x-8 gap-y-1 text-[var(--color-text-subtle)]">
+                <div className="flex gap-2">
+                  <dt>In checkouts</dt>
+                  <dd data-testid="held">{stock.held}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt>In orders</dt>
+                  <dd data-testid="ordered">{stock.ordered}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt>Available</dt>
+                  <dd data-testid="available">{stock.available}</dd>
+                </div>
+              </dl>
+
+              <section aria-labelledby="reservations-title" className="flex flex-col gap-3">
+                <h2 id="reservations-title" className="font-display text-2xl font-semibold">
+                  Set aside
+                </h2>
+                {stock.reservations.length === 0 ? (
+                  <p className="text-[var(--color-text-subtle)]">Nothing is set aside.</p>
+                ) : (
+                  <table className="w-full border-collapse text-left">
+                    <caption className="sr-only">Active reservations, newest first</caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Kind
+                        </th>
+                        <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                          Quantity
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Reference
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Age
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Expires
+                        </th>
+                        <th scope="col" className="py-2 font-semibold">
+                          <span className="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stock.reservations.map((r) => (
+                        <tr key={r.id} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">{KIND_LABELS[r.kind]}</td>
+                          <td className="py-2 pr-4 text-right">{r.quantity}</td>
+                          <td className="py-2 pr-4">
+                            <code>{r.holderRef}</code>
+                          </td>
+                          <td className="py-2 pr-4">{formatAge(r.createdAt, now)}</td>
+                          <td className="py-2 pr-4">
+                            {r.expiresAt ? (
+                              formatMoment(r.expiresAt)
+                            ) : (
+                              <span className="text-[var(--color-text-subtle)]">Never</span>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            <ReleaseDialog
+                              productId={stock.productId}
+                              reservationId={r.id}
+                              quantity={r.quantity}
+                              kindLabel={KIND_LABELS[r.kind]}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
 
               <h2 className="font-display text-2xl font-semibold">Movements</h2>
               {stock.movements.length === 0 ? (

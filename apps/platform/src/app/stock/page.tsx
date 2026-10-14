@@ -1,6 +1,6 @@
 import { isDomainError } from "@igs/kernel";
 import { type StockPage, listStock } from "@igs/module-inventory";
-import { Alert, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
+import { Alert, Badge, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
 
 import { StockImport } from "../../components/stock-import";
 import { formatMoment, stockErrorMessage } from "../../components/stock-labels";
@@ -103,6 +103,12 @@ export default async function StockListPage({ searchParams }: Props) {
                       <th scope="col" className="py-2 pr-4 text-right font-semibold">
                         On hand
                       </th>
+                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                        Reserved
+                      </th>
+                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                        Available
+                      </th>
                       <th scope="col" className="py-2 font-semibold">
                         Last movement
                       </th>
@@ -124,6 +130,16 @@ export default async function StockListPage({ searchParams }: Props) {
                           )}
                         </td>
                         <td className="py-2 pr-4 text-right">{item.onHand}</td>
+                        <td className="py-2 pr-4 text-right">{item.reserved}</td>
+                        <td className="py-2 pr-4 text-right">
+                          {item.available}
+                          {item.short > 0 ? (
+                            <>
+                              {" "}
+                              <Badge variant="amber">Short by {item.short}</Badge>
+                            </>
+                          ) : null}
+                        </td>
                         <td className="py-2">
                           {item.lastMovementAt ? (
                             formatMoment(item.lastMovementAt)
