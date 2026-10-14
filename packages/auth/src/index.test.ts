@@ -23,13 +23,27 @@ afterEach(() => {
   getDb.mockClear();
 });
 
-describe("@igs/auth", () => {
-  it("can be imported with no env vars and does not touch the database", async () => {
-    const mod = await import("./index");
+/**
+ * The first `import("./index")` of a worker loads the whole Better Auth graph (plugins, WebAuthn,
+ * the identity schema) and transforms it. Measured on the CI runner (igs-pharma#107): 12.7 to
+ * 19.3 s in the four runs where it passed and 30.4 s in the one that timed out, against 1 to 2 s on a developer
+ * machine; the four imports after it, from the transform cache, stay under the reporter's 300 ms line. So the cost
+ * is real and one-off, and the default 30 s left no margin. This test gets its own, wider budget;
+ * the rest of the suite keeps the 30 s default, and the config runs the files one at a time.
+ */
+const COLD_IMPORT_TIMEOUT_MS = 90_000;
 
-    expect(typeof mod.getAuth).toBe("function");
-    expect(getDb).not.toHaveBeenCalled();
-  });
+describe("@igs/auth", () => {
+  it(
+    "can be imported with no env vars and does not touch the database",
+    async () => {
+      const mod = await import("./index");
+
+      expect(typeof mod.getAuth).toBe("function");
+      expect(getDb).not.toHaveBeenCalled();
+    },
+    COLD_IMPORT_TIMEOUT_MS,
+  );
 
   it("getAuth() fails fast on invalid env instead of at import time", async () => {
     const { configureAuth, getAuth } = await import("./index");

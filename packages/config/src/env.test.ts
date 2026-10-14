@@ -34,6 +34,8 @@ describe("parseEnv", () => {
     expect(env.NODE_ENV).toBe("development");
     expect(env.LOG_LEVEL).toBe("info");
     expect(env.NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS).toBe(false);
+    // the EU logo stays off unless someone turns it on (igs-pharma#104)
+    expect(env.NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO).toBe(false);
   });
 
   it("throws listing every missing required variable", () => {
@@ -71,6 +73,13 @@ describe("parseEnv", () => {
     });
     expect(env.DATABASE_MAX_CONNECTIONS).toBe(25);
     expect(env.NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS).toBe(true);
+    expect(
+      parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "true" })
+        .NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO,
+    ).toBe(true);
+    expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "yes" })).toThrow(
+      /EU_COMMON_LOGO/,
+    );
   });
 });
 

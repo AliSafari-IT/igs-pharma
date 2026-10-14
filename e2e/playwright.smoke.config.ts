@@ -25,6 +25,7 @@ export default defineConfig({
     "privacy.spec.ts",
     "prices.spec.ts",
     "storefront-preview.spec.ts",
+    "storefront-browse.spec.ts",
     "session-limits.spec.ts",
     "reservations.spec.ts",
   ],

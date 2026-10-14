@@ -1,6 +1,6 @@
 import type { ContentLocale, StorefrontProductItem } from "@igs/module-catalog";
 import type { StorefrontPrice } from "@igs/module-pricing";
-import { Badge, Link, Price } from "@igs/ui";
+import { Badge, Link, Price, ProductImagePlaceholder } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
 import { INTL_LOCALE } from "../server/storefront";
@@ -55,6 +55,7 @@ export async function ProductCard({ locale, item, price, inStock }: CardProps) {
   return (
     <li>
       <article className="flex h-full flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
+        <ProductImagePlaceholder />
         <h3 className="font-display text-lg font-semibold">
           <Link href={`/${locale}/p/${item.cnk}`}>{item.name}</Link>
         </h3>

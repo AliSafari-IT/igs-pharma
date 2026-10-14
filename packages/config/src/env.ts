@@ -81,6 +81,14 @@ export const featureFlagsEnv = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /**
+   * The EU common logo linked to the FAMHP list (igs-pharma#104). Stays `false` until the pharmacy
+   * is registered: showing it earlier would be a false claim.
+   */
+  NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 /**

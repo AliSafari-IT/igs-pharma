@@ -7,6 +7,9 @@ import { expect, test } from "@playwright/test";
  */
 const pages = [
   ["web /nl", "http://localhost:3000/nl"],
+  ["web /fr", "http://localhost:3000/fr"],
+  ["web legal page", "http://localhost:3000/en/legal/privacy"],
+  ["web 404", "http://localhost:3000/de/nope"],
   ["platform /dev/ui", "http://localhost:3001/dev/ui"],
   ["platform /account (signed out)", "http://localhost:3001/account"],
 ] as const;
