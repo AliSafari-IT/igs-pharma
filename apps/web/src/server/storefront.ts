@@ -1,8 +1,10 @@
 import { routing } from "@igs/i18n/routing";
 import type { Actor } from "@igs/kernel";
-import type { ContentLocale } from "@igs/module-catalog";
+import { type ContentLocale, listStorefrontCategories } from "@igs/module-catalog";
 import { getAvailability } from "@igs/module-inventory";
 import { type StorefrontPrice, storefrontPrices } from "@igs/module-pricing";
+
+import { cache } from "react";
 
 import { ensureKernelConfigured } from "./kernel";
 
@@ -52,3 +54,12 @@ export const INTL_LOCALE: Record<ContentLocale, string> = {
   de: "de-BE",
   en: "en-BE",
 };
+
+/**
+ * The category tree in `locale`, read once per request (the frame and the page both ask for it).
+ * Throws when the database cannot be read: callers decide what to show.
+ */
+export const categoryTree = cache(async (locale: ContentLocale) => {
+  await ensureKernelConfigured();
+  return listStorefrontCategories({ locale }, STOREFRONT_ACTOR);
+});
