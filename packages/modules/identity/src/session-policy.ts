@@ -7,7 +7,7 @@ type Executor = Pick<Db, "select" | "update" | "delete">;
 type Reader = Pick<Db, "select">;
 
 /**
- * Staff session limits (igs-pharma#95, security-architecture §2). Both are enforced on the server,
+ * Staff session limits (igs-pharma#95, asafarim-docs:ventures/igs-pharma/03-architecture/security-architecture.md §2). Both are enforced on the server,
  * on every request that resolves an actor; a browser timer is only a convenience.
  */
 

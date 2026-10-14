@@ -1,5 +1,5 @@
 /**
- * Security headers for the Next.js apps (T-011, D-031; security-architecture.md §5).
+ * Security headers for the Next.js apps (T-011, D-031; asafarim-docs:ventures/igs-pharma/03-architecture/security-architecture.md §5).
  * No Next import, no in-repo import. Both apps' proxy.ts call it once per request with a fresh nonce.
  */
 

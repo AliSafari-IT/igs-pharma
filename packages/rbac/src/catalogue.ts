@@ -188,7 +188,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.inventory.stockManage,
     PERMISSIONS.pharmacy.pharmacistsManage,
   ],
-  // pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
+  // asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
   pharmacist: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.reviewDecide,
@@ -206,7 +206,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.inventory.stockManage,
   ],
   customer_service: [PERMISSIONS.orders.read],
-  // pharmacy-platform-backoffice.md: the catalogue screens belong to the content editor
+  // asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md: the catalogue screens belong to the content editor
   content_editor: [
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.manage,
