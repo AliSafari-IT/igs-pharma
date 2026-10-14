@@ -5,6 +5,7 @@ import { newId } from "@igs/db/ids";
 import { type MailTemplate, identitySchema, sessionAllowed, userKind } from "@igs/module-identity";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 
 /** Webshop customers' session (D-044): 7 days, extended at most once a day. */
 export const CUSTOMER_SESSION_MAX_S = 7 * 24 * 60 * 60;
@@ -43,6 +44,12 @@ export interface CustomerAuthDeps {
  */
 export function createCustomerAuth({ db, secret, baseURL, requestMail }: CustomerAuthDeps) {
   const origin = new URL(baseURL).origin;
+  /**
+   * D-044: this instance serves customers only. Every mail flow does nothing for any other kind, and
+   * the response stays the one an unknown e-mail gets, so a staff address is neither mailed nor
+   * recognisable from here.
+   */
+  const isCustomer = async (userId: string) => (await userKind(db, userId)) === "customer";
   return betterAuth({
     appName: "IGS-Pharma",
     database: drizzleAdapter(db, { provider: "pg", schema: identitySchema, usePlural: true }),
@@ -57,6 +64,12 @@ export function createCustomerAuth({ db, secret, baseURL, requestMail }: Custome
       // `igs-c.*`, Secure + HttpOnly + SameSite=Lax + path=/ and no Domain (host-only). Better Auth
       // puts `__Secure-` in front over HTTPS; a `__Host-` name is not possible through its API.
       cookiePrefix: CUSTOMER_COOKIE_PREFIX,
+      // The rate limiter counts per client, so it must read the client's address. The edge (Caddy)
+      // sets `X-Forwarded-For` to ONE address. Better Auth trusts a single-value header only: a chain
+      // (a client-supplied prefix, an unexpected extra hop) resolves to no address and shares one
+      // bucket per path (fails closed: slower for everyone, never a bypass by spoofing). Without
+      // this setting the default is the same header; naming it keeps the dependency visible.
+      ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
     },
     emailAndPassword: {
       enabled: true,
@@ -69,9 +82,11 @@ export function createCustomerAuth({ db, secret, baseURL, requestMail }: Custome
       // an existing address gets a notice mail instead of a second account; the sign-up response is
       // the same either way (Better Auth builds the synthetic user)
       onExistingUserSignUp: async ({ user }) => {
+        if (!(await isCustomer(user.id))) return;
         await requestMail({ userId: user.id, template: "account_exists" });
       },
       sendResetPassword: async ({ user, url }) => {
+        if (!(await isCustomer(user.id))) return;
         await requestMail({ userId: user.id, template: "reset_password", url });
       },
     },
@@ -79,6 +94,7 @@ export function createCustomerAuth({ db, secret, baseURL, requestMail }: Custome
       sendOnSignUp: true,
       sendOnSignIn: true,
       sendVerificationEmail: async ({ user, url }) => {
+        if (!(await isCustomer(user.id))) return;
         await requestMail({ userId: user.id, template: "verify_email", url });
       },
     },
@@ -108,7 +124,28 @@ export function createCustomerAuth({ db, secret, baseURL, requestMail }: Custome
         "/send-verification-email": { window: 3600, max: 5 },
       },
     },
+    hooks: {
+      // A reset token of a non-customer (a staff e-mail asked for one) must never set a password,
+      // even if the token reached someone: it is refused as an invalid token.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/reset-password") return;
+        const token = ctx.body?.token ?? ctx.query?.token;
+        if (typeof token !== "string") return;
+        const found = await ctx.context.internalAdapter.findVerificationValue(
+          `reset-password:${token}`,
+        );
+        if (found && !(await isCustomer(found.value))) {
+          throw new APIError("BAD_REQUEST", { code: "INVALID_TOKEN", message: "Invalid token" });
+        }
+      }),
+    },
     databaseHooks: {
+      account: {
+        // belt and braces: no credential is ever written for a non-customer through this instance
+        create: {
+          before: async (account) => ((await isCustomer(account.userId)) ? undefined : false),
+        },
+      },
       session: {
         create: {
           // the customer instance signs in customers only; a staff account gets no session here

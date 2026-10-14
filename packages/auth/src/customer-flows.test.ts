@@ -14,7 +14,7 @@ import {
   requireFreshSession,
 } from "./index";
 
-const { accounts, rateLimits, sessions, userRoles, users } = identitySchema;
+const { accounts, rateLimits, sessions, userRoles, users, verifications } = identitySchema;
 const STOREFRONT = "http://localhost:3000";
 const PLATFORM = "http://localhost:3001";
 const SECRET = "test-secret-test-secret-test-secret-0123";
@@ -243,6 +243,99 @@ describe("the two kinds stay apart (D-044)", () => {
     expect(await sessionCount(customer.id)).toBe(0);
   });
 
+  /** A staff user with NO password, as the bootstrap CLI makes one. */
+  async function passwordlessStaff() {
+    const email = newEmail();
+    const [user] = await iso.db
+      .insert(users)
+      .values({ name: "Staff", email, emailVerified: true, kind: "staff" })
+      .returning();
+    if (!user) throw new Error("no user");
+    return { id: user.id, email };
+  }
+  const accountCount = async (userId: string) =>
+    (await iso.db.select().from(accounts).where(eq(accounts.userId, userId))).length;
+
+  it("a staff e-mail gets no reset mail and the answer is the one an unknown e-mail gets", async () => {
+    const staff = await passwordlessStaff();
+    const forStaff = await customerBrowser().call("/request-password-reset", {
+      email: staff.email,
+      redirectTo: `${STOREFRONT}/reset`,
+    });
+    const forUnknown = await customerBrowser().call("/request-password-reset", {
+      email: "nobody@example.test",
+      redirectTo: `${STOREFRONT}/reset`,
+    });
+    expect(mails).toEqual([]);
+    expect(forStaff.status).toBe(forUnknown.status);
+    expect(forStaff.json).toEqual(forUnknown.json);
+  });
+
+  it("a staff e-mail gets no verification mail and no 'you already have an account' notice", async () => {
+    const staff = await passwordlessStaff();
+    await iso.db.update(users).set({ emailVerified: false }).where(eq(users.id, staff.id));
+    const forStaff = await customerBrowser().call("/send-verification-email", {
+      email: staff.email,
+    });
+    const forUnknown = await customerBrowser().call("/send-verification-email", {
+      email: "nobody@example.test",
+    });
+    expect(forStaff.status).toBe(forUnknown.status);
+    expect(forStaff.json).toEqual(forUnknown.json);
+
+    const signUp = await customerBrowser().call("/sign-up/email", {
+      email: staff.email,
+      password: PASSWORD,
+      name: "Someone",
+    });
+    expect(signUp.status).toBe(200);
+    expect(mails).toEqual([]);
+    expect(await accountCount(staff.id)).toBe(0);
+  });
+
+  it("a reset token of a staff user never sets a password, and the staff user keeps their sessions", async () => {
+    const staff = await passwordlessStaff();
+    await iso.db.insert(sessions).values({
+      userId: staff.id,
+      token: "staff-session-token",
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+    // a token as Better Auth would have stored it had a reset been requested
+    await iso.db.insert(verifications).values({
+      identifier: "reset-password:FORGED-TOKEN",
+      value: staff.id,
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+    const result = await customerBrowser().call("/reset-password", {
+      token: "FORGED-TOKEN",
+      newPassword: "a brand new password 123",
+    });
+    expect(result.status).toBe(400);
+    expect(await accountCount(staff.id)).toBe(0);
+    expect(await sessionCount(staff.id)).toBe(1);
+  });
+
+  it("a customer's reset still works end to end", async () => {
+    const { email } = await verifiedCustomer();
+    await customerBrowser().call("/request-password-reset", {
+      email,
+      redirectTo: `${STOREFRONT}/reset`,
+    });
+    const link = mails.find((m) => m.template === "reset_password")?.url ?? "";
+    const token = /reset-password\/([^?]+)/.exec(link)?.[1] ?? "";
+    expect(token).not.toBe("");
+    const done = await customerBrowser().call("/reset-password", {
+      token,
+      newPassword: "another long password 456",
+    });
+    expect(done.status).toBe(200);
+    const signedIn = await customerBrowser().call("/sign-in/email", {
+      email,
+      password: "another long password 456",
+    });
+    expect(signedIn.status).toBe(200);
+  });
+
   it("the customer instance still signs the customer in (the guard is about kind, not about being closed)", async () => {
     const customer = await insertUser("customer");
     const result = await customerBrowser().call("/sign-in/email", {
@@ -280,6 +373,20 @@ describe("rate limit (database-backed)", () => {
     expect(statuses.slice(5)).toEqual([429, 429]);
     const rows = await iso.db.select().from(rateLimits);
     expect(rows.some((r) => r.key.includes("/sign-in/email"))).toBe(true);
+  });
+
+  it("a forwarded chain gets no bucket of its own: spoofed prefixes cannot dodge the limit", async () => {
+    const { email } = await verifiedCustomer();
+    await iso.db.delete(rateLimits);
+    const statuses: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      // a different made-up chain on every attempt
+      const b = customerBrowser(`10.0.0.${i}, 198.51.100.${i}`);
+      statuses.push(
+        (await b.call("/sign-in/email", { email, password: "wrong password 123" })).status,
+      );
+    }
+    expect(statuses).toContain(429);
   });
 
   it("counts per address: another IP is not limited by the first", async () => {
