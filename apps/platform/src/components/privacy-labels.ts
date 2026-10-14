@@ -2,6 +2,7 @@ import type {
   ConsentPurpose,
   ConsentSource,
   DsrChannel,
+  DsrExtensionReason,
   DsrStatus,
   DsrType,
   StaffConsentSource,
@@ -87,6 +88,17 @@ export const STAFF_CONSENT_SOURCE_OPTIONS = [
   "back_office",
 ] as const satisfies readonly StaffConsentSource[];
 
+/** Art. 12(3) GDPR reasons for extending a request's deadline (igs-pharma#88). */
+export const DSR_EXTENSION_REASON_LABELS: Record<DsrExtensionReason, string> = {
+  complex: "The request is complex",
+  numerous: "The person sent many requests",
+};
+
+export const DSR_EXTENSION_REASON_OPTIONS = [
+  { value: "complex", label: DSR_EXTENSION_REASON_LABELS.complex },
+  { value: "numerous", label: DSR_EXTENSION_REASON_LABELS.numerous },
+] as const satisfies readonly { value: DsrExtensionReason; label: string }[];
+
 /** The privacy policy version staff record a consent under, until the policy is versioned (1b). */
 export const CURRENT_POLICY_VERSION = "2026-10";
 
@@ -96,6 +108,15 @@ const ERRORS: Record<string, string> = {
   "privacy.dsr_not_found": "This request doesn't exist.",
   "privacy.dsr_invalid_transition": "The request can't move to that status from where it is now.",
   "privacy.dsr_reason_required": "Say why the request is rejected.",
+  "privacy.dsr_closed": "The request is closed: its deadline can no longer be extended.",
+  "privacy.dsr_already_extended":
+    "The deadline was already extended. It can be extended only once.",
+  "privacy.dsr_extension_too_late":
+    "The one-month deadline has passed: it can only be extended before it falls due.",
+  "privacy.dsr_not_extended": "Extend the deadline first, then record the notice.",
+  "privacy.dsr_notice_already_recorded": "The notice was already recorded.",
+  "privacy.dsr_notice_date_invalid":
+    "The date must be between the day the request arrived and today.",
   "kernel.forbidden": "You don't have permission to work with privacy requests and consents.",
   "kernel.mfa_required": "Confirm your 2-step login first.",
   "kernel.validation_failed": "Some fields are not filled in correctly.",

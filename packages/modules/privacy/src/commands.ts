@@ -9,12 +9,17 @@ import {
   CONSENT_PURPOSES,
   CONSENT_SOURCES,
   DSR_CHANNELS,
+  DSR_EXTENSION_MONTHS,
+  DSR_EXTENSION_REASONS,
   DSR_STATUSES,
   DSR_TYPES,
+  type DsrExtensionMonths,
   type DsrStatus,
   MAX_SUBJECT_REF_LENGTH,
+  canExtendDsr,
   canMoveDsr,
   dsrDueAt,
+  dsrExtendedDueAt,
   isFinalDsrStatus,
   normalizeSubjectRef,
 } from "./domain";
@@ -194,6 +199,130 @@ export const transitionDsr = command({
       data: { requestId: request.id, from, to: input.to },
     });
     return { status: input.to };
+  },
+});
+
+/** The request row, locked for the rest of the transaction (`privacy.dsr_not_found`). */
+async function lockedRequest(ctx: Ctx, requestId: string) {
+  const [request] = await ctx.tx
+    .select({
+      id: dsrRequests.id,
+      status: dsrRequests.status,
+      receivedAt: dsrRequests.receivedAt,
+      dueAt: dsrRequests.dueAt,
+      extendedAt: dsrRequests.extendedAt,
+      extensionNoticeAt: dsrRequests.extensionNoticeAt,
+    })
+    .from(dsrRequests)
+    .where(eq(dsrRequests.id, requestId))
+    .for("update");
+  if (!request) throw notFound("privacy.dsr_not_found");
+  return { ...request, status: request.status as DsrStatus };
+}
+
+/**
+ * Extends a request's deadline (art. 12(3) GDPR, igs-pharma#88 C9) by one or two calendar months
+ * (Brussels), for a reason code. Only for an open request, once (`privacy.dsr_already_extended`),
+ * and before its original deadline (`privacy.dsr_extension_too_late`): the person must be told
+ * within the first month. `due_at` becomes the new deadline, so overdue checks use it; the original
+ * one is kept. The timeline gets an `extended` entry; the status does not change.
+ */
+export const extendDsr = command({
+  name: "privacy.dsr.extend",
+  input: z.object({
+    requestId: z.uuid(),
+    months: z.coerce
+      .number()
+      .int()
+      .refine((n) => (DSR_EXTENSION_MONTHS as readonly number[]).includes(n)),
+    reason: z.enum(DSR_EXTENSION_REASONS),
+  }),
+  output: z.object({ dueAt: z.date() }),
+  permission: PERMISSIONS.privacy.dsrManage,
+  async handler({ input, ctx }) {
+    const request = await lockedRequest(ctx, input.requestId);
+    if (isFinalDsrStatus(request.status)) {
+      throw conflict("privacy.dsr_closed", { status: request.status });
+    }
+    if (request.extendedAt) throw conflict("privacy.dsr_already_extended");
+    if (!canExtendDsr(request.status, false, request.dueAt, ctx.now)) {
+      throw conflict("privacy.dsr_extension_too_late");
+    }
+    const months = input.months as DsrExtensionMonths;
+    const dueAt = dsrExtendedDueAt(request.dueAt, months);
+    await ctx.tx
+      .update(dsrRequests)
+      .set({
+        dueAt,
+        originalDueAt: request.dueAt,
+        extendedAt: ctx.now,
+        extensionMonths: months,
+        extensionReason: input.reason,
+      })
+      .where(eq(dsrRequests.id, request.id));
+    await ctx.tx.insert(dsrEvents).values({
+      id: newId(),
+      requestId: request.id,
+      fromStatus: request.status,
+      toStatus: request.status,
+      kind: "extended",
+      note: null,
+      ...actorColumns(ctx),
+      at: ctx.now,
+    });
+    await ctx.audit.record({
+      action: PRIVACY_AUDIT.dsrExtended,
+      entityType: "dsr_request",
+      entityId: request.id,
+      data: { requestId: request.id, months, reason: input.reason },
+    });
+    return { dueAt };
+  },
+});
+
+/**
+ * Records that staff told the person about the extension, and when (`sentAt`, between the day the
+ * request was received and now; `privacy.dsr_notice_date_invalid`). Only for an extended request
+ * (`privacy.dsr_not_extended`), once (`privacy.dsr_notice_already_recorded`). The system sends
+ * nothing itself (D-019); the register shows whether the notice went out within the first month.
+ */
+export const recordDsrExtensionNotice = command({
+  name: "privacy.dsr.extension_notice.record",
+  input: z.object({ requestId: z.uuid(), sentAt: z.coerce.date() }),
+  permission: PERMISSIONS.privacy.dsrManage,
+  async handler({ input, ctx }) {
+    const request = await lockedRequest(ctx, input.requestId);
+    if (!request.extendedAt) throw conflict("privacy.dsr_not_extended");
+    if (request.extensionNoticeAt) throw conflict("privacy.dsr_notice_already_recorded");
+    if (
+      Number.isNaN(input.sentAt.getTime()) ||
+      input.sentAt.getTime() > ctx.now.getTime() ||
+      input.sentAt.getTime() < request.receivedAt.getTime()
+    ) {
+      throw validationFailed("privacy.dsr_notice_date_invalid", [
+        { path: "sentAt", code: "privacy.dsr_notice_date_invalid" },
+      ]);
+    }
+    await ctx.tx
+      .update(dsrRequests)
+      .set({ extensionNoticeAt: input.sentAt })
+      .where(eq(dsrRequests.id, request.id));
+    await ctx.tx.insert(dsrEvents).values({
+      id: newId(),
+      requestId: request.id,
+      fromStatus: request.status,
+      toStatus: request.status,
+      kind: "notice_sent",
+      note: null,
+      ...actorColumns(ctx),
+      at: ctx.now,
+    });
+    await ctx.audit.record({
+      action: PRIVACY_AUDIT.dsrExtensionNoticeRecorded,
+      entityType: "dsr_request",
+      entityId: request.id,
+      data: { requestId: request.id },
+    });
   },
 });
 

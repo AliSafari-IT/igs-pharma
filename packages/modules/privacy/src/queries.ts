@@ -11,10 +11,14 @@ import {
   DSR_STATUSES,
   DSR_TYPES,
   type DsrChannel,
+  type DsrEventKind,
+  type DsrExtensionMonths,
+  type DsrExtensionReason,
   type DsrStatus,
   type DsrType,
   MAX_SUBJECT_REF_LENGTH,
   type RetentionKey,
+  canExtendDsr,
   daysUntil,
   isDsrOverdue,
   nextDsrStatuses,
@@ -122,6 +126,21 @@ export interface DsrListItem {
   readonly overdue: boolean;
   /** Whole days until the deadline (negative once overdue); `null` once the request is closed. */
   readonly daysLeft: number | null;
+  /** The art. 12(3) extension (igs-pharma#88 C9); `dueAt` is then the extended deadline. */
+  readonly extension: DsrExtension | null;
+  /** Closed by its deadline (`dueAt`, so the extended one if any); `null` while open. */
+  readonly answeredInTime: boolean | null;
+}
+
+export interface DsrExtension {
+  readonly originalDueAt: Date;
+  readonly extendedAt: Date;
+  readonly months: DsrExtensionMonths;
+  readonly reason: DsrExtensionReason;
+  /** When staff told the person; `null` until recorded. */
+  readonly noticeAt: Date | null;
+  /** The notice was recorded as sent by the original (one-month) deadline. */
+  readonly noticeInTime: boolean;
 }
 
 export interface DsrPage {
@@ -144,6 +163,11 @@ const requestColumns = {
   receivedAt: dsrRequests.receivedAt,
   dueAt: dsrRequests.dueAt,
   closedAt: dsrRequests.closedAt,
+  originalDueAt: dsrRequests.originalDueAt,
+  extendedAt: dsrRequests.extendedAt,
+  extensionMonths: dsrRequests.extensionMonths,
+  extensionReason: dsrRequests.extensionReason,
+  extensionNoticeAt: dsrRequests.extensionNoticeAt,
 };
 
 const asListItem = (
@@ -156,18 +180,42 @@ const asListItem = (
     receivedAt: Date;
     dueAt: Date;
     closedAt: Date | null;
+    originalDueAt: Date | null;
+    extendedAt: Date | null;
+    extensionMonths: number | null;
+    extensionReason: string | null;
+    extensionNoticeAt: Date | null;
   },
   now: Date,
 ): DsrListItem => {
   const status = row.status as DsrStatus;
   const open = OPEN_STATUSES.includes(status);
+  const extension: DsrExtension | null =
+    row.originalDueAt && row.extendedAt && row.extensionMonths && row.extensionReason
+      ? {
+          originalDueAt: row.originalDueAt,
+          extendedAt: row.extendedAt,
+          months: row.extensionMonths as DsrExtensionMonths,
+          reason: row.extensionReason as DsrExtensionReason,
+          noticeAt: row.extensionNoticeAt,
+          noticeInTime:
+            row.extensionNoticeAt !== null &&
+            row.extensionNoticeAt.getTime() <= row.originalDueAt.getTime(),
+        }
+      : null;
   return {
-    ...row,
+    id: row.id,
+    subjectRef: row.subjectRef,
     type: row.type as DsrType,
     channel: row.channel as DsrChannel,
     status,
+    receivedAt: row.receivedAt,
+    dueAt: row.dueAt,
+    closedAt: row.closedAt,
     overdue: isDsrOverdue(status, row.dueAt, now),
     daysLeft: open ? daysUntil(row.dueAt, now) : null,
+    extension,
+    answeredInTime: row.closedAt ? row.closedAt.getTime() <= row.dueAt.getTime() : null,
   };
 };
 
@@ -227,6 +275,8 @@ export const listDsr = query({
 
 export interface DsrEventView {
   readonly id: string;
+  /** `status`, or `extended` / `notice_sent` (then `fromStatus` = `toStatus`). */
+  readonly kind: DsrEventKind;
   readonly fromStatus: DsrStatus | null;
   readonly toStatus: DsrStatus;
   readonly note: string | null;
@@ -241,6 +291,8 @@ export interface DsrView extends DsrListItem {
   readonly closedReason: string | null;
   /** The statuses it may move to next (empty once final). */
   readonly nextStatuses: readonly DsrStatus[];
+  /** Open, not yet extended and before its original deadline (art. 12(3)). */
+  readonly canExtend: boolean;
   /** The timeline, oldest first. */
   readonly events: readonly DsrEventView[];
 }
@@ -264,6 +316,7 @@ export const getDsr = query({
     const events = await ctx.tx
       .select({
         id: dsrEvents.id,
+        kind: dsrEvents.kind,
         fromStatus: dsrEvents.fromStatus,
         toStatus: dsrEvents.toStatus,
         note: dsrEvents.note,
@@ -281,8 +334,10 @@ export const getDsr = query({
       createdBy: row.createdBy,
       closedReason: row.closedReason,
       nextStatuses: nextDsrStatuses(item.status),
+      canExtend: canExtendDsr(item.status, item.extension !== null, item.dueAt, ctx.now),
       events: events.map((e) => ({
         ...e,
+        kind: e.kind as DsrEventKind,
         fromStatus: e.fromStatus as DsrStatus | null,
         toStatus: e.toStatus as DsrStatus,
       })),

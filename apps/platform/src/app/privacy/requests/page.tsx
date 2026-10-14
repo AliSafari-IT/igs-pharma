@@ -177,6 +177,11 @@ export default async function DataRequestsPage({ searchParams }: Props) {
                           {item.overdue && item.daysLeft !== null ? (
                             <span className="ml-2 text-sm">{dueLabel(item.daysLeft)}</span>
                           ) : null}
+                          {item.extension ? (
+                            <Badge variant="primary" className="ml-2">
+                              Extended
+                            </Badge>
+                          ) : null}
                         </td>
                         <td className="py-2">
                           <Badge variant={DSR_STATUS_BADGE[item.status]}>

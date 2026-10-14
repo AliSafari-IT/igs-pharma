@@ -178,3 +178,51 @@ test("owner: record a consent given in the pharmacy, then see it", async ({ page
   await expect(page).not.toHaveURL(new RegExp(tag));
   await expectAxeClean(page);
 });
+
+test("owner: extend a request's deadline (art. 12(3)) and record that the person was told", async ({
+  page,
+  context,
+}) => {
+  await signIn(context);
+  await page.goto(`${PLATFORM}/privacy/requests/new`, { waitUntil: "networkidle" });
+  await page.getByLabel("Type of request").selectOption("objection");
+  await page.getByLabel("The person's e-mail address").fill(`e2e.extend.${tag}@example.invalid`);
+  await page.getByRole("button", { name: "Log request" }).click();
+  await expect(page.getByRole("heading", { name: "Objection request", level: 1 })).toBeVisible();
+  const requestId = page.url().split("/").pop()?.split("?")[0] ?? "";
+
+  await page.getByRole("button", { name: "Extend deadline" }).click();
+  const dialog = page.getByRole("dialog", { name: "Extend deadline" });
+  await expectAxeClean(page);
+  await dialog.getByLabel("Extend by").selectOption("2");
+  await dialog.getByLabel("Reason").selectOption("complex");
+  await dialog.getByRole("button", { name: "Extend deadline" }).click();
+
+  await expect(page.getByText("Deadline extended", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Original deadline")).toBeVisible();
+  await expect(page.getByText(/By 2 months on .* · The request is complex/)).toBeVisible();
+  // the one-month deadline plus two calendar months: 89 to 93 days
+  await expect(page.getByText(/Due in (89|90|91|92|93) days/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Extend deadline" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Record notice sent" }).click();
+  await expect(page.getByText("Notice recorded")).toBeVisible();
+  await expect(page.getByText("within the first month")).toBeVisible();
+  const timeline = page.getByRole("region", { name: "Timeline" });
+  await expect(timeline).toContainText("Deadline extended");
+  await expect(timeline).toContainText("Notice of the extension recorded");
+  await expectAxeClean(page);
+
+  const audit = await sql<{ action: string; data: unknown }[]>`
+    SELECT action, data FROM audit.events WHERE entity_id = ${requestId} ORDER BY seq`;
+  expect(audit.map((row) => row.action)).toEqual([
+    "privacy.dsr.created",
+    "privacy.dsr.extended",
+    "privacy.dsr.extension_notice_recorded",
+  ]);
+  expect(audit[1]?.data).toEqual({ requestId, months: 2, reason: "complex" });
+
+  await page.goto(`${PLATFORM}/privacy/requests`, { waitUntil: "networkidle" });
+  const row = page.getByRole("row", { name: new RegExp(`e2e.extend.${tag}`) });
+  await expect(row.getByText("Extended")).toBeVisible();
+});
