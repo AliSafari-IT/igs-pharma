@@ -10,17 +10,24 @@ import { z } from "zod";
 import * as envModule from "./env";
 import { ENV_SENSITIVITY, SENSITIVE_ENV_NAMES } from "./env-sensitivity";
 
-/** Every variable name any exported schema of env.ts declares. */
-const declared = [
-  ...new Set(
-    Object.values(envModule as Record<string, unknown>)
-      .filter((value): value is z.ZodObject => value instanceof z.ZodObject)
-      .flatMap((schema) => Object.keys(schema.shape)),
-  ),
-].sort();
-
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const envSource = readFileSync(fileURLToPath(new URL("./env.ts", import.meta.url)), "utf8");
+
+/** The UPPER_CASE keys of every inline `.extend({ ... })` in a source text (not a named schema). */
+const inlineExtendKeys = (source: string) =>
+  [...source.matchAll(/\.extend\(\{([^}]*)\}\)/g)].flatMap((block) =>
+    [...String(block[1]).matchAll(/\b([A-Z][A-Z0-9_]+)\s*:/g)].map((m) => String(m[1])),
+  );
+
+/** Every variable name any exported schema of env.ts declares, and any inline `.extend` adds. */
+const declared = [
+  ...new Set([
+    ...Object.values(envModule as Record<string, unknown>)
+      .filter((value): value is z.ZodObject => value instanceof z.ZodObject)
+      .flatMap((schema) => Object.keys(schema.shape)),
+    ...inlineExtendKeys(envSource),
+  ]),
+].sort();
 
 /** Names of the `const X = z.object(` schemas env.ts declares, exported or not. */
 const schemaConsts = (source: string) =>
@@ -40,7 +47,7 @@ const NOT_APP_CONFIG: readonly string[] = [
 
 /** The names `process.env.X` / `process.env["X"]` read in a source text. */
 const envReads = (source: string) =>
-  [...source.matchAll(/process\.env(?:\.|\[")([A-Z][A-Z0-9_]+)/g)].map((m) => String(m[1]));
+  [...source.matchAll(/process\.env(?:\.|\[["'])([A-Z][A-Z0-9_]+)/g)].map((m) => String(m[1]));
 
 /** Every non-test source file under apps/<x>/src and packages/<x>/src (and packages/modules/<x>/src). */
 function sourceFiles(dir: string, out: string[] = []): string[] {
@@ -132,6 +139,15 @@ describe("env classification (D-023)", () => {
 describe("the guards themselves (synthetic fixtures)", () => {
   it("an unclassified new variable is reported", () => {
     expect(unclassified([...declared, "NEW_THING"], ENV_SENSITIVITY)).toEqual(["NEW_THING"]);
+  });
+
+  it("an inline .extend({...}) key and a process.env['X'] read are seen too (#110)", () => {
+    const source = "const s = base.extend({ PAYMENT_API_SECRET: z.string() });";
+    expect(inlineExtendKeys(source)).toEqual(["PAYMENT_API_SECRET"]);
+    expect(unclassified(inlineExtendKeys(source), ENV_SENSITIVITY)).toEqual(["PAYMENT_API_SECRET"]);
+    expect(envReads("process.env['PAYMENT_API_SECRET']")).toEqual(["PAYMENT_API_SECRET"]);
+    // the real env.ts has inline extends whose keys are classified
+    expect(inlineExtendKeys(envSource)).toContain("DATABASE_URL");
   });
 
   it("an unexported schema is reported (a PAYMENT_API_SECRET in a private z.object)", () => {

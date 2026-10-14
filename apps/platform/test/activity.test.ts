@@ -1,3 +1,7 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { isInteractiveRequest } from "../src/server/activity";
@@ -55,5 +59,31 @@ describe("what counts as the person's own activity (#95)", () => {
     expect(
       isInteractiveRequest(request({ "sec-fetch-site": "none", "sec-fetch-dest": "document" })),
     ).toBe(true);
+  });
+});
+
+describe("full prefetches (#110)", () => {
+  it("the auto prefetch is background", () => {
+    expect(isInteractiveRequest(request({ rsc: "1", "next-router-prefetch": "1" }))).toBe(false);
+  });
+
+  it("a full prefetch looks exactly like a navigation, so no source file may ask for one", () => {
+    // Next 16 sends the same headers for `<Link prefetch={true}>` and for a click; this guard keeps
+    // the idle clock honest by keeping full prefetches out of the platform altogether
+    const root = fileURLToPath(new URL("../src", import.meta.url));
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? walk(join(dir, entry.name))
+          : /\.(ts|tsx)$/.test(entry.name)
+            ? [join(dir, entry.name)]
+            : [],
+      );
+    const offenders = walk(root).filter((file) =>
+      /prefetch\s*=\s*(\{\s*true\s*\}|"true")|prefetch(?=[\s/>])(?!\s*=)/.test(
+        readFileSync(file, "utf8").replace(/\/\/.*|\/\*[\s\S]*?\*\//g, ""),
+      ),
+    );
+    expect(offenders).toEqual([]);
   });
 });

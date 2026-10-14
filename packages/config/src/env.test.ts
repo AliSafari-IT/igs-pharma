@@ -60,6 +60,20 @@ describe("parseEnv", () => {
     }
   });
 
+  it("an OTLP endpoint that is not a URL gives the readable error naming the variable (#110)", () => {
+    for (const bad of ["not a url", "http://", ""]) {
+      let thrown: unknown;
+      try {
+        parseEnv({ ...valid, OTEL_EXPORTER_OTLP_ENDPOINT: bad });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, bad).toBeInstanceOf(Error);
+      expect(thrown, bad).not.toBeInstanceOf(TypeError);
+      expect(String(thrown), bad).toMatch(/OTEL_EXPORTER_OTLP_ENDPOINT/);
+    }
+  });
+
   it("rejects an invalid URL and an invalid enum value", () => {
     expect(() => parseEnv({ ...valid, AUTH_URL: "not-a-url" })).toThrow(/AUTH_URL/);
     expect(() => parseEnv({ ...valid, LOG_LEVEL: "loud" })).toThrow(/LOG_LEVEL/);

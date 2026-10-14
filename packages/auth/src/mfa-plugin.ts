@@ -28,7 +28,7 @@ import {
   getSessionFromCtx,
   isAPIError,
 } from "better-auth/api";
-import { setSessionCookie } from "better-auth/cookies";
+import { deleteSessionCookie, setSessionCookie } from "better-auth/cookies";
 import { z } from "zod";
 
 /**
@@ -94,6 +94,7 @@ const VERIFYING_PATHS = new Set([
 /** Endpoints that set up TOTP or its backup codes: never a staff user's first factor (#90 C4). */
 const TOTP_ADDING_PATHS = new Set([
   "/two-factor/enable",
+  "/two-factor/verify-totp",
   "/two-factor/get-totp-uri",
   "/two-factor/generate-backup-codes",
 ]);
@@ -102,6 +103,8 @@ const TOTP_ADDING_PATHS = new Set([
 const ADDING_PATHS = new Set([
   "/passkey/generate-register-options",
   "/passkey/verify-registration",
+  // confirming the FIRST authenticator app enrols it (#110): an adding path only until one exists
+  "/two-factor/verify-totp",
   "/two-factor/enable",
   "/two-factor/get-totp-uri",
   "/two-factor/generate-backup-codes",
@@ -122,6 +125,7 @@ export const MFA_ERROR_CODES = {
   PASSKEY_NOT_FOUND: "PASSKEY_NOT_FOUND",
   INVALID_PASSWORD: "INVALID_PASSWORD",
   AUDIT_FAILED: "AUDIT_FAILED",
+  SESSION_ROTATION_FAILED: "SESSION_ROTATION_FAILED",
   TOTP_NOT_ENABLED: "TOTP_NOT_ENABLED",
   ENROLMENT_LINK_INVALID: "ENROLMENT_LINK_INVALID",
   USER_VERIFICATION_REQUIRED: "USER_VERIFICATION_REQUIRED",
@@ -215,7 +219,17 @@ async function recordCheck(
   const at = new Date();
   const prior = ctx.request ? priorSessions.get(ctx.request) : undefined;
   if (prior && prior.userId === acting.userId && prior.id !== acting.sessionId) {
-    await rotateSession(db, { prior, newId: acting.sessionId, at, passkeyChecked });
+    try {
+      await rotateSession(db, { prior, newId: acting.sessionId, at, passkeyChecked });
+    } catch {
+      // #110: the rotation is atomic, so the old session is untouched. Drop the NEW session and its
+      // cookie: a failure can never leave a session with a restarted 8-hour clock
+      const newToken = ctx.context.newSession?.session.token;
+      if (newToken)
+        await ctx.context.internalAdapter.deleteSession(newToken).catch(() => undefined);
+      deleteSessionCookie(ctx);
+      throw fail("INTERNAL_SERVER_ERROR", MFA_ERROR_CODES.SESSION_ROTATION_FAILED);
+    }
     return;
   }
   if (passkeyChecked) await markSessionPasskeyChecked(db, acting.sessionId, at);
@@ -284,6 +298,8 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
             const sessionId = session.session.id;
             const path = ctx.path ?? "";
             const factors = await mfaFactors(db, userId);
+            // a TOTP code with an app already enrolled only VERIFIES the session (no gate here)
+            if (path === "/two-factor/verify-totp" && factors.totp) return;
             const removing = REMOVING_PATHS.get(path);
             const needsTotp = removing === "totp" || path === "/two-factor/generate-backup-codes";
             if (needsTotp && !factors.totp) {
