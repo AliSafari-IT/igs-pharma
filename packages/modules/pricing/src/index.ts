@@ -28,6 +28,8 @@ export {
   currentPrices,
   listPrices,
   referencePrice30Days,
+  productsWithCurrentPrice,
+  storefrontPriceCards,
   storefrontPrices,
 } from "./queries";
 export { PRICING_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
