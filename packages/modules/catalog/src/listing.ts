@@ -169,7 +169,10 @@ export async function searchStorefrontCandidates(
   if (terms.length > 0) {
     const matches = terms.map((term) => {
       const pattern = `%${escapeLikeTerm(term)}%`;
-      return sql`(${shownSearch} LIKE ${pattern} OR ${brandFolded} LIKE ${pattern})`;
+      // The first line is a superset of the shown-row test (any language row of the product holds the
+      // term): it is implied by the exact test below, so the result does not change, but it lets the
+      // trigram index answer the text half (the CASE over two joined rows cannot use an index).
+      return sql`((${products.id} IN (SELECT ${productContent.productId} FROM ${productContent} WHERE ${productContent.searchText} LIKE ${pattern}) AND ${shownSearch} LIKE ${pattern}) OR ${brandFolded} LIKE ${pattern})`;
     });
     const textMatch = and(...matches) as SQL;
     filtersSql.push(

@@ -47,9 +47,12 @@ export function ensureAuthConfigured(): void {
   const env = parseEnvFor(auditEnv);
   registerIdentityAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
-  // the storefront read model's runtime setting comes from the environment HERE (modules do not read it)
+  // The name says "auth" but this is the web app's one synchronous composition root: every request
+  // path goes through it, so the storefront read model's setting is parsed HERE (modules do not read
+  // the environment). Rename in a later PR.
+  const lowStockThreshold = parseEnvFor(storefrontEnv).STOREFRONT_LOW_STOCK_THRESHOLD;
   configureStorefront({
-    lowStockThreshold: parseEnvFor(storefrontEnv).STOREFRONT_LOW_STOCK_THRESHOLD,
+    ...(lowStockThreshold === undefined ? {} : { lowStockThreshold }),
   });
   configureAuth({
     onSecurityEvent: async (event) => {

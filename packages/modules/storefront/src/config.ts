@@ -1,9 +1,11 @@
+import { DEFAULT_LOW_STOCK } from "@igs/module-inventory";
+
 /**
  * Runtime settings of the storefront read model (igs-pharma#103). Modules do not read the
  * environment: the app's composition root parses `STOREFRONT_LOW_STOCK_THRESHOLD` and passes it here
  * once at boot. Never configured (tests, tools): the default.
  */
-export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
+export const DEFAULT_LOW_STOCK_THRESHOLD = DEFAULT_LOW_STOCK; // one definition, owned by inventory
 export const MAX_LOW_STOCK_THRESHOLD = 50;
 
 let lowStockThreshold = DEFAULT_LOW_STOCK_THRESHOLD;

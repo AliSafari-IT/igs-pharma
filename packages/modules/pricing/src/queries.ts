@@ -7,7 +7,7 @@ import {
   storefrontProductRefsById,
 } from "@igs/module-catalog";
 import { PERMISSIONS, type Permission } from "@igs/rbac";
-import { and, desc, eq, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, lte } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -228,7 +228,7 @@ export async function productsWithCurrentPrice(
     .from(prices)
     .where(
       and(
-        inArray(prices.productId, [...productIds]),
+        inUuidSet(prices.productId, productIds),
         eq(prices.channel, CHANNEL),
         lte(prices.validFrom, now),
       ),

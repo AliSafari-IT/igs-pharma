@@ -292,9 +292,9 @@ describe("storefrontEnv (igs-pharma#103)", () => {
   const threshold = (value: string | undefined) =>
     storefrontEnv.parse({ STOREFRONT_LOW_STOCK_THRESHOLD: value }).STOREFRONT_LOW_STOCK_THRESHOLD;
 
-  it("defaults to 3 when unset or empty", () => {
-    expect(threshold(undefined)).toBe(3);
-    expect(threshold("")).toBe(3);
+  it("is undefined when unset or empty (the module's default applies)", () => {
+    expect(threshold(undefined)).toBeUndefined();
+    expect(threshold("")).toBeUndefined();
   });
 
   it("accepts whole numbers 0–50", () => {
