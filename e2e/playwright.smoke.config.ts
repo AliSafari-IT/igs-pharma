@@ -26,6 +26,7 @@ export default defineConfig({
     "prices.spec.ts",
     "storefront-preview.spec.ts",
     "storefront-browse.spec.ts",
+    "backoffice-dashboard.spec.ts",
     "session-limits.spec.ts",
     "reservations.spec.ts",
   ],

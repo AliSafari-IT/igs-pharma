@@ -11,6 +11,7 @@ import {
   ilike,
   inArray,
   like,
+  ne,
   not,
   notInArray,
   or,
@@ -237,5 +238,67 @@ export const listInconsistentProducts = query({
       .orderBy(asc(products.cnk))
       .limit(1000);
     return rows as InconsistentProduct[];
+  },
+});
+
+export interface ProductCounts {
+  readonly active: number;
+  readonly draft: number;
+  readonly archived: number;
+  /**
+   * Medicines (not archived) whose Dutch or French text no pharmacist has approved: the shop does
+   * not show them until one does (D-034, igs-pharma#82, #103). A number only, for the dashboard.
+   */
+  readonly awaitingApproval: number;
+}
+
+/**
+ * How many products there are by status, and how many medicines wait for a pharmacist to approve
+ * their text (igs-pharma#115, the back-office dashboard). Counts only: no names, no CNKs.
+ */
+export const getProductCounts = query({
+  name: "catalog.product.counts",
+  input: z.object({}),
+  permission: PERMISSIONS.catalog.productsRead,
+  async handler({ ctx }): Promise<ProductCounts> {
+    const byStatus = await ctx.tx
+      .select({ status: products.status, total: count() })
+      .from(products)
+      .groupBy(products.status);
+    const of = (status: ProductStatus) => byStatus.find((row) => row.status === status)?.total ?? 0;
+    // the same meaning as `isMedicine` in domain.ts: by type or by legal status
+    const medicine = or(
+      inArray(products.productType, ["otc_medicine", "rx_medicine"]),
+      inArray(products.legalStatus, ["otc", "rx"]),
+    );
+    const approved = (locale: ContentLocale) =>
+      exists(
+        ctx.tx
+          .select({ one: productContent.productId })
+          .from(productContent)
+          .where(
+            and(
+              eq(productContent.productId, products.id),
+              eq(productContent.locale, locale),
+              sql`${productContent.approvedBy} IS NOT NULL`,
+            ),
+          ),
+      );
+    const [awaiting] = await ctx.tx
+      .select({ total: count() })
+      .from(products)
+      .where(
+        and(
+          ne(products.status, "archived"),
+          medicine,
+          not(and(approved("nl"), approved("fr")) as SQL),
+        ),
+      );
+    return {
+      active: of("active"),
+      draft: of("draft"),
+      archived: of("archived"),
+      awaitingApproval: awaiting?.total ?? 0,
+    };
   },
 });

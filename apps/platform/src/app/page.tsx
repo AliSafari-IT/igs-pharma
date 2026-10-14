@@ -1,39 +1,123 @@
-import { Link } from "@igs/ui";
+import { Container, Link } from "@igs/ui";
 
-export default function DashboardPage() {
+import { DashboardTile, Stat } from "../components/dashboard-tile";
+import { LOW_STOCK_THRESHOLD } from "../lib/dashboard";
+import { currentActor, requireStaffActor } from "../server/actor";
+import { loadDashboard } from "../server/dashboard";
+import { ensureKernelConfigured } from "../server/kernel";
+
+/**
+ * The back-office home (igs-pharma#115). A signed-in staff member sees the tiles they may see; a
+ * visitor who is not signed in sees a plain page with a way in (the staff pages themselves send
+ * them to sign in).
+ */
+export default async function DashboardPage() {
+  if (!(await currentActor())) {
+    return (
+      <main className="p-8">
+        <h1 className="text-2xl font-semibold text-[var(--color-primary)]">IGS-Pharma Platform</h1>
+        <p className="mt-4">
+          <Link href="/sign-in">Sign in</Link>
+        </p>
+      </main>
+    );
+  }
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const { products, stock, requests } = await loadDashboard(actor);
+  const none = !products && !stock && !requests;
+
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-semibold text-[var(--color-primary)]">IGS-Pharma Platform</h1>
-      <nav aria-label="Back-office" className="mt-4">
-        <ul className="flex flex-col gap-2">
-          <li>
-            <Link href="/products">Products</Link>
-          </li>
-          <li>
-            <Link href="/categories">Categories</Link>
-          </li>
-          <li>
-            <Link href="/stock">Stock</Link>
-          </li>
-          <li>
-            Privacy
-            <ul className="mt-2 ml-4 flex flex-col gap-2">
-              <li>
-                <Link href="/privacy/requests">Data requests</Link>
-              </li>
-              <li>
-                <Link href="/privacy/consents">Consents</Link>
-              </li>
-            </ul>
-          </li>
-          <li>
-            <Link href="/staff">Staff</Link>
-          </li>
-          <li>
-            <Link href="/account">Your account</Link>
-          </li>
-        </ul>
-      </nav>
-    </main>
+    <Container asChild size="lg">
+      <main className="py-8">
+        <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">Dashboard</h1>
+        {none ? (
+          <p className="mt-4 max-w-prose text-[var(--color-text-subtle)]">
+            Nothing to show here for your role yet. Use the menu to open a page.
+          </p>
+        ) : (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {products ? (
+              <DashboardTile
+                id="products"
+                title="Products"
+                result={products}
+                href="/products"
+                linkLabel="Open products"
+              >
+                {(counts) =>
+                  counts.active + counts.draft + counts.awaitingApproval === 0 ? (
+                    <p className="text-[var(--color-text-subtle)]">No products yet.</p>
+                  ) : (
+                    <dl className="grid grid-cols-3 gap-3">
+                      <Stat label="Active" value={counts.active} />
+                      <Stat label="Draft" value={counts.draft} />
+                      <Stat
+                        label="Awaiting approval"
+                        value={counts.awaitingApproval}
+                        tone="attention"
+                      />
+                    </dl>
+                  )
+                }
+              </DashboardTile>
+            ) : null}
+            {stock ? (
+              <DashboardTile
+                id="stock"
+                title="Stock alerts"
+                result={stock}
+                href="/stock"
+                linkLabel="Open stock"
+              >
+                {(alerts) =>
+                  alerts.low + alerts.out === 0 && !alerts.capped ? (
+                    <p className="text-[var(--color-text-subtle)]">
+                      No product is low or out of stock.
+                    </p>
+                  ) : (
+                    <>
+                      <dl className="grid grid-cols-2 gap-3">
+                        <Stat
+                          label={`Low (1 to ${LOW_STOCK_THRESHOLD})`}
+                          value={alerts.low}
+                          tone="attention"
+                        />
+                        <Stat label="Out of stock" value={alerts.out} tone="attention" />
+                      </dl>
+                      {alerts.capped ? (
+                        <p className="text-sm text-[var(--color-text-subtle)]">
+                          Counted over the first {alerts.scanned} of {alerts.total} products.
+                        </p>
+                      ) : null}
+                    </>
+                  )
+                }
+              </DashboardTile>
+            ) : null}
+            {requests ? (
+              <DashboardTile
+                id="requests"
+                title="Data requests"
+                result={requests}
+                href="/privacy/requests"
+                linkLabel="Open data requests"
+              >
+                {(counts) =>
+                  counts.open === 0 ? (
+                    <p className="text-[var(--color-text-subtle)]">No open data requests.</p>
+                  ) : (
+                    <dl className="grid grid-cols-2 gap-3">
+                      <Stat label="Open" value={counts.open} />
+                      <Stat label="Overdue" value={counts.overdue} tone="attention" />
+                    </dl>
+                  )
+                }
+              </DashboardTile>
+            ) : null}
+          </div>
+        )}
+      </main>
+    </Container>
   );
 }
