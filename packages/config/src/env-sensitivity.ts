@@ -32,6 +32,8 @@ export const ENV_SENSITIVITY = {
   NODE_ENV: "not-sensitive",
   NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS: "not-sensitive",
   NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "not-sensitive",
+  NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "not-sensitive",
+  STOREFRONT_URL: "not-sensitive",
   CSP_REPORTING: "not-sensitive",
   UI_GALLERY: "not-sensitive",
   SITE_GATE: "not-sensitive",

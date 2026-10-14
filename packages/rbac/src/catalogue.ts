@@ -80,6 +80,8 @@ export const PERMISSIONS = {
     bootstrap: "identity.bootstrap",
     /** Audit sign-in factor changes reported by Better Auth (36b). System actors only. */
     securityEventsRecord: "identity.security_events.record",
+    /** Ask for a verification, reset or notice mail (igs-pharma#114): the Better Auth callbacks. System actors only. */
+    mailRequest: "identity.mail.request",
   },
 } as const;
 
@@ -117,7 +119,10 @@ export const ROLES = {
   content_editor: { kind: "staff", description: "Catalogue content editor" },
   customer: { kind: "customer", description: "Webshop customer" },
   system_bootstrap: { kind: "system", description: "Bootstrap CLI: creates the first owner" },
-  system_auth: { kind: "system", description: "Better Auth hooks: records sign-in factor changes" },
+  system_auth: {
+    kind: "system",
+    description: "Better Auth hooks: records sign-in factor changes and requests account mails",
+  },
   system_storefront: {
     kind: "system",
     description: "Storefront preview: reads active products, prices and availability (no writes)",
@@ -227,7 +232,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   ],
   customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
-  system_auth: [PERMISSIONS.identity.securityEventsRecord],
+  system_auth: [PERMISSIONS.identity.securityEventsRecord, PERMISSIONS.identity.mailRequest],
   system_storefront: [
     PERMISSIONS.catalog.storefrontRead,
     PERMISSIONS.inventory.availabilityRead,

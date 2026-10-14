@@ -33,6 +33,8 @@ export {
   suspendPharmacist,
   suspendUser,
 } from "./commands";
+export { MailRequested, requestMail } from "./mail";
+export { MAIL_TEMPLATES, type MailTemplate } from "./schema";
 export { IDENTITY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {
   ENROLMENT_TTL_MS,

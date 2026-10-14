@@ -42,6 +42,14 @@ export const migrateEnv = z.object({
 export const authEnv = z.object({
   AUTH_SECRET: z.string().min(32).describe("Better Auth HMAC secret (≥32 chars)"),
   AUTH_URL: z.string().url().describe("Canonical app URL for Better Auth callbacks"),
+  /**
+   * The storefront's public origin (igs-pharma#114): the customer auth instance lives there, with its
+   * own cookies. Optional while customer accounts are off; required when they are switched on.
+   */
+  STOREFRONT_URL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().url().optional().describe("Public origin of the storefront (customer accounts)"),
+  ),
 });
 
 export const appEnv = z.object({
@@ -90,6 +98,14 @@ export const featureFlagsEnv = z.object({
    * is registered: showing it earlier would be a false claim.
    */
   NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  /**
+   * Customer accounts (igs-pharma#114, D-044): sign-up, sign-in and the account area of the storefront.
+   * Strictly `true` or `false`; off, the customer `/api/auth` routes answer 404 and the links are hidden.
+   */
+  NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: z
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),

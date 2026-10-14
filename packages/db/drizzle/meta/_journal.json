@@ -288,6 +288,27 @@
       "when": 1791984095806,
       "tag": "0040_rbac_seed_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792010987914,
+      "tag": "0041_identity_rate_limits_mail_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792010989543,
+      "tag": "0042_rbac_seed_mail_request",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792010996789,
+      "tag": "0043_identity_mail_grants",
+      "breakpoints": true
     }
   ]
 }
