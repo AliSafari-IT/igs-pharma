@@ -225,7 +225,7 @@ test("a tab that was asleep clears the moment it wakes, not 30 minutes later (#1
   await signIn(context, token);
   await page.clock.install();
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
-  await expect(page.getByText(`Sleeper ${tag}`)).toBeVisible();
+  await expect(page.locator("#main").getByText(`Sleeper ${tag}`)).toBeVisible();
 
   // the laptop sleeps for an hour: the clock jumps, no timer ran
   await page.clock.setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
@@ -243,7 +243,7 @@ test("a hidden tab that becomes visible again clears at once: visibilitychange (
   await signIn(context, token);
   await page.clock.install();
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
-  await expect(page.getByText(`Hidden ${tag}`)).toBeVisible();
+  await expect(page.locator("#main").getByText(`Hidden ${tag}`)).toBeVisible();
 
   await page.clock.setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
