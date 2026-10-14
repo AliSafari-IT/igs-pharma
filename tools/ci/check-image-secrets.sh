@@ -2,13 +2,15 @@
 # D-023: a final image must not mention build/runtime secrets in its history or its ENV.
 # Usage: tools/ci/check-image-secrets.sh <image-reference>
 #
-# Limits: it matches variable NAMES only (a baked secret VALUE with no name next to it passes), and
-# the list below is maintained by hand next to packages/config/src/env.ts (deriving it from the env
-# schema would be a follow-up).
+# Limits: it matches variable NAMES only (a baked secret VALUE with no name next to it passes). The
+# list below is kept by hand, but it is checked: packages/config/src/env-sensitivity.ts classifies
+# EVERY variable of env.ts as sensitive or not, and its test (env-sensitivity.test.ts) fails when a
+# variable is unclassified or when a sensitive name is missing from the list below. Extra names are
+# fine (the CI-only ones, and AUTH_URL, which no image should carry either).
 set -euo pipefail
 image="${1:?usage: check-image-secrets.sh <image>}"
-# Names of every secret-like variable the apps, the worker and CI use (packages/config/src/env.ts).
-names='AUTH_SECRET|DATABASE_URL|AUTH_URL|AUDIT_HMAC_KEY|IGS_PREVIEW_KEY|ENCRYPTION_KEY|KMS_KEY_ID|TURBO_TOKEN|TURBO_TEAM'
+# Every `sensitive` variable of packages/config/src/env-sensitivity.ts, plus the CI-only ones.
+names='AUTH_SECRET|DATABASE_URL|DATABASE_MIGRATE_URL|AUTH_URL|AUDIT_HMAC_KEY|IGS_PREVIEW_KEY|ENCRYPTION_KEY|KMS_KEY_ID|SENTRY_DSN|TURBO_TOKEN|TURBO_TEAM'
 
 # Capture first, then grep: `docker ... | grep -q` under pipefail can exit 141 (SIGPIPE) when grep
 # matches early, and an `if` would read that as "no match", i.e. pass while the secret is present.
