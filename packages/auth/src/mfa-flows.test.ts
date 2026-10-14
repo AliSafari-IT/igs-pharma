@@ -16,7 +16,7 @@ import {
   storeEnrolmentToken,
 } from "@igs/module-identity";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type SecurityEvent, createAuth } from "./index";
 import { requireUserVerification } from "./mfa-plugin";
@@ -458,15 +458,31 @@ describe("staff session limits (#95)", () => {
   };
   const setSession = (id: string, values: Partial<typeof sessions.$inferInsert>) =>
     iso.db.update(sessions).set(values).where(eq(sessions.id, id));
+  /**
+   * Signs a new staff user in with `Date` held still (igs-pharma#107). Better Auth stamps a session
+   * with `createdAt = new Date()` and `expiresAt = now + expiresIn` from two separate clock reads, so
+   * on a busy machine they differ by a millisecond or two and an exact "8 hours" comparison fails
+   * at random. With one instant both reads agree and the assertion can stay exact: the limit is
+   * checked to the millisecond, with no tolerance that could hide a real drift. Only `Date` is
+   * faked; timers and I/O run for real, and the clock runs again before this returns.
+   */
+  const signInAtFrozenInstant = async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date() });
+    try {
+      return await passkeyBrowser(await createStaff());
+    } finally {
+      vi.useRealTimers();
+    }
+  };
 
   it("a session lasts 8 hours from sign-in, not Better Auth's 7 days", async () => {
-    const b = await passkeyBrowser(await createStaff());
+    const b = await signInAtFrozenInstant();
     const session = await row(b);
     expect(session.expiresAt.getTime() - session.createdAt.getTime()).toBe(8 * HOUR);
   });
 
   it("the browser's own session check (GET get-session) never moves the idle clock", async () => {
-    const b = await passkeyBrowser(await createStaff());
+    const b = await signInAtFrozenInstant();
     const id = (await row(b)).id;
     await setSession(id, { lastActivityAt: new Date(Date.now() - 20 * MINUTE) });
     const before = (await row(b)).lastActivityAt?.getTime();
