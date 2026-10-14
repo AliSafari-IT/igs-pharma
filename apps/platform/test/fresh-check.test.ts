@@ -11,6 +11,7 @@ import {
   loadActor,
   loadRbacCatalogue,
   registerAuditActions as registerIdentityAudit,
+  resetStaffSignIn,
 } from "@igs/module-identity";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -222,5 +223,139 @@ describe("the fresh proof comes from a passkey check only (igs-pharma#100)", () 
     expect(refused.json?.["code"]).toBe("FRESH_PASSKEY_REQUIRED");
     expect((await passkey.signIn(browser)).status).toBe(200);
     expect((await browser.call("/passkey/generate-register-options")).status).toBe(200);
+  });
+});
+
+describe("the follow-up (igs-pharma#110)", () => {
+  const fresh = "FRESH_PASSKEY_REQUIRED";
+  const grant = async (userId: string, browser: TestBrowser, target: string) =>
+    codeOf(
+      grantRole({ userId: target, roleKey: "content_editor" }, await actorOf(userId, browser)),
+    );
+
+  it("confirming the FIRST authenticator app needs a passkey check from the last 10 minutes", async () => {
+    const { browser, passkey } = await signedInOwner();
+    const enabled = await browser.call("/two-factor/enable", {});
+    expect(enabled.status).toBe(200);
+    const code = await totpCodeFor(auth, String(enabled.json?.["totpURI"]));
+    await ageProof(browser, 11 * 60 * 1000);
+
+    const refused = await browser.call("/two-factor/verify-totp", { code });
+    expect(refused.status).toBe(403);
+    expect(refused.json?.["code"]).toBe(fresh);
+    const [user] = await iso.db
+      .select()
+      .from(users)
+      .where(eq(users.id, (await browser.session())?.userId ?? ""));
+    expect(user?.twoFactorEnabled).toBe(false);
+
+    // after a passkey check the same code is accepted
+    expect((await passkey.signIn(browser)).status).toBe(200);
+    expect((await browser.call("/two-factor/verify-totp", { code })).status).toBe(200);
+  });
+
+  it("the whole attack in one test: a stale-verified session adds nothing and still cannot grant a role", async () => {
+    const { userId, browser } = await signedInOwner();
+    const target = await staff("pharmacy_assistant");
+    await ageProof(browser, 3 * HOUR);
+    for (const [path, body] of [
+      ["/passkey/generate-register-options", undefined],
+      ["/two-factor/enable", {}],
+      ["/two-factor/verify-totp", { code: "000000" }],
+    ] as const) {
+      const answer = await browser.call(path, body);
+      expect(answer.status, path).toBe(403);
+      expect(answer.json?.["code"], path).toBe(fresh);
+    }
+    expect(await grant(userId, browser, target)).toBe("identity.fresh_mfa_required");
+  });
+
+  it("another user's passkey does not make this session fresh", async () => {
+    const { browser } = await signedInOwner();
+    await ageProof(browser, 3 * HOUR);
+    const before = await browser.session();
+    const other = await staff("owner");
+    const otherKey = new SoftwarePasskey();
+    await otherKey.register(iso, other);
+    expect((await otherKey.signIn(browser)).status).toBe(200);
+    // the browser is now the OTHER person's; the first session was not refreshed
+    const now = await browser.session();
+    expect(now?.userId).toBe(other);
+    const [old] = await iso.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, before?.id ?? ""));
+    expect(old?.passkeyCheckedAt?.getTime()).toBeLessThan(Date.now() - 2 * HOUR);
+  });
+
+  it("a session that ended and re-authenticates gets a brand-new session with a new 8-hour clock", async () => {
+    const { userId, browser, passkey } = await signedInOwner();
+    const before = await browser.session();
+    await iso.db
+      .update(sessions)
+      .set({ createdAt: new Date(Date.now() - 9 * HOUR), lastActivityAt: new Date() })
+      .where(eq(sessions.id, before?.id ?? ""));
+    expect((await passkey.signIn(browser)).status).toBe(200);
+    const after = await browser.session();
+    expect(after?.userId).toBe(userId);
+    expect(after?.id).not.toBe(before?.id);
+    expect(Date.now() - (after?.createdAt.getTime() ?? 0)).toBeLessThan(60_000);
+    expect(
+      await iso.db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.id, before?.id ?? "")),
+    ).toEqual([]);
+  });
+
+  it("generating new backup codes needs a fresh passkey check", async () => {
+    const { browser, passkey } = await signedInOwner();
+    const enabled = await browser.call("/two-factor/enable", {});
+    await browser.call("/two-factor/verify-totp", {
+      code: await totpCodeFor(auth, String(enabled.json?.["totpURI"])),
+    });
+    await ageProof(browser, 11 * 60 * 1000);
+    const refused = await browser.call("/two-factor/generate-backup-codes", {});
+    expect(refused.status).toBe(403);
+    expect(refused.json?.["code"]).toBe(fresh);
+    expect((await passkey.signIn(browser)).status).toBe(200);
+    expect((await browser.call("/two-factor/generate-backup-codes", {})).status).toBe(200);
+  });
+
+  it("'own sign-in' is refused before any fresh-check prompt", async () => {
+    const { userId, browser } = await signedInOwner();
+    await ageProof(browser, 3 * HOUR);
+    const stale = await actorOf(userId, browser);
+    expect(await codeOf(resetStaffSignIn({ userId }, stale))).toBe(
+      "identity.cannot_reset_own_sign_in",
+    );
+    const other = await staff("pharmacy_assistant");
+    expect(await codeOf(resetStaffSignIn({ userId: other }, stale))).toBe(
+      "identity.fresh_mfa_required",
+    );
+  });
+
+  it("a rotation that fails drops the new session and its cookie and leaves the old one as it was", async () => {
+    const { userId, browser, passkey } = await signedInOwner();
+    const before = await browser.session();
+    const oldCookie = browser.jar.get("better-auth.session_token");
+    // the old row cannot be deleted: the rotation's transaction must roll back as a whole
+    await iso.sql.unsafe(`
+      CREATE OR REPLACE FUNCTION identity.test_block_delete() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'blocked for the test'; END $$ LANGUAGE plpgsql;
+      CREATE TRIGGER test_block_delete BEFORE DELETE ON identity.sessions
+        FOR EACH ROW WHEN (OLD.id = '${before?.id}') EXECUTE FUNCTION identity.test_block_delete();`);
+    try {
+      const failed = await passkey.signIn(browser);
+      expect(failed.status).toBe(500);
+      expect(failed.json?.["code"]).toBe("SESSION_ROTATION_FAILED");
+    } finally {
+      await iso.sql.unsafe("DROP TRIGGER test_block_delete ON identity.sessions");
+    }
+    const rows = await iso.db.select().from(sessions).where(eq(sessions.userId, userId));
+    expect(rows.map((r) => r.id)).toEqual([before?.id]); // no new session left behind
+    expect(rows[0]?.createdAt.getTime()).toBe(before?.createdAt.getTime());
+    expect(browser.jar.has("better-auth.session_token")).toBe(false); // the new cookie was expired
+    expect(oldCookie).toBeDefined();
   });
 });

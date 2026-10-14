@@ -64,8 +64,12 @@ export const observabilityEnv = z.object({
     .string()
     .url()
     .refine((value) => {
-      const { username, password } = new URL(value);
-      return username === "" && password === "";
+      try {
+        const { username, password } = new URL(value);
+        return username === "" && password === "";
+      } catch {
+        return true; // not a URL at all: the url() check above reports it, readably
+      }
     }, "must not contain a username or password")
     .optional(),
   SENTRY_DSN: z.string().url().optional(),
