@@ -15,6 +15,7 @@ import {
   loadActor,
   loadRbacCatalogue,
   markSessionMfaVerified,
+  markSessionPasskeyChecked,
   mfaFactors,
   recordSecurityEvent,
   redeemEnrolmentToken,
@@ -179,7 +180,7 @@ describe("staff actors and the kernel guard", () => {
     );
 
     await addPasskey(owner);
-    await markSessionMfaVerified(iso.db, session);
+    await markSessionPasskeyChecked(iso.db, session);
     const verified = await loadActor(iso.db, owner, { sessionId: session });
     if (!verified) throw new Error("no actor");
     expect(await codeOf(grantRole({ userId: target, roleKey: "content_editor" }, verified))).toBe(
@@ -194,6 +195,7 @@ describe("staff actors and the kernel guard", () => {
       ...(await loadActor(iso.db, owner)),
       mfaVerified: true,
       mfaVerifiedAt: new Date(),
+      passkeyCheckedAt: new Date(),
     } as never;
     const target = await createUser();
     expect(await codeOf(grantRole({ userId: target, roleKey: "system_bootstrap" }, actor))).toBe(

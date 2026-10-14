@@ -66,6 +66,7 @@ async function staffWith(...roleKeys: string[]) {
     mfaVerified: true,
     // #95: role and status changes need a passkey check from the last 10 minutes
     mfaVerifiedAt: new Date(),
+    passkeyCheckedAt: new Date(),
   };
 }
 

@@ -64,6 +64,19 @@ export async function sessionMfaVerifiedAt(
   return row?.at ?? null;
 }
 
+/** When `sessionId` (of `userId`) last passed a PASSKEY check, or `null` (igs-pharma#100). */
+export async function sessionPasskeyCheckedAt(
+  db: Reader,
+  userId: string,
+  sessionId: string,
+): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sessions.passkeyCheckedAt })
+    .from(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)));
+  return row?.at ?? null;
+}
+
 /** Whether `sessionId` (of `userId`) has proved a second factor. */
 export async function sessionMfaVerified(
   db: Reader,
@@ -96,6 +109,77 @@ export async function markSessionMfaVerified(
     .update(sessions)
     .set({ mfaVerifiedAt: at, enrolmentAt: null })
     .where(eq(sessions.id, sessionId));
+}
+
+/**
+ * A passkey check on `sessionId` (igs-pharma#100): the session is verified AND freshly proven. Called
+ * only after `/passkey/verify-authentication`; the other ways of verifying use `markSessionMfaVerified`.
+ */
+export async function markSessionPasskeyChecked(
+  db: Executor,
+  sessionId: string,
+  at: Date = new Date(),
+): Promise<void> {
+  await db
+    .update(sessions)
+    .set({ mfaVerifiedAt: at, passkeyCheckedAt: at, enrolmentAt: null })
+    .where(eq(sessions.id, sessionId));
+}
+
+/** What a session row's clocks and proofs were before a second-factor check replaced it. */
+export type PriorSession = {
+  readonly id: string;
+  readonly userId: string;
+  readonly createdAt: Date;
+  readonly lastActivityAt: Date | null;
+  readonly expiresAt: Date;
+  readonly passkeyCheckedAt: Date | null;
+};
+
+/** The session row `sessionId` as it is now, for `rotateSession` (read BEFORE the endpoint runs). */
+export async function readPriorSession(
+  db: Reader,
+  sessionId: string,
+): Promise<PriorSession | null> {
+  const [row] = await db
+    .select({
+      id: sessions.id,
+      userId: sessions.userId,
+      createdAt: sessions.createdAt,
+      lastActivityAt: sessions.lastActivityAt,
+      expiresAt: sessions.expiresAt,
+      passkeyCheckedAt: sessions.passkeyCheckedAt,
+    })
+    .from(sessions)
+    .where(eq(sessions.id, sessionId));
+  return row ?? null;
+}
+
+/**
+ * A second-factor check made inside a live session (igs-pharma#100): Better Auth answers it with a
+ * NEW session (new token, so a stolen old cookie dies) and deletes the old one. The browser moves to
+ * the new one, but the clocks stay the OLD session's (`created_at`, `last_activity_at`,
+ * `expires_at`), so the 8-hour limit never restarts. The new session is verified now;
+ * `passkeyCheckedAt` is `at` after a passkey check, the old session's own value after a TOTP or
+ * backup code (those never make a proof fresh).
+ */
+export async function rotateSession(
+  db: Executor,
+  options: { prior: PriorSession; newId: string; at: Date; passkeyChecked: boolean },
+): Promise<void> {
+  const { prior } = options;
+  await db
+    .update(sessions)
+    .set({
+      createdAt: prior.createdAt,
+      lastActivityAt: prior.lastActivityAt,
+      expiresAt: prior.expiresAt,
+      mfaVerifiedAt: options.at,
+      passkeyCheckedAt: options.passkeyChecked ? options.at : prior.passkeyCheckedAt,
+      enrolmentAt: null,
+    })
+    .where(eq(sessions.id, options.newId));
+  await db.delete(sessions).where(eq(sessions.id, prior.id));
 }
 
 /** Records that `sessionId` was started by redeeming an enrolment link (`/enrolment/redeem`). */

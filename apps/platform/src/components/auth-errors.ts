@@ -4,6 +4,8 @@
  */
 const MESSAGES: Record<string, string> = {
   MFA_REQUIRED: "Confirm it's you with your passkey or authenticator app first.",
+  FRESH_PASSKEY_REQUIRED:
+    "Check your passkey again first: adding a sign-in method needs a passkey check in the last 10 minutes.",
   LAST_FACTOR: "You can't remove your only 2-step login method. Add another one first.",
   LAST_PASSKEY:
     "You can't remove your only passkey: you sign in with it. Add another passkey first.",

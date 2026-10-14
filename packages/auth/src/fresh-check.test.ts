@@ -79,12 +79,13 @@ async function actorOf(userId: string, browser: TestBrowser): Promise<Actor> {
   return actor as unknown as Actor;
 }
 
-/** Ages the proof of the current session: "verified `ms` ago" (an unlocked workstation). */
+/** Ages the proof of the current session: "checked `ms` ago" (an unlocked workstation). */
 async function ageProof(browser: TestBrowser, ms: number) {
   const session = await browser.session();
+  const at = new Date(Date.now() - ms);
   await iso.db
     .update(sessions)
-    .set({ mfaVerifiedAt: new Date(Date.now() - ms) })
+    .set({ mfaVerifiedAt: at, passkeyCheckedAt: at })
     .where(eq(sessions.id, session?.id ?? ""));
 }
 
@@ -116,31 +117,110 @@ describe("the software passkey", () => {
   });
 });
 
-describe("the gap, before the fix (igs-pharma#100)", () => {
-  it("TODAY: enrolling an authenticator app on a session verified 3 hours ago makes it 'fresh', and a role grant goes through", async () => {
+describe("the fresh proof comes from a passkey check only (igs-pharma#100)", () => {
+  it("an authenticator app cannot be added on a session whose passkey check is 3 hours old, so it cannot make it fresh", async () => {
     const { userId, browser } = await signedInOwner();
     const target = await staff("pharmacy_assistant");
     await ageProof(browser, 3 * HOUR);
-    // not fresh yet: the grant is refused
+    const grant = async () =>
+      codeOf(
+        grantRole({ userId: target, roleKey: "content_editor" }, await actorOf(userId, browser)),
+      );
+    expect(await grant()).toBe("identity.fresh_mfa_required");
+
+    // the old attack: someone at the unlocked workstation adds an authenticator app of their own
+    const enabled = await browser.call("/two-factor/enable", {});
+    expect(enabled.status).toBe(403);
+    expect(enabled.json?.["code"]).toBe("FRESH_PASSKEY_REQUIRED");
+    expect(await grant()).toBe("identity.fresh_mfa_required");
+  });
+
+  it("an authenticator app that already exists (a TOTP code) verifies the session but never makes it fresh", async () => {
+    const { userId, browser, passkey } = await signedInOwner();
+    const target = await staff("pharmacy_assistant");
+    // enrol the app while the passkey check is fresh
+    const enabled = await browser.call("/two-factor/enable", {});
+    expect(enabled.status).toBe(200);
+    const uri = String(enabled.json?.["totpURI"] ?? "");
+    expect(
+      (await browser.call("/two-factor/verify-totp", { code: await totpCodeFor(auth, uri) }))
+        .status,
+    ).toBe(200);
+    await ageProof(browser, 3 * HOUR);
+    const again = await browser.call("/two-factor/verify-totp", {
+      code: await totpCodeFor(auth, uri),
+    });
+    expect(again.status).toBe(200);
+    expect((await browser.session())?.mfaVerifiedAt?.getTime()).toBeGreaterThan(
+      Date.now() - 60_000,
+    );
     expect(
       await codeOf(
         grantRole({ userId: target, roleKey: "content_editor" }, await actorOf(userId, browser)),
       ),
     ).toBe("identity.fresh_mfa_required");
-
-    // the attack: someone at the unlocked workstation adds an authenticator app of their own
-    const enabled = await browser.call("/two-factor/enable", {});
-    const uri = String(enabled.json?.["totpURI"] ?? "");
-    const confirmed = await browser.call("/two-factor/verify-totp", {
-      code: await totpCodeFor(auth, uri),
-    });
-    expect([enabled.status, confirmed.status]).toEqual([200, 200]);
-
-    // ... and the session counts as freshly proven: the role is granted
+    // a passkey check does
+    expect((await passkey.signIn(browser)).status).toBe(200);
     expect(
       await codeOf(
         grantRole({ userId: target, roleKey: "content_editor" }, await actorOf(userId, browser)),
       ),
     ).toBe("ok");
+  });
+
+  it("a passkey check inside a live session rotates the token but never moves the 8-hour clock", async () => {
+    const { userId, browser, passkey } = await signedInOwner();
+    const before = await browser.session();
+    const created = new Date(Date.now() - 3 * HOUR);
+    const active = new Date(Date.now() - 5 * 60 * 1000);
+    await iso.db
+      .update(sessions)
+      .set({ createdAt: created, lastActivityAt: active, passkeyCheckedAt: created })
+      .where(eq(sessions.id, before?.id ?? ""));
+    const oldToken = browser.jar.get("better-auth.session_token");
+    expect((await passkey.signIn(browser)).status).toBe(200);
+    const after = await browser.session();
+    expect(after?.userId).toBe(userId);
+    expect(after?.id).not.toBe(before?.id);
+    expect(browser.jar.get("better-auth.session_token")).not.toBe(oldToken);
+    expect(after?.createdAt.getTime()).toBe(created.getTime());
+    // the check is the person's own request, so the idle clock restarts; the 8 hours never move
+    expect(after?.lastActivityAt?.getTime()).toBeGreaterThan(Date.now() - 60_000);
+    expect(after?.passkeyCheckedAt?.getTime()).toBeGreaterThan(Date.now() - 60_000);
+    // the old session is gone
+    const old = await iso.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.id, before?.id ?? ""));
+    expect(old).toEqual([]);
+  });
+
+  it("confirming an authenticator app inside a live session rotates the token, keeps the 8-hour clock and the old passkey check", async () => {
+    const { browser } = await signedInOwner();
+    const before = await browser.session();
+    const created = new Date(Date.now() - 3 * HOUR);
+    const checked = new Date(Date.now() - 2 * 60 * 1000);
+    await iso.db
+      .update(sessions)
+      .set({ createdAt: created, lastActivityAt: new Date(), passkeyCheckedAt: checked })
+      .where(eq(sessions.id, before?.id ?? ""));
+    const enabled = await browser.call("/two-factor/enable", {});
+    await browser.call("/two-factor/verify-totp", {
+      code: await totpCodeFor(auth, String(enabled.json?.["totpURI"])),
+    });
+    const after = await browser.session();
+    expect(after?.id).not.toBe(before?.id);
+    expect(after?.createdAt.getTime()).toBe(created.getTime());
+    expect(after?.passkeyCheckedAt?.getTime()).toBe(checked.getTime());
+  });
+
+  it("a user without a passkey check in the last 10 minutes gets FRESH_PASSKEY_REQUIRED for a second passkey; with one it goes through", async () => {
+    const { browser, passkey } = await signedInOwner();
+    await ageProof(browser, 11 * 60 * 1000);
+    const refused = await browser.call("/passkey/generate-register-options");
+    expect(refused.status).toBe(403);
+    expect(refused.json?.["code"]).toBe("FRESH_PASSKEY_REQUIRED");
+    expect((await passkey.signIn(browser)).status).toBe(200);
+    expect((await browser.call("/passkey/generate-register-options")).status).toBe(200);
   });
 });
