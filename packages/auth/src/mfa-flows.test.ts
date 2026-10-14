@@ -447,6 +447,19 @@ describe("removing a factor", () => {
   });
 });
 
+describe("sign-up (#91)", () => {
+  it("is closed: no account can be created through Better Auth", async () => {
+    const email = `${crypto.randomUUID()}@example.test`;
+    const res = await browser().call("/sign-up/email", {
+      email,
+      password: "a-long-enough-password-123",
+      name: "Someone",
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(await iso.db.select().from(users).where(eq(users.email, email))).toEqual([]);
+  });
+});
+
 describe("server-owned fields", () => {
   it("a request body cannot set mfaVerifiedAt or enrolmentAt", async () => {
     const userId = await createStaff();

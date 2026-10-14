@@ -56,6 +56,9 @@ export function createAuth({ db, secret, baseURL, onSecurityEvent }: AuthDeps) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      // #91 (#64 E): nobody signs up. Staff are created by the bootstrap CLI or an owner; customer
+      // accounts (Phase 1b) will open sign-up on purpose, with their own rules
+      disableSignUp: true,
     },
     session: {
       // T-016 Q2: no roles/status in a signed cookie; every request re-reads the session row
