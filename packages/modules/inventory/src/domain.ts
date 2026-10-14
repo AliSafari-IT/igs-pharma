@@ -134,10 +134,13 @@ export const MINUTE_MS = 60_000;
 export const EXPIRY_BATCH = 200;
 
 /**
- * An opaque reference to whoever holds the reservation (a future checkout or order id). It is not
- * personal data and must never be: letters, digits and `: _ . -` only (no `@`, no spaces).
+ * An opaque reference to whoever holds the reservation: `checkout:<uuidv7>` or `order:<uuidv7>`,
+ * nothing else. It is stored for good and shown on the Stock page, so it can never carry a name, an
+ * e-mail address or a national register number (igs-pharma#99 review). Enforced by Zod and by the
+ * database check.
  */
-export const HOLDER_REF_PATTERN = /^[A-Za-z0-9:_.-]{1,100}$/;
+export const HOLDER_REF_PATTERN =
+  /^(checkout|order):[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** What is on the shelf, what is set aside, what is left to sell, and by how much it is short. */
 export interface Availability {

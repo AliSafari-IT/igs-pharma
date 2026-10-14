@@ -22,7 +22,7 @@ CREATE TABLE "inventory"."reservations" (
 	CONSTRAINT "reservations_expires_at_check" CHECK (("inventory"."reservations"."kind" = 'hold' AND "inventory"."reservations"."expires_at" IS NOT NULL) OR ("inventory"."reservations"."kind" = 'order' AND "inventory"."reservations"."expires_at" IS NULL)),
 	CONSTRAINT "reservations_only_holds_expire_check" CHECK ("inventory"."reservations"."status" <> 'expired' OR "inventory"."reservations"."kind" = 'hold'),
 	CONSTRAINT "reservations_only_orders_consumed_check" CHECK ("inventory"."reservations"."status" <> 'consumed' OR "inventory"."reservations"."kind" = 'order'),
-	CONSTRAINT "reservations_holder_ref_check" CHECK ("inventory"."reservations"."holder_ref" ~ '^[A-Za-z0-9:_.-]{1,100}$')
+	CONSTRAINT "reservations_holder_ref_check" CHECK ("inventory"."reservations"."holder_ref" ~ '^(checkout|order):[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
 );
 --> statement-breakpoint
 ALTER TABLE "inventory"."stock_movements" DROP CONSTRAINT "stock_movements_reason_check";--> statement-breakpoint

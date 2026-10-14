@@ -19,6 +19,10 @@ const PLATFORM = "http://localhost:3001";
 const LOCATION = "0192f000-0000-7000-8000-000000000001";
 const tag = randomUUID().slice(0, 8);
 
+/** A holder reference the way the checkout will write it: `checkout:<uuidv7>` or `order:<uuidv7>`. */
+const holderRef = (kind: "checkout" | "order") =>
+  `${kind}:00000000-0000-7000-8000-${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+
 let sql: postgres.Sql;
 let userId: string;
 let token: string;
@@ -118,8 +122,8 @@ let holdId: string;
 
 test("the list shows what is on hand, reserved and available", async ({ page, context }) => {
   shelf = await product(`Demo E2E reserved ${tag}`, 10);
-  holdId = await reserve(shelf.id, "hold", 3, `e2e-checkout-${tag}`, 2);
-  await reserve(shelf.id, "order", 4, `e2e-order-${tag}`, 90);
+  holdId = await reserve(shelf.id, "hold", 3, holderRef("checkout"), 2);
+  await reserve(shelf.id, "order", 4, holderRef("order"), 90);
   await signIn(context);
   await page.goto(`${PLATFORM}/stock?q=${shelf.cnk}`, { waitUntil: "networkidle" });
   const row = page.locator("tbody tr").first();
@@ -198,7 +202,7 @@ test("a reservation that ended meanwhile is explained, not released twice", asyn
   context,
 }) => {
   const other = await product(`Demo E2E stale ${tag}`, 5);
-  const id = await reserve(other.id, "order", 2, `e2e-stale-${tag}`);
+  const id = await reserve(other.id, "order", 2, holderRef("order"));
   await signIn(context);
   await page.goto(`${PLATFORM}/stock/${other.id}`, { waitUntil: "networkidle" });
   // someone else released it while the page was open
@@ -216,7 +220,7 @@ test("orders for more than the shelf holds show the product as short", async ({
   context,
 }) => {
   const short = await product(`Demo E2E short ${tag}`, 5);
-  await reserve(short.id, "order", 8, `e2e-big-order-${tag}`, 30);
+  await reserve(short.id, "order", 8, holderRef("order"), 30);
   await signIn(context);
   await page.goto(`${PLATFORM}/stock?q=${short.cnk}`, { waitUntil: "networkidle" });
   const row = page.locator("tbody tr").first();

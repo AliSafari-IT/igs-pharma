@@ -3,6 +3,7 @@
 // millisecond, orders that never expire, consuming into the ledger, shortness, and who may call what.
 import { randomUUID } from "node:crypto";
 
+import { newId } from "@igs/db/ids";
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
 import { type Actor, isDomainError } from "@igs/kernel";
 import { type KernelTestHandles, configureKernelForTests } from "@igs/kernel/testing";
@@ -105,7 +106,18 @@ async function stocked(onHand: number): Promise<string> {
   return productId;
 }
 
-const holder = () => `checkout:${randomUUID()}`;
+const holder = () => `checkout:${newId()}`;
+
+/**
+ * Confirms the way the checkout does, with the basket it expects: here, exactly what the holder has
+ * active right now (read from the table). The tests of the expected set pass `items` themselves.
+ */
+async function confirm(holderRef: string, actor: Actor = checkout) {
+  const items = await iso.sql<{ productId: string; quantity: number }[]>`
+    SELECT product_id AS "productId", quantity FROM inventory.reservations
+    WHERE holder_ref = ${holderRef} AND status = 'active' ORDER BY product_id`;
+  return confirmReservation({ holderRef, items: items.map((i) => ({ ...i })) }, actor);
+}
 
 const codeOf = async (promise: Promise<unknown>) => {
   try {
@@ -161,6 +173,13 @@ describe("reserveStock", () => {
       { holderRef: "someone@example.com" },
       { holderRef: "has space" },
       { holderRef: "" },
+      // only checkout:<uuidv7> and order:<uuidv7> (#101 review): no names, no national numbers
+      { holderRef: "jan.peeters" },
+      { holderRef: "85073003328" },
+      { holderRef: "checkout:jan.peeters" },
+      { holderRef: `basket:${newId()}` },
+      { holderRef: `checkout:${randomUUID()}` }, // a v4 uuid
+      { holderRef: `checkout:${newId()}x` },
     ]) {
       expect(
         await codeOf(
@@ -262,6 +281,20 @@ describe("retries", () => {
     expect((await stockOf(productId)).held).toBe(3);
   });
 
+  it("asking again with a different quantity is refused with the quantity held, and changes nothing", async () => {
+    const productId = await stocked(10);
+    const holderRef = holder();
+    await reserveStock({ productId, quantity: 3, holderRef }, checkout);
+    for (const quantity of [2, 4]) {
+      await expect(reserveStock({ productId, quantity, holderRef }, checkout)).rejects.toMatchObject({
+        code: "inventory.reservation_quantity_mismatch",
+        details: { held: 3 },
+      });
+    }
+    expect(await rowsOf(productId)).toHaveLength(1);
+    expect((await stockOf(productId)).held).toBe(3);
+  });
+
   it("the same idempotency key replays; with other input it is refused", async () => {
     const productId = await stocked(10);
     const holderRef = holder();
@@ -279,10 +312,10 @@ describe("retries", () => {
     const productId = await stocked(10);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 2, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     const before = await rowsOf(productId);
     kernel.clock.advance(5 * MINUTE);
-    const again = await confirmReservation({ holderRef }, checkout);
+    const again = await confirm(holderRef, checkout);
     expect(again.reservations).toHaveLength(1);
     expect(await rowsOf(productId)).toEqual(before);
     const [row] = await iso.sql<{ n: number }[]>`
@@ -359,7 +392,7 @@ describe("the expiry boundary", () => {
     const productId = await stocked(5);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 3, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     kernel.clock.set(at(10 * DAY));
     expect(await runReservationExpiry()).toBe(0);
     const [row] = await rowsOf(productId);
@@ -385,7 +418,7 @@ describe("confirmReservation", () => {
     const holderRef = holder();
     await reserveStock({ productId, quantity: 2, holderRef }, checkout);
     kernel.clock.set(at(15 * MINUTE - 1));
-    const result = await confirmReservation({ holderRef }, checkout);
+    const result = await confirm(holderRef, checkout);
     expect(result.reservations).toHaveLength(1);
     expect((await rowsOf(productId))[0]).toMatchObject({
       kind: "order",
@@ -402,18 +435,23 @@ describe("confirmReservation", () => {
     const holderRef = holder();
     await reserveStock({ productId, quantity: 2, holderRef }, checkout);
     kernel.clock.set(at(15 * MINUTE));
-    expect(await codeOf(confirmReservation({ holderRef }, checkout))).toBe(
+    expect(await codeOf(confirm(holderRef, checkout))).toBe(
       "inventory.reservation_expired",
     );
     expect((await rowsOf(productId))[0]?.kind).toBe("hold");
     // after the job has marked it, the answer is the same
     await runReservationExpiry();
-    expect(await codeOf(confirmReservation({ holderRef }, checkout))).toBe(
+    expect(await codeOf(confirm(holderRef, checkout))).toBe(
       "inventory.reservation_expired",
     );
-    expect(await codeOf(confirmReservation({ holderRef: holder() }, checkout))).toBe(
-      "inventory.reservation_not_found",
-    );
+    expect(
+      await codeOf(
+        confirmReservation(
+          { holderRef: holder(), items: [{ productId, quantity: 2 }] },
+          checkout,
+        ),
+      ),
+    ).toBe("inventory.reservation_not_found");
   });
 
   it("confirms every hold of the holder or none: one lapsed hold refuses the lot", async () => {
@@ -424,10 +462,114 @@ describe("confirmReservation", () => {
     kernel.clock.advance(10 * MINUTE);
     await reserveStock({ productId: b, quantity: 1, holderRef }, checkout);
     kernel.clock.advance(6 * MINUTE); // a's hold (15 min) has lapsed, b's has not
-    expect(await codeOf(confirmReservation({ holderRef }, checkout))).toBe(
+    expect(await codeOf(confirm(holderRef, checkout))).toBe(
       "inventory.reservation_expired",
     );
     expect((await rowsOf(b))[0]?.kind).toBe("hold");
+  });
+
+  /** A basket of two lines, A reserved 10 minutes before B; 16 minutes in, A has lapsed and B has not. */
+  async function basketWithLapsedLine() {
+    const a = await stocked(5);
+    const b = await stocked(5);
+    const holderRef = holder();
+    await reserveStock({ productId: a, quantity: 1, holderRef }, checkout);
+    kernel.clock.advance(10 * MINUTE);
+    await reserveStock({ productId: b, quantity: 2, holderRef }, checkout);
+    kernel.clock.advance(6 * MINUTE);
+    const items = [
+      { productId: a, quantity: 1 },
+      { productId: b, quantity: 2 },
+    ];
+    return { a, b, holderRef, items };
+  }
+
+  it("the answer does not depend on the expiry job: after it ran on part of the basket, confirm is still refused (#101 review)", async () => {
+    const { a, b, holderRef, items } = await basketWithLapsedLine();
+    // before the job: refused
+    expect(await codeOf(confirmReservation({ holderRef, items }, checkout))).toBe(
+      "inventory.reservation_expired",
+    );
+    // the job marks A expired; B is live
+    expect(await runReservationExpiry()).toBe(1);
+    expect((await rowsOf(a))[0]?.status).toBe("expired");
+    expect(await codeOf(confirmReservation({ holderRef, items }, checkout))).toBe(
+      "inventory.reservation_expired",
+    );
+    // nothing became an order, and B is still a hold
+    expect((await rowsOf(b))[0]).toMatchObject({ kind: "hold", status: "active" });
+    expect((await rowsOf(a)).every((r) => r.kind === "hold")).toBe(true);
+  });
+
+  it("the expiry job running at the same time as confirm never lets half a basket through", async () => {
+    for (let round = 0; round < 5; round++) {
+      const { b, holderRef, items } = await basketWithLapsedLine();
+      const [confirmed] = await Promise.allSettled([
+        confirmReservation({ holderRef, items }, checkout),
+        runReservationExpiry(),
+      ]);
+      expect(confirmed.status).toBe("rejected");
+      expect(
+        confirmed.status === "rejected" && isDomainError(confirmed.reason)
+          ? confirmed.reason.code
+          : "ok",
+      ).toBe("inventory.reservation_expired");
+      expect((await rowsOf(b))[0]?.kind).toBe("hold");
+    }
+  });
+
+  it("goes through only for exactly the expected basket: other lines or other quantities are refused", async () => {
+    const a = await stocked(5);
+    const b = await stocked(5);
+    const holderRef = holder();
+    await reserveStock({ productId: a, quantity: 2, holderRef }, checkout);
+    await reserveStock({ productId: b, quantity: 1, holderRef }, checkout);
+    const mismatch = "inventory.reservation_mismatch";
+    // a line the holder does not have
+    expect(
+      await codeOf(
+        confirmReservation({ holderRef, items: [{ productId: randomUUID(), quantity: 1 }] }, checkout),
+      ),
+    ).toBe(mismatch);
+    // a different quantity
+    expect(
+      await codeOf(
+        confirmReservation(
+          {
+            holderRef,
+            items: [
+              { productId: a, quantity: 3 },
+              { productId: b, quantity: 1 },
+            ],
+          },
+          checkout,
+        ),
+      ),
+    ).toBe(mismatch);
+    // the holder has MORE than the basket
+    expect(
+      await codeOf(confirmReservation({ holderRef, items: [{ productId: a, quantity: 2 }] }, checkout)),
+    ).toBe(mismatch);
+    expect((await rowsOf(a))[0]?.kind).toBe("hold");
+    expect((await rowsOf(b))[0]?.kind).toBe("hold");
+    // exactly the basket: both become orders
+    const ok = await confirmReservation(
+      {
+        holderRef,
+        items: [
+          { productId: b, quantity: 1 },
+          { productId: a, quantity: 2 },
+        ],
+      },
+      checkout,
+    );
+    expect(ok.reservations).toHaveLength(2);
+    // a basket without items, or with a product twice, is not valid input
+    for (const items of [[], [{ productId: a, quantity: 1 }, { productId: a, quantity: 1 }]]) {
+      expect(await codeOf(confirmReservation({ holderRef, items }, checkout))).toBe(
+        "kernel.validation_failed",
+      );
+    }
   });
 });
 
@@ -462,7 +604,7 @@ describe("releaseReservation", () => {
     const productId = await stocked(5);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 2, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     await releaseReservation({ holderRef, reason: "refunded" }, checkout);
     expect((await stockOf(productId)).ordered).toBe(0);
   });
@@ -504,7 +646,7 @@ describe("consumeReservation", () => {
     const productId = await stocked(10);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 4, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     const result = await consumeReservation({ holderRef }, checkout);
     expect(result.reservations).toHaveLength(1);
     const sales = await iso.sql<{ delta: number; reason: string; id: string }[]>`
@@ -522,7 +664,7 @@ describe("consumeReservation", () => {
     const productId = await stocked(10);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 4, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     await consumeReservation({ holderRef }, checkout);
     expect(await codeOf(consumeReservation({ holderRef }, checkout))).toBe(
       "inventory.reservation_not_active",
@@ -549,7 +691,7 @@ describe("consumeReservation", () => {
     const productId = await stocked(10);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 2, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     const key = { idempotencyKey: `consume:${holderRef}` };
     const first = await consumeReservation({ holderRef }, checkout, key);
     const replay = await consumeReservation({ holderRef }, checkout, key);
@@ -565,7 +707,7 @@ describe("consumeReservation", () => {
     const holderRef = holder();
     await reserveStock({ productId: a, quantity: 2, holderRef }, checkout);
     await reserveStock({ productId: b, quantity: 1, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     // the shelf of b is emptied behind the order's back: the whole consume is refused
     await adjustStock({ productId: b, delta: -1, reason: "adjustment", note: "breakage" }, owner);
     expect(await codeOf(consumeReservation({ holderRef }, checkout))).toBe(
@@ -581,7 +723,7 @@ describe("shortness", () => {
     const productId = await stocked(10);
     const holderRef = holder();
     await reserveStock({ productId, quantity: 6, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     // the shelf really holds 4: the count is not refused
     const sku = (await getStock({ productId }, owner)).cnk;
     const prepared = await prepareStockImport({ csv: `cnk;quantity\n${sku};4\n` }, owner);
@@ -641,7 +783,7 @@ describe("who may call what", () => {
       expect(await codeOf(reserveStock({ productId, quantity: 1, holderRef }, actor)), label).toBe(
         "kernel.forbidden",
       );
-      expect(await codeOf(confirmReservation({ holderRef }, actor)), label).toBe(
+      expect(await codeOf(confirm(holderRef, actor)), label).toBe(
         "kernel.forbidden",
       );
       expect(
@@ -752,7 +894,7 @@ describe("the database enforces the lifecycle whoever writes", () => {
           iso.sql`UPDATE inventory.reservations SET holder_ref = 'someone-else' WHERE id = ${reservationId}`,
       ),
     ).toContain("keeps its product, quantity, holder and creator");
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     expect(
       await raw(
         () => iso.sql`
@@ -802,7 +944,7 @@ describe("audit", () => {
     const productId = await stocked(5);
     const holderRef = holder();
     const { reservationId } = await reserveStock({ productId, quantity: 2, holderRef }, checkout);
-    await confirmReservation({ holderRef }, checkout);
+    await confirm(holderRef, checkout);
     const { reservations } = await consumeReservation({ holderRef }, checkout);
     const events = await iso.sql<{ action: string; data: Record<string, unknown> }[]>`
       SELECT action, data FROM audit.events

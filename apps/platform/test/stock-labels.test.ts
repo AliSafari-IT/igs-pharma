@@ -32,6 +32,8 @@ describe("reservations (igs-pharma#99)", () => {
       "inventory.reservation_not_active",
       "inventory.insufficient_stock",
       "inventory.reservation_expired",
+      "inventory.reservation_mismatch",
+      "inventory.reservation_quantity_mismatch",
     ]) {
       expect(stockErrorMessage(code), code).not.toBe(stockErrorMessage("inventory.unknown_code"));
     }

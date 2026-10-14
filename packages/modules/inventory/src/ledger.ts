@@ -122,6 +122,12 @@ const isNegativeStock = (error: unknown): boolean => {
   return e?.code === "23514" && e.constraint_name === NEGATIVE_STOCK_CONSTRAINT;
 };
 
+/** A movement that was written, with the product it belongs to (paired by id, never by position). */
+export interface RecordedMovement {
+  readonly productId: string;
+  readonly id: string;
+}
+
 /**
  * THE ONLY WRITER of `inventory.stock_movements` (igs-pharma#83, D-037; a test fails when any other
  * source file writes the table). It takes the stock lock, inserts the movements in a fixed order
@@ -132,12 +138,13 @@ const isNegativeStock = (error: unknown): boolean => {
  * `on_hand >= 0` check refuses any movement that would take a product below zero, whoever inserts
  * it and whether or not they went through this function.
  */
+
 export async function recordMovements(
   tx: Tx,
   context: { readonly actor: Actor; readonly now: Date },
   entries: readonly MovementEntry[],
   options: { readonly importId?: string } = {},
-): Promise<readonly string[]> {
+): Promise<readonly RecordedMovement[]> {
   if (entries.length === 0) return [];
   await lockStock(tx);
   const ordered = [...entries].sort((a, b) =>
@@ -161,7 +168,7 @@ export async function recordMovements(
     if (isNegativeStock(error)) throw conflict("inventory.negative_stock");
     throw error;
   }
-  return rows.map((row) => row.id);
+  return rows.map((row) => ({ productId: row.productId, id: row.id }));
 }
 
 export interface ImportPlanRow {

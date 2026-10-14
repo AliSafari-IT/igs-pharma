@@ -58,9 +58,13 @@ export async function seedSyntheticReservations(
     }
     const onHand = demoStockFor(index);
     const quantity = index === SHORT_INDEX ? onHand : Math.min(RESERVED_QUANTITY, onHand);
-    const holderRef = `demo-order-${cnk}`;
+    // a fixed, valid `order:<uuidv7>` per demo product (zeros + the CNK), so a re-run is the same order
+    const holderRef = `order:00000000-0000-7000-8000-${cnk.padStart(12, "0")}`;
     await reserveStock({ productId: item.id, quantity, holderRef }, reservationActor);
-    await confirmReservation({ holderRef }, reservationActor);
+    await confirmReservation(
+      { holderRef, items: [{ productId: item.id, quantity }] },
+      reservationActor,
+    );
     if (index === SHORT_INDEX) {
       // the shelf holds fewer than the order: a count is not refused, the product shows as short
       await adjustStock(

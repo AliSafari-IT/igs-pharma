@@ -111,8 +111,10 @@ function activeOf(ctx: Ctx, holder: string) {
 /**
  * Sets `quantity` of a product aside as a HOLD for `holderRef`, for `holdMinutes` (15 by default,
  * 30 at most). Refused with `inventory.insufficient_stock` (and the number available) when less is
- * available. Asking again for the same holder and product returns the hold it already has (no
- * double reservation); a lapsed one is replaced.
+ * available. Asking again for the same holder and product with the SAME quantity returns the hold it
+ * already has (no double reservation); with a different quantity it is refused with
+ * `inventory.reservation_quantity_mismatch` (and the quantity held), because a retry never changes
+ * a hold: release it and reserve again. A lapsed hold is replaced.
  */
 export const reserveStock = command({
   name: "inventory.reservation.reserve",
@@ -150,6 +152,10 @@ export const reserveStock = command({
       .for("update");
     if (existing) {
       if (!isLapsed(existing, ctx.now)) {
+        // asking again is a retry, not a change: a different quantity is a different request
+        if (existing.quantity !== input.quantity) {
+          throw conflict("inventory.reservation_quantity_mismatch", { held: existing.quantity });
+        }
         return {
           ...view(existing),
           kind: existing.kind as ReservationKind,
@@ -200,15 +206,29 @@ const holderOutput = z.object({
   reservations: z.array(idempotencyOutput),
 });
 
+/** The basket the checkout expects to confirm: one line per product. */
+const expectedItems = z
+  .array(z.object({ productId: z.uuid(), quantity }))
+  .min(1)
+  .max(100)
+  .refine((items) => new Set(items.map((item) => item.productId)).size === items.length, {
+    message: "one line per product",
+  });
+
 /**
  * An order now exists for `holderRef`: every active HOLD of the holder becomes an ORDER and its
- * `expires_at` is cleared, so from now on it never expires on its own. All or nothing: when any
- * hold has already lapsed (at or after its `expires_at`) the whole confirmation is refused with
- * `inventory.reservation_expired`. Confirming again changes nothing (an order stays an order).
+ * `expires_at` is cleared, so from now on it never expires on its own. The caller passes the basket
+ * it expects (`items`, one line per product), and the confirmation goes through only when the
+ * holder's ACTIVE reservations are EXACTLY that set, with those quantities, none of them lapsed:
+ * otherwise nothing changes and it is refused. `inventory.reservation_expired` when a line of the
+ * basket lapsed or was given back (also when the expiry job already marked it), and
+ * `inventory.reservation_mismatch` when the holder has other lines or other quantities. So the
+ * answer never depends on whether the expiry job has run. Confirming again with the same basket
+ * changes nothing (an order stays an order).
  */
 export const confirmReservation = command({
   name: "inventory.reservation.confirm",
-  input: z.object({ holderRef }),
+  input: z.object({ holderRef, items: expectedItems }),
   output: holderOutput,
   permission: PERMISSIONS.inventory.reservationManage,
   // changes (and audits) something only when there is something to change; a retry changes nothing
@@ -226,6 +246,29 @@ export const confirmReservation = command({
     }
     if (active.some((row) => isLapsed(row, ctx.now)))
       throw conflict("inventory.reservation_expired");
+
+    const activeByProduct = new Map(active.map((row) => [row.productId, row]));
+    for (const item of input.items) {
+      const row = activeByProduct.get(item.productId);
+      if (!row) {
+        // a line of the basket is not active: the job (or a lapse) gave it back, or it never existed
+        const [ended] = await ctx.tx
+          .select({ id: reservations.id })
+          .from(reservations)
+          .where(
+            and(
+              eq(reservations.holderRef, input.holderRef),
+              eq(reservations.productId, item.productId),
+              eq(reservations.status, "expired"),
+            ),
+          )
+          .limit(1);
+        throw conflict(ended ? "inventory.reservation_expired" : "inventory.reservation_mismatch");
+      }
+      if (row.quantity !== item.quantity) throw conflict("inventory.reservation_mismatch");
+    }
+    if (active.length !== input.items.length) throw conflict("inventory.reservation_mismatch");
+
     const holds = active.filter((row) => row.kind === "hold");
     if (holds.length > 0) {
       await ctx.tx
@@ -320,7 +363,29 @@ export const consumeReservation = command({
   permission: PERMISSIONS.inventory.reservationManage,
   async handler({ input, ctx }) {
     await lockStock(ctx.tx);
+    // the lock order everyone shares (advisory → stock-level rows by product → reservation rows):
+    // a retried reserve takes the level row first, so consume must not hold a reservation row
+    // while it waits for one (40P01). Look first, lock the levels, then lock and read the rows.
+    const lookedAt = await ctx.tx
+      .select({ productId: reservations.productId })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.holderRef, input.holderRef),
+          eq(reservations.locationId, DEFAULT_LOCATION_ID),
+          eq(reservations.status, "active"),
+        ),
+      );
+    const locked = new Set<string>();
+    for (const productId of [...new Set(lookedAt.map((row) => row.productId))].sort()) {
+      await lockLevel(ctx, productId);
+      locked.add(productId);
+    }
     const active = await activeOf(ctx, input.holderRef);
+    if (active.some((row) => !locked.has(row.productId))) {
+      // a line appeared between the look and the lock: not a state to consume from
+      throw conflict("inventory.reservation_not_confirmed");
+    }
     if (active.length === 0) {
       const [any] = await ctx.tx
         .select({ id: reservations.id })
@@ -334,7 +399,7 @@ export const consumeReservation = command({
     if (active.some((row) => row.kind !== "order")) {
       throw conflict("inventory.reservation_not_confirmed");
     }
-    const movementIds = await recordMovements(
+    const movements = await recordMovements(
       ctx.tx,
       ctx,
       active.map((row) => ({
@@ -343,10 +408,8 @@ export const consumeReservation = command({
         reason: "sale" as const,
       })),
     );
-    // recordMovements writes in product order, and `active` is ordered by product too
-    const byProduct = new Map(
-      active.map((row, index) => [row.productId, movementIds[index] ?? ""]),
-    );
+    // paired by product (one active reservation per product and holder), never by position
+    const byProduct = new Map(movements.map((movement) => [movement.productId, movement.id]));
     await ctx.tx
       .update(reservations)
       .set({ status: "consumed", ...by(ctx) })

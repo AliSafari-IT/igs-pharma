@@ -188,9 +188,10 @@ describe("the application as igs_app", () => {
     await adjustStock({ productId, delta: 5, reason: "adjustment", note: "found" }, owner);
     // reservations as the runtime role: the stock-level lock function, the lifecycle triggers, and a
     // consume writing its sale movement (igs-pharma#99)
-    await reserveStock({ productId, quantity: 2, holderRef: "roles-order-1" }, checkout);
-    await confirmReservation({ holderRef: "roles-order-1" }, checkout);
-    await consumeReservation({ holderRef: "roles-order-1" }, checkout);
+    const holderRef = "order:00000000-0000-7000-8000-000000000001";
+    await reserveStock({ productId, quantity: 2, holderRef }, checkout);
+    await confirmReservation({ holderRef, items: [{ productId, quantity: 2 }] }, checkout);
+    await consumeReservation({ holderRef }, checkout);
     expect((await getStock({ productId }, owner)).onHand).toBe(3);
     await recordConsent(
       {

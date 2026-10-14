@@ -84,6 +84,10 @@ const ERRORS: Record<string, string> = {
     "This reservation has already ended (released, picked or expired). Reload the page.",
   "inventory.insufficient_stock": "There is not enough stock available to set aside.",
   "inventory.reservation_expired": "This checkout took too long: the stock was given back.",
+  "inventory.reservation_mismatch":
+    "The reservation does not match what was asked for (other lines or quantities). Reload the page.",
+  "inventory.reservation_quantity_mismatch":
+    "This holder already has a different quantity set aside. Release it first.",
   "inventory.import_stale":
     "Stock changed after you previewed this file, so nothing was imported. Upload the file again to see the new numbers.",
   "inventory.import_plan_expired":
