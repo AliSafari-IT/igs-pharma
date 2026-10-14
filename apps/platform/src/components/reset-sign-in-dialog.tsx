@@ -29,6 +29,8 @@ export function ResetSignInDialog({ userId, name }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const id = useId();
+  // one id per dialog: a double click or the resubmit after the passkey check re-sends it (#110)
+  const [submissionId] = useState(() => crypto.randomUUID());
   const needsFreshProof = state.error === "identity.fresh_mfa_required";
 
   useEffect(() => {
@@ -90,6 +92,7 @@ export function ResetSignInDialog({ userId, name }: Props) {
             <form ref={form} action={action}>
               <Stack gap={4}>
                 <input type="hidden" name="userId" value={userId} />
+                <input type="hidden" name="submissionId" value={submissionId} />
                 <p>
                   This deletes all their passkeys and authenticator apps and signs them out
                   everywhere. You get a new link for them to set up a passkey again.

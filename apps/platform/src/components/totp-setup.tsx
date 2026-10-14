@@ -54,7 +54,14 @@ export function TotpSetup() {
     });
   const verify = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (await run(() => authClient.twoFactor.verifyTotp({ code: code.trim() }))) {
+    if (
+      await run(() =>
+        withFreshPasskey(
+          () => authClient.twoFactor.verifyTotp({ code: code.trim() }),
+          () => authClient.signIn.passkey(),
+        ),
+      )
+    ) {
       window.location.assign("/account");
     }
   };

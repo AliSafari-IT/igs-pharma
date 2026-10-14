@@ -35,6 +35,8 @@ function enrolmentLink(token: string): string {
   return url.toString();
 }
 
+const SUBMISSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Reset another staff member's sign-in (igs-pharma#90): deletes their passkeys and authenticator
  * apps, signs them out everywhere, and returns a new 15-minute enrolment link for the owner to hand
@@ -47,10 +49,18 @@ export async function resetSignIn(
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const userId = form.get("userId");
+  // #110: the form's submission id is the idempotency key, so a double click or the resubmit after
+  // the passkey check mints ONE enrolment link (the second call replays the first answer)
+  const submissionId = form.get("submissionId");
+  const idempotencyKey =
+    typeof submissionId === "string" && SUBMISSION_ID.test(submissionId)
+      ? { idempotencyKey: `reset:${submissionId.toLowerCase()}` }
+      : {};
   let result: { token: string; expiresAt: Date };
   try {
     result = await resetStaffSignIn({ userId: typeof userId === "string" ? userId : "" }, actor, {
       origin: await requestOrigin(),
+      ...idempotencyKey,
     });
   } catch (error) {
     if (!isDomainError(error)) throw error;
