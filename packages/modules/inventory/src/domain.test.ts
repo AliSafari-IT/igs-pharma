@@ -14,6 +14,23 @@ describe("parseStockCsv", () => {
     });
   });
 
+  it("reads a spreadsheet export: quoted fields and header, Windows and old Mac line endings (#91)", () => {
+    const csv = '"cnk";"quantity"\r\n"0000001";"12"\r"0000002" ; " 4 "\r\n0000003;"0"';
+    expect(parseStockCsv(csv)).toEqual({
+      rows: [
+        { line: 2, cnk: "0000001", quantity: 12 },
+        { line: 3, cnk: "0000002", quantity: 4 },
+        { line: 4, cnk: "0000003", quantity: 0 },
+      ],
+      errors: [],
+    });
+    expect(parseStockCsv('"0000001","3"').rows).toEqual([{ line: 1, cnk: "0000001", quantity: 3 }]);
+    // a quote is not part of the value: an unbalanced one still makes the line invalid
+    expect(parseStockCsv('"0000001;3').errors).toEqual([
+      { line: 1, code: "inventory.cnk_invalid" },
+    ]);
+  });
+
   it("accepts a comma when a line has no semicolon", () => {
     expect(parseStockCsv("0000001,3").rows).toEqual([{ line: 1, cnk: "0000001", quantity: 3 }]);
   });
