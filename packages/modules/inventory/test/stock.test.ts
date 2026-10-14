@@ -170,6 +170,8 @@ describe("ledger", () => {
     await expect(
       iso.sql`DELETE FROM inventory.stock_movements WHERE product_id = ${p.id}`,
     ).rejects.toThrow(/append-only/);
+    // #91: emptying the whole ledger at once is refused too (a statement-level trigger)
+    await expect(iso.sql`TRUNCATE inventory.stock_movements`).rejects.toThrow(/append-only/);
   });
 });
 

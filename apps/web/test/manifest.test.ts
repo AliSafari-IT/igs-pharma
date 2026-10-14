@@ -27,6 +27,19 @@ describe("ASafariM OS manifest (platform.app.json)", () => {
     expect(manifest.roles).toEqual([]);
   });
 
+  it("matches the deployment: published images, the gated storefront, CSP reports (#91)", () => {
+    expect(manifest.runtime.image).toBe("ghcr.io/alisafari-it/igs-pharma-web");
+    expect(manifest.runtime.workers.map((w) => w.image)).toEqual([
+      "ghcr.io/alisafari-it/igs-pharma-worker",
+    ]);
+    // closed by SITE_GATE (coming-soon) until Gate 1
+    expect(manifest.ui.status).toBe("coming-soon");
+    // the proxy lets these through the gate (src/proxy.ts isOpenPath)
+    expect(manifest.auth.publicPaths).toEqual(
+      expect.arrayContaining(["/api/health", "/api/health/live", "/api/csp-report"]),
+    );
+  });
+
   it("keeps health and the manifest itself public", () => {
     const { live, ready } = manifest.runtime.health;
     expect(manifest.auth.publicPaths).toEqual(expect.arrayContaining([live, ready, WELL_KNOWN]));

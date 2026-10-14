@@ -115,6 +115,22 @@ const codeOf = async (promise: Promise<unknown>) => {
 };
 
 describe("pricing.price.set and the current price", () => {
+  it("a double submit with the same idempotency key writes one price row (#91)", async () => {
+    const productId = await newProduct();
+    const key = { idempotencyKey: `price:${randomUUID()}` };
+    const input = { productId, amountCents: 799 };
+    const first = await setPrice(input, owner, key);
+    const second = await setPrice(input, owner, key);
+    expect(second).toEqual(first);
+    const [row] = await iso.sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pricing.prices WHERE product_id = ${productId}`;
+    expect(row?.n).toBe(1);
+    // the same key with other values is refused, never applied silently
+    expect(await codeOf(setPrice({ productId, amountCents: 899 }, owner, key))).toBe(
+      "kernel.idempotency_key_reused",
+    );
+  });
+
   it("the current price is the latest one that has started; a later one is scheduled", async () => {
     const productId = await newProduct();
     await setPrice({ productId, amountCents: 599, reason: "launch" }, owner);

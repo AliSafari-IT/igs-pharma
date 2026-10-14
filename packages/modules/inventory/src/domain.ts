@@ -50,10 +50,16 @@ export interface ParsedStockCsv {
 
 const HEADER = /^\s*cnk\s*[;,]\s*(quantity|qty|aantal|quantité)\s*$/i;
 
+/** A field without one pair of surrounding double quotes (`""` inside stands for one `"`). */
+const unquote = (field: string) =>
+  /^".*"$/.test(field) ? field.slice(1, -1).replaceAll('""', '"').trim() : field;
+
 /**
  * Parses a stock count file: one `cnk;quantity` per line (`,` also accepted when a line has no
  * `;`), an optional header line, blank lines and `#` comments ignored. Quantity is the absolute
- * count on hand. Every line is checked, so all problems are reported at once.
+ * count on hand. Every line is checked, so all problems are reported at once. Spreadsheet exports
+ * are accepted as they come: Windows, Unix or old Mac line endings, a byte-order mark, and fields
+ * in double quotes (`"5410000000017";"3"`, #91).
  */
 export function parseStockCsv(text: string): ParsedStockCsv {
   const rows: StockCsvRow[] = [];
@@ -64,8 +70,8 @@ export function parseStockCsv(text: string): ParsedStockCsv {
     const line = index + 1;
     const content = raw.trim();
     if (content === "" || content.startsWith("#")) return;
-    if (rows.length === 0 && errors.length === 0 && HEADER.test(content)) return;
-    const parts = content.split(content.includes(";") ? ";" : ",").map((p) => p.trim());
+    const parts = content.split(content.includes(";") ? ";" : ",").map((p) => unquote(p.trim()));
+    if (rows.length === 0 && errors.length === 0 && HEADER.test(parts.join(";"))) return;
     if (parts.length !== 2) {
       errors.push({ line, code: "inventory.row_malformed" });
       return;

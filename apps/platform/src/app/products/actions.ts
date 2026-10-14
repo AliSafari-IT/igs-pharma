@@ -200,6 +200,17 @@ export interface PriceFormState {
   readonly values?: Readonly<Record<string, string>>;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The idempotency key of one price form submission (#91): the same form submitted twice (a double
+ * click, a resubmit) replays the first result instead of writing two price rows. Anything that is not
+ * a UUID gets no key, so the change still goes through once.
+ */
+function priceSubmissionKey(submissionId: string): { idempotencyKey?: string } {
+  return UUID.test(submissionId) ? { idempotencyKey: `price:${submissionId.toLowerCase()}` } : {};
+}
+
 /**
  * Sets the product's web price: euros typed by staff (VAT included) → whole cents; "from now" or
  * from a date and time in Brussels.
@@ -235,7 +246,7 @@ export async function changePrice(
         ...(values.reason.trim() ? { reason: values.reason } : {}),
       },
       actor,
-      { origin: await requestOrigin() },
+      { origin: await requestOrigin(), ...priceSubmissionKey(text(form, "submissionId")) },
     ));
   } catch (error) {
     if (!isDomainError(error)) throw error;

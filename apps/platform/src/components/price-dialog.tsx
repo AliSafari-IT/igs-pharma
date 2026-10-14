@@ -10,13 +10,18 @@ interface Props {
   readonly productId: string;
   /** The current price in cents, `null` when the product has none yet. */
   readonly currentCents: number | null;
+  /**
+   * One id per rendering of the product page (#91): a double submit of the same form replays the
+   * first change instead of writing a second price row (the kernel's idempotency key).
+   */
+  readonly submissionId: string;
 }
 
 /**
  * The Change price dialog on the product page (igs-pharma#59): a price in euros, VAT included
  * (stored as whole cents), from now or from a date and time (Brussels), and an optional reason.
  */
-export function PriceDialog({ productId, currentCents }: Props) {
+export function PriceDialog({ productId, currentCents, submissionId }: Props) {
   const [state, action, pending] = useActionState(changePrice, {} as PriceFormState);
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -54,6 +59,7 @@ export function PriceDialog({ productId, currentCents }: Props) {
               {currentCents === null ? "No price yet." : `Price now: ${formatEuros(currentCents)}`}
             </p>
             <input type="hidden" name="productId" value={productId} />
+            <input type="hidden" name="submissionId" value={submissionId} />
             {state.error ? (
               <Alert variant="error" title="The price was not changed">
                 {priceErrorMessage(state.error)}

@@ -8,20 +8,20 @@
     "primary": "igs-pharma.be"
   },
   "runtime": {
-    "image": "igs-web",
+    "image": "ghcr.io/alisafari-it/igs-pharma-web",
     "port": 3000,
     "health": {
       "live": "/api/health/live",
       "ready": "/api/health"
     },
     "resources": {
-      "memory": "512m",
-      "cpus": 1
+      "memory": "384m",
+      "cpus": 0.75
     },
     "workers": [
       {
         "name": "worker",
-        "image": "igs-worker",
+        "image": "ghcr.io/alisafari-it/igs-pharma-worker",
         "network": "internal",
         "resources": {
           "memory": "256m",
@@ -37,7 +37,12 @@
   },
   "auth": {
     "client": "none",
-    "publicPaths": ["/api/health", "/api/health/live", "/.well-known/asafarim-app.json"]
+    "publicPaths": [
+      "/api/health",
+      "/api/health/live",
+      "/api/csp-report",
+      "/.well-known/asafarim-app.json"
+    ]
   },
   "permissions": [],
   "roles": [],
@@ -50,7 +55,7 @@
         "href": "/"
       }
     ],
-    "status": "active",
+    "status": "coming-soon",
     "launcher": {
       "description": "Belgian online pharmacy: non-prescription medicines and care products.",
       "meta": "igs-pharma.be",

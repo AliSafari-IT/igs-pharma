@@ -8,8 +8,9 @@ await vi.hoisted(async () => {
   Object.assign(globalThis, { AsyncLocalStorage });
 });
 
+import { POST as postPreview } from "../src/app/preview/route";
 import { PREVIEW_COOKIE, PREVIEW_HEADER, createPreviewCookie } from "../src/preview";
-import proxy, { COMING_SOON_PATH } from "../src/proxy";
+import proxy, { COMING_SOON_PATH, PREVIEW_FORM_PATH } from "../src/proxy";
 
 const BASE = "http://localhost:3000";
 const KEY = "k".repeat(40);
@@ -37,32 +38,24 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("/preview?key=…", () => {
-  it("with the right key sets a signed, HttpOnly, Secure cookie for 8 hours and redirects to /nl", () => {
+describe("/preview (igs-pharma#91: the key is POSTed, never in a URL)", () => {
+  const post = (path = "/preview") => proxy(new NextRequest(`${BASE}${path}`, { method: "POST" }));
+
+  it("GET /preview shows the key form, noindex and uncached", () => {
     configure({ IGS_PREVIEW_KEY: KEY });
-    const res = call(`/preview?key=${KEY}`);
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe(`${BASE}/nl`);
-    const cookie = setCookie(res);
-    expect(cookie).toContain(`${PREVIEW_COOKIE}=v1.`);
-    expect(cookie).toMatch(/HttpOnly/i);
-    expect(cookie).toMatch(/Secure/i);
-    expect(cookie).toMatch(/SameSite=lax/i);
-    expect(cookie).toContain("Max-Age=28800");
-    expect(cookie).toContain("Path=/");
-    expect(cookie).not.toContain(KEY);
+    const res = call("/preview");
+    expect(rewrittenTo(res)).toBe(`${BASE}${PREVIEW_FORM_PATH}`);
+    expect(setCookie(res)).toBe("");
     expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("with a wrong key, a missing key or a lookalike gets the coming-soon page and no cookie", () => {
+  it("a key in the URL no longer works: coming-soon and no cookie, even the right key", () => {
     configure({ IGS_PREVIEW_KEY: KEY });
     for (const path of [
-      "/preview",
+      `/preview?key=${KEY}`,
       "/preview?key=",
       "/preview?key=wrong",
-      `/preview?key=${KEY}x`,
-      `/preview?key=${KEY.slice(1)}`,
       `/preview/?key=${KEY}`,
       `/Preview?key=${KEY}`,
       `/nl/preview?key=${KEY}`,
@@ -74,29 +67,75 @@ describe("/preview?key=…", () => {
     }
   });
 
-  it("with no IGS_PREVIEW_KEY configured, no key works, not even an empty or guessed one", () => {
-    configure({});
-    for (const path of [
-      "/preview",
-      "/preview?key=",
-      "/preview?key=undefined",
-      `/preview?key=${KEY}`,
-    ]) {
-      const res = call(path);
-      expect(closed(res), path).toBe(true);
-      expect(setCookie(res), path).toBe("");
+  it("POST /preview reaches the route handler; the proxy itself sets no cookie", () => {
+    configure({ IGS_PREVIEW_KEY: KEY });
+    const res = post();
+    expect(closed(res)).toBe(false);
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    expect(setCookie(res)).toBe("");
+  });
+
+  it("with no (or a too short) IGS_PREVIEW_KEY, /preview is just another closed URL", () => {
+    for (const key of ["", "short"]) {
+      configure({ IGS_PREVIEW_KEY: key });
+      for (const res of [call("/preview"), post(), call(`/preview?key=${key}`)]) {
+        expect(closed(res), key).toBe(true);
+        expect(setCookie(res), key).toBe("");
+      }
     }
   });
+});
 
-  it("a too short key counts as no key", () => {
-    configure({ IGS_PREVIEW_KEY: "short" });
-    expect(closed(call("/preview?key=short"))).toBe(true);
+describe("POST /preview (the route handler)", () => {
+  const submit = (body: BodyInit | null, type = "application/x-www-form-urlencoded") =>
+    postPreview(
+      new Request(`${BASE}/preview`, {
+        method: "POST",
+        headers: { "content-type": type },
+        ...(body === null ? {} : { body }),
+      }),
+    );
+  const form = (key: string) => new URLSearchParams({ key }).toString();
+
+  it("the right key: a signed, HttpOnly, Secure cookie for 8 hours and a 303 to /nl", async () => {
+    configure({ IGS_PREVIEW_KEY: KEY });
+    const res = await submit(form(KEY));
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(`${BASE}/nl`);
+    const cookie = setCookie(res);
+    expect(cookie).toContain(`${PREVIEW_COOKIE}=v1.`);
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/Secure/i);
+    expect(cookie).toMatch(/SameSite=lax/i);
+    expect(cookie).toContain("Max-Age=28800");
+    expect(cookie).toContain("Path=/");
+    expect(cookie).not.toContain(KEY);
   });
 
-  it("is refused for anything but GET", () => {
+  it("anything else: a 303 to / (coming-soon), no cookie, no hint", async () => {
     configure({ IGS_PREVIEW_KEY: KEY });
-    const res = proxy(new NextRequest(`${BASE}/preview?key=${KEY}`, { method: "POST" }));
-    expect(closed(res)).toBe(true);
+    for (const body of [
+      form(""),
+      form("wrong"),
+      form(`${KEY}x`),
+      form(KEY.slice(1)),
+      form(KEY.repeat(20)),
+      "",
+      null,
+    ]) {
+      const res = await submit(body);
+      expect(res.status, String(body)).toBe(303);
+      expect(res.headers.get("location"), String(body)).toBe(`${BASE}/`);
+      expect(setCookie(res), String(body)).toBe("");
+    }
+    const json = await submit(JSON.stringify({ key: KEY }), "application/json");
+    expect(setCookie(json)).toBe("");
+  });
+
+  it("with no IGS_PREVIEW_KEY configured, no key works", async () => {
+    configure({});
+    const res = await submit(form(KEY));
+    expect(res.headers.get("location")).toBe(`${BASE}/`);
     expect(setCookie(res)).toBe("");
   });
 });
@@ -155,5 +194,12 @@ describe("/preview/end", () => {
     expect(res.headers.get("location")).toBe(`${BASE}/`);
     expect(setCookie(res)).toContain(`${PREVIEW_COOKIE}=;`);
     expect(setCookie(res)).toContain("Max-Age=0");
+  });
+
+  it("with no key configured, reveals nothing: coming-soon, no cookie change (#91)", () => {
+    configure({});
+    const res = call("/preview/end");
+    expect(closed(res)).toBe(true);
+    expect(setCookie(res)).toBe("");
   });
 });

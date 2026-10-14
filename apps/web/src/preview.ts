@@ -4,7 +4,7 @@ import type { PreviewSecrets } from "@igs/config";
 
 /**
  * The storefront preview pass (igs-pharma#62). A visitor who presents the secret `IGS_PREVIEW_KEY`
- * at `/preview?key=…` gets a signed cookie that lets them past the site gate for a few hours. The
+ * in the form at `/preview` (POSTed, never in a URL: igs-pharma#91) gets a signed cookie that lets them past the site gate for a few hours. The
  * cookie is a VISIBILITY switch, not authorization: it only decides whether the gated storefront
  * pages are shown, and it unlocks nothing else (no back-office, no writes).
  *
@@ -19,6 +19,14 @@ export const PREVIEW_TTL_SECONDS = 8 * 60 * 60;
  * preview banner. The proxy deletes any value the client sent.
  */
 export const PREVIEW_HEADER = "x-igs-preview";
+
+/** The preview cookie: HttpOnly, Secure and SameSite=Lax, for this site only. */
+export const PREVIEW_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+  path: "/",
+} as const;
 
 const VERSION = "v1";
 
