@@ -45,21 +45,17 @@ export default async function DashboardPage() {
                 href="/products"
                 linkLabel="Open products"
               >
-                {(counts) =>
-                  counts.active + counts.draft + counts.awaitingApproval === 0 ? (
-                    <p className="text-[var(--color-text-subtle)]">No products yet.</p>
-                  ) : (
-                    <dl className="grid grid-cols-3 gap-3">
-                      <Stat label="Active" value={counts.active} />
-                      <Stat label="Draft" value={counts.draft} />
-                      <Stat
-                        label="Awaiting approval"
-                        value={counts.awaitingApproval}
-                        tone="attention"
-                      />
-                    </dl>
-                  )
-                }
+                {(counts) => (
+                  <dl className="grid grid-cols-3 gap-3">
+                    <Stat label="Active" value={counts.active} />
+                    <Stat label="Draft" value={counts.draft} />
+                    <Stat
+                      label="Awaiting approval"
+                      value={counts.awaitingApproval}
+                      tone="attention"
+                    />
+                  </dl>
+                )}
               </DashboardTile>
             ) : null}
             {stock ? (
@@ -70,29 +66,23 @@ export default async function DashboardPage() {
                 href="/stock"
                 linkLabel="Open stock"
               >
-                {(alerts) =>
-                  alerts.low + alerts.out === 0 && !alerts.capped ? (
-                    <p className="text-[var(--color-text-subtle)]">
-                      No product is low or out of stock.
-                    </p>
-                  ) : (
-                    <>
-                      <dl className="grid grid-cols-2 gap-3">
-                        <Stat
-                          label={`Low (1 to ${LOW_STOCK_THRESHOLD})`}
-                          value={alerts.low}
-                          tone="attention"
-                        />
-                        <Stat label="Out of stock" value={alerts.out} tone="attention" />
-                      </dl>
-                      {alerts.capped ? (
-                        <p className="text-sm text-[var(--color-text-subtle)]">
-                          Counted over the first {alerts.scanned} of {alerts.total} products.
-                        </p>
-                      ) : null}
-                    </>
-                  )
-                }
+                {(alerts) => (
+                  <>
+                    <dl className="grid grid-cols-2 gap-3">
+                      <Stat
+                        label={`Low (1 to ${LOW_STOCK_THRESHOLD})`}
+                        value={alerts.low}
+                        tone="attention"
+                      />
+                      <Stat label="Out of stock" value={alerts.out} tone="attention" />
+                    </dl>
+                    {alerts.capped ? (
+                      <p className="text-sm text-[var(--color-text-subtle)]">
+                        Counted over the first {alerts.scanned} of {alerts.total} products.
+                      </p>
+                    ) : null}
+                  </>
+                )}
               </DashboardTile>
             ) : null}
             {requests ? (

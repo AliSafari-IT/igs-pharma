@@ -109,15 +109,22 @@ describe("catalog.product.counts", () => {
     });
   });
 
-  it("counts a medicine by its legal status too (a general-type product with an Rx status)", async () => {
+  it("counts an OTC status on a general-type product, and never a prescription product", async () => {
     const before = (await getProductCounts({}, editor)).awaitingApproval;
-    const id = randomUUID();
-    await iso.sql`
-      INSERT INTO catalog.products (id, cnk, product_type, legal_status, vat_class, status)
-      VALUES (${id}, ${cnk()}, 'cosmetic', 'rx', 'BE_21', 'active')`;
-    await iso.sql`
-      INSERT INTO catalog.product_content (product_id, locale, name, source)
-      VALUES (${id}, 'nl', 'Rx demo', 'manual'), (${id}, 'fr', 'Rx démo', 'manual')`;
+    const insert = async (type: string, legal: string) => {
+      const id = randomUUID();
+      await iso.sql`
+        INSERT INTO catalog.products (id, cnk, product_type, legal_status, vat_class, status)
+        VALUES (${id}, ${cnk()}, ${type}, ${legal}, 'BE_21', 'active')`;
+      await iso.sql`
+        INSERT INTO catalog.product_content (product_id, locale, name, source)
+        VALUES (${id}, 'nl', 'Demo', 'manual'), (${id}, 'fr', 'Démo', 'manual')`;
+    };
+    await insert("cosmetic", "otc"); // counted
+    expect((await getProductCounts({}, editor)).awaitingApproval).toBe(before + 1);
+    await insert("cosmetic", "rx"); // prescription by legal status: not counted
+    await insert("rx_medicine", "otc"); // prescription by type: not counted
+    await insert("rx_medicine", "rx");
     expect((await getProductCounts({}, editor)).awaitingApproval).toBe(before + 1);
   });
 

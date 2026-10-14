@@ -246,7 +246,7 @@ export interface ProductCounts {
   readonly draft: number;
   readonly archived: number;
   /**
-   * Medicines (not archived) whose Dutch or French text no pharmacist has approved: the shop does
+   * Non-prescription medicines (not archived) whose Dutch or French text no pharmacist has approved: the shop does
    * not show them until one does (D-034, igs-pharma#82, #103). A number only, for the dashboard.
    */
   readonly awaitingApproval: number;
@@ -266,10 +266,13 @@ export const getProductCounts = query({
       .from(products)
       .groupBy(products.status);
     const of = (status: ProductStatus) => byStatus.find((row) => row.status === status)?.total ?? 0;
-    // the same meaning as `isMedicine` in domain.ts: by type or by legal status
-    const medicine = or(
-      inArray(products.productType, ["otc_medicine", "rx_medicine"]),
-      inArray(products.legalStatus, ["otc", "rx"]),
+    // the medicines the shop can show once approved: by type or by legal status, but never a
+    // prescription one (it is hidden as "prescription only", not as "waiting for approval", so the
+    // count matches `productVisibility`'s `text_not_approved`)
+    const medicine = and(
+      or(eq(products.productType, "otc_medicine"), eq(products.legalStatus, "otc")),
+      ne(products.productType, "rx_medicine"),
+      ne(products.legalStatus, "rx"),
     );
     const approved = (locale: ContentLocale) =>
       exists(
