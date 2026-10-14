@@ -6,6 +6,7 @@ import {
   adjustStock,
   importStock,
   prepareStockImport,
+  releaseReservationByStaff,
   stockImportKey,
 } from "@igs/module-inventory";
 import { revalidatePath } from "next/cache";
@@ -137,4 +138,31 @@ export async function adjust(_previous: AdjustState, form: FormData): Promise<Ad
   }
   revalidatePath("/stock");
   redirect(`/stock/${encodeURIComponent(productId)}?adjusted=1`);
+}
+
+/** The Release dialog on a reservation (igs-pharma#99). */
+export interface ReleaseState {
+  readonly error?: string;
+}
+
+/**
+ * Staff gives a reservation's stock back, with a reason (`inventory.stock.manage`). Only an ACTIVE
+ * reservation can be released; the page then shows the stock as available again.
+ */
+export async function release(_previous: ReleaseState, form: FormData): Promise<ReleaseState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const productId = text(form, "productId");
+  try {
+    await releaseReservationByStaff(
+      { reservationId: text(form, "reservationId"), reason: text(form, "reason") },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/stock");
+  redirect(`/stock/${encodeURIComponent(productId)}?released=1`);
 }

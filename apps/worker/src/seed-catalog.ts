@@ -40,6 +40,7 @@ import {
 } from "./synthetic-catalog";
 import { seedSyntheticPrices } from "./synthetic-prices";
 import { seedSyntheticPrivacy } from "./synthetic-privacy";
+import { seedSyntheticReservations } from "./synthetic-reservations";
 
 function fail(message: string): never {
   process.stderr.write(`${message}\n`);
@@ -83,6 +84,10 @@ async function main() {
     const stock = await seedSyntheticStock();
     process.stdout.write(
       `Demo stock: ${stock.stocked} product(s) stocked, ${stock.skipped} left as they were.\n`,
+    );
+    const reservations = await seedSyntheticReservations();
+    process.stdout.write(
+      `Demo reservations: ${reservations.reserved} order(s) set aside, ${reservations.skipped} left as they were.\n`,
     );
     const prices = await seedSyntheticPrices();
     process.stdout.write(

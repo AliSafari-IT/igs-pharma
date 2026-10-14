@@ -267,6 +267,27 @@
       "when": 1791984092806,
       "tag": "0037_session_passkey_checked",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791984093806,
+      "tag": "0038_inventory_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791984094806,
+      "tag": "0039_inventory_reservations_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791984095806,
+      "tag": "0040_rbac_seed_reservations",
+      "breakpoints": true
     }
   ]
 }

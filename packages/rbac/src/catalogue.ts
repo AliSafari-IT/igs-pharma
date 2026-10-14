@@ -39,6 +39,12 @@ export const PERMISSIONS = {
     stockManage: "inventory.stock.manage",
     /** Storefront: whether a product is in stock, never how many (igs-pharma#62). */
     availabilityRead: "inventory.availability.read",
+    /**
+     * System-only (igs-pharma#99): create, confirm, release and consume stock reservations, and expire
+     * lapsed holds. Held by the future checkout actor and the worker's expiry job, never by staff
+     * (staff release a reservation with `inventory.stock.manage`).
+     */
+    reservationManage: "inventory.reservation.manage",
   },
   pricing: {
     /** Back-office: a product's web price, its VAT part, scheduled changes and history (igs-pharma#59). */
@@ -125,6 +131,11 @@ export const ROLES = {
     kind: "system",
     description: "Worker maintenance jobs: purges personal data past its retention period",
   },
+  system_reservations: {
+    kind: "system",
+    description:
+      "Stock reservations: the checkout reserves, confirms, releases and consumes; the worker expires lapsed holds",
+  },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -150,6 +161,7 @@ export const SYSTEM_ONLY: readonly Permission[] = [
   PERMISSIONS.privacy.retentionPurge,
   // the storefront's narrow price read (#96): staff read prices with `pricing.price.read`
   PERMISSIONS.pricing.storefrontRead,
+  PERMISSIONS.inventory.reservationManage,
 ];
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
@@ -235,6 +247,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.privacy.dsrManage,
   ],
   system_maintenance: [PERMISSIONS.privacy.retentionPurge],
+  system_reservations: [PERMISSIONS.inventory.reservationManage],
 };
 
 /** One row of `identity.role_permissions`. */

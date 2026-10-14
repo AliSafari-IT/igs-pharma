@@ -2,7 +2,12 @@ export * as inventorySchema from "./schema";
 export {
   ADJUST_REASONS,
   type AdjustReason,
+  type Availability,
   DEFAULT_LOCATION_ID,
+  EXPIRY_BATCH,
+  HOLDER_REF_PATTERN,
+  HOLD_DEFAULT_MINUTES,
+  HOLD_MAX_MINUTES,
   IMPORT_PLAN_TTL_MS,
   LOCATION_KINDS,
   MAX_IMPORT_CHARS,
@@ -11,16 +16,33 @@ export {
   MOVEMENT_REASONS,
   type MovementReason,
   type ParsedStockCsv,
+  RELEASE_REASONS,
+  RESERVATION_KINDS,
+  RESERVATION_STATUSES,
+  type ReleaseReason,
+  type ReservationKind,
+  type ReservationStatus,
   type StockCsvError,
   type StockCsvRow,
+  availabilityOf,
   parseStockCsv,
 } from "./domain";
 export type { ImportPlan, ImportPlanRow } from "./ledger";
 export { adjustStock, importStock, prepareStockImport, stockImportKey } from "./commands";
 export {
+  confirmReservation,
+  consumeReservation,
+  expireReservations,
+  releaseReservation,
+  releaseReservationByStaff,
+  reserveStock,
+} from "./reservations";
+export {
   MOVEMENT_HISTORY_LIMIT,
   type ProductAvailability,
   type ProductStock,
+  RESERVATION_LIST_LIMIT,
+  type ReservationView,
   type StockListItem,
   type StockMovementView,
   type StockPage,
@@ -32,6 +54,9 @@ export { INVENTORY_AUDIT, type RegisterAuditAction, registerAuditActions } from 
 export {
   IMPORT_PLAN_GRACE_HOURS,
   INVENTORY_JOBS,
+  RESERVATION_EXPIRY_ACTOR,
+  reportReservationExpiryFailed,
+  runReservationExpiry,
   INVENTORY_QUEUES,
   type InventoryJobScheduler,
   type InventoryQueueAdmin,

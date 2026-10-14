@@ -198,6 +198,15 @@ describe("catalogue invariants (T-016)", () => {
     ]);
     // the worker's maintenance jobs (igs-pharma#88) may purge expired personal data and do nothing else
     expect(ROLE_PERMISSIONS.system_maintenance).toEqual(["privacy.retention.purge"]);
+    // reservations (igs-pharma#99): the checkout and the expiry job; no human holds it, staff release with stock.manage
+    expect(ROLE_PERMISSIONS.system_reservations).toEqual(["inventory.reservation.manage"]);
+    for (const role of ROLE_KEYS) {
+      if (role !== "system_reservations" && role !== "system_seed") {
+        expect(ROLE_PERMISSIONS[role] as readonly string[], role).not.toContain(
+          "inventory.reservation.manage",
+        );
+      }
+    }
     for (const role of ROLE_KEYS) {
       const perms = ROLE_PERMISSIONS[role] as readonly string[];
       if (role === "system_seed" || role === "system_storefront") continue;
