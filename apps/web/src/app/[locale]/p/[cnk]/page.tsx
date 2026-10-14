@@ -43,13 +43,15 @@ export default async function ProductPage({ params }: Props) {
               {t("backTo", { name: product.categories[0].name })}
             </Link>
           ) : null}
-          <h1 className="font-display text-3xl font-medium text-[var(--color-primary)]">
+          <h1
+            lang={product.contentLocale}
+            className="font-display text-3xl font-medium text-[var(--color-primary)]"
+          >
             {product.name}
           </h1>
           {product.contentLocale !== locale ? (
-            <p lang={product.contentLocale} className="text-sm text-[var(--color-text-subtle)]">
-              {t("untranslated")}
-            </p>
+            // the notice is in the shopper's language (t()); only the product's own text is not
+            <p className="text-sm text-[var(--color-text-subtle)]">{t("untranslated")}</p>
           ) : null}
           <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
             {product.brandName ? (
