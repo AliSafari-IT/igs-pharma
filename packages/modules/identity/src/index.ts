@@ -56,3 +56,12 @@ export {
   storeEnrolmentToken,
   userKind,
 } from "./mfa";
+export {
+  STAFF_IDLE_MS,
+  STAFF_SESSION_MAX_MS,
+  type SessionEnd,
+  enforceSessionLimits,
+  sessionByToken,
+  sessionEnd,
+  sessionWithinLimits,
+} from "./session-policy";

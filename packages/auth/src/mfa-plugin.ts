@@ -3,6 +3,7 @@ import {
   type MfaMethod,
   deleteNewestPasskey,
   deletePasskey,
+  enforceSessionLimits,
   factorCount,
   markSessionFromEnrolment,
   markSessionMfaVerified,
@@ -119,6 +120,14 @@ export const MFA_ERROR_CODES = {
   USER_VERIFICATION_REQUIRED: "USER_VERIFICATION_REQUIRED",
 } as const;
 
+/**
+ * Staff session limits (#95) on every Better Auth request that carries a session cookie: an
+ * over-limit session is deleted before the endpoint looks at it, so the endpoint sees no session
+ * (401 / `null`). Only a POST counts as the person's own activity: the browser's session check
+ * (`/get-session`) and any other GET never restart the idle clock.
+ */
+const BACKGROUND_PATHS = new Set(["/get-session"]);
+
 const fail = (
   status: "FORBIDDEN" | "BAD_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "INTERNAL_SERVER_ERROR",
   code: string,
@@ -168,6 +177,39 @@ async function actingSession(ctx: HookCtx) {
   return session ? { userId: session.user.id, sessionId: session.session.id } : null;
 }
 
+/**
+ * The session this request arrived with (from its signed cookie), if it still exists. Not the one
+ * an endpoint may have just created.
+ */
+async function requestSession(ctx: HookCtx) {
+  const name = ctx.context.authCookies.sessionToken.name;
+  const signed = await ctx.getSignedCookie(name, ctx.context.secret).catch(() => null);
+  if (!signed) return null;
+  return ctx.context.internalAdapter.findSession(signed);
+}
+
+/**
+ * #95: a passkey check made inside a session that is still within its limits is a fresh proof for
+ * THAT session, not a new sign-in. Better Auth's `/passkey/verify-authentication` always creates a
+ * new session; that would restart the 8-hour clock, so the new one is dropped and the browser keeps
+ * the session it had (now marked as verified). An ended session was already deleted by the limits
+ * hook, so nothing is revived: the check is then an ordinary sign-in with a new session. A passkey
+ * of ANOTHER user is a plain sign-in as that user.
+ */
+async function keepPriorSession(
+  ctx: HookCtx,
+  created: { userId: string; sessionId: string },
+): Promise<{ userId: string; sessionId: string } | null> {
+  const prior = await requestSession(ctx);
+  if (!prior || prior.user.id !== created.userId || prior.session.id === created.sessionId) {
+    return null;
+  }
+  const newToken = ctx.context.newSession?.session.token;
+  if (newToken) await ctx.context.internalAdapter.deleteSession(newToken);
+  await setSessionCookie(ctx, { session: prior.session, user: prior.user });
+  return { userId: prior.user.id, sessionId: prior.session.id };
+}
+
 export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): BetterAuthPlugin {
   const { db, onSecurityEvent } = options;
 
@@ -199,6 +241,19 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
     },
     hooks: {
       before: [
+        {
+          matcher: () => true,
+          handler: createAuthMiddleware(async (ctx) => {
+            const prior = await requestSession(ctx);
+            if (!prior) return;
+            await enforceSessionLimits(db, {
+              userId: prior.user.id,
+              sessionId: prior.session.id,
+              now: new Date(),
+              touch: ctx.request?.method === "POST" && !BACKGROUND_PATHS.has(ctx.path ?? ""),
+            });
+          }),
+        },
         {
           matcher: (ctx) => ADDING_PATHS.has(ctx.path ?? "") || REMOVING_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
@@ -277,8 +332,11 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
           matcher: (ctx) => VERIFYING_PATHS.has(ctx.path ?? ""),
           handler: createAuthMiddleware(async (ctx) => {
             if (isAPIError(ctx.context.returned)) return;
-            const acting = await actingSession(ctx);
+            let acting = await actingSession(ctx);
             if (!acting) return;
+            if (ctx.path === "/passkey/verify-authentication") {
+              acting = (await keepPriorSession(ctx, acting)) ?? acting;
+            }
             if (ctx.path === "/passkey/verify-registration") {
               try {
                 await onSecurityEvent({

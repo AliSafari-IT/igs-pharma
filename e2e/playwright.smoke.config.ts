@@ -25,6 +25,7 @@ export default defineConfig({
     "privacy.spec.ts",
     "prices.spec.ts",
     "storefront-preview.spec.ts",
+    "session-limits.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",

@@ -190,7 +190,11 @@ describe("staff actors and the kernel guard", () => {
   it("no user can be granted a system role", async () => {
     const owner = await createUser();
     await iso.db.insert(userRoles).values({ userId: owner, roleKey: "owner" });
-    const actor = { ...(await loadActor(iso.db, owner)), mfaVerified: true } as never;
+    const actor = {
+      ...(await loadActor(iso.db, owner)),
+      mfaVerified: true,
+      mfaVerifiedAt: new Date(),
+    } as never;
     const target = await createUser();
     expect(await codeOf(grantRole({ userId: target, roleKey: "system_bootstrap" }, actor))).toBe(
       "identity.role_kind_mismatch",

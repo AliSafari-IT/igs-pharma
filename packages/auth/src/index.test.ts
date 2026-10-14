@@ -46,3 +46,20 @@ describe("@igs/auth", () => {
     expect(getDb).not.toHaveBeenCalled();
   });
 });
+
+describe("sessionTokenFromCookies (#95)", () => {
+  it("reads the token from the signed session cookie, with or without the HTTPS prefix", async () => {
+    const { sessionTokenFromCookies } = await import("./index");
+    expect(sessionTokenFromCookies("a=b; better-auth.session_token=abc123.sig%2Bnature; c=d")).toBe(
+      "abc123",
+    );
+    expect(sessionTokenFromCookies("__Secure-better-auth.session_token=tok.sig")).toBe("tok");
+  });
+
+  it("finds nothing in an unrelated or empty header", async () => {
+    const { sessionTokenFromCookies } = await import("./index");
+    expect(sessionTokenFromCookies(null)).toBeNull();
+    expect(sessionTokenFromCookies("theme=dark")).toBeNull();
+    expect(sessionTokenFromCookies("better-auth.session_token=")).toBeNull();
+  });
+});

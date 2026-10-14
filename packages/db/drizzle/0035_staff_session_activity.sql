@@ -1,0 +1,1 @@
+ALTER TABLE "identity"."sessions" ADD COLUMN "last_activity_at" timestamp with time zone;

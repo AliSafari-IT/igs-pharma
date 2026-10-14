@@ -18,7 +18,11 @@ const ERRORS: Record<string, string> = {
   "identity.cannot_reset_own_sign_in":
     "You cannot reset your own sign-in. Ask another owner, or use the server's recovery command.",
   "identity.fresh_mfa_required": "Confirm it's you with your passkey first, then try again.",
+  "identity.role_already_granted": "They already have that role.",
+  "identity.role_not_granted": "They don't have that role.",
+  "identity.role_kind_mismatch": "That role is not for a staff account.",
   "kernel.forbidden": "You are not allowed to do that.",
+  "kernel.invalid_input": "That request was not valid. Reload the page and try again.",
 };
 
 export const identityErrorMessage = (code: string | undefined) =>

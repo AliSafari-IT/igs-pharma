@@ -2,7 +2,20 @@
 
 import { authEnv, parseEnvFor } from "@igs/config/env";
 import { isDomainError } from "@igs/kernel";
-import { resetStaffSignIn } from "@igs/module-identity";
+import {
+  deletePharmacist,
+  deleteUser,
+  grantPharmacistRole,
+  grantRole,
+  reactivatePharmacist,
+  reactivateUser,
+  resetStaffSignIn,
+  revokePharmacistRole,
+  revokeRole,
+  suspendPharmacist,
+  suspendUser,
+} from "@igs/module-identity";
+import { PHARMACIST_ROLES, ROLE_KEYS, type RoleKey } from "@igs/rbac";
 import { revalidatePath } from "next/cache";
 
 import { requestOrigin, requireStaffActor } from "../../server/actor";
@@ -45,4 +58,63 @@ export async function resetSignIn(
   }
   revalidatePath("/staff");
   return { link: enrolmentLink(result.token), expiresAt: result.expiresAt.toISOString() };
+}
+
+/** The Staff "Access" dialog (igs-pharma#95). */
+export interface ChangeAccessState {
+  readonly error?: string;
+  readonly done?: boolean;
+}
+
+const INTENTS = ["grant", "revoke", "suspend", "reactivate", "delete"] as const;
+type Intent = (typeof INTENTS)[number];
+
+/**
+ * A role grant or revoke, or a suspend, reactivate or delete (igs-pharma#95). Every one needs the
+ * acting person's passkey check from the last 10 minutes (`identity.fresh_mfa_required`; the dialog
+ * asks for the passkey and submits the SAME form again). The form's `submissionId` is the kernel's
+ * idempotency key, so a retry or a double submit applies the change once. Which command family
+ * runs follows the target (D-035): a pharmacist role, or an account that holds one, goes through the
+ * pharmacist commands; the kernel's permission check still decides who may.
+ */
+export async function changeAccess(
+  _previous: ChangeAccessState,
+  form: FormData,
+): Promise<ChangeAccessState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const field = (name: string) => {
+    const value = form.get(name);
+    return typeof value === "string" ? value : "";
+  };
+  const intent = field("intent") as Intent;
+  const userId = field("userId");
+  const roleKey = field("roleKey") as RoleKey;
+  const submissionId = field("submissionId");
+  if (!INTENTS.includes(intent)) return { error: "kernel.invalid_input" };
+  const options = { origin: await requestOrigin(), idempotencyKey: submissionId };
+  const holdsPharmacistRole = field("pharmacist") === "1";
+  try {
+    if (intent === "grant" || intent === "revoke") {
+      if (!ROLE_KEYS.includes(roleKey)) return { error: "kernel.invalid_input" };
+      const run = PHARMACIST_ROLES.includes(roleKey)
+        ? intent === "grant"
+          ? grantPharmacistRole
+          : revokePharmacistRole
+        : intent === "grant"
+          ? grantRole
+          : revokeRole;
+      await run({ userId, roleKey }, actor, options);
+    } else {
+      const run = holdsPharmacistRole
+        ? { suspend: suspendPharmacist, reactivate: reactivatePharmacist, delete: deletePharmacist }
+        : { suspend: suspendUser, reactivate: reactivateUser, delete: deleteUser };
+      await run[intent]({ userId }, actor, options);
+    }
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/staff");
+  return { done: true };
 }
