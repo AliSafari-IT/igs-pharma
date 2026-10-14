@@ -203,7 +203,7 @@ test("work in another tab keeps a tab from clearing itself, and a tab does not s
   await busy.keyboard.press("Shift");
   await context.clock.fastForward("10:00");
   await expect(quiet.getByTestId("idle-prompt")).toHaveCount(0);
-  await expect(quiet.getByText(`Two Tabs ${tag}`)).toBeVisible();
+  await expect(quiet.locator("#main").getByText(`Two Tabs ${tag}`)).toBeVisible();
 
   // nobody types for 30 more minutes: both tabs clear, and no tab signed the session out
   await context.clock.fastForward("21:00");
