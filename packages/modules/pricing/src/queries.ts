@@ -14,6 +14,7 @@ import {
   type PricePoint,
   type PriceReduction,
   comparePoints,
+  previousAmounts,
   priceAt,
   priceReductionAt,
   splitVat,
@@ -217,13 +218,10 @@ export const listPrices = query({
     rows.sort(comparePoints);
     const vatRateBp = rateOf(await vatRatesAt(ctx.tx, ctx.now), ref.vatClass);
 
+    const previous = previousAmounts(rows);
     const withPrevious: PriceHistoryRow[] = rows.map((row, index) => {
-      // the price in force just before this one started: the last earlier row
-      const before = rows
-        .slice(0, index)
-        .filter((r) => r.validFrom.getTime() < row.validFrom.getTime());
       const { productId: _productId, ...view } = row;
-      return { ...view, previousAmountCents: before.at(-1)?.amountCents ?? null };
+      return { ...view, previousAmountCents: previous[index] ?? null };
     });
     const now = ctx.now.getTime();
     const current = priceAt(rows, ctx.now);

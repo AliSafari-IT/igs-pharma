@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   type PricePoint,
   centsToDecimal,
+  comparePoints,
   isValidAmount,
   lowestPriceBefore,
   parseEuros,
+  previousAmounts,
   priceAt,
   priceReductionAt,
   splitVat,
@@ -244,5 +246,68 @@ describe("priceReductionAt", () => {
       referenceCents: 1000,
       fullWindow: false,
     });
+  });
+});
+
+describe("previousAmounts (igs-pharma#96)", () => {
+  type Row = { id: string; validFrom: Date; amountCents: number };
+  const t = (ms: number) => new Date(1_700_000_000_000 + ms);
+
+  /** The algorithm it replaced, kept here as the reference: rescan every earlier row for each row. */
+  const legacy = (rows: readonly Row[]) =>
+    rows.map((row, index) => {
+      const before = rows
+        .slice(0, index)
+        .filter((r) => r.validFrom.getTime() < row.validFrom.getTime());
+      return before.at(-1)?.amountCents ?? null;
+    });
+
+  const sorted = (rows: Row[]) => [...rows].sort(comparePoints);
+
+  it("empty, one entry, a repeated amount and plain changes", () => {
+    expect(previousAmounts([])).toEqual([]);
+    expect(previousAmounts([{ validFrom: t(0), amountCents: 100 }])).toEqual([null]);
+    expect(
+      previousAmounts([
+        { validFrom: t(0), amountCents: 700 },
+        { validFrom: t(1), amountCents: 700 },
+      ]),
+    ).toEqual([null, 700]);
+    expect(
+      previousAmounts([
+        { validFrom: t(0), amountCents: 1000 },
+        { validFrom: t(1), amountCents: 900 },
+        { validFrom: t(2), amountCents: 1100 },
+      ]),
+    ).toEqual([null, 1000, 900]);
+  });
+
+  it("rows that start at the same instant all replaced what was in force before it", () => {
+    const rows = sorted([
+      { id: "a", validFrom: t(0), amountCents: 1000 },
+      { id: "b", validFrom: t(5), amountCents: 900 },
+      { id: "c", validFrom: t(5), amountCents: 800 },
+      { id: "d", validFrom: t(9), amountCents: 700 },
+    ]);
+    expect(previousAmounts(rows)).toEqual([null, 1000, 1000, 800]);
+  });
+
+  it("gives the same values as the algorithm it replaced, on 500 random histories", () => {
+    let seed = 20_261_014;
+    const next = (n: number) => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+      return seed % n;
+    };
+    for (let round = 0; round < 500; round += 1) {
+      const rows = sorted(
+        Array.from({ length: next(12) }, (_, i) => ({
+          id: String(i).padStart(3, "0"),
+          // few distinct instants, so equal validFrom groups are common
+          validFrom: t(next(5) * 1000),
+          amountCents: 100 + next(5) * 50,
+        })),
+      );
+      expect(previousAmounts(rows), JSON.stringify(rows)).toEqual(legacy(rows));
+    }
   });
 });
