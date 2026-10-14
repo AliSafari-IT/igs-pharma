@@ -109,7 +109,7 @@ export const RESERVATION_KINDS = ["hold", "order"] as const;
 export type ReservationKind = (typeof RESERVATION_KINDS)[number];
 
 /**
- * The four states and their arrows (the database forbids the others, migration 0037):
+ * The four states and their arrows (the database forbids the others, migration 0038):
  * `active` → `released` | `consumed` | `expired`; a `hold` may become an `order` while it stays
  * `active`. Only a `hold` can expire; only an `order` can be consumed. The three end states are final.
  */

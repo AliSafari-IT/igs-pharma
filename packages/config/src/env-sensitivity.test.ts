@@ -1,6 +1,7 @@
 // Every variable in env.ts is classified, and the image secret check covers every sensitive one
 // (igs-pharma#96, D-023). Names and synthetic fixtures only: no real secret value appears here.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -17,6 +18,47 @@ const declared = [
       .flatMap((schema) => Object.keys(schema.shape)),
   ),
 ].sort();
+
+const root = fileURLToPath(new URL("../../../", import.meta.url));
+const envSource = readFileSync(fileURLToPath(new URL("./env.ts", import.meta.url)), "utf8");
+
+/** Names of the `const X = z.object(` schemas env.ts declares, exported or not. */
+const schemaConsts = (source: string) =>
+  [...source.matchAll(/^(?:export )?const (\w+) = z\.object\(/gm)].map((m) => String(m[1]));
+
+/** Variables read from `process.env` that are not the app's configuration (tooling, CI, the platform). */
+const NOT_APP_CONFIG: readonly string[] = [
+  "CI",
+  "TEST_DATABASE_URL",
+  "SMOKE_DATABASE_URL",
+  "PLAYWRIGHT_CHROMIUM_EXECUTABLE",
+  "DRIZZLE_OUT",
+  "NEXT_RUNTIME",
+  "PORT",
+  "HOSTNAME",
+];
+
+/** The names `process.env.X` / `process.env["X"]` read in a source text. */
+const envReads = (source: string) =>
+  [...source.matchAll(/process\.env(?:\.|\[")([A-Z][A-Z0-9_]+)/g)].map((m) => String(m[1]));
+
+/** Every non-test source file under apps/<x>/src and packages/<x>/src (and packages/modules/<x>/src). */
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (["node_modules", ".next", "dist", "test", "tests"].includes(entry.name)) continue;
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) sourceFiles(path, out);
+    else if (/\.(ts|tsx|mjs)$/.test(entry.name) && !/\.(test|spec)\./.test(entry.name))
+      out.push(path);
+  }
+  return out;
+}
+
+/** Variable names read in app and package sources that no classification mentions. */
+const unknownReads = (reads: readonly string[]) =>
+  [...new Set(reads)].filter(
+    (name) => !Object.hasOwn(ENV_SENSITIVITY, name) && !NOT_APP_CONFIG.includes(name),
+  );
 
 const scriptPath = fileURLToPath(
   new URL("../../../tools/ci/check-image-secrets.sh", import.meta.url),
@@ -45,6 +87,20 @@ describe("env classification (D-023)", () => {
 
   it("classifies every variable env.ts declares", () => {
     expect(unclassified(declared, ENV_SENSITIVITY)).toEqual([]);
+  });
+
+  it("exports every schema env.ts declares, so the scan above cannot miss one (#100)", () => {
+    const exported = new Set(Object.keys(envModule));
+    expect(schemaConsts(envSource).filter((name) => !exported.has(name))).toEqual([]);
+    expect(schemaConsts(envSource)).toContain("envSchema");
+  });
+
+  it("no source under apps/ or packages/ reads a variable that is not classified", () => {
+    const reads = ["apps", "packages"].flatMap((top) =>
+      sourceFiles(join(root, top)).flatMap((file) => envReads(readFileSync(file, "utf8"))),
+    );
+    expect(reads.length).toBeGreaterThan(0);
+    expect(unknownReads(reads)).toEqual([]);
   });
 
   it("lists no variable that env.ts no longer declares", () => {
@@ -76,6 +132,18 @@ describe("env classification (D-023)", () => {
 describe("the guards themselves (synthetic fixtures)", () => {
   it("an unclassified new variable is reported", () => {
     expect(unclassified([...declared, "NEW_THING"], ENV_SENSITIVITY)).toEqual(["NEW_THING"]);
+  });
+
+  it("an unexported schema is reported (a PAYMENT_API_SECRET in a private z.object)", () => {
+    const source = `${envSource}\nconst paymentEnv = z.object({ PAYMENT_API_SECRET: z.string() });\n`;
+    expect(schemaConsts(source).filter((n) => !Object.hasOwn(envModule, n))).toEqual([
+      "paymentEnv",
+    ]);
+  });
+
+  it("a variable read straight from process.env without a classification is reported", () => {
+    const reads = envReads('const key = process.env.PAYMENT_API_SECRET; process.env["CI"];');
+    expect(unknownReads(reads)).toEqual(["PAYMENT_API_SECRET"]);
   });
 
   it("a sensitive name missing from the script is reported", () => {

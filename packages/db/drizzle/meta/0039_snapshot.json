@@ -1,6 +1,6 @@
 {
-  "id": "09996712-df07-439c-b2ec-2f2674418e4c",
-  "prevId": "a1fea7b8-7d6d-46bd-a74e-57c35281eee6",
+  "id": "a1fea7b8-7d6d-46bd-a74e-57c35281eee6",
+  "prevId": "26a5b41d-5e74-439f-9600-0608727516d9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1185,6 +1185,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "passkey_checked_at": {
+          "name": "passkey_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1944,7 +1950,7 @@
         },
         "reservations_holder_ref_check": {
           "name": "reservations_holder_ref_check",
-          "value": "\"inventory\".\"reservations\".\"holder_ref\" ~ '^[A-Za-z0-9:_.-]{1,100}$'"
+          "value": "\"inventory\".\"reservations\".\"holder_ref\" ~ '^(checkout|order):[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'"
         }
       },
       "isRLSEnabled": false

@@ -4,7 +4,7 @@ import { authClient } from "@igs/auth/client";
 import { Alert, Button, Stack } from "@igs/ui";
 import { useState } from "react";
 
-import { authErrorMessage } from "./auth-errors";
+import { authErrorMessage, withFreshPasskey } from "./auth-errors";
 
 /**
  * Add a passkey from the account page (igs-pharma#90): a second one (another device or a security
@@ -18,7 +18,10 @@ export function AddPasskey({ label }: { readonly label: string }) {
     setBusy(true);
     setError(null);
     try {
-      const result = await authClient.passkey.addPasskey({ name: "IGS-Pharma back-office" });
+      const result = await withFreshPasskey(
+        () => authClient.passkey.addPasskey({ name: "IGS-Pharma back-office" }),
+        () => authClient.signIn.passkey(),
+      );
       if (!result?.error) {
         window.location.assign("/account");
         return;

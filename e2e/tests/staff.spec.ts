@@ -65,9 +65,9 @@ test.beforeAll(async () => {
   token = randomUUID();
   // the owner's session proved a second factor 20 minutes ago: verified, but not fresh
   await sql`
-    INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at)
+    INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at, passkey_checked_at)
     VALUES (gen_random_uuid(), ${ownerId}, ${token}, now() + interval '1 hour',
-      now() - interval '20 minutes')`;
+      now() - interval '20 minutes', now() - interval '20 minutes')`;
   await sql`
     INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at)
     VALUES (gen_random_uuid(), ${targetId}, ${randomUUID()}, now() + interval '1 hour', now())`;
@@ -129,7 +129,9 @@ test("with a fresh proof: the reset deletes their passkeys and sessions, is audi
   browser,
 }) => {
   // what a passkey confirmation does to the owner's session
-  await sql`UPDATE identity.sessions SET mfa_verified_at = now() WHERE token = ${token}`;
+  await sql`
+    UPDATE identity.sessions SET mfa_verified_at = now(), passkey_checked_at = now()
+    WHERE token = ${token}`;
   await signIn(context);
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
   await page

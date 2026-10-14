@@ -4,6 +4,8 @@
  */
 const MESSAGES: Record<string, string> = {
   MFA_REQUIRED: "Confirm it's you with your passkey or authenticator app first.",
+  FRESH_PASSKEY_REQUIRED:
+    "Check your passkey again first: adding a sign-in method needs a passkey check in the last 10 minutes.",
   LAST_FACTOR: "You can't remove your only 2-step login method. Add another one first.",
   LAST_PASSKEY:
     "You can't remove your only passkey: you sign in with it. Add another passkey first.",
@@ -27,4 +29,27 @@ export function authErrorMessage(
   if (byCode) return byCode;
   if (error?.status === 429) return MESSAGES["TOO_MANY_REQUESTS"] ?? FALLBACK;
   return FALLBACK;
+}
+
+type WithError = { readonly error?: unknown; readonly data?: unknown } | null | undefined;
+
+const errorCodeOf = (result: WithError) =>
+  typeof result?.error === "object" && result.error !== null && "code" in result.error
+    ? (result.error as { code?: unknown }).code
+    : undefined;
+
+/**
+ * Adding a sign-in method needs a passkey check from the last 10 minutes (igs-pharma#100). When the
+ * server answers `FRESH_PASSKEY_REQUIRED`, ask the person for the passkey (`check`, one touch or
+ * face scan) and try the action once more. A failed check ends the attempt with its own error.
+ */
+export async function withFreshPasskey<T extends WithError>(
+  action: () => Promise<T>,
+  check: () => Promise<WithError>,
+): Promise<T> {
+  const first = await action();
+  if (errorCodeOf(first) !== "FRESH_PASSKEY_REQUIRED") return first;
+  const checked = await check();
+  if (checked?.error) return checked as T; // an error-shaped answer: callers only read `.error`
+  return action();
 }

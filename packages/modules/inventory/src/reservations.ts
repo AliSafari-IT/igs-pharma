@@ -26,7 +26,7 @@ import { reservations } from "./schema";
  * what a customer may still buy is on-hand minus the reservations that are live. Two kinds:
  * a `hold` for a checkout in progress (15 minutes by default, at most 30, then it expires) and an
  * `order` that never expires on its own, only a release or a consume ends it. The lifecycle is
- * enforced by the database as well (migration 0037).
+ * enforced by the database as well (migration 0038).
  *
  * The commands are SYSTEM-ONLY (`inventory.reservation.manage`): the future checkout calls them.
  * Staff end a reservation with `releaseReservationByStaff` (`inventory.stock.manage`). A holder is

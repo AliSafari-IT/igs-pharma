@@ -130,7 +130,7 @@ export const importPlans = inventory.table("import_plans", {
  * reservation (picking) writes one `sale` movement and ends it.
  *
  * `holder_ref` is an opaque reference to the holder (a future checkout or order id), never customer
- * data. The database enforces the lifecycle (migration 0037): the four statuses and their arrows,
+ * data. The database enforces the lifecycle (migration 0038): the four statuses and their arrows,
  * `expires_at` required for a hold and always NULL for an order, no UPDATE of the identifying
  * columns, no DELETE. `product_id` has no foreign key (module-anatomy rule 2).
  */

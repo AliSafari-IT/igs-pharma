@@ -115,6 +115,13 @@ export const sessions = identity.table(
      */
     mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
     /**
+     * #100: when this session last passed a PASSKEY check (`/passkey/verify-authentication`), and
+     * nothing else writes it. A TOTP code, a new passkey registration or a backup code mark the
+     * session as verified (`mfa_verified_at`, the 2-step login gate) but never as freshly proven:
+     * the 10-minute fresh check for sensitive changes, and for ADDING a factor, reads this column.
+     */
+    passkeyCheckedAt: timestamp("passkey_checked_at", { withTimezone: true }),
+    /**
      * 36b: when this session was started by redeeming a bootstrap enrolment link. Only such a
      * session may enrol a staff user's FIRST factor; cleared once the session is MFA-verified.
      * Server-owned like `mfaVerifiedAt` (`input: false`).

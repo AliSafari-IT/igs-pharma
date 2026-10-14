@@ -1,5 +1,5 @@
 {
-  "id": "26a5b41d-5e74-439f-9600-0608727516d9",
+  "id": "ef3a6654-586a-41f2-af6a-5a88a8861f2c",
   "prevId": "fc22a36d-386b-4c3f-b71d-3f284a93474d",
   "version": "7",
   "dialect": "postgresql",
@@ -1160,6 +1160,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "passkey_checked_at": {
+          "name": "passkey_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "enrolment_at": {
           "name": "enrolment_at",
           "type": "timestamp with time zone",
@@ -1728,227 +1734,6 @@
       },
       "isRLSEnabled": false
     },
-    "inventory.reservations": {
-      "name": "reservations",
-      "schema": "inventory",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "location_id": {
-          "name": "location_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "holder_ref": {
-          "name": "holder_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "release_reason": {
-          "name": "release_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_type": {
-          "name": "created_by_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by_id": {
-          "name": "created_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_by_type": {
-          "name": "updated_by_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_by_id": {
-          "name": "updated_by_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "reservations_active_holder_idx": {
-          "name": "reservations_active_holder_idx",
-          "columns": [
-            {
-              "expression": "product_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "location_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "holder_ref",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"inventory\".\"reservations\".\"status\" = 'active'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "reservations_product_active_idx": {
-          "name": "reservations_product_active_idx",
-          "columns": [
-            {
-              "expression": "product_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "location_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"inventory\".\"reservations\".\"status\" = 'active'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "reservations_hold_expiry_idx": {
-          "name": "reservations_hold_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"inventory\".\"reservations\".\"status\" = 'active' AND \"inventory\".\"reservations\".\"kind\" = 'hold'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "reservations_location_id_locations_id_fk": {
-          "name": "reservations_location_id_locations_id_fk",
-          "tableFrom": "reservations",
-          "tableTo": "locations",
-          "schemaTo": "inventory",
-          "columnsFrom": [
-            "location_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "reservations_quantity_check": {
-          "name": "reservations_quantity_check",
-          "value": "\"inventory\".\"reservations\".\"quantity\" > 0 AND \"inventory\".\"reservations\".\"quantity\" <= 1000000"
-        },
-        "reservations_kind_check": {
-          "name": "reservations_kind_check",
-          "value": "kind IN ('hold', 'order')"
-        },
-        "reservations_status_check": {
-          "name": "reservations_status_check",
-          "value": "status IN ('active', 'released', 'consumed', 'expired')"
-        },
-        "reservations_release_reason_check": {
-          "name": "reservations_release_reason_check",
-          "value": "(\"inventory\".\"reservations\".\"status\" = 'released') = (\"inventory\".\"reservations\".\"release_reason\" IS NOT NULL)\n        AND (\"inventory\".\"reservations\".\"release_reason\" IS NULL OR release_reason IN ('checkout_cancelled', 'order_cancelled', 'refunded', 'staff_correction'))"
-        },
-        "reservations_expires_at_check": {
-          "name": "reservations_expires_at_check",
-          "value": "(\"inventory\".\"reservations\".\"kind\" = 'hold' AND \"inventory\".\"reservations\".\"expires_at\" IS NOT NULL) OR (\"inventory\".\"reservations\".\"kind\" = 'order' AND \"inventory\".\"reservations\".\"expires_at\" IS NULL)"
-        },
-        "reservations_only_holds_expire_check": {
-          "name": "reservations_only_holds_expire_check",
-          "value": "\"inventory\".\"reservations\".\"status\" <> 'expired' OR \"inventory\".\"reservations\".\"kind\" = 'hold'"
-        },
-        "reservations_only_orders_consumed_check": {
-          "name": "reservations_only_orders_consumed_check",
-          "value": "\"inventory\".\"reservations\".\"status\" <> 'consumed' OR \"inventory\".\"reservations\".\"kind\" = 'order'"
-        },
-        "reservations_holder_ref_check": {
-          "name": "reservations_holder_ref_check",
-          "value": "\"inventory\".\"reservations\".\"holder_ref\" ~ '^[A-Za-z0-9:_.-]{1,100}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "inventory.stock_levels": {
       "name": "stock_levels",
       "schema": "inventory",
@@ -2144,7 +1929,7 @@
         },
         "stock_movements_reason_check": {
           "name": "stock_movements_reason_check",
-          "value": "reason IN ('import', 'adjustment', 'correction', 'sale')"
+          "value": "reason IN ('import', 'adjustment', 'correction')"
         }
       },
       "isRLSEnabled": false

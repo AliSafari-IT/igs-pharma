@@ -34,4 +34,10 @@ export interface Actor {
    * Handlers that need a FRESH proof (resetting someone's sign-in) compare it with `ctx.now`.
    */
   readonly mfaVerifiedAt?: Date | null;
+  /**
+   * igs-pharma#100: when this `user` actor's session last passed a PASSKEY check (`null`: never).
+   * The FRESH proof for sensitive changes comes from this and only this; `mfaVerifiedAt` (which a
+   * TOTP code or a new passkey also set) is the 2-step login gate.
+   */
+  readonly passkeyCheckedAt?: Date | null;
 }

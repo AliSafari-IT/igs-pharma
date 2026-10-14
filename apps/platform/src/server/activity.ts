@@ -15,6 +15,11 @@ export function isInteractiveRequest(headers: Pick<Headers, "get">): boolean {
   if (headers.get("next-router-prefetch")) return false;
   const purpose = `${headers.get("purpose") ?? ""} ${headers.get("sec-purpose") ?? ""}`;
   if (/prefetch|prerender/i.test(purpose)) return false;
+  // #100: `next-action` and `rsc` are plain headers any script can add, so alone they prove nothing.
+  // A browser always adds `Sec-Fetch-Site`, and a page of ours reaching our own server says
+  // `same-origin` (or `none` for a typed address): without that it is not the person's request.
+  const site = headers.get("sec-fetch-site");
+  if (site !== "same-origin" && site !== "none") return false;
   if (headers.get("next-action")) return true;
   if (headers.get("rsc")) return true;
   return headers.get("sec-fetch-dest") === "document";

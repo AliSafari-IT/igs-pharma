@@ -374,6 +374,22 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
     expect(afterSale.map((p) => p.amountCents)).toEqual([700]);
   });
 
+  it("a scheduled price starts exactly at its valid_from, not 1 ms before (#100)", async () => {
+    const productId = await storefrontProduct();
+    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
+    const start = later(DAY);
+    await setPrice(
+      { productId, amountCents: 700, validFrom: start.toISOString(), reason: "sale" },
+      owner,
+    );
+    kernel.clock.set(new Date(start.getTime() - 1));
+    const before = await storefrontPrices({ productIds: [productId] }, storefront);
+    expect(before.map((p) => p.amountCents)).toEqual([1000]);
+    kernel.clock.set(start);
+    const at = await storefrontPrices({ productIds: [productId] }, storefront);
+    expect(at.map((p) => p.amountCents)).toEqual([700]);
+  });
+
   it("is refused history, scheduled prices and the reference price, by direct call (kernel.forbidden)", async () => {
     const productId = await storefrontProduct();
     await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
