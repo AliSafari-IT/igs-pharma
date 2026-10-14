@@ -64,8 +64,12 @@ export const observabilityEnv = z.object({
     .string()
     .url()
     .refine((value) => {
-      const { username, password } = new URL(value);
-      return username === "" && password === "";
+      try {
+        const { username, password } = new URL(value);
+        return username === "" && password === "";
+      } catch {
+        return true; // not a URL at all: the url() check above reports it, readably
+      }
     }, "must not contain a username or password")
     .optional(),
   SENTRY_DSN: z.string().url().optional(),
@@ -78,6 +82,14 @@ export const auditEnv = z.object({
 
 export const featureFlagsEnv = z.object({
   NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  /**
+   * The EU common logo linked to the FAMHP list (igs-pharma#104). Stays `false` until the pharmacy
+   * is registered: showing it earlier would be a false claim.
+   */
+  NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: z
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),

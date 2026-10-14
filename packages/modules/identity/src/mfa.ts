@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Db } from "@igs/db";
-import { and, count, desc, eq, gt, isNotNull, like, ne } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, like, ne, or } from "drizzle-orm";
 
 import { passkeys, sessions, twoFactors, users, verifications } from "./schema";
 
@@ -164,22 +164,26 @@ export async function readPriorSession(
  * backup code (those never make a proof fresh).
  */
 export async function rotateSession(
-  db: Executor,
+  db: Db,
   options: { prior: PriorSession; newId: string; at: Date; passkeyChecked: boolean },
 ): Promise<void> {
   const { prior } = options;
-  await db
-    .update(sessions)
-    .set({
-      createdAt: prior.createdAt,
-      lastActivityAt: prior.lastActivityAt,
-      expiresAt: prior.expiresAt,
-      mfaVerifiedAt: options.at,
-      passkeyCheckedAt: options.passkeyChecked ? options.at : prior.passkeyCheckedAt,
-      enrolmentAt: null,
-    })
-    .where(eq(sessions.id, options.newId));
-  await db.delete(sessions).where(eq(sessions.id, prior.id));
+  // ONE transaction (igs-pharma#110): the new row takes the old clocks and the old row goes, or
+  // neither happens, so a failure never leaves a new session with a fresh 8-hour clock
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sessions)
+      .set({
+        createdAt: prior.createdAt,
+        lastActivityAt: prior.lastActivityAt,
+        expiresAt: prior.expiresAt,
+        mfaVerifiedAt: options.at,
+        passkeyCheckedAt: options.passkeyChecked ? options.at : prior.passkeyCheckedAt,
+        enrolmentAt: null,
+      })
+      .where(eq(sessions.id, options.newId));
+    await tx.delete(sessions).where(eq(sessions.id, prior.id));
+  });
 }
 
 /** Records that `sessionId` was started by redeeming an enrolment link (`/enrolment/redeem`). */
@@ -221,11 +225,11 @@ export async function clearOtherSessionsMfa(
 ): Promise<void> {
   await db
     .update(sessions)
-    .set({ mfaVerifiedAt: null })
+    .set({ mfaVerifiedAt: null, passkeyCheckedAt: null })
     .where(
       and(
         eq(sessions.userId, userId),
-        isNotNull(sessions.mfaVerifiedAt),
+        or(isNotNull(sessions.mfaVerifiedAt), isNotNull(sessions.passkeyCheckedAt)),
         ...(keepSessionId ? [ne(sessions.id, keepSessionId)] : []),
       ),
     );

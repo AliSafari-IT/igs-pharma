@@ -9,9 +9,15 @@ import { PERMISSIONS } from "@igs/rbac";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { DEFAULT_LOCATION_ID, type MovementReason } from "./domain";
-import { type AvailabilityStatus, levelOf, statusesFor, stockLevels } from "./ledger";
-import { stockMovements } from "./schema";
+import {
+  type Availability,
+  DEFAULT_LOCATION_ID,
+  type MovementReason,
+  type ReservationKind,
+  availabilityOf,
+} from "./domain";
+import { availabilityFor, levelOf, stockLevels } from "./ledger";
+import { reservations, stockMovements } from "./schema";
 
 /** Inventory queries for the back-office (igs-pharma#53). */
 
@@ -21,6 +27,12 @@ export interface StockListItem {
   readonly nameNl: string | null;
   readonly onHand: number;
   readonly lastMovementAt: Date | null;
+  /** Set aside for checkouts (live holds) and orders (igs-pharma#99). */
+  readonly reserved: number;
+  /** `onHand − reserved`, never below 0: what a new hold may take. */
+  readonly available: number;
+  /** How many units the pharmacy is short for its orders (the shelf holds less than the orders reserved). */
+  readonly short: number;
 }
 
 export interface StockPage {
@@ -45,17 +57,22 @@ export const listStock = query({
       limit: input.pageSize,
       offset: (input.page - 1) * input.pageSize,
     });
-    const levels = await stockLevels(
-      ctx.tx,
-      items.map((ref) => ref.id),
-    );
+    const ids = items.map((ref) => ref.id);
+    const levels = await stockLevels(ctx.tx, ids);
+    const availability = await availabilityFor(ctx.tx, ids, ctx.now);
     return {
-      items: items.map((ref) => ({
-        productId: ref.id,
-        cnk: ref.cnk,
-        nameNl: ref.nameNl,
-        ...levelOf(levels, ref.id),
-      })),
+      items: items.map((ref) => {
+        const a = availability.get(ref.id);
+        return {
+          productId: ref.id,
+          cnk: ref.cnk,
+          nameNl: ref.nameNl,
+          ...levelOf(levels, ref.id),
+          reserved: (a?.held ?? 0) + (a?.ordered ?? 0),
+          available: a?.available ?? 0,
+          short: a?.short ?? 0,
+        };
+      }),
       total,
       page: input.page,
       pageSize: input.pageSize,
@@ -74,17 +91,31 @@ export interface StockMovementView {
   readonly at: Date;
 }
 
-export interface ProductStock {
+/** One active reservation as the Stock page shows it. */
+export interface ReservationView {
+  readonly id: string;
+  readonly kind: ReservationKind;
+  readonly quantity: number;
+  /** The opaque reference of the checkout or order that holds it. */
+  readonly holderRef: string;
+  readonly createdAt: Date;
+  /** Holds only; an order has none. */
+  readonly expiresAt: Date | null;
+}
+
+export interface ProductStock extends Availability {
   readonly productId: string;
   readonly cnk: string;
   readonly nameNl: string | null;
-  readonly onHand: number;
   readonly lastMovementAt: Date | null;
+  /** The active reservations, newest first (at most `RESERVATION_LIST_LIMIT`). */
+  readonly reservations: readonly ReservationView[];
   /** The latest movements, newest first (at most `MOVEMENT_HISTORY_LIMIT`). */
   readonly movements: readonly StockMovementView[];
 }
 
 export const MOVEMENT_HISTORY_LIMIT = 200;
+export const RESERVATION_LIST_LIMIT = 200;
 
 /** One product's on-hand and movement history (`inventory.product_not_found`). */
 export const getStock = query({
@@ -115,11 +146,38 @@ export const getStock = query({
       )
       .orderBy(desc(stockMovements.at), desc(stockMovements.id))
       .limit(MOVEMENT_HISTORY_LIMIT);
+    const availability = (await availabilityFor(ctx.tx, [ref.id], ctx.now)).get(ref.id);
+    const active = await ctx.tx
+      .select({
+        id: reservations.id,
+        kind: reservations.kind,
+        quantity: reservations.quantity,
+        holderRef: reservations.holderRef,
+        createdAt: reservations.createdAt,
+        expiresAt: reservations.expiresAt,
+      })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.productId, ref.id),
+          eq(reservations.locationId, DEFAULT_LOCATION_ID),
+          eq(reservations.status, "active"),
+        ),
+      )
+      .orderBy(desc(reservations.createdAt), desc(reservations.id))
+      .limit(RESERVATION_LIST_LIMIT);
     return {
       productId: ref.id,
       cnk: ref.cnk,
       nameNl: ref.nameNl,
-      ...levelOf(levels, ref.id),
+      lastMovementAt: levelOf(levels, ref.id).lastMovementAt,
+      ...(availability ?? availabilityOf(0, 0, 0)),
+      // a hold the expiry job has not marked yet is already over: the page does not list it
+      reservations: active
+        .filter(
+          (r) => !(r.kind === "hold" && r.expiresAt && r.expiresAt.getTime() <= ctx.now.getTime()),
+        )
+        .map((r) => ({ ...r, kind: r.kind as ReservationKind })),
       movements: movements.map((m) => ({ ...m, reason: m.reason as MovementReason })),
     };
   },
@@ -127,7 +185,7 @@ export const getStock = query({
 
 export interface ProductAvailability {
   readonly productId: string;
-  /** Whether any stock is on hand. The count itself is never returned. */
+  /** Whether any stock is available (on hand and not reserved). The count itself is never returned. */
   readonly inStock: boolean;
 }
 
@@ -143,29 +201,47 @@ export const getAvailability = query({
   async handler({ input, ctx }): Promise<readonly ProductAvailability[]> {
     // the storefront actor sees storefront-visible products only (D-034)
     const refs = await productRefsForActor(ctx.tx, input.productIds, ctx.can);
-    const statuses = await statusesFor(
+    // igs-pharma#99: in stock means something is AVAILABLE, i.e. on hand minus what is reserved
+    const availability = await availabilityFor(
       ctx.tx,
       refs.map((ref) => ref.id),
+      ctx.now,
     );
     return refs.map((ref) => ({
       productId: ref.id,
-      inStock: statuses.get(ref.id) !== "out",
+      inStock: (availability.get(ref.id)?.available ?? 0) > 0,
     }));
   },
 });
 
+/** What a shelf looks like to a shopper: never a count. `low` is 1..threshold available. */
+export type AvailabilityStatus = "available" | "low" | "out";
+
+/** The default threshold at or below which availability counts as `low` (igs-pharma#103). */
+export const DEFAULT_LOW_STOCK = 3;
+
+/** `available` above the threshold, `low` from 1 up to it, `out` at zero. */
+export function availabilityStatus(available: number, lowStock: number): AvailabilityStatus {
+  if (available <= 0) return "out";
+  return available <= lowStock ? "low" : "available";
+}
+
 /**
- * The availability of these products for the storefront read model (igs-pharma#103): a plain function
- * on the caller's transaction (the calling query has authorized the actor), through the same
- * `statusesFor` as `getAvailability`. Only STOREFRONT-VISIBLE products are answered; a hidden or
- * unknown id is simply absent. Never a count.
+ * The availability of these products for the storefront read model (igs-pharma#103): a plain
+ * function on the caller's transaction (the calling query has authorized the actor). It builds on
+ * `availabilityFor`, so "available" already means on hand minus holds and orders (#99). Only
+ * STOREFRONT-VISIBLE products are answered; a hidden or unknown id is simply absent. Never a count.
  */
 export async function storefrontAvailability(
   tx: Tx,
   productIds: readonly string[],
-  lowStock?: number,
+  now: Date,
+  lowStock: number = DEFAULT_LOW_STOCK,
 ): Promise<ReadonlyMap<string, AvailabilityStatus>> {
   if (productIds.length === 0) return new Map();
-  const visible = await storefrontVisibleIds(tx, productIds);
-  return statusesFor(tx, visible, lowStock);
+  const visible = await storefrontVisibleIds(tx, [...new Set(productIds)]);
+  const availability = await availabilityFor(tx, visible, now);
+  return new Map(
+    visible.map((id) => [id, availabilityStatus(availability.get(id)?.available ?? 0, lowStock)]),
+  );
 }

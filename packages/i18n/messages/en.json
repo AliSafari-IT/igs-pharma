@@ -14,7 +14,8 @@
   },
   "notFound": {
     "title": "Page not found",
-    "backHome": "Back to the home page"
+    "backHome": "Back to the home page",
+    "body": "The page you are looking for does not exist or is no longer available."
   },
   "comingSoon": {
     "title": "Opening soon",
@@ -46,6 +47,30 @@
     "viewProduct": "View {name}",
     "backTo": "Back to {name}",
     "unavailable": "The products are temporarily unavailable. Please try again later.",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "tagline": "Online pharmacy in Belgium. Ordering online will open soon.",
+    "home": "Home",
+    "breadcrumb": "Breadcrumb",
+    "categoriesHeading": "Products by category",
+    "productsHeading": "Products",
+    "productCount": "{count, plural, one {# product} other {# products}}",
+    "showCategories": "Categories",
+    "pageNumber": "Page {page}",
+    "footerAbout": "About this pharmacy",
+    "address": "Address",
+    "phone": "Phone",
+    "email": "Email",
+    "pharmacistTitular": "Pharmacist-titular",
+    "authorisationNumber": "Authorisation number",
+    "openingHours": "Opening hours",
+    "placeholderNote": "Placeholder details, to be replaced.",
+    "legal": "Legal information",
+    "terms": "Terms and conditions",
+    "privacy": "Privacy",
+    "cookies": "Cookies",
+    "euLogo": "EU common logo for online pharmacies",
+    "euLogoLink": "List of registered online pharmacies (FAMHP)",
+    "legalPending": "The text of this page will follow.",
+    "legalBack": "Back to the home page"
   }
 }

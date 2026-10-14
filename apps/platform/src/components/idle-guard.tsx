@@ -35,6 +35,9 @@ function readShared(): number {
   }
 }
 
+/** BroadcastChannel as well as `localStorage`: tabs hear each other at once, even with storage blocked (#110). */
+const CHANNEL = "igs.activity";
+
 function writeShared(at: number): void {
   try {
     window.localStorage.setItem(ACTIVITY_KEY, String(at));
@@ -72,6 +75,7 @@ export function IdleGuard({ children }: Props) {
       if (now - lastWrite >= WRITE_EVERY_MS) {
         lastWrite = now;
         writeShared(now);
+        channel?.postMessage(now);
       }
     };
     const onVisible = () => {
@@ -80,6 +84,18 @@ export function IdleGuard({ children }: Props) {
     const onStorage = (event: StorageEvent) => {
       if (event.key === ACTIVITY_KEY) last = Math.max(last, Number(event.newValue) || 0);
     };
+    let channel: BroadcastChannel | undefined;
+    try {
+      channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel(CHANNEL);
+      if (channel) {
+        channel.onmessage = (event: MessageEvent) => {
+          const at = Number(event.data);
+          if (Number.isFinite(at)) last = Math.max(last, at);
+        };
+      }
+    } catch {
+      channel = undefined;
+    }
     writeShared(last);
     const interval = setInterval(check, CHECK_EVERY_MS);
     for (const name of ACTIVITY_EVENTS) window.addEventListener(name, active, { passive: true });
@@ -87,6 +103,7 @@ export function IdleGuard({ children }: Props) {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("storage", onStorage);
     return () => {
+      channel?.close();
       clearInterval(interval);
       for (const name of ACTIVITY_EVENTS) window.removeEventListener(name, active);
       for (const name of WAKE_EVENTS) window.removeEventListener(name, check);

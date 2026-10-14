@@ -271,8 +271,29 @@
     {
       "idx": 38,
       "version": "7",
-      "when": 1791992844128,
-      "tag": "0038_storefront_search",
+      "when": 1791984093806,
+      "tag": "0038_inventory_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791984094806,
+      "tag": "0039_inventory_reservations_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791984095806,
+      "tag": "0040_rbac_seed_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792010101414,
+      "tag": "0041_storefront_search",
       "breakpoints": true
     }
   ]

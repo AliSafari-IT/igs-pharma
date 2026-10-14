@@ -1,5 +1,5 @@
 import { locales } from "@igs/i18n";
-import { type StorefrontCategory, listStorefrontCategories } from "@igs/module-catalog";
+import type { StorefrontCategory } from "@igs/module-catalog";
 import { logger } from "@igs/observability/logger";
 import { Container, Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
@@ -8,11 +8,9 @@ import type { ReactNode } from "react";
 
 import type { ContentLocale } from "@igs/module-catalog";
 import { PREVIEW_HEADER } from "../preview";
-import { ensureKernelConfigured } from "../server/kernel";
-import { STOREFRONT_ACTOR } from "../server/storefront";
-
-/** Indent by depth as fixed classes: the CSP refuses inline styles, and Tailwind needs literals. */
-const INDENT: Record<number, string> = { 1: "", 2: "pl-4", 3: "pl-8", 4: "pl-12" };
+import { categoryTree } from "../server/storefront";
+import { CategoryNav } from "./category-nav";
+import { SiteFooter } from "./site-footer";
 
 const LANGUAGE_NAMES: Record<string, string> = {
   nl: "Nederlands",
@@ -23,10 +21,10 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 interface Props {
   readonly locale: ContentLocale;
-  /** The page's path below the locale (`""`, `/c/slug`, `/p/cnk`), for the language links. */
+  /** The page's path below the locale, with its query (`""`, `/c/slug?page=2`), for the language links. */
   readonly path: string;
   /** The category being browsed, if any. */
-  readonly activeSlug?: string;
+  readonly activeSlug?: string | undefined;
   readonly children: ReactNode;
 }
 
@@ -41,8 +39,7 @@ export async function StorefrontFrame({ locale, path, activeSlug, children }: Pr
 
   let tree: readonly StorefrontCategory[] = [];
   try {
-    await ensureKernelConfigured();
-    tree = await listStorefrontCategories({ locale }, STOREFRONT_ACTOR);
+    tree = await categoryTree(locale);
   } catch (error) {
     // the shell still renders: the page itself shows the "unavailable" notice if it cannot read either
     logger.error(
@@ -72,15 +69,15 @@ export async function StorefrontFrame({ locale, path, activeSlug, children }: Pr
         </div>
       ) : null}
       <header className="border-b border-[var(--color-border)]">
-        <Container className="flex flex-wrap items-center justify-between gap-4 py-4">
+        <Container className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
           <a
             href={`/${locale}`}
-            className="font-display text-2xl font-medium text-[var(--color-primary)]"
+            className="inline-flex min-h-[44px] items-center font-display text-2xl font-medium text-[var(--color-primary)]"
           >
             IGS-Pharma
           </a>
           <nav aria-label={t("language")}>
-            <ul className="flex gap-3">
+            <ul className="flex flex-wrap gap-x-3">
               {locales.map((code) => (
                 <li key={code}>
                   <Link
@@ -88,7 +85,7 @@ export async function StorefrontFrame({ locale, path, activeSlug, children }: Pr
                     lang={code}
                     hrefLang={code}
                     aria-current={code === locale ? "true" : undefined}
-                    className={code === locale ? "font-semibold" : undefined}
+                    className={`inline-flex min-h-[44px] items-center ${code === locale ? "font-semibold" : ""}`}
                   >
                     {LANGUAGE_NAMES[code]}
                   </Link>
@@ -99,32 +96,14 @@ export async function StorefrontFrame({ locale, path, activeSlug, children }: Pr
         </Container>
       </header>
       <div className="flex-1">
-        <Container className="grid gap-8 py-8 md:grid-cols-[14rem_1fr]">
-          {tree.length > 0 ? (
-            <nav aria-label={t("categoriesNav")}>
-              <h2 className="mb-2 font-display text-lg font-semibold">{t("categories")}</h2>
-              <ul className="flex flex-col gap-1">
-                {tree.map((category) => (
-                  <li key={category.id} className={INDENT[category.depth] ?? ""}>
-                    <Link
-                      href={`/${locale}/c/${category.slug}`}
-                      aria-current={category.slug === activeSlug ? "page" : undefined}
-                      className={category.slug === activeSlug ? "font-semibold" : undefined}
-                    >
-                      {category.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ) : (
-            <div />
-          )}
+        <Container className="grid gap-6 py-6 md:grid-cols-[14rem_1fr] md:gap-8 md:py-8">
+          <CategoryNav locale={locale} tree={tree} activeSlug={activeSlug} />
           <main id="main" className="min-w-0">
             {children}
           </main>
         </Container>
       </div>
+      <SiteFooter locale={locale} />
     </div>
   );
 }

@@ -39,8 +39,12 @@ import {
 } from "@igs/module-identity";
 import {
   adjustStock,
+  confirmReservation,
+  consumeReservation,
+  getStock,
   registerAuditActions as registerInventoryAudit,
   registerInventoryJobs,
+  reserveStock,
 } from "@igs/module-inventory";
 import {
   registerAuditActions as registerPricingAudit,
@@ -98,6 +102,8 @@ const pharmacist: Actor = {
   mfaVerified: true,
 };
 const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
+/** The future checkout, and the expiry job's role (igs-pharma#99). */
+const checkout: Actor = { type: "system", id: "checkout", roles: ["system_reservations"] };
 const worker: Actor = { type: "system", id: "worker", roles: ["system_seed"] };
 
 /** What the migrate entry does under the administrative role, pg-boss part included. */
@@ -181,6 +187,13 @@ describe("the application as igs_app", () => {
     await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
     await setPrice({ productId, amountCents: 599, reason: "launch" }, owner);
     await adjustStock({ productId, delta: 5, reason: "adjustment", note: "found" }, owner);
+    // reservations as the runtime role: the stock-level lock function, the lifecycle triggers, and a
+    // consume writing its sale movement (igs-pharma#99)
+    const holderRef = "order:00000000-0000-7000-8000-000000000001";
+    await reserveStock({ productId, quantity: 2, holderRef }, checkout);
+    await confirmReservation({ holderRef, items: [{ productId, quantity: 2 }] }, checkout);
+    await consumeReservation({ holderRef }, checkout);
+    expect((await getStock({ productId }, owner)).onHand).toBe(3);
     await recordConsent(
       {
         subjectRef: "roles@example.be",
@@ -371,14 +384,26 @@ describe("the retention jobs as igs_worker (igs-pharma#88)", () => {
         warn: (obj: Record<string, unknown>) => void errors.push(obj),
       },
     };
+    // an expired hold, written by the administrator (igs-pharma#99)
+    await admin`
+      INSERT INTO inventory.reservations
+        (id, product_id, location_id, quantity, kind, holder_ref, status, expires_at,
+         created_by_type, created_by_id, updated_by_type, updated_by_id)
+      VALUES (${randomUUID()}, ${randomUUID()}, '0192f000-0000-7000-8000-000000000001', 2, 'hold',
+        'checkout:00000000-0000-7000-8000-0000000000a1', 'active', now() - interval '5 minutes', 'system', 'checkout', 'system', 'checkout')`;
     await registerInventoryJobs(boss as never, runtime);
+    await boss.send("inventory.reservations.expire", {});
     await registerPrivacyJobs(boss as never, runtime);
     await boss.send("inventory.plans.purge", {});
     await boss.send(PRIVACY_JOBS.purge.queue, {});
     await vi.waitFor(
       () =>
         expect(logs.map((l) => l.msg)).toEqual(
-          expect.arrayContaining(["inventory.plans.purged", "privacy.retention.purged"]),
+          expect.arrayContaining([
+            "inventory.plans.purged",
+            "privacy.retention.purged",
+            "inventory.reservations.expired",
+          ]),
         ),
       { timeout: 20_000, interval: 250 },
     );
@@ -387,6 +412,12 @@ describe("the retention jobs as igs_worker (igs-pharma#88)", () => {
     expect(logs.find((l) => l.msg === "privacy.retention.purged")?.obj).toMatchObject({
       consentEvents: 1,
     });
+    expect(logs.find((l) => l.msg === "inventory.reservations.expired")?.obj).toEqual({
+      expired: 1,
+    });
+    const [lapsed] = await admin<{ status: string }[]>`
+      SELECT status FROM inventory.reservations WHERE holder_ref = 'checkout:00000000-0000-7000-8000-0000000000a1'`;
+    expect(lapsed?.status).toBe("expired");
     expect(JSON.stringify(logs)).not.toContain("@");
     const [plans] = await admin<
       { n: number }[]

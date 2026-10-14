@@ -35,6 +35,8 @@ describe("parseEnv", () => {
     expect(env.NODE_ENV).toBe("development");
     expect(env.LOG_LEVEL).toBe("info");
     expect(env.NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS).toBe(false);
+    // the EU logo stays off unless someone turns it on (igs-pharma#104)
+    expect(env.NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO).toBe(false);
   });
 
   it("throws listing every missing required variable", () => {
@@ -59,6 +61,20 @@ describe("parseEnv", () => {
     }
   });
 
+  it("an OTLP endpoint that is not a URL gives the readable error naming the variable (#110)", () => {
+    for (const bad of ["not a url", "http://", ""]) {
+      let thrown: unknown;
+      try {
+        parseEnv({ ...valid, OTEL_EXPORTER_OTLP_ENDPOINT: bad });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, bad).toBeInstanceOf(Error);
+      expect(thrown, bad).not.toBeInstanceOf(TypeError);
+      expect(String(thrown), bad).toMatch(/OTEL_EXPORTER_OTLP_ENDPOINT/);
+    }
+  });
+
   it("rejects an invalid URL and an invalid enum value", () => {
     expect(() => parseEnv({ ...valid, AUTH_URL: "not-a-url" })).toThrow(/AUTH_URL/);
     expect(() => parseEnv({ ...valid, LOG_LEVEL: "loud" })).toThrow(/LOG_LEVEL/);
@@ -72,6 +88,13 @@ describe("parseEnv", () => {
     });
     expect(env.DATABASE_MAX_CONNECTIONS).toBe(25);
     expect(env.NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS).toBe(true);
+    expect(
+      parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "true" })
+        .NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO,
+    ).toBe(true);
+    expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "yes" })).toThrow(
+      /EU_COMMON_LOGO/,
+    );
   });
 });
 

@@ -1,16 +1,31 @@
-import { useLocale, useTranslations } from "next-intl";
+import { EmptyState, Link } from "@igs/ui";
+import { getLocale, getTranslations } from "next-intl/server";
 
-export default function NotFoundPage() {
-  const t = useTranslations("notFound");
-  const locale = useLocale();
+import { StorefrontFrame } from "../../components/storefront-frame";
+import { localeOf } from "../../server/storefront";
+
+/**
+ * Unknown paths, and products or categories the storefront does not show (a draft, an archived or
+ * a prescription product look the same as a missing one, D-034): a localized page inside the
+ * normal shell, so the shopper can go on from here.
+ */
+export default async function NotFoundPage() {
+  const locale = localeOf(await getLocale()) ?? "nl";
+  const t = await getTranslations({ locale, namespace: "notFound" });
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-8">
-      <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
+    <StorefrontFrame locale={locale} path="">
+      <h1 className="font-display text-3xl font-medium text-[var(--color-primary)]">
         {t("title")}
       </h1>
-      <a className="text-[var(--color-text-muted)] text-lg underline" href={`/${locale}`}>
-        {t("backHome")}
-      </a>
-    </main>
+      <div className="mt-4">
+        <EmptyState title={t("body")}>
+          <div className="flex flex-wrap gap-x-6">
+            <Link href={`/${locale}`} className="inline-flex min-h-[44px] items-center">
+              {t("backHome")}
+            </Link>
+          </div>
+        </EmptyState>
+      </div>
+    </StorefrontFrame>
   );
 }

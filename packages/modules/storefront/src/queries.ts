@@ -69,7 +69,8 @@ export const listStorefrontProducts = query({
     return composeListing(input, {
       candidates: set.candidates,
       prices: new Map([...cards].map(([id, card]) => [id, toPriceView(card)])),
-      loadStatuses: (ids) => storefrontAvailability(ctx.tx, ids, currentLowStockThreshold()),
+      loadStatuses: (ids) =>
+        storefrontAvailability(ctx.tx, ids, ctx.now, currentLowStockThreshold()),
       category: set.category,
     });
   },
@@ -87,7 +88,12 @@ export const getStorefrontProduct = query({
     const card = cards.get(detail.id);
     // a product without a price cannot be sold: it is not shown
     if (!card) throw notFound("catalog.product_not_found");
-    const statuses = await storefrontAvailability(ctx.tx, [detail.id], currentLowStockThreshold());
+    const statuses = await storefrontAvailability(
+      ctx.tx,
+      [detail.id],
+      ctx.now,
+      currentLowStockThreshold(),
+    );
     return {
       id: detail.id,
       cnk: detail.cnk,

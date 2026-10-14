@@ -165,6 +165,25 @@ describe("second-factor facts", () => {
       .where(eq(sessions.id, bystanderSession));
     expect(kept?.at).toBeInstanceOf(Date);
   });
+
+  it("removing a factor also clears the passkey check (freshness) of the other sessions (#110)", async () => {
+    const id = await createUser();
+    await addPasskey(id);
+    const acting = await createSession(id);
+    await markSessionPasskeyChecked(iso.db, acting);
+    const other = await createSession(id);
+    await markSessionPasskeyChecked(iso.db, other);
+    // a session with a passkey check but no verified mark is cleared too
+    await iso.db.update(sessions).set({ mfaVerifiedAt: null }).where(eq(sessions.id, other));
+
+    await clearOtherSessionsMfa(iso.db, id, acting);
+    const rows = await iso.db
+      .select({ id: sessions.id, fresh: sessions.passkeyCheckedAt, ok: sessions.mfaVerifiedAt })
+      .from(sessions)
+      .where(eq(sessions.userId, id));
+    expect(rows.find((s) => s.id === acting)?.fresh).toBeInstanceOf(Date);
+    expect(rows.find((s) => s.id === other)).toMatchObject({ fresh: null, ok: null });
+  });
 });
 
 describe("staff actors and the kernel guard", () => {

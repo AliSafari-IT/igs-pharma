@@ -9,10 +9,19 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { LOCATION_KINDS, MOVEMENT_REASONS } from "./domain";
+import {
+  HOLDER_REF_PATTERN,
+  LOCATION_KINDS,
+  MAX_QUANTITY,
+  MOVEMENT_REASONS,
+  RELEASE_REASONS,
+  RESERVATION_KINDS,
+  RESERVATION_STATUSES,
+} from "./domain";
 
 /**
  * Inventory module tables (igs-pharma#53, domain-model §4). Owned by this module (D-001), Postgres
@@ -113,3 +122,81 @@ export const importPlans = inventory.table("import_plans", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * Stock set aside for a checkout (`hold`, expires) or an order (`order`, never expires on its own),
+ * igs-pharma#99. A reservation does NOT move the ledger: on-hand is still the sum of the movements,
+ * and what is available to sell is on-hand minus the reservations that are live. Consuming a
+ * reservation (picking) writes one `sale` movement and ends it.
+ *
+ * `holder_ref` is an opaque reference to the holder (a future checkout or order id), never customer
+ * data. The database enforces the lifecycle (migration 0038): the four statuses and their arrows,
+ * `expires_at` required for a hold and always NULL for an order, no UPDATE of the identifying
+ * columns, no DELETE. `product_id` has no foreign key (module-anatomy rule 2).
+ */
+export const reservations = inventory.table(
+  "reservations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    productId: uuid("product_id").notNull(),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    kind: text("kind").notNull(),
+    holderRef: text("holder_ref").notNull(),
+    status: text("status").notNull().default("active"),
+    /** Required for a hold, always NULL for an order. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    /** Why it was released (set exactly when the status is `released`). */
+    releaseReason: text("release_reason"),
+    createdByType: text("created_by_type").notNull(),
+    createdById: text("created_by_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedByType: text("updated_by_type").notNull(),
+    updatedById: text("updated_by_id").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "reservations_quantity_check",
+      sql`${t.quantity} > 0 AND ${t.quantity} <= ${sql.raw(String(MAX_QUANTITY))}`,
+    ),
+    check("reservations_kind_check", oneOf("kind", RESERVATION_KINDS)),
+    check("reservations_status_check", oneOf("status", RESERVATION_STATUSES)),
+    check(
+      "reservations_release_reason_check",
+      sql`(${t.status} = 'released') = (${t.releaseReason} IS NOT NULL)
+        AND (${t.releaseReason} IS NULL OR ${sql.raw(`release_reason IN (${RELEASE_REASONS.map((v) => `'${v}'`).join(", ")})`)})`,
+    ),
+    check(
+      "reservations_expires_at_check",
+      sql`(${t.kind} = 'hold' AND ${t.expiresAt} IS NOT NULL) OR (${t.kind} = 'order' AND ${t.expiresAt} IS NULL)`,
+    ),
+    check(
+      "reservations_only_holds_expire_check",
+      sql`${t.status} <> 'expired' OR ${t.kind} = 'hold'`,
+    ),
+    check(
+      "reservations_only_orders_consumed_check",
+      sql`${t.status} <> 'consumed' OR ${t.kind} = 'order'`,
+    ),
+    check(
+      "reservations_holder_ref_check",
+      sql`${t.holderRef} ~ ${sql.raw(`'${HOLDER_REF_PATTERN.source}'`)}`,
+    ),
+    // one active reservation per product and holder: asking again returns it
+    uniqueIndex("reservations_active_holder_idx")
+      .on(t.productId, t.locationId, t.holderRef)
+      .where(sql`${t.status} = 'active'`),
+    // the sums of "what is reserved" and the expiry job's scan
+    index("reservations_product_active_idx")
+      .on(t.productId, t.locationId)
+      .where(sql`${t.status} = 'active'`),
+    index("reservations_hold_expiry_idx")
+      .on(t.expiresAt)
+      .where(sql`${t.status} = 'active' AND ${t.kind} = 'hold'`),
+  ],
+);

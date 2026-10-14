@@ -234,6 +234,22 @@ test("a tab that was asleep clears the moment it wakes, not 30 minutes later (#1
   await expect(page.locator("body")).not.toContainText(`Sleeper ${tag}`);
 });
 
+test("a hidden tab that becomes visible again clears at once: visibilitychange (#110)", async ({
+  page,
+  context,
+}) => {
+  const owner = await staffUser(`Hidden ${tag}`, "owner");
+  const token = await session(owner, "1 minute");
+  await signIn(context, token);
+  await page.clock.install();
+  await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
+  await expect(page.getByText(`Hidden ${tag}`)).toBeVisible();
+
+  await page.clock.setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(page.getByTestId("idle-prompt")).toBeVisible();
+});
+
 // ── the fresh passkey check, with a real WebAuthn ceremony ─────────────────────────────────────
 
 async function virtualAuthenticator(page: Page) {

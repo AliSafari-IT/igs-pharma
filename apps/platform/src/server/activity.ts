@@ -7,6 +7,11 @@
  *
  * Interactive: a document navigation or form post, a Server Action, a client-side navigation.
  * Background: prefetches, and anything marked `x-igs-background` (our own polling, if ever added).
+ *
+ * Next 16 marks only the `auto` prefetch (`Next-Router-Prefetch`). A FULL prefetch
+ * (`<Link prefetch={true}>`) sends exactly the headers of a client-side navigation (`RSC: 1` plus the
+ * router state tree), so no header tells them apart. The platform therefore never uses
+ * `prefetch={true}`; `test/activity.test.ts` fails if a source file does (igs-pharma#110).
  * The browser's session check (`/api/auth/get-session`) is a route handler and is excluded again
  * in the auth plugin.
  */
