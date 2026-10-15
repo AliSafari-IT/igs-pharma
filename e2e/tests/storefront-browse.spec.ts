@@ -85,6 +85,13 @@ test("home: the shell, the category grid, the products, the identity footer", as
     page.getByRole("heading", { level: 2, name: "Producten per categorie" }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: new RegExp(parent.nl) }).first()).toBeVisible();
+  // each tile has a decorative icon (#112); a category without its own icon gets the generic one
+  const tileIcon = page
+    .locator('section[aria-labelledby="home-categories"]')
+    .getByRole("link", { name: new RegExp(parent.nl) })
+    .getByTestId("category-icon");
+  await expect(tileIcon).toHaveAttribute("data-icon", "generic");
+  await expect(tileIcon).toHaveAttribute("aria-hidden", "true");
   // "Find your pharmacy" (#112): the same identity config as the footer, stand-ins marked as such
   const panel = page.getByTestId("pharmacy-panel");
   await expect(panel.getByRole("heading", { level: 2, name: "Vind uw apotheek" })).toBeVisible();
