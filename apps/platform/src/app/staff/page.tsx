@@ -6,6 +6,7 @@ import { Alert, Badge, Container, Stack } from "@igs/ui";
 import { identityErrorMessage } from "../../components/identity-labels";
 import { ResetSignInDialog } from "../../components/reset-sign-in-dialog";
 import { StaffAccessDialog } from "../../components/staff-access-dialog";
+import { staffRoleLabel } from "../../lib/role-labels";
 import { requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
 
@@ -13,6 +14,20 @@ export const metadata = { title: "Staff · IGS-Pharma Platform" };
 
 /** The roles a staff account can hold (customer and system roles are not for people on this page). */
 const STAFF_ROLES = ROLE_KEYS.filter((role) => ROLES[role].kind === "staff");
+
+/** A role key with the name staff read; the key stays what the Access form sends. */
+const roleOption = (key: string) => ({ key, label: staffRoleLabel(key) });
+
+/** A member's roles in catalogue order; keys the catalogue doesn't know come last, as they are. */
+const inCatalogueOrder = (roles: readonly string[]) => {
+  const known = ROLE_KEYS.filter((role) => roles.includes(role));
+  const unknown = new Set(roles.filter((role) => !(ROLE_KEYS as readonly string[]).includes(role)));
+  return [...known, ...unknown];
+};
+
+/** The staff roles a member doesn't hold yet, in catalogue order: what the owner may grant. */
+const grantableTo = (roles: readonly string[]) =>
+  STAFF_ROLES.filter((role) => !roles.includes(role)).map(roleOption);
 
 const signInMethods = (member: StaffMember) =>
   [
@@ -83,9 +98,11 @@ export default async function StaffPage() {
                     <td className="py-3 pr-4">
                       {member.roles.length > 0 ? (
                         <ul className="flex flex-wrap gap-1">
-                          {member.roles.map((role) => (
+                          {inCatalogueOrder(member.roles).map((role) => (
                             <li key={role}>
-                              <code>{role}</code>
+                              <Badge variant="neutral" data-testid="staff-role-badge">
+                                {staffRoleLabel(role)}
+                              </Badge>
                             </li>
                           ))}
                         </ul>
@@ -101,8 +118,8 @@ export default async function StaffPage() {
                             userId={member.id}
                             name={member.name}
                             status={member.status}
-                            roles={member.roles}
-                            grantable={STAFF_ROLES.filter((role) => !member.roles.includes(role))}
+                            roles={inCatalogueOrder(member.roles).map(roleOption)}
+                            grantable={grantableTo(member.roles)}
                             pharmacist={member.roles.some((role) =>
                               (PHARMACIST_ROLES as readonly string[]).includes(role),
                             )}

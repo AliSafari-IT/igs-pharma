@@ -101,6 +101,15 @@ test("the owner sees staff and their sign-in methods; never a reset for themselv
   await expect(target.getByRole("button", { name: "Reset sign-in" })).toBeVisible();
   const own = page.getByRole("row", { name: new RegExp(`Staff Owner ${tag}`) });
   await expect(own.getByRole("button", { name: "Reset sign-in" })).toHaveCount(0);
+  // igs-pharma#112 V1: roles read as names, never as catalogue keys
+  await expect(own.getByTestId("staff-role-badge")).toHaveText(["Owner"]);
+  await expect(target.getByTestId("staff-role-badge")).toHaveText(["Pharmacy assistant"]);
+  await expect(target.locator("code")).toHaveCount(0);
+  // the Access picker shows names but still sends the keys
+  const held = target.locator("option", { hasText: "Currently held: Pharmacy assistant" });
+  await expect(held).toHaveAttribute("value", "pharmacy_assistant");
+  const grant = target.locator("option", { hasText: "Grant: Titular pharmacist" });
+  await expect(grant).toHaveAttribute("value", "pharmacist_titular");
   await expectAxeClean(page);
 });
 

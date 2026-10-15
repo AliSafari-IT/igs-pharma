@@ -31,3 +31,13 @@ export function staffRoleSummary(roles: readonly string[]): string {
     .map((role) => STAFF_ROLE_LABELS[role])
     .join(", ");
 }
+
+/**
+ * The name staff see for one role key (igs-pharma#112 V1 item 4, the Staff page and its Access
+ * dialog). A staff key gets its name from `STAFF_ROLE_LABELS`; any other key (customer, system, or
+ * one the catalogue no longer knows) is shown as the key itself, so the owner still sees it rather
+ * than it silently disappearing. Only the table's own keys count, never prototype keys.
+ */
+export function staffRoleLabel(role: string): string {
+  return Object.hasOwn(STAFF_ROLE_LABELS, role) ? STAFF_ROLE_LABELS[role as StaffRoleKey] : role;
+}
