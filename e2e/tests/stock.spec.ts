@@ -100,6 +100,10 @@ test("owner: a file with an unknown CNK changes nothing", async ({ page, context
   await expect(page.getByText("Line 3: No product in the catalogue has this CNK.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm import" })).toHaveCount(0);
   await expectAxeClean(page);
+
+  await page.goto(`${PLATFORM}/stock?q=zz-no-match`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("stock-empty")).toHaveText("No products match “zz-no-match”");
+  await expect(page.getByRole("table")).toHaveCount(0);
 });
 
 test("owner: upload, preview, confirm, then see on-hand and history", async ({ page, context }) => {
