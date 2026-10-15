@@ -7,6 +7,8 @@ import { SignOutButton } from "./sign-out-button";
 interface Props {
   /** The signed-in staff member's name. */
   readonly name: string;
+  /** Their staff roles, already named (`staffRoleSummary`); nothing is shown when empty. */
+  readonly roleSummary: string;
   readonly groups: readonly NavGroup[];
   readonly children: ReactNode;
 }
@@ -18,7 +20,7 @@ interface Props {
  * sidebar is a column (below that the wide tables of the pages need the full width); under it the sidebar is a native "Menu" disclosure (no script, so the CSP and the
  * keyboard behaviour are the browser's own).
  */
-export function BackOfficeShell({ name, groups, children }: Props) {
+export function BackOfficeShell({ name, roleSummary, groups, children }: Props) {
   return (
     <div className="flex min-h-screen flex-col">
       <a
@@ -36,8 +38,15 @@ export function BackOfficeShell({ name, groups, children }: Props) {
             IGS-Pharma Platform
           </a>
           <div className="flex items-center gap-3">
-            <span data-testid="staff-name" className="font-semibold">
-              {name}
+            <span className="flex flex-col items-end leading-tight">
+              <span data-testid="staff-name" className="font-semibold">
+                {name}
+              </span>
+              {roleSummary ? (
+                <span data-testid="staff-role" className="text-sm text-[var(--color-text-subtle)]">
+                  {roleSummary}
+                </span>
+              ) : null}
             </span>
             <SignOutButton />
           </div>

@@ -86,6 +86,7 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
   await expect(page.getByTestId("staff-name")).toHaveText("Olivia Owner");
+  await expect(page.getByTestId("staff-role")).toHaveText("Owner");
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Back-office" });
@@ -162,6 +163,7 @@ test("a content editor sees only the catalogue tile and the catalogue and accoun
   await signIn(context, editorToken);
   await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("staff-name")).toHaveText("Eddie Editor");
+  await expect(page.getByTestId("staff-role")).toHaveText("Content editor");
   await expect(page.getByTestId("tile-products")).toBeVisible();
   await expect(page.getByTestId("tile-stock")).toHaveCount(0);
   await expect(page.getByTestId("tile-requests")).toHaveCount(0);
