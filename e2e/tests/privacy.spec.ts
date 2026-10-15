@@ -165,6 +165,7 @@ test("owner: record a consent given in the pharmacy, then see it", async ({ page
   await page.getByLabel("The person's e-mail address").fill(subject);
   await page.getByRole("button", { name: "Look up" }).click();
   await expect(page.getByText("Never asked").first()).toBeVisible();
+  await expect(page.getByTestId("consent-history-empty")).toHaveText("No consent recorded yet");
   await expectAxeClean(page);
 
   await page.getByLabel("Purpose").selectOption("marketing_email");

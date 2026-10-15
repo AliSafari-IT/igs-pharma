@@ -247,67 +247,71 @@ export default async function ProductPage({ params, searchParams }: Props) {
               </div>
 
               {prices.scheduled.length > 0 ? (
-                <table className="w-full border-collapse text-left text-sm">
-                  <caption className="mb-1 text-left font-semibold">Scheduled changes</caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Starts
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Change
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Who
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        Reason
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prices.scheduled.map((row) => (
-                      <tr key={row.id} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">{formatMoment(row.validFrom)}</td>
-                        <td className="py-2 pr-4 tabular-nums">{change(row)}</td>
-                        <td className="py-2 pr-4">{who(row)}</td>
-                        <td className="py-2">{row.reason ?? "—"}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <caption className="mb-1 text-left font-semibold">Scheduled changes</caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Starts
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Change
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Who
+                        </th>
+                        <th scope="col" className="py-2 font-semibold">
+                          Reason
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {prices.scheduled.map((row) => (
+                        <tr key={row.id} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">{formatMoment(row.validFrom)}</td>
+                          <td className="py-2 pr-4 tabular-nums">{change(row)}</td>
+                          <td className="py-2 pr-4">{who(row)}</td>
+                          <td className="py-2">{row.reason ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : null}
 
               {prices.history.length > 0 ? (
-                <table className="w-full border-collapse text-left text-sm">
-                  <caption className="mb-1 text-left font-semibold">Price history</caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        When
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Change
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Who
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        Reason
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prices.history.map((row) => (
-                      <tr key={row.id} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">{formatMoment(row.validFrom)}</td>
-                        <td className="py-2 pr-4 tabular-nums">{change(row)}</td>
-                        <td className="py-2 pr-4">{who(row)}</td>
-                        <td className="py-2">{row.reason ?? "—"}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <caption className="mb-1 text-left font-semibold">Price history</caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          When
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Change
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Who
+                        </th>
+                        <th scope="col" className="py-2 font-semibold">
+                          Reason
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {prices.history.map((row) => (
+                        <tr key={row.id} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">{formatMoment(row.validFrom)}</td>
+                          <td className="py-2 pr-4 tabular-nums">{change(row)}</td>
+                          <td className="py-2 pr-4">{who(row)}</td>
+                          <td className="py-2">{row.reason ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : null}
             </section>
           ) : null}
