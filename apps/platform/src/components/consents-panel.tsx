@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Badge, Button, Label, Select, Stack, TextField } from "@igs/ui";
+import { Alert, Badge, Button, EmptyState, Label, Select, Stack, TextField } from "@igs/ui";
 import { useActionState, useId } from "react";
 
 import { type ConsentsState, consents } from "../app/privacy/actions";
@@ -131,41 +131,43 @@ export function ConsentsPanel() {
               History
             </h2>
             {found.history.length === 0 ? (
-              <p className="text-[var(--color-text-subtle)]">No consent recorded yet.</p>
+              <EmptyState title="No consent recorded yet" data-testid="consent-history-empty" />
             ) : (
-              <table className="w-full border-collapse text-left">
-                <caption className="sr-only">Consent history, newest first</caption>
-                <thead>
-                  <tr className="border-b border-[var(--color-border-strong)]">
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      When
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Purpose
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Consent
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Source
-                    </th>
-                    <th scope="col" className="py-2 font-semibold">
-                      Policy
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {found.history.map((event) => (
-                    <tr key={event.id} className="border-b border-[var(--color-border)]">
-                      <td className="py-2 pr-4">{formatMoment(event.at)}</td>
-                      <td className="py-2 pr-4">{CONSENT_PURPOSE_LABELS[event.purpose]}</td>
-                      <td className="py-2 pr-4">{event.granted ? "Given" : "Withdrawn"}</td>
-                      <td className="py-2 pr-4">{CONSENT_SOURCE_LABELS[event.source]}</td>
-                      <td className="py-2">{event.policyVersion}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <caption className="sr-only">Consent history, newest first</caption>
+                  <thead>
+                    <tr className="border-b border-[var(--color-border-strong)]">
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        When
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Purpose
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Consent
+                      </th>
+                      <th scope="col" className="py-2 pr-4 font-semibold">
+                        Source
+                      </th>
+                      <th scope="col" className="py-2 font-semibold">
+                        Policy
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {found.history.map((event) => (
+                      <tr key={event.id} className="border-b border-[var(--color-border)]">
+                        <td className="py-2 pr-4">{formatMoment(event.at)}</td>
+                        <td className="py-2 pr-4">{CONSENT_PURPOSE_LABELS[event.purpose]}</td>
+                        <td className="py-2 pr-4">{event.granted ? "Given" : "Withdrawn"}</td>
+                        <td className="py-2 pr-4">{CONSENT_SOURCE_LABELS[event.source]}</td>
+                        <td className="py-2">{event.policyVersion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         </>

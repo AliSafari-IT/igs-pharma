@@ -1,6 +1,6 @@
 import { isDomainError } from "@igs/kernel";
 import { DSR_STATUSES, DSR_TYPES, type DsrPage, listDsr } from "@igs/module-privacy";
-import { Alert, Badge, Button, Container, Label, Link, Select, Stack } from "@igs/ui";
+import { Alert, Badge, Button, Container, EmptyState, Label, Link, Select, Stack } from "@igs/ui";
 
 import { PageHeader } from "../../../components/page-header";
 import {
@@ -132,69 +132,72 @@ export default async function DataRequestsPage({ searchParams }: Props) {
               </search>
 
               {result.items.length === 0 ? (
-                <p className="text-[var(--color-text-subtle)]">
-                  {status || type ? "No requests match these filters." : "No requests yet."}
-                </p>
+                <EmptyState
+                  title={status || type ? "No requests match these filters" : "No requests yet"}
+                  data-testid="requests-empty"
+                />
               ) : (
-                <table className="w-full border-collapse text-left">
-                  <caption className="sr-only">
-                    Data requests, page {result.page} of {pages}
-                  </caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Type
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Person
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Received
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Deadline
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.items.map((item) => (
-                      <tr key={item.id} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">
-                          <Link href={`/privacy/requests/${item.id}`}>
-                            {DSR_TYPE_LABELS[item.type]}
-                          </Link>
-                        </td>
-                        <td className="py-2 pr-4 break-all">{item.subjectRef}</td>
-                        <td className="py-2 pr-4">{formatDay(item.receivedAt)}</td>
-                        <td className="py-2 pr-4">
-                          {item.overdue ? (
-                            <Badge variant="error">Overdue</Badge>
-                          ) : item.daysLeft !== null ? (
-                            dueLabel(item.daysLeft)
-                          ) : (
-                            <span className="text-[var(--color-text-subtle)]">Closed</span>
-                          )}
-                          {item.overdue && item.daysLeft !== null ? (
-                            <span className="ml-2 text-sm">{dueLabel(item.daysLeft)}</span>
-                          ) : null}
-                          {item.extension ? (
-                            <Badge variant="primary" className="ml-2">
-                              Extended
-                            </Badge>
-                          ) : null}
-                        </td>
-                        <td className="py-2">
-                          <Badge variant={DSR_STATUS_BADGE[item.status]}>
-                            {DSR_STATUS_LABELS[item.status]}
-                          </Badge>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <caption className="sr-only">
+                      Data requests, page {result.page} of {pages}
+                    </caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Type
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Person
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Received
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Deadline
+                        </th>
+                        <th scope="col" className="py-2 font-semibold">
+                          Status
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {result.items.map((item) => (
+                        <tr key={item.id} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">
+                            <Link href={`/privacy/requests/${item.id}`}>
+                              {DSR_TYPE_LABELS[item.type]}
+                            </Link>
+                          </td>
+                          <td className="py-2 pr-4 break-all">{item.subjectRef}</td>
+                          <td className="py-2 pr-4">{formatDay(item.receivedAt)}</td>
+                          <td className="py-2 pr-4 tabular-nums">
+                            {item.overdue ? (
+                              <Badge variant="error">Overdue</Badge>
+                            ) : item.daysLeft !== null ? (
+                              dueLabel(item.daysLeft)
+                            ) : (
+                              <span className="text-[var(--color-text-subtle)]">Closed</span>
+                            )}
+                            {item.overdue && item.daysLeft !== null ? (
+                              <span className="ml-2 text-sm">{dueLabel(item.daysLeft)}</span>
+                            ) : null}
+                            {item.extension ? (
+                              <Badge variant="primary" className="ml-2">
+                                Extended
+                              </Badge>
+                            ) : null}
+                          </td>
+                          <td className="py-2">
+                            <Badge variant={DSR_STATUS_BADGE[item.status]}>
+                              {DSR_STATUS_LABELS[item.status]}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               <nav aria-label="Pages" className="flex items-center gap-4">
