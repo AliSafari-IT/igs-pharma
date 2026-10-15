@@ -127,6 +127,10 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
   const crumbs = page.getByRole("navigation", { name: "Kruimelpad" });
   await expect(crumbs.getByRole("link", { name: "Startpagina" })).toBeVisible();
   await expect(crumbs.getByText(parent.nl)).toHaveAttribute("aria-current", "page");
+  // each card has a decorative image area (#112); list items carry no category yet: generic art
+  const cardArt = page.getByRole("article").first().getByTestId("product-illustration");
+  await expect(cardArt).toHaveAttribute("data-icon", "generic");
+  await expect(cardArt).toHaveAttribute("aria-hidden", "true");
   await expectAxeClean(page);
 
   // the child category: the trail has two levels
@@ -139,6 +143,11 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
   await page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }).click();
   await expect(page).toHaveURL(new RegExp(`/nl/p/${productCnk(PAGE_SIZE + EXTRA)}$`));
   await expect(page.getByRole("button", { name: "In winkelwagen" })).toBeDisabled();
+  // the product page's image area takes the ROOT category's art; an e2e slug has none of its own
+  const productArt = page.getByTestId("product-illustration");
+  await expect(productArt).toHaveCount(1);
+  await expect(productArt).toHaveAttribute("data-icon", "generic");
+  await expect(productArt).toHaveAttribute("aria-hidden", "true");
 });
 
 test("a category with more than a page paginates, and the language switch keeps the page", async ({
