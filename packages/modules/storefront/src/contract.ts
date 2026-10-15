@@ -73,6 +73,9 @@ export const priceSchema = z.object({
 });
 export type StorefrontPriceView = z.infer<typeof priceSchema>;
 
+export const categoryRefSchema = z.object({ slug: z.string(), name: z.string() });
+export type CategoryRef = z.infer<typeof categoryRefSchema>;
+
 export const itemSchema = z.object({
   id: z.uuid(),
   cnk: z.string().regex(/^[0-9]{7}$/),
@@ -85,11 +88,14 @@ export const itemSchema = z.object({
   status: statusSchema,
   /** Show the leaflet / ask-your-pharmacist notice. */
   isMedicine: z.boolean(),
+  /**
+   * The top-level category the product sits under: the root of its breadcrumb path (deepest
+   * category, the first in tree order among equals), so a card and its product page agree. `null`
+   * when the product is in no category. Picks the illustration; never a filter.
+   */
+  topCategory: categoryRefSchema.nullable(),
 });
 export type StorefrontListItem = z.infer<typeof itemSchema>;
-
-export const categoryRefSchema = z.object({ slug: z.string(), name: z.string() });
-export type CategoryRef = z.infer<typeof categoryRefSchema>;
 
 export const listOutputSchema = z.object({
   items: z.array(itemSchema),

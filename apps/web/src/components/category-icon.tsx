@@ -95,8 +95,12 @@ const ICONS: Readonly<Record<CategoryIconName, ReactNode>> = {
 /**
  * A category's icon on its tile: a fixed 40 px box (no layout shift), decorative only. It is hidden
  * from assistive technology because the category name next to it already says what it shows.
+ * `className` sizes it elsewhere (the product illustration scales it inside its own fixed box).
  */
-export function CategoryIcon({ slug }: { readonly slug: string }) {
+export function CategoryIcon({
+  slug,
+  className = "h-10 w-10",
+}: { readonly slug: string; readonly className?: string }) {
   const name = categoryIconFor(slug);
   return (
     <svg
@@ -107,7 +111,7 @@ export function CategoryIcon({ slug }: { readonly slug: string }) {
       viewBox="0 0 40 40"
       width="40"
       height="40"
-      className="h-10 w-10 shrink-0"
+      className={`${className} shrink-0`}
       fill="none"
       strokeWidth="2"
       strokeLinecap="round"

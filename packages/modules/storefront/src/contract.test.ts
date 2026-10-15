@@ -113,6 +113,7 @@ describe("the fixtures follow the contract", () => {
           "price",
           "shortDescription",
           "status",
+          "topCategory",
         ].sort(),
       );
     }

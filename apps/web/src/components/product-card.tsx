@@ -4,10 +4,11 @@ import type {
   StorefrontListItem,
   StorefrontPriceView,
 } from "@igs/module-storefront";
-import { Badge, Link, Price, ProductImagePlaceholder } from "@igs/ui";
+import { Badge, Link, Price } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
 import { INTL_LOCALE } from "../server/storefront";
+import { ProductIllustration } from "./product-illustration";
 
 /** `600` → "6 %" (nl) or "6 %" (fr), by `Intl`, never by hand. */
 export const formatRate = (rateBp: number, locale: ContentLocale): string =>
@@ -53,7 +54,7 @@ export async function ProductCard({ locale, item }: CardProps) {
   return (
     <li>
       <article className="flex h-full flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
-        <ProductImagePlaceholder />
+        <ProductIllustration category={item.topCategory} />
         <h3 lang={item.contentLocale} className="font-display text-lg font-semibold">
           <Link href={`/${locale}/p/${item.cnk}`}>{item.name}</Link>
         </h3>

@@ -136,9 +136,19 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
     .click();
   await expect(crumbs.getByRole("link", { name: parent.nl })).toBeVisible();
   await expect(crumbs.getByText(child.nl)).toHaveAttribute("aria-current", "page");
+  // the card shows its top-level category's illustration (#112): the parent's, a slug without its
+  // own icon, so the generic one; decorative only (the neutral placeholder has no data-icon)
+  const card = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }) });
+  const cardArt = card.getByTestId("product-illustration");
+  await expect(cardArt).toHaveAttribute("data-icon", "generic");
+  await expect(cardArt).toHaveAttribute("aria-hidden", "true");
   await page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }).click();
   await expect(page).toHaveURL(new RegExp(`/nl/p/${productCnk(PAGE_SIZE + EXTRA)}$`));
   await expect(page.getByRole("button", { name: "In winkelwagen" })).toBeDisabled();
+  // the product page shows the same illustration as its card
+  await expect(page.getByTestId("product-illustration")).toHaveAttribute("data-icon", "generic");
 });
 
 test("a category with more than a page paginates, and the language switch keeps the page", async ({

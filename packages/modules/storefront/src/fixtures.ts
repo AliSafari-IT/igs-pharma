@@ -203,8 +203,25 @@ export async function fixtureListProducts(input: ListInput): Promise<StorefrontL
       new Map(
         FIXTURE_PRODUCTS.filter((p) => ids.includes(p.id)).map((p) => [p.id, p.status] as const),
       ),
+    loadTopCategories: async (ids) =>
+      new Map(
+        FIXTURE_PRODUCTS.filter((p) => ids.includes(p.id)).flatMap((p) => {
+          const root = fixtureBreadcrumb(p)[0];
+          return root ? [[p.id, root] as const] : [];
+        }),
+      ),
     category: category ? { slug: category.slug, name: category.name } : null,
   });
+}
+
+/** Root to the product's first listed category (the fixtures' stand-in for "deepest"). */
+function fixtureBreadcrumb(found: FixtureProduct): CategoryRef[] {
+  const deepest = FIXTURE_CATEGORIES.filter((c) => found.categorySlugs.includes(c.slug))[0];
+  const breadcrumb: CategoryRef[] = [];
+  for (let at = deepest; at; at = FIXTURE_CATEGORIES.find((c) => c.slug === at?.parentSlug)) {
+    breadcrumb.unshift({ slug: at.slug, name: at.name });
+  }
+  return breadcrumb;
 }
 
 /** The fixture version of `storefront.product.get`; `undefined` stands for `catalog.product_not_found`. */
@@ -212,11 +229,7 @@ export function fixtureGetProduct(cnk: string): StorefrontProductView | undefine
   const found = FIXTURE_PRODUCTS.find((p) => p.cnk === cnk);
   if (!found) return undefined;
   const categories = FIXTURE_CATEGORIES.filter((c) => found.categorySlugs.includes(c.slug));
-  const deepest = categories[0];
-  const breadcrumb: CategoryRef[] = [];
-  for (let at = deepest; at; at = FIXTURE_CATEGORIES.find((c) => c.slug === at?.parentSlug)) {
-    breadcrumb.unshift({ slug: at.slug, name: at.name });
-  }
+  const breadcrumb = fixtureBreadcrumb(found);
   return {
     id: found.id,
     cnk: found.cnk,
@@ -227,6 +240,7 @@ export function fixtureGetProduct(cnk: string): StorefrontProductView | undefine
     price: found.price,
     status: found.status,
     isMedicine: found.isMedicine,
+    topCategory: breadcrumb[0] ?? null,
     description: found.description,
     warnings: found.warnings,
     breadcrumb,

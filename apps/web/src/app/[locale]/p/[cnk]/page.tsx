@@ -1,11 +1,12 @@
 import { isDomainError } from "@igs/kernel";
 import { type StorefrontProductView, getStorefrontProduct } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
-import { Alert, Breadcrumbs, Button, ProductImagePlaceholder } from "@igs/ui";
+import { Alert, Breadcrumbs, Button } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { PriceLine, StockBadge } from "../../../../components/product-card";
+import { ProductIllustration } from "../../../../components/product-illustration";
 import { StorefrontFrame } from "../../../../components/storefront-frame";
 import { ensureKernelConfigured } from "../../../../server/kernel";
 import { STOREFRONT_ACTOR, localeOf } from "../../../../server/storefront";
@@ -57,7 +58,7 @@ export default async function ProductPage({ params }: Props) {
             ]}
           />
           <div className="grid gap-6 md:grid-cols-[minmax(0,16rem)_1fr]">
-            <ProductImagePlaceholder />
+            <ProductIllustration category={product.topCategory} />
             <div className="flex flex-col gap-4">
               <h1
                 lang={product.contentLocale}
