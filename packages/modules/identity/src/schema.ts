@@ -1,6 +1,7 @@
 import { newId } from "@igs/db/ids";
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -294,3 +295,44 @@ export const twoFactorsRelations = relations(twoFactors, ({ one }) => ({
 export const passkeysRelations = relations(passkeys, ({ one }) => ({
   user: one(users, { fields: [passkeys.userId], references: [users.id] }),
 }));
+
+/**
+ * Better Auth's database-backed rate limiter (igs-pharma#114): one row per limited key (route + IP),
+ * shared by every app instance. Model name `rateLimits` (the adapter pluralises).
+ */
+export const rateLimits = identity.table("rate_limits", {
+  id: id(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  /** Epoch milliseconds of the last counted request. */
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+});
+
+/** Mail templates the identity flows ask for (igs-pharma#114). */
+export const MAIL_TEMPLATES = ["verify_email", "reset_password", "account_exists"] as const;
+export type MailTemplate = (typeof MAIL_TEMPLATES)[number];
+
+/**
+ * The link of one mail that waits for the worker (igs-pharma#114). The outbox event carries only this
+ * row's id (`tokenRef`), never the link, so a verification or reset token appears in no event payload,
+ * job or log. The mail worker (PR 2) reads the row, sends the mail and deletes it; rows past
+ * `expires_at` are never sent. `url` is NULL for templates without a link (`account_exists`).
+ */
+export const mailTokens = identity.table(
+  "mail_tokens",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    template: text("template").$type<MailTemplate>().notNull(),
+    url: text("url"),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("mail_tokens_user_id_idx").on(t.userId),
+    index("mail_tokens_expires_at_idx").on(t.expiresAt),
+    check("mail_tokens_template_check", oneOf("template", MAIL_TEMPLATES)),
+  ],
+);

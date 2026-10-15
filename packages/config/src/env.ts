@@ -42,6 +42,14 @@ export const migrateEnv = z.object({
 export const authEnv = z.object({
   AUTH_SECRET: z.string().min(32).describe("Better Auth HMAC secret (≥32 chars)"),
   AUTH_URL: z.string().url().describe("Canonical app URL for Better Auth callbacks"),
+  /**
+   * The storefront's public origin (igs-pharma#114): the customer auth instance lives there, with its
+   * own cookies. Optional while customer accounts are off; required when they are switched on.
+   */
+  STOREFRONT_URL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().url().optional().describe("Public origin of the storefront (customer accounts)"),
+  ),
 });
 
 export const appEnv = z.object({
@@ -90,6 +98,14 @@ export const featureFlagsEnv = z.object({
    * is registered: showing it earlier would be a false claim.
    */
   NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  /**
+   * Customer accounts (igs-pharma#114, D-044): sign-up, sign-in and the account area of the storefront.
+   * Strictly `true` or `false`; off, the customer `/api/auth` routes answer 404 and the links are hidden.
+   */
+  NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: z
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
@@ -271,8 +287,21 @@ export const envSchema = z.object({
   ...siteGateEnv.shape,
 });
 
+/**
+ * Outgoing account mail (igs-pharma#114): read by the WORKER only, the one process that talks to a mail
+ * server (D-019). Optional at boot: a missing value makes the mail job fail and retry
+ * (`mail.not_configured`) instead of stopping the worker's other jobs.
+ */
+export const mailEnv = z.object({
+  /** `smtp://host:port` or `smtps://user:password@host:port`; it can carry a password. */
+  SMTP_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  /** The From header, e.g. `IGS-Pharma <no-reply@example.be>`. */
+  MAIL_FROM: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(3).max(200).optional()),
+});
+
 /** What the worker needs: no `AUTH_*`, no feature flags. */
 export const workerEnv = z.object({
+  ...mailEnv.shape,
   ...dbEnv.shape,
   ...appEnv.shape,
   ...cryptoEnv.shape,
