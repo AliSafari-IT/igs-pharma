@@ -1,79 +1,116 @@
 import { isDomainError } from "@igs/kernel";
-import { type StorefrontProduct, getStorefrontProduct } from "@igs/module-catalog";
+import { type StorefrontProductView, getStorefrontProduct } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
-import { Alert, Button, Link } from "@igs/ui";
+import { Alert, Breadcrumbs, Button, ProductImagePlaceholder } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { PriceLine, StockBadge } from "../../../../components/product-card";
 import { StorefrontFrame } from "../../../../components/storefront-frame";
 import { ensureKernelConfigured } from "../../../../server/kernel";
-import { STOREFRONT_ACTOR, localeOf, priceAndStock } from "../../../../server/storefront";
+import { STOREFRONT_ACTOR, localeOf } from "../../../../server/storefront";
 
 interface Props {
   readonly params: Promise<{ locale: string; cnk: string }>;
 }
 
-/** One active product: texts, warnings, price with VAT, availability and a disabled cart button. */
+/**
+ * One product (igs-pharma#104): breadcrumb, name, brand, CNK, price with VAT, availability, the
+ * texts and warnings, and a disabled cart button until ordering opens. A medicine gets the neutral
+ * "read the leaflet, ask your pharmacist" notice; the page makes no claim about what a product
+ * does beyond the pharmacist-approved text.
+ */
 export default async function ProductPage({ params }: Props) {
   const { locale: rawLocale, cnk } = await params;
   const locale = localeOf(rawLocale);
   if (!locale || !/^[0-9]{7}$/.test(cnk)) notFound();
   const t = await getTranslations({ locale, namespace: "storefront" });
 
-  let product: StorefrontProduct | null = null;
-  let stock: Awaited<ReturnType<typeof priceAndStock>> | null = null;
+  let product: StorefrontProductView | null = null;
   try {
     await ensureKernelConfigured();
     product = await getStorefrontProduct({ cnk, locale }, STOREFRONT_ACTOR);
-    stock = await priceAndStock([product.id]);
   } catch (error) {
     if (isDomainError(error) && error.code === "catalog.product_not_found") notFound();
     logger.error({ event: "storefront.product_failed", err: error }, "storefront.product_failed");
   }
 
   return (
-    <StorefrontFrame locale={locale} path={`/p/${cnk}`}>
-      {!product || !stock ? (
+    <StorefrontFrame
+      locale={locale}
+      path={`/p/${cnk}`}
+      activeSlug={product?.breadcrumb.at(-1)?.slug}
+    >
+      {!product ? (
         <Alert variant="error" title={t("unavailable")} />
       ) : (
         <article className="flex flex-col gap-4">
-          {product.categories[0] ? (
-            <Link href={`/${locale}/c/${product.categories[0].slug}`} variant="subtle">
-              {t("backTo", { name: product.categories[0].name })}
-            </Link>
-          ) : null}
-          <h1
-            lang={product.contentLocale}
-            className="font-display text-3xl font-medium text-[var(--color-primary)]"
-          >
-            {product.name}
-          </h1>
-          {product.contentLocale !== locale ? (
-            // the notice is in the shopper's language (t()); only the product's own text is not
-            <p className="text-sm text-[var(--color-text-subtle)]">{t("untranslated")}</p>
-          ) : null}
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
-            {product.brandName ? (
-              <>
-                <dt className="text-[var(--color-text-subtle)]">{t("brand")}</dt>
-                <dd>{product.brandName}</dd>
-              </>
-            ) : null}
-            <dt className="text-[var(--color-text-subtle)]">{t("cnk")}</dt>
-            <dd>
-              <code>{product.cnk}</code>
-            </dd>
-          </dl>
-          <div className="flex flex-wrap items-center gap-4">
-            <PriceLine locale={locale} price={stock.prices.get(product.id)} />
-            <StockBadge locale={locale} inStock={stock.inStock.get(product.id) ?? false} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <div>
-              <Button disabled>{t("addToCart")}</Button>
+          <Breadcrumbs
+            label={t("breadcrumb")}
+            items={[
+              { label: t("home"), href: `/${locale}` },
+              ...product.breadcrumb.map((category) => ({
+                label: category.name,
+                href: `/${locale}/c/${category.slug}`,
+              })),
+              { label: product.name },
+            ]}
+          />
+          <div className="grid gap-6 md:grid-cols-[minmax(0,16rem)_1fr]">
+            <ProductImagePlaceholder />
+            <div className="flex flex-col gap-4">
+              <h1
+                lang={product.contentLocale}
+                className="font-display text-3xl font-medium text-[var(--color-primary)]"
+              >
+                {product.name}
+              </h1>
+              {product.contentLocale !== locale ? (
+                // the notice is in the shopper's language (t()); only the product's own text is not
+                <p className="text-sm text-[var(--color-text-subtle)]">{t("untranslated")}</p>
+              ) : null}
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
+                {product.brandName ? (
+                  <>
+                    <dt className="text-[var(--color-text-subtle)]">{t("brand")}</dt>
+                    <dd>{product.brandName}</dd>
+                  </>
+                ) : null}
+                <dt className="text-[var(--color-text-subtle)]">{t("cnk")}</dt>
+                <dd>
+                  <code>{product.cnk}</code>
+                </dd>
+              </dl>
+              <div className="flex flex-wrap items-center gap-4">
+                <PriceLine locale={locale} price={product.price} />
+                <StockBadge locale={locale} status={product.status} />
+              </div>
+              {product.isMedicine ? (
+                // "ask your pharmacist" (#112): amber as background and border only, never as text
+                <div
+                  role="note"
+                  aria-labelledby="pharmacist-heading"
+                  data-testid="medicine-notice"
+                  className="rounded-[var(--radius-md)] border-l-4 border-[var(--color-accent)] bg-[var(--color-accent-subtle)] p-4"
+                >
+                  <h2
+                    id="pharmacist-heading"
+                    className="font-display text-lg font-semibold text-[var(--color-text)]"
+                  >
+                    {t("askPharmacistHeading")}
+                  </h2>
+                  <p className="mt-1 text-[var(--color-text)]">{t("medicineNotice")}</p>
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-1">
+                <div>
+                  <Button disabled className="min-h-[44px]">
+                    {t("addToCart")}
+                  </Button>
+                </div>
+                <p className="text-sm text-[var(--color-text-subtle)]">{t("addToCartSoon")}</p>
+              </div>
             </div>
-            <p className="text-sm text-[var(--color-text-subtle)]">{t("addToCartSoon")}</p>
           </div>
           {product.description ? (
             <section lang={product.contentLocale} aria-labelledby="description-heading">

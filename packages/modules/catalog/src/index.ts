@@ -41,6 +41,8 @@ export {
   getProduct,
   listBrands,
   listProducts,
+  getProductCounts,
+  type ProductCounts,
 } from "./queries";
 export {
   type CategoryNode,
@@ -61,13 +63,19 @@ export {
   searchProductRefs,
   storefrontProductRefsById,
 } from "./refs";
-export {
-  type StorefrontCategory,
-  type StorefrontProduct,
-  type StorefrontProductItem,
-  type StorefrontProductPage,
-  getStorefrontProduct,
-  listStorefrontCategories,
-  listStorefrontProducts,
-} from "./storefront";
 export { assertSellable, storefrontVisible, storefrontVisibleIds } from "./visibility";
+export {
+  CategoryNotFound,
+  type CandidateFilters,
+  type CandidateSet,
+  type StorefrontCandidate,
+  type StorefrontCategoryIndex,
+  type StorefrontProductDetail,
+  type VisibilityFacts,
+  getStorefrontProductDetail,
+  productVisibilityFacts,
+  searchStorefrontCandidates,
+  storefrontCategoryIndex,
+} from "./listing";
+export { SEARCH_FOLD_FROM, SEARCH_FOLD_TO, foldSearch, searchTerms } from "./domain";
+export { approvedForStorefront, inUuidSet, isMedicineSql } from "./visibility";

@@ -128,6 +128,18 @@ export function cspReportingEnabled(
 }
 
 /**
+ * Storefront settings (igs-pharma#103): the on-hand at or below which a product shows as `low`
+ * (above 0). Parsed by the storefront's composition root and passed to the storefront module (modules
+ * do not read the environment). Whole number 0–50; unset = the module default (inventory's `DEFAULT_LOW_STOCK`).
+ */
+export const storefrontEnv = z.object({
+  STOREFRONT_LOW_STOCK_THRESHOLD: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().min(0).max(50).optional(),
+  ),
+});
+
+/**
  * Component gallery at platform `/dev/ui` (T-017): `on|off`; unset → on outside production only.
  * Production images never set it; the smoke/axe run sets `on` to test the production build.
  */

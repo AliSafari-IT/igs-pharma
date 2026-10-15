@@ -40,6 +40,7 @@ export const ENV_SENSITIVITY = {
   CSP_REPORTING: "not-sensitive",
   UI_GALLERY: "not-sensitive",
   SITE_GATE: "not-sensitive",
+  STOREFRONT_LOW_STOCK_THRESHOLD: "not-sensitive",
   IGS_ALLOW_SYNTHETIC_SEED: "not-sensitive",
 } as const satisfies Record<string, "sensitive" | "not-sensitive">;
 

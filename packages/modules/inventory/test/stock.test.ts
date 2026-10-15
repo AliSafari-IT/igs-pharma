@@ -89,6 +89,7 @@ async function storefrontProduct(
       productType: "otc_medicine",
       legalStatus: "otc",
       vatClass: "BE_6",
+      approveContent: true, // a medicine is storefront-visible only with pharmacist-approved text (#103)
       content: [
         { locale: "nl", name: `Demo ${cnk}` },
         { locale: "fr", name: `Demo ${cnk} FR` },

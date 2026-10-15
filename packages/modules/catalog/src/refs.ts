@@ -4,7 +4,7 @@ import { type SQL, and, asc, count, eq, exists, ilike, inArray, like, or, sql } 
 
 import type { VatClass } from "./domain";
 import { productContent, products } from "./schema";
-import { storefrontVisible } from "./visibility";
+import { inUuidSet, storefrontVisible } from "./visibility";
 
 /**
  * Product references for OTHER modules' kernel operations (igs-pharma#53: inventory). Plain
@@ -97,7 +97,7 @@ export async function storefrontProductRefsById(
   ids: readonly string[],
 ): Promise<readonly ProductRef[]> {
   if (ids.length === 0) return [];
-  return refsWhere(tx, and(inArray(products.id, [...ids]), storefrontVisible()));
+  return refsWhere(tx, and(inUuidSet(products.id, ids), storefrontVisible()));
 }
 
 /**

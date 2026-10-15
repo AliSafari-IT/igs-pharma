@@ -1,12 +1,13 @@
-import { type Tx, notFound, query } from "@igs/kernel";
+import { type Tx, forbidden, notFound, query } from "@igs/kernel";
 import {
   type ProductRef,
   type VatClass,
+  inUuidSet,
   productRefsForActor,
   storefrontProductRefsById,
 } from "@igs/module-catalog";
-import { PERMISSIONS } from "@igs/rbac";
-import { and, desc, eq, inArray, lte } from "drizzle-orm";
+import { PERMISSIONS, type Permission } from "@igs/rbac";
+import { and, desc, eq, lte } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -88,7 +89,7 @@ async function pricesUpTo(tx: Tx, productIds: readonly string[], at: Date) {
     .from(prices)
     .where(
       and(
-        inArray(prices.productId, [...productIds]),
+        inUuidSet(prices.productId, productIds),
         eq(prices.channel, CHANNEL),
         lte(prices.validFrom, at),
       ),
@@ -164,28 +165,53 @@ export interface StorefrontPrice {
 }
 
 /**
- * The CURRENT web price of each of these ACTIVE products (igs-pharma#96), behind its own narrow
- * permission `pricing.storefront.read`. The storefront actor holds this and not `pricing.price.read`,
- * so it cannot call the history, schedule or reference-price queries (`kernel.forbidden`), and the
- * answer here carries no price id, start time, reason or author.
+ * The current web price of each of these products for the storefront read model (igs-pharma#103): a
+ * plain function on the caller's transaction (the calling query has authorized the actor). Only
+ * STOREFRONT-VISIBLE products are priced (D-034, the approved-content gate included); a product that is
+ * hidden, unknown or has no current price is simply absent. The answer carries the amount and its VAT
+ * part only: no price id, start time, reason or author.
  */
-export const storefrontPrices = query({
-  name: "pricing.storefront.current",
-  input: z.object({ productIds: z.array(z.uuid()).min(1).max(100) }),
-  permission: PERMISSIONS.pricing.storefrontRead,
-  async handler({ input, ctx }): Promise<readonly StorefrontPrice[]> {
-    const refs = await storefrontProductRefsById(ctx.tx, input.productIds);
-    const current = await currentPricesOf(ctx.tx, refs, ctx.now);
-    return current.map(({ productId, amountCents, vatClass, vatRateBp, vatCents, exVatCents }) => ({
+export async function storefrontPriceCards(
+  tx: Tx,
+  productIds: readonly string[],
+  now: Date,
+): Promise<ReadonlyMap<string, StorefrontPrice>> {
+  if (productIds.length === 0) return new Map();
+  const refs = await storefrontProductRefsById(tx, productIds);
+  const current = await currentPricesOf(tx, refs, now);
+  return new Map(
+    current.map(({ productId, amountCents, vatClass, vatRateBp, vatCents, exVatCents }) => [
       productId,
-      amountCents,
-      vatClass,
-      vatRateBp,
-      vatCents,
-      exVatCents,
-    }));
-  },
-});
+      { productId, amountCents, vatClass, vatRateBp, vatCents, exVatCents },
+    ]),
+  );
+}
+
+/**
+ * Which of these products have a current web price (`valid_from <= now`), for STAFF who hold
+ * `catalog.products.read` (the back-office "why is this product not visible" explanation). Answers
+ * existence only, never an amount; any product, hidden or not. Throws `kernel.forbidden` otherwise.
+ */
+export async function productsWithCurrentPrice(
+  tx: Tx,
+  productIds: readonly string[],
+  now: Date,
+  can: (permission: Permission) => boolean,
+): Promise<ReadonlySet<string>> {
+  if (!can(PERMISSIONS.catalog.productsRead)) throw forbidden("kernel.forbidden");
+  if (productIds.length === 0) return new Set();
+  const rows = await tx
+    .selectDistinct({ productId: prices.productId })
+    .from(prices)
+    .where(
+      and(
+        inUuidSet(prices.productId, productIds),
+        eq(prices.channel, CHANNEL),
+        lte(prices.validFrom, now),
+      ),
+    );
+  return new Set(rows.map((row) => row.productId));
+}
 
 export interface PriceHistoryRow extends PriceView {
   /** The price this row replaced (in force just before its `validFrom`), `null` for the first one. */

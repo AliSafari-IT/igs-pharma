@@ -20,6 +20,7 @@
     "@igs/module-inventory": "workspace:*",
     "@igs/module-pricing": "workspace:*",
     "@igs/module-privacy": "workspace:*",
+    "@igs/module-storefront": "workspace:*",
     "@igs/observability": "workspace:*",
     "@igs/rbac": "workspace:*",
     "@igs/security-headers": "workspace:*",

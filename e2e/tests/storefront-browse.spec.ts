@@ -61,6 +61,10 @@ test.beforeAll(async () => {
     await sql`
       INSERT INTO catalog.product_categories (product_id, category_id)
       VALUES (${id}, ${n === PAGE_SIZE + EXTRA ? kidId : topId})`;
+    // a product without a current price is not on the storefront (#103)
+    await sql`
+      INSERT INTO pricing.prices (id, product_id, channel, amount_cents, valid_from, created_by_type, created_by)
+      VALUES (gen_random_uuid(), ${id}, 'web', ${500 + n}, now() - interval '1 hour', 'system', 'e2e')`;
   }
 });
 
@@ -81,6 +85,25 @@ test("home: the shell, the category grid, the products, the identity footer", as
     page.getByRole("heading", { level: 2, name: "Producten per categorie" }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: new RegExp(parent.nl) }).first()).toBeVisible();
+  // each tile has a decorative icon (#112); a category without its own icon gets the generic one
+  const tileIcon = page
+    .locator('section[aria-labelledby="home-categories"]')
+    .getByRole("link", { name: new RegExp(parent.nl) })
+    .getByTestId("category-icon");
+  await expect(tileIcon).toHaveAttribute("data-icon", "generic");
+  await expect(tileIcon).toHaveAttribute("aria-hidden", "true");
+  // "Find your pharmacy" (#112): the same identity config as the footer, stand-ins marked as such
+  const panel = page.getByTestId("pharmacy-panel");
+  await expect(panel.getByRole("heading", { level: 2, name: "Vind uw apotheek" })).toBeVisible();
+  await expect(panel).toContainText("[opening hours]");
+  await expect(panel.getByTestId("pharmacy-panel-placeholder")).toHaveText(/nog te vervangen/);
+  await expect(panel.getByRole("link", { name: "Alle gegevens van de apotheek" })).toHaveAttribute(
+    "href",
+    "#footer-about",
+  );
+  // the header links to the same pharmacy details on every page (#112)
+  await expect(page.getByTestId("header-pharmacy-link")).toHaveText("Onze apotheek");
+  await expect(page.getByTestId("header-pharmacy-link")).toHaveAttribute("href", "#footer-about");
   const footer = page.getByTestId("site-footer");
   // the identity comes from one config with stand-ins, and says so
   await expect(footer.getByTestId("identity-placeholder")).toHaveText(/nog te vervangen/);

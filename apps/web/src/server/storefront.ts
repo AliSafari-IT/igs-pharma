@@ -1,19 +1,17 @@
 import { routing } from "@igs/i18n/routing";
 import type { Actor } from "@igs/kernel";
-import { type ContentLocale, listStorefrontCategories } from "@igs/module-catalog";
-import { getAvailability } from "@igs/module-inventory";
-import { type StorefrontPrice, storefrontPrices } from "@igs/module-pricing";
+import type { ContentLocale } from "@igs/module-catalog";
+import { listStorefrontCategories } from "@igs/module-storefront";
 
 import { cache } from "react";
 
 import { ensureKernelConfigured } from "./kernel";
 
 /**
- * The storefront reads (igs-pharma#62) through the modules' public queries, as `apps/platform` does,
- * but as a READ-ONLY system actor: `system_storefront` holds `catalog.storefront.read` (active
- * products only), `inventory.availability.read` (in or out, never counts) and `pricing.storefront.read` (the current price only, never history or schedule).
- * It holds no write permission and no staff read permission, so a bug here cannot show a draft, a
- * stock level or change anything.
+ * The storefront reads (igs-pharma#62, #103) through `@igs/module-storefront`, which composes
+ * catalogue, pricing and availability into what a shopper may see. The actor is READ-ONLY and
+ * system-level (`system_storefront`), so a bug here cannot show a draft, a stock count or change
+ * anything.
  */
 export const STOREFRONT_ACTOR: Actor = {
   type: "system",
@@ -24,27 +22,6 @@ export const STOREFRONT_ACTOR: Actor = {
 /** The shopper's language from the URL, or `null` for anything this storefront does not have. */
 export function localeOf(value: string): ContentLocale | null {
   return (routing.locales as readonly string[]).includes(value) ? (value as ContentLocale) : null;
-}
-
-/** Prices (VAT included) and availability of these products, by product id. */
-export interface PriceAndStock {
-  readonly prices: ReadonlyMap<string, StorefrontPrice>;
-  readonly inStock: ReadonlyMap<string, boolean>;
-}
-
-/** Configures the kernel and looks up the current price and availability of `productIds`. */
-export async function priceAndStock(productIds: readonly string[]): Promise<PriceAndStock> {
-  await ensureKernelConfigured();
-  if (productIds.length === 0) return { prices: new Map(), inStock: new Map() };
-  const ids = [...productIds];
-  const [prices, availability] = await Promise.all([
-    storefrontPrices({ productIds: ids }, STOREFRONT_ACTOR),
-    getAvailability({ productIds: ids }, STOREFRONT_ACTOR),
-  ]);
-  return {
-    prices: new Map(prices.map((p) => [p.productId, p])),
-    inStock: new Map(availability.map((a) => [a.productId, a.inStock])),
-  };
 }
 
 /** The BCP 47 tag `Intl` formats prices with, so "€ 12,50" or "12,50 €" follows the shopper. */

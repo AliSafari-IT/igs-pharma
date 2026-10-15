@@ -19,8 +19,8 @@ export const identity: SchemaGrants = {
     table("identity.user_roles", "mutable", { app: ["SELECT", "INSERT", "DELETE"] }),
     // the database-backed rate limiter and the mail links waiting for the worker (igs-pharma#114);
     // the worker gets its own grant on mail_tokens with the mail jobs
-    table("identity.rate_limits", "mutable", { app: ALL, since: 43 }),
-    table("identity.mail_tokens", "mutable", { app: ALL, since: 43 }),
+    table("identity.rate_limits", "mutable", { app: ALL, since: 44 }),
+    table("identity.mail_tokens", "mutable", { app: ALL, since: 44 }),
     table("identity.roles", "catalogue", { app: ["SELECT"] }),
     table("identity.permissions", "catalogue", { app: ["SELECT"] }),
     table("identity.role_permissions", "catalogue", { app: ["SELECT"] }),

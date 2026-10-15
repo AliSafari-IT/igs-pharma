@@ -1,6 +1,6 @@
 {
-  "id": "908284c2-57c1-4a6c-96ea-f11248a95a2c",
-  "prevId": "49b2c3ee-d8c1-492b-9f3f-3806736c18e0",
+  "id": "49b2c3ee-d8c1-492b-9f3f-3806736c18e0",
+  "prevId": "df060725-5454-47ff-a639-36699ad1977b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -494,6 +494,16 @@
           "primaryKey": false,
           "notNull": false
         },
+        "search_text": {
+          "name": "search_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "translate(lower(name || ' ' || coalesce(short_description, '')), 'àáâãäåāăąçćĉċčďđèéêëēĕėęěĝğġģĥħìíîïĩīĭįıĵķĺļľłñńņňòóôõöøōŏőŕŗřśŝşšţťŧùúûüũūŭůűųŵýÿŷźżž', 'aaaaaaaaacccccddeeeeeeeeegggghhiiiiiiiiijkllllnnnnooooooooorrrsssstttuuuuuuuuuuwyyyzzz')",
+            "type": "stored"
+          }
+        },
         "source": {
           "name": "source",
           "type": "text",
@@ -528,21 +538,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "product_content_search_text_trgm_idx": {
+          "name": "product_content_search_text_trgm_idx",
+          "columns": [
+            {
+              "expression": "search_text",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "product_content_product_id_products_id_fk": {
           "name": "product_content_product_id_products_id_fk",
           "tableFrom": "product_content",
+          "tableTo": "products",
+          "schemaTo": "catalog",
           "columnsFrom": [
             "product_id"
           ],
-          "tableTo": "products",
-          "schemaTo": "catalog",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {

@@ -20,7 +20,7 @@ import {
   referencePrice30Days,
   registerAuditActions,
   setPrice,
-  storefrontPrices,
+  storefrontPriceCards,
 } from "../src";
 
 let iso: IsolatedDatabase;
@@ -89,6 +89,7 @@ async function storefrontProduct(
       productType: "otc_medicine",
       legalStatus: "otc",
       vatClass: "BE_6",
+      approveContent: true, // a medicine is storefront-visible only with pharmacist-approved text (#103)
       content: [
         { locale: "nl", name: `Demo ${cnk}` },
         { locale: "fr", name: `Demo ${cnk} FR` },
@@ -326,6 +327,13 @@ describe("permissions and audit", () => {
 
 describe("the storefront prices storefront-visible products only (D-034)", () => {
   const storefront: Actor = { type: "system", id: "storefront", roles: ["system_storefront"] };
+  /**
+   * `storefrontPriceCards` as the read model calls it (igs-pharma#103): a plain function on the
+   * caller's transaction, at the caller's `now`. The read model's kernel query is the permission check.
+   */
+  const cards = async (productIds: readonly string[], at: Date = clockNow) => [
+    ...(await iso.db.transaction((tx) => storefrontPriceCards(tx, productIds, at))).values(),
+  ];
 
   it("prices OTC and pharmacy-only products; a prescription, draft or unknown id is simply absent", async () => {
     const otc = await storefrontProduct();
@@ -338,7 +346,7 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
       await setPrice({ productId, amountCents: 500, reason: "launch" }, owner);
     }
 
-    const seen = await storefrontPrices({ productIds: [...everyone, randomUUID()] }, storefront);
+    const seen = await cards([...everyone, randomUUID()]);
     expect(seen.map((p) => p.productId).sort()).toEqual([otc, pharmacyOnly].sort());
 
     // staff still price every product
@@ -348,7 +356,7 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
   it("answers with the current price and its VAT part only: no price id, start, reason or author", async () => {
     const productId = await storefrontProduct();
     await setPrice({ productId, amountCents: 1000, reason: "supplier-letter-xyz" }, owner);
-    const [price] = await storefrontPrices({ productIds: [productId] }, storefront);
+    const [price] = await cards([productId]);
     expect(Object.keys(price ?? {}).sort()).toEqual([
       "amountCents",
       "exVatCents",
@@ -367,10 +375,9 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
       { productId, amountCents: 700, validFrom: later(2 * DAY).toISOString(), reason: "sale" },
       owner,
     );
-    const now = await storefrontPrices({ productIds: [productId] }, storefront);
+    const now = await cards([productId]);
     expect(now.map((p) => p.amountCents)).toEqual([1000]);
-    kernel.clock.set(later(3 * DAY));
-    const afterSale = await storefrontPrices({ productIds: [productId] }, storefront);
+    const afterSale = await cards([productId], later(3 * DAY));
     expect(afterSale.map((p) => p.amountCents)).toEqual([700]);
   });
 
@@ -382,11 +389,9 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
       { productId, amountCents: 700, validFrom: start.toISOString(), reason: "sale" },
       owner,
     );
-    kernel.clock.set(new Date(start.getTime() - 1));
-    const before = await storefrontPrices({ productIds: [productId] }, storefront);
+    const before = await cards([productId], new Date(start.getTime() - 1));
     expect(before.map((p) => p.amountCents)).toEqual([1000]);
-    kernel.clock.set(start);
-    const at = await storefrontPrices({ productIds: [productId] }, storefront);
+    const at = await cards([productId], start);
     expect(at.map((p) => p.amountCents)).toEqual([700]);
   });
 
@@ -401,17 +406,6 @@ describe("the storefront prices storefront-visible products only (D-034)", () =>
     expect(await codeOf(setPrice({ productId, amountCents: 1 }, storefront))).toBe(
       "kernel.forbidden",
     );
-  });
-
-  it("staff without pricing.storefront.read cannot use the storefront query; the owner's results are unchanged", async () => {
-    const productId = await storefrontProduct();
-    await setPrice({ productId, amountCents: 1000, reason: "launch" }, owner);
-    expect(await codeOf(storefrontPrices({ productIds: [productId] }, owner))).toBe(
-      "kernel.forbidden",
-    );
-    const history = await listPrices({ productId }, owner);
-    expect(history.current?.amountCents).toBe(1000);
-    expect(history.history).toHaveLength(1);
   });
 });
 

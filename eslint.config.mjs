@@ -218,4 +218,11 @@ export default [
       ),
     },
   },
+  // The read model's own tests need the real-Postgres harness (@igs/db/testing), which its source may
+  // not import. Element types are not checked there; the entry-point rule above still limits every
+  // import to a package's public entry.
+  {
+    files: ["packages/modules/storefront/test/**/*.ts", "packages/modules/storefront/**/*.test.ts"],
+    rules: { "boundaries/element-types": "off" },
+  },
 ];

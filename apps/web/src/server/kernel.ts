@@ -1,5 +1,5 @@
 import { configureAuth, configureCustomerAuth } from "@igs/auth";
-import { auditEnv, parseEnvFor } from "@igs/config/env";
+import { auditEnv, parseEnvFor, storefrontEnv } from "@igs/config/env";
 import { configureKernel, isDomainError, registerEvents } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
@@ -9,6 +9,7 @@ import {
   registerAuditActions as registerIdentityAuditActions,
   requestMail,
 } from "@igs/module-identity";
+import { configureStorefront } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
 
 /** The actor Better Auth's factor changes are audited as (36b); `system_auth` can do nothing else. */
@@ -48,6 +49,13 @@ export function ensureAuthConfigured(): void {
   const env = parseEnvFor(auditEnv);
   registerIdentityAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
+  // The name says "auth" but this is the web app's one synchronous composition root: every request
+  // path goes through it, so the storefront read model's setting is parsed HERE (modules do not read
+  // the environment). Rename in a later PR.
+  const lowStockThreshold = parseEnvFor(storefrontEnv).STOREFRONT_LOW_STOCK_THRESHOLD;
+  configureStorefront({
+    ...(lowStockThreshold === undefined ? {} : { lowStockThreshold }),
+  });
   // identity mails leave through the outbox (D-019): the callbacks below only store the link and
   // publish `identity.mail.requested`; the worker sends (PR 2)
   registerEvents(MailRequested);
