@@ -126,6 +126,17 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(header.getByRole("heading", { name: "Products", level: 1 })).toBeVisible();
   await expect(header.getByRole("link", { name: "New product" })).toBeVisible();
+
+  // Form and detail pages share it too (#112 V1 item 2 part 2), back link inside the header.
+  await header.getByRole("link", { name: "New product" }).click();
+  await expect(page).toHaveURL(`${PLATFORM}/products/new`);
+  const formHeader = page.getByRole("main").locator("header").first();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(formHeader.getByRole("heading", { name: "New product", level: 1 })).toBeVisible();
+  await expect(formHeader.getByRole("link", { name: "Back to products" })).toHaveAttribute(
+    "href",
+    "/products",
+  );
 });
 
 test("the products tile counts medicines whose text no pharmacist approved", async ({

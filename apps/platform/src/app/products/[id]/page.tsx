@@ -24,6 +24,7 @@ import {
   catalogErrorMessage,
   statusLabelFor,
 } from "../../../components/catalog-labels";
+import { PageHeader } from "../../../components/page-header";
 import { PriceDialog } from "../../../components/price-dialog";
 import { formatEuros, formatRate, vatLine } from "../../../components/price-labels";
 import { ProductForm } from "../../../components/product-form";
@@ -140,13 +141,13 @@ export default async function ProductPage({ params, searchParams }: Props) {
     <Container asChild size="md">
       <main className="py-10">
         <Stack gap={6}>
-          <Link href="/products">Back to products</Link>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-              {dutchName ?? `Product ${product.cnk}`}
-            </h1>
-            <Badge variant={STATUS_BADGE[product.status]}>{STATUS_LABELS[product.status]}</Badge>
-          </div>
+          <PageHeader
+            title={dutchName ?? `Product ${product.cnk}`}
+            back={{ href: "/products", label: "Back to products" }}
+            action={
+              <Badge variant={STATUS_BADGE[product.status]}>{STATUS_LABELS[product.status]}</Badge>
+            }
+          />
 
           {flash.saved ? <Alert variant="success" title="Product saved" /> : null}
           {movedTo ? (

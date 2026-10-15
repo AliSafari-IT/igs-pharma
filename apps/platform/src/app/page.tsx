@@ -1,6 +1,7 @@
 import { Container, Link } from "@igs/ui";
 
 import { DashboardTile, Stat } from "../components/dashboard-tile";
+import { PageHeader } from "../components/page-header";
 import { LOW_STOCK_THRESHOLD } from "../lib/dashboard";
 import { currentActor, requireStaffActor } from "../server/actor";
 import { loadDashboard } from "../server/dashboard";
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
   return (
     <Container asChild size="lg">
       <main className="py-8">
-        <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">Dashboard</h1>
+        <PageHeader title="Dashboard" />
         {none ? (
           <p className="mt-4 max-w-prose text-[var(--color-text-subtle)]">
             Nothing to show here for your role yet. Use the menu to open a page.

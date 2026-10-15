@@ -3,6 +3,7 @@ import { type ProductStock, getStock } from "@igs/module-inventory";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 
 import { AdjustDialog } from "../../../components/adjust-dialog";
+import { PageHeader } from "../../../components/page-header";
 import { ReleaseDialog } from "../../../components/release-dialog";
 import {
   KIND_LABELS,
@@ -58,7 +59,20 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <Link href="/stock">Back to stock</Link>
+          {stock ? (
+            <PageHeader
+              title={stock.nameNl ?? "No Dutch name yet"}
+              back={{ href: "/stock", label: "Back to stock" }}
+              description={
+                <>
+                  CNK <code>{stock.cnk}</code> · Saint-Gilles pharmacy
+                </>
+              }
+              action={<AdjustDialog productId={stock.productId} onHand={stock.onHand} />}
+            />
+          ) : (
+            <Link href="/stock">Back to stock</Link>
+          )}
 
           {error ? (
             <Alert variant="error" title="You can't see this product's stock">
@@ -68,18 +82,6 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
 
           {stock ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-                    {stock.nameNl ?? "No Dutch name yet"}
-                  </h1>
-                  <p className="text-[var(--color-text-subtle)]">
-                    CNK <code>{stock.cnk}</code> · Saint-Gilles pharmacy
-                  </p>
-                </div>
-                <AdjustDialog productId={stock.productId} onHand={stock.onHand} />
-              </div>
-
               {first(adjusted) === "1" ? (
                 <Alert variant="success" title="Stock changed">
                   On hand is now {stock.onHand}.

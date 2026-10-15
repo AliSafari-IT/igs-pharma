@@ -5,9 +5,10 @@ import {
   canManageRegulated,
   listBrands,
 } from "@igs/module-catalog";
-import { Alert, Container, Link, Stack } from "@igs/ui";
+import { Alert, Container, Stack } from "@igs/ui";
 
 import { catalogErrorMessage } from "../../../components/catalog-labels";
+import { PageHeader } from "../../../components/page-header";
 import { ProductForm } from "../../../components/product-form";
 import { requireStaffActor } from "../../../server/actor";
 import { ensureKernelConfigured } from "../../../server/kernel";
@@ -30,10 +31,7 @@ export default async function NewProductPage() {
     <Container asChild size="md">
       <main className="py-10">
         <Stack gap={6}>
-          <Link href="/products">Back to products</Link>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-            New product
-          </h1>
+          <PageHeader title="New product" back={{ href: "/products", label: "Back to products" }} />
           {brands ? (
             <ProductForm
               brands={brands}
