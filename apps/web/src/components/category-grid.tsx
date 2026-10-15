@@ -3,12 +3,17 @@ import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
+import { CategoryIcon } from "./category-icon";
+
 interface Props {
   readonly locale: ContentLocale;
   readonly categories: readonly StorefrontCategoryNode[];
 }
 
-/** The top-level categories as cards (name and how many products), two to a row on a phone. */
+/**
+ * The top-level categories as cards (icon, name and how many products), two to a row on a phone.
+ * The icon is decorative, so the link's name is still the category name and its count.
+ */
 export async function CategoryGrid({ locale, categories }: Props) {
   const t = await getTranslations({ locale, namespace: "storefront" });
   return (
@@ -17,8 +22,9 @@ export async function CategoryGrid({ locale, categories }: Props) {
         <li key={category.id}>
           <Link
             href={`/${locale}/c/${category.slug}`}
-            className="flex h-full min-h-[88px] flex-col justify-between gap-1 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 no-underline hover:border-[var(--color-primary)]"
+            className="flex h-full min-h-[88px] flex-col justify-between gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 no-underline hover:border-[var(--color-primary)]"
           >
+            <CategoryIcon slug={category.slug} />
             <span className="font-display text-lg font-semibold text-[var(--color-text)]">
               {category.name}
             </span>
