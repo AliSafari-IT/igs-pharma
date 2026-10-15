@@ -45,6 +45,7 @@ import {
   confirmReservation,
   consumeReservation,
   getStock,
+  getStockSummary,
   registerAuditActions as registerInventoryAudit,
   registerInventoryJobs,
   reserveStock,
@@ -225,6 +226,10 @@ describe("the application as igs_app", () => {
     await confirmReservation({ holderRef, items: [{ productId, quantity: 2 }] }, checkout);
     await consumeReservation({ holderRef }, checkout);
     expect((await getStock({ productId }, owner)).onHand).toBe(3);
+    // the dashboard's one-statement summary reads the ledger and the reservations as igs_app (#115)
+    const summary = await getStockSummary({}, owner);
+    expect(summary.activeReservations).toBe(0);
+    expect(summary.low).toBeGreaterThanOrEqual(1);
     await recordConsent(
       {
         subjectRef: "roles@example.be",

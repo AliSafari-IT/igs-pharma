@@ -46,11 +46,13 @@ export {
   type StockListItem,
   type StockMovementView,
   type StockPage,
+  type StockSummary,
   type AvailabilityStatus,
   DEFAULT_LOW_STOCK,
   availabilityStatus,
   getAvailability,
   getStock,
+  getStockSummary,
   listStock,
   storefrontAvailability,
 } from "./queries";
