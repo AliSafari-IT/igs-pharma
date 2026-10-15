@@ -1,6 +1,6 @@
 import { isDomainError } from "@igs/kernel";
 import { type ProductStock, getStock } from "@igs/module-inventory";
-import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
+import { Alert, Badge, Container, EmptyState, Link, Stack } from "@igs/ui";
 
 import { AdjustDialog } from "../../../components/adjust-dialog";
 import { PageHeader } from "../../../components/page-header";
@@ -124,105 +124,121 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
                   Set aside
                 </h2>
                 {stock.reservations.length === 0 ? (
-                  <p className="text-[var(--color-text-subtle)]">Nothing is set aside.</p>
+                  <EmptyState title="Nothing is set aside" data-testid="reservations-empty" />
                 ) : (
-                  <table className="w-full border-collapse text-left">
-                    <caption className="sr-only">Active reservations, newest first</caption>
-                    <thead>
-                      <tr className="border-b border-[var(--color-border-strong)]">
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Kind
-                        </th>
-                        <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                          Quantity
-                        </th>
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Reference
-                        </th>
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Age
-                        </th>
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Expires
-                        </th>
-                        <th scope="col" className="py-2 font-semibold">
-                          <span className="sr-only">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stock.reservations.map((r) => (
-                        <tr key={r.id} className="border-b border-[var(--color-border)]">
-                          <td className="py-2 pr-4">{KIND_LABELS[r.kind]}</td>
-                          <td className="py-2 pr-4 text-right">{r.quantity}</td>
-                          <td className="py-2 pr-4">
-                            <code>{r.holderRef}</code>
-                          </td>
-                          <td className="py-2 pr-4">{formatAge(r.createdAt, now)}</td>
-                          <td className="py-2 pr-4">
-                            {r.expiresAt ? (
-                              formatMoment(r.expiresAt)
-                            ) : (
-                              <span className="text-[var(--color-text-subtle)]">Never</span>
-                            )}
-                          </td>
-                          <td className="py-2">
-                            <ReleaseDialog
-                              productId={stock.productId}
-                              reservationId={r.id}
-                              quantity={r.quantity}
-                              kindLabel={KIND_LABELS[r.kind]}
-                            />
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left">
+                      <caption className="sr-only">Active reservations, newest first</caption>
+                      <thead>
+                        <tr className="border-b border-[var(--color-border-strong)]">
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            Kind
+                          </th>
+                          <th
+                            scope="col"
+                            className="py-2 pr-4 text-right font-semibold tabular-nums"
+                          >
+                            Quantity
+                          </th>
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            Reference
+                          </th>
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            Age
+                          </th>
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            Expires
+                          </th>
+                          <th scope="col" className="py-2 font-semibold">
+                            <span className="sr-only">Actions</span>
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {stock.reservations.map((r) => (
+                          <tr key={r.id} className="border-b border-[var(--color-border)]">
+                            <td className="py-2 pr-4">{KIND_LABELS[r.kind]}</td>
+                            <td className="py-2 pr-4 text-right tabular-nums">{r.quantity}</td>
+                            <td className="py-2 pr-4">
+                              <code>{r.holderRef}</code>
+                            </td>
+                            <td className="py-2 pr-4 tabular-nums">
+                              {formatAge(r.createdAt, now)}
+                            </td>
+                            <td className="py-2 pr-4">
+                              {r.expiresAt ? (
+                                formatMoment(r.expiresAt)
+                              ) : (
+                                <span className="text-[var(--color-text-subtle)]">Never</span>
+                              )}
+                            </td>
+                            <td className="py-2">
+                              <ReleaseDialog
+                                productId={stock.productId}
+                                reservationId={r.id}
+                                quantity={r.quantity}
+                                kindLabel={KIND_LABELS[r.kind]}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </section>
 
-              <h2 className="font-display text-2xl font-semibold">Movements</h2>
-              {stock.movements.length === 0 ? (
-                <p className="text-[var(--color-text-subtle)]">No stock has moved yet.</p>
-              ) : (
-                <table className="w-full border-collapse text-left">
-                  <caption className="sr-only">Stock movements, newest first</caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        When
-                      </th>
-                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                        Change
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Reason
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Note
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        By
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stock.movements.map((m) => (
-                      <tr key={m.id} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">{formatMoment(m.at)}</td>
-                        <td className="py-2 pr-4 text-right">
-                          <Badge variant={m.delta > 0 ? "success" : "amber"}>
-                            {signed(m.delta)}
-                          </Badge>
-                        </td>
-                        <td className="py-2 pr-4">{REASON_LABELS[m.reason]}</td>
-                        <td className="py-2 pr-4">{m.note ?? ""}</td>
-                        <td className="py-2">{who(m)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              <section aria-labelledby="movements-title" className="flex flex-col gap-3">
+                <h2 id="movements-title" className="font-display text-2xl font-semibold">
+                  Movements
+                </h2>
+                {stock.movements.length === 0 ? (
+                  <EmptyState title="No stock has moved yet" data-testid="movements-empty" />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left">
+                      <caption className="sr-only">Stock movements, newest first</caption>
+                      <thead>
+                        <tr className="border-b border-[var(--color-border-strong)]">
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            When
+                          </th>
+                          <th
+                            scope="col"
+                            className="py-2 pr-4 text-right font-semibold tabular-nums"
+                          >
+                            Change
+                          </th>
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            Reason
+                          </th>
+                          <th scope="col" className="py-2 pr-4 font-semibold">
+                            Note
+                          </th>
+                          <th scope="col" className="py-2 font-semibold">
+                            By
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stock.movements.map((m) => (
+                          <tr key={m.id} className="border-b border-[var(--color-border)]">
+                            <td className="py-2 pr-4">{formatMoment(m.at)}</td>
+                            <td className="py-2 pr-4 text-right tabular-nums">
+                              <Badge variant={m.delta > 0 ? "success" : "amber"}>
+                                {signed(m.delta)}
+                              </Badge>
+                            </td>
+                            <td className="py-2 pr-4">{REASON_LABELS[m.reason]}</td>
+                            <td className="py-2 pr-4">{m.note ?? ""}</td>
+                            <td className="py-2">{who(m)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             </>
           ) : null}
         </Stack>
