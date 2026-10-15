@@ -22,7 +22,7 @@ describe("mapTile", () => {
     let called = false;
     const failed: TileResult<number> = { state: "error" };
     expect(
-      mapTile(failed, (n) => {
+      mapTile(failed, (n: number) => {
         called = true;
         return n + 1;
       }),
