@@ -1,7 +1,7 @@
 import { ROLES, ROLE_KEYS } from "@igs/rbac";
 import { describe, expect, it } from "vitest";
 
-import { STAFF_ROLE_LABELS, staffRoleSummary } from "../src/lib/role-labels";
+import { STAFF_ROLE_LABELS, staffRoleLabel, staffRoleSummary } from "../src/lib/role-labels";
 
 describe("STAFF_ROLE_LABELS", () => {
   it("names every staff role of the catalogue, and nothing else", () => {
@@ -40,5 +40,26 @@ describe("staffRoleSummary", () => {
 
   it("does not match prototype keys", () => {
     expect(staffRoleSummary(["toString", "constructor"])).toBe("");
+  });
+});
+
+describe("staffRoleLabel", () => {
+  it("names every staff role with its label", () => {
+    for (const [role, label] of Object.entries(STAFF_ROLE_LABELS)) {
+      expect(staffRoleLabel(role)).toBe(label);
+    }
+    expect(staffRoleLabel("pharmacist_titular")).toBe("Titular pharmacist");
+  });
+
+  it("shows any other key as it is, so the owner still sees it", () => {
+    expect(staffRoleLabel("customer")).toBe("customer");
+    expect(staffRoleLabel("made_up")).toBe("made_up");
+    expect(staffRoleLabel("")).toBe("");
+  });
+
+  it("does not match prototype keys", () => {
+    expect(staffRoleLabel("toString")).toBe("toString");
+    expect(staffRoleLabel("__proto__")).toBe("__proto__");
+    expect(staffRoleLabel("constructor")).toBe("constructor");
   });
 });
