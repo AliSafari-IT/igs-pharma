@@ -92,22 +92,31 @@ const ICONS: Readonly<Record<CategoryIconName, ReactNode>> = {
   ),
 };
 
+interface ArtProps {
+  readonly slug?: string | undefined;
+  readonly className: string;
+  readonly testId: string;
+  /** Fixed width and height in px, so the box holds its size before the CSS arrives. */
+  readonly size?: number | undefined;
+}
+
 /**
- * A category's icon on its tile: a fixed 40 px box (no layout shift), decorative only. It is hidden
- * from assistive technology because the category name next to it already says what it shows.
+ * The art of one category (design system §10.4), shared by the category tile and the product image
+ * area. Decorative only: hidden from assistive technology, because the text next to it already says
+ * what it shows. A missing or unknown slug gets the generic art.
  */
-export function CategoryIcon({ slug }: { readonly slug: string }) {
-  const name = categoryIconFor(slug);
+export function CategoryArt({ slug, className, testId, size }: ArtProps) {
+  const name = slug === undefined ? "generic" : categoryIconFor(slug);
   return (
     <svg
       aria-hidden="true"
       focusable="false"
-      data-testid="category-icon"
+      data-testid={testId}
       data-icon={name}
       viewBox="0 0 40 40"
-      width="40"
-      height="40"
-      className="h-10 w-10 shrink-0"
+      width={size}
+      height={size}
+      className={className}
       fill="none"
       strokeWidth="2"
       strokeLinecap="round"
@@ -115,5 +124,12 @@ export function CategoryIcon({ slug }: { readonly slug: string }) {
     >
       {ICONS[name]}
     </svg>
+  );
+}
+
+/** A category's icon on its tile: a fixed 40 px box (no layout shift), decorative only. */
+export function CategoryIcon({ slug }: { readonly slug: string }) {
+  return (
+    <CategoryArt slug={slug} testId="category-icon" size={40} className="h-10 w-10 shrink-0" />
   );
 }
