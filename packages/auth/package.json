@@ -12,6 +12,10 @@
       "types": "./src/client.ts",
       "default": "./src/client.ts"
     },
+    "./customer-client": {
+      "types": "./src/customer-client.ts",
+      "default": "./src/customer-client.ts"
+    },
     "./permissions": {
       "types": "./src/permissions.ts",
       "default": "./src/permissions.ts"
