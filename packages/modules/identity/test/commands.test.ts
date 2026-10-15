@@ -333,6 +333,7 @@ describe("registerAuditActions", () => {
       "identity.enrolment.reissued",
       "identity.factors.reset",
       "identity.mfa.backup_codes_regenerated",
+      "identity.mail.requested",
     ]);
   });
 });

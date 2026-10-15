@@ -21,6 +21,9 @@ export const ENV_SENSITIVITY = {
   AUDIT_HMAC_KEY: "sensitive",
   // storefront preview pass
   IGS_PREVIEW_KEY: "sensitive",
+  // outgoing mail (igs-pharma#114)
+  SMTP_URL: "sensitive", // can carry the mail server password
+  MAIL_FROM: "not-sensitive",
   // crypto
   ENCRYPTION_KEY: "sensitive",
   KMS_KEY_ID: "sensitive", // names the key that wraps the data keys
@@ -32,6 +35,8 @@ export const ENV_SENSITIVITY = {
   NODE_ENV: "not-sensitive",
   NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS: "not-sensitive",
   NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "not-sensitive",
+  NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "not-sensitive",
+  STOREFRONT_URL: "not-sensitive",
   CSP_REPORTING: "not-sensitive",
   UI_GALLERY: "not-sensitive",
   SITE_GATE: "not-sensitive",

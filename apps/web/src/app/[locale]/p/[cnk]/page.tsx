@@ -58,7 +58,8 @@ export default async function ProductPage({ params }: Props) {
             ]}
           />
           <div className="grid gap-6 md:grid-cols-[minmax(0,16rem)_1fr]">
-            <ProductIllustration category={product.topCategory} />
+            {/* the root category picks the illustration: the demo icons are top-level categories */}
+            <ProductIllustration slug={product.breadcrumb[0]?.slug} />
             <div className="flex flex-col gap-4">
               <h1
                 lang={product.contentLocale}

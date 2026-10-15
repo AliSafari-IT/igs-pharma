@@ -127,6 +127,8 @@ test("owner: upload, preview, confirm, then see on-hand and history", async ({ p
   await expect(page.getByTestId("on-hand")).toHaveText("12");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await expect(page.locator("tbody tr").first()).toContainText("Stock count (CSV)");
+  await expect(page.getByTestId("reservations-empty")).toHaveText("Nothing is set aside");
+  await expect(page.getByRole("region", { name: "Movements" }).getByRole("table")).toBeVisible();
   await expectAxeClean(page);
 
   // below zero is refused, a real adjustment with its note is recorded

@@ -1,6 +1,7 @@
-import { Container, Link, Stack } from "@igs/ui";
+import { Container, Stack } from "@igs/ui";
 
 import { ConsentsPanel } from "../../../components/consents-panel";
+import { PageHeader } from "../../../components/page-header";
 import { requireStaffActor } from "../../../server/actor";
 
 export const metadata = { title: "Consents · IGS-Pharma Platform" };
@@ -15,13 +16,11 @@ export default async function ConsentsPage() {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <Link href="/privacy/requests">Data requests</Link>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-            Consents
-          </h1>
-          <p className="max-w-prose text-[var(--color-text-subtle)]">
-            Every change is kept as proof. To change a consent, record a new one.
-          </p>
+          <PageHeader
+            title="Consents"
+            description="Every change is kept as proof. To change a consent, record a new one."
+            back={{ href: "/privacy/requests", label: "Data requests" }}
+          />
           <ConsentsPanel />
         </Stack>
       </main>

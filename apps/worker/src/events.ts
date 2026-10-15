@@ -1,4 +1,5 @@
 import { registerEvents } from "@igs/kernel";
+import { MailRequested } from "@igs/module-identity";
 
 /**
  * The outbox events this deployment publishes: the ONE list the worker and the migrate entry both
@@ -8,8 +9,7 @@ import { registerEvents } from "@igs/kernel";
  * means: add its definition here, then re-run the migrate entry before starting the new worker.
  * `test/events-parity.test.ts` fails when either entry stops calling this.
  *
- * (No module publishes an event yet.)
  */
 export function registerWorkerEvents(): void {
-  registerEvents();
+  registerEvents(MailRequested); // identity: account mails (igs-pharma#114)
 }

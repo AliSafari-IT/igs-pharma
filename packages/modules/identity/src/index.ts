@@ -33,6 +33,24 @@ export {
   suspendPharmacist,
   suspendUser,
 } from "./commands";
+export { MailRequested, requestMail } from "./mail";
+export {
+  IDENTITY_JOBS,
+  IDENTITY_QUEUES,
+  type IdentityJobScheduler,
+  type IdentityQueueAdmin,
+  type MailDelivery,
+  type MailJob,
+  type MailSender,
+  type MailToSend,
+  deliverMail,
+  ensureIdentityQueues,
+  handleMailJobs,
+  registerIdentityJobs,
+  reportMailPurgeFailed,
+  runMailPurge,
+} from "./mail-jobs";
+export { MAIL_TEMPLATES, type MailTemplate } from "./schema";
 export { IDENTITY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {
   ENROLMENT_TTL_MS,

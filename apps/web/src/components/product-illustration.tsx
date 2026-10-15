@@ -1,25 +1,18 @@
-import type { CategoryRef } from "@igs/module-storefront";
-import { ProductImagePlaceholder } from "@igs/ui";
-
-import { categoryIconFor } from "../lib/category-icon";
-import { CategoryIcon } from "./category-icon";
+import { CategoryArt } from "./category-icon";
 
 /**
- * The picture slot of a product until real images exist (igs-pharma#112, design system §10.4): the
- * illustration of its top-level category, in the same fixed 4:3 box as the placeholder, so nothing
- * moves when real images arrive. Decorative (`aria-hidden`): the product's name carries the meaning.
- * A product in no category keeps the neutral placeholder.
+ * The picture slot of a product (igs-pharma#112, V2 items 3 and 4) until real images exist: a fixed
+ * 4:3 box with its category's illustration, never a stock photo of pills. Decorative (`aria-hidden`):
+ * the product's name carries the meaning. The fixed aspect ratio keeps the layout still once real
+ * images arrive. Without a slug (list items carry no category yet) it shows the generic art.
  */
-export function ProductIllustration({ category }: { readonly category: CategoryRef | null }) {
-  if (!category) return <ProductImagePlaceholder data-testid="product-illustration" />;
+export function ProductIllustration({ slug }: { readonly slug?: string | undefined }) {
   return (
     <div
       aria-hidden="true"
-      data-testid="product-illustration"
-      data-icon={categoryIconFor(category.slug)}
-      className="flex aspect-[4/3] w-full items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary-subtle)]"
+      className="flex aspect-[4/3] w-full items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-primary-subtle)]"
     >
-      <CategoryIcon slug={category.slug} className="h-1/2 w-auto" />
+      <CategoryArt slug={slug} testId="product-illustration" className="h-1/2 w-auto" />
     </div>
   );
 }

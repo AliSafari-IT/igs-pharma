@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { catalogErrorMessage } from "../../../components/catalog-labels";
 import { CategoryForm } from "../../../components/category-form";
 import { heightOf, parentOptions, subtreeOf } from "../../../components/category-options";
+import { PageHeader } from "../../../components/page-header";
 import { requireStaffActor } from "../../../server/actor";
 import { ensureKernelConfigured } from "../../../server/kernel";
 import { deleteCategoryAction, moveCategoryAction } from "../actions";
@@ -62,10 +63,10 @@ export default async function CategoryPage({ params, searchParams }: Props) {
     <Container asChild size="md">
       <main className="py-10">
         <Stack gap={8}>
-          <Link href="/categories">Back to categories</Link>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-            {node.nameNl}
-          </h1>
+          <PageHeader
+            title={node.nameNl}
+            back={{ href: "/categories", label: "Back to categories" }}
+          />
 
           {flash.saved ? <Alert variant="success" title="Category saved" /> : null}
           {flash.moved ? <Alert variant="success" title="Category moved" /> : null}

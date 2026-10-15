@@ -2,6 +2,7 @@ import { isDomainError } from "@igs/kernel";
 import { type StockPage, listStock } from "@igs/module-inventory";
 import { Alert, Badge, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
 
+import { PageHeader } from "../../components/page-header";
 import { StockImport } from "../../components/stock-import";
 import { formatMoment, stockErrorMessage } from "../../components/stock-labels";
 import { requireStaffActor } from "../../server/actor";
@@ -47,7 +48,10 @@ export default async function StockListPage({ searchParams }: Props) {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">Stock</h1>
+          <PageHeader
+            title="Stock"
+            description="How many of each product the pharmacy has on hand. Open a product to adjust its count, or import a whole stock count."
+          />
 
           {error ? (
             <Alert variant="error" title="You can't see the stock">

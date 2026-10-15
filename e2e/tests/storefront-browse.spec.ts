@@ -127,6 +127,10 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
   const crumbs = page.getByRole("navigation", { name: "Kruimelpad" });
   await expect(crumbs.getByRole("link", { name: "Startpagina" })).toBeVisible();
   await expect(crumbs.getByText(parent.nl)).toHaveAttribute("aria-current", "page");
+  // each card has a decorative image area (#112): its top-level category's art (generic for e2e slugs)
+  const cardArt = page.getByRole("article").first().getByTestId("product-illustration");
+  await expect(cardArt).toHaveAttribute("data-icon", "generic");
+  await expect(cardArt).toHaveAttribute("aria-hidden", "true");
   await expectAxeClean(page);
 
   // the child category: the trail has two levels
@@ -137,18 +141,21 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
   await expect(crumbs.getByRole("link", { name: parent.nl })).toBeVisible();
   await expect(crumbs.getByText(child.nl)).toHaveAttribute("aria-current", "page");
   // the card shows its top-level category's illustration (#112): the parent's, a slug without its
-  // own icon, so the generic one; decorative only (the neutral placeholder has no data-icon)
+  // own icon, so the generic one; decorative only
   const card = page
     .getByRole("listitem")
     .filter({ has: page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }) });
-  const cardArt = card.getByTestId("product-illustration");
-  await expect(cardArt).toHaveAttribute("data-icon", "generic");
-  await expect(cardArt).toHaveAttribute("aria-hidden", "true");
+  const childCardArt = card.getByTestId("product-illustration");
+  await expect(childCardArt).toHaveAttribute("data-icon", "generic");
+  await expect(childCardArt).toHaveAttribute("aria-hidden", "true");
   await page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }).click();
   await expect(page).toHaveURL(new RegExp(`/nl/p/${productCnk(PAGE_SIZE + EXTRA)}$`));
   await expect(page.getByRole("button", { name: "In winkelwagen" })).toBeDisabled();
-  // the product page shows the same illustration as its card
-  await expect(page.getByTestId("product-illustration")).toHaveAttribute("data-icon", "generic");
+  // the product page's image area takes the ROOT category's art; an e2e slug has none of its own
+  const productArt = page.getByTestId("product-illustration");
+  await expect(productArt).toHaveCount(1);
+  await expect(productArt).toHaveAttribute("data-icon", "generic");
+  await expect(productArt).toHaveAttribute("aria-hidden", "true");
 });
 
 test("a category with more than a page paginates, and the language switch keeps the page", async ({

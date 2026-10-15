@@ -1,11 +1,13 @@
-import { configureAuth } from "@igs/auth";
+import { configureAuth, configureCustomerAuth } from "@igs/auth";
 import { auditEnv, parseEnvFor, storefrontEnv } from "@igs/config/env";
-import { configureKernel, isDomainError } from "@igs/kernel";
+import { configureKernel, isDomainError, registerEvents } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
+  MailRequested,
   applySecurityEvent,
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
+  requestMail,
 } from "@igs/module-identity";
 import { configureStorefront } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
@@ -53,6 +55,15 @@ export function ensureAuthConfigured(): void {
   const lowStockThreshold = parseEnvFor(storefrontEnv).STOREFRONT_LOW_STOCK_THRESHOLD;
   configureStorefront({
     ...(lowStockThreshold === undefined ? {} : { lowStockThreshold }),
+  });
+  // identity mails leave through the outbox (D-019): the callbacks below only store the link and
+  // publish `identity.mail.requested`; the worker sends (PR 2)
+  registerEvents(MailRequested);
+  configureCustomerAuth({
+    requestMail: async (input) => {
+      await ensureRbacCatalogue();
+      await requestMail(input, AUTH_HOOK_ACTOR);
+    },
   });
   configureAuth({
     onSecurityEvent: async (event) => {

@@ -17,8 +17,10 @@ import {
   registerAuditJobs,
 } from "@igs/module-audit";
 import {
+  type IdentityJobScheduler,
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
+  registerIdentityJobs,
 } from "@igs/module-identity";
 import {
   type InventoryJobScheduler,
@@ -33,6 +35,7 @@ import {
 import PgBoss from "pg-boss";
 
 import { registerWorkerEvents } from "./events";
+import { createMailSender } from "./mail-sender";
 
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -103,6 +106,9 @@ async function main() {
   // (04:12) and personal data past its retention period (03:52), Europe/Brussels, never 02:xx.
   await registerInventoryJobs(boss as unknown as InventoryJobScheduler);
   await registerPrivacyJobs(boss as unknown as PrivacyJobScheduler);
+  // Account mail (igs-pharma#114): the worker is the only process that talks to a mail server (D-019).
+  // `identity.mail.requested` events arrive through the outbox; expired links are purged hourly.
+  await registerIdentityJobs(boss as unknown as IdentityJobScheduler, createMailSender(env));
   // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.
 
   // pg-boss's timers keep the loop alive, but hold the process open ourselves too so a stopped

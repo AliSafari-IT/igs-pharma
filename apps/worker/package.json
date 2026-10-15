@@ -17,6 +17,7 @@
     "@igs/config": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/kernel": "workspace:*",
+    "@igs/mail": "workspace:*",
     "@igs/module-audit": "workspace:*",
     "@igs/module-catalog": "workspace:*",
     "@igs/module-identity": "workspace:*",
@@ -25,6 +26,7 @@
     "@igs/module-privacy": "workspace:*",
     "@igs/observability": "workspace:*",
     "drizzle-orm": "0.38.3",
+    "nodemailer": "7.0.11",
     "pg-boss": "10.1.6",
     "pino": "9.5.0",
     "postgres": "3.4.5",
@@ -32,6 +34,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@igs/auth": "workspace:*",
     "@igs/tsconfig": "workspace:*",
     "@testcontainers/postgresql": "12.2.0",
     "@types/node": "24.19.1",

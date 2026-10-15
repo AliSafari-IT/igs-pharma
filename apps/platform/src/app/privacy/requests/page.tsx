@@ -2,6 +2,7 @@ import { isDomainError } from "@igs/kernel";
 import { DSR_STATUSES, DSR_TYPES, type DsrPage, listDsr } from "@igs/module-privacy";
 import { Alert, Badge, Button, Container, Label, Link, Select, Stack } from "@igs/ui";
 
+import { PageHeader } from "../../../components/page-header";
 import {
   DSR_STATUS_BADGE,
   DSR_STATUS_LABELS,
@@ -64,20 +65,22 @@ export default async function DataRequestsPage({ searchParams }: Props) {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-              Data requests
-            </h1>
-            {result ? (
-              <Button asChild>
-                <a href="/privacy/requests/new">New request</a>
-              </Button>
-            ) : null}
-          </div>
-          <p className="max-w-prose text-[var(--color-text-subtle)]">
-            Requests from people about their personal data (GDPR). Each one must be answered within
-            one month of receipt. <Link href="/privacy/consents">Consents</Link>
-          </p>
+          <PageHeader
+            title="Data requests"
+            description={
+              <>
+                Requests from people about their personal data (GDPR). Each one must be answered
+                within one month of receipt. <Link href="/privacy/consents">Consents</Link>
+              </>
+            }
+            action={
+              result ? (
+                <Button asChild>
+                  <a href="/privacy/requests/new">New request</a>
+                </Button>
+              ) : null
+            }
+          />
 
           {error ? (
             <Alert variant="error" title="You can't see the data requests">

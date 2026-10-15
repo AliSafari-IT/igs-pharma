@@ -37,6 +37,8 @@ describe("parseEnv", () => {
     expect(env.NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS).toBe(false);
     // the EU logo stays off unless someone turns it on (igs-pharma#104)
     expect(env.NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO).toBe(false);
+    expect(env.NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS).toBe(false);
+    expect(env.STOREFRONT_URL).toBeUndefined();
   });
 
   it("throws listing every missing required variable", () => {
@@ -95,6 +97,23 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "yes" })).toThrow(
       /EU_COMMON_LOGO/,
     );
+  });
+
+  it("customer accounts (#114): strict flag, off by default; STOREFRONT_URL a URL, empty = unset", () => {
+    expect(
+      parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "true" })
+        .NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS,
+    ).toBe(true);
+    for (const bad of ["yes", "1", "TRUE", "on"]) {
+      expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: bad }), bad).toThrow(
+        /CUSTOMER_ACCOUNTS/,
+      );
+    }
+    expect(parseEnv({ ...valid, STOREFRONT_URL: "https://shop.example" }).STOREFRONT_URL).toBe(
+      "https://shop.example",
+    );
+    expect(parseEnv({ ...valid, STOREFRONT_URL: "" }).STOREFRONT_URL).toBeUndefined();
+    expect(() => parseEnv({ ...valid, STOREFRONT_URL: "not a url" })).toThrow(/STOREFRONT_URL/);
   });
 });
 
