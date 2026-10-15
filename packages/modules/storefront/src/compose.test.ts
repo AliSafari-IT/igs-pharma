@@ -4,7 +4,7 @@ import { availabilityStatus as statusOf } from "@igs/module-inventory";
 
 import { type Candidate, composeListing } from "./compose";
 import { type AvailabilityStatus, type StorefrontPriceView, listInputSchema } from "./contract";
-import { fixtureListProducts } from "./fixtures";
+import { fixtureGetProduct, fixtureListProducts } from "./fixtures";
 
 const id = (n: number) => `0192f000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 const price = (amountCents: number): StorefrontPriceView => ({
@@ -40,6 +40,7 @@ const parts = (
           : [],
       ),
     ),
+  loadTopCategories: async () => new Map(),
   category: null,
 });
 const parse = (input: object) => listInputSchema.parse({ locale: "nl", ...input });
@@ -178,6 +179,21 @@ describe("composeListing", () => {
     expect(asked).toHaveLength(1);
     expect(asked[0]).toHaveLength(2);
   });
+
+  it("loads the top categories for the page only and leaves the rest null", async () => {
+    const asked: string[][] = [];
+    const base = parts(items, prices);
+    const page = await composeListing(parse({ pageSize: 2 }), {
+      ...base,
+      loadTopCategories: async (ids) => {
+        asked.push([...ids]);
+        const first = ids[0];
+        return new Map(first ? [[first, { slug: "baby", name: "Baby" }] as const] : []);
+      },
+    });
+    expect(asked).toEqual([page.items.map((i) => i.id)]);
+    expect(page.items.map((i) => i.topCategory)).toEqual([{ slug: "baby", name: "Baby" }, null]);
+  });
 });
 
 describe("the fixtures go through the same composition", () => {
@@ -197,5 +213,15 @@ describe("the fixtures go through the same composition", () => {
         ["9900001", "9900002", "9900005", "9900006", "9900008"].includes(i.cnk),
       ),
     ).toBe(true);
+  });
+
+  it("a card's top category is the root of its product page's breadcrumb", async () => {
+    const all = await fixtureListProducts({ locale: "nl", pageSize: 48 });
+    expect(all.items.length).toBeGreaterThan(0);
+    for (const item of all.items) {
+      const page = fixtureGetProduct(item.cnk);
+      expect(item.topCategory, item.cnk).toEqual(page?.breadcrumb[0] ?? null);
+      expect(page?.topCategory, item.cnk).toEqual(item.topCategory);
+    }
   });
 });

@@ -54,7 +54,7 @@ export async function ProductCard({ locale, item }: CardProps) {
   return (
     <li>
       <article className="flex h-full flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
-        <ProductIllustration />
+        <ProductIllustration slug={item.topCategory?.slug} />
         <h3 lang={item.contentLocale} className="font-display text-lg font-semibold">
           <Link href={`/${locale}/p/${item.cnk}`}>{item.name}</Link>
         </h3>

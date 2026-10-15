@@ -127,7 +127,7 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
   const crumbs = page.getByRole("navigation", { name: "Kruimelpad" });
   await expect(crumbs.getByRole("link", { name: "Startpagina" })).toBeVisible();
   await expect(crumbs.getByText(parent.nl)).toHaveAttribute("aria-current", "page");
-  // each card has a decorative image area (#112); list items carry no category yet: generic art
+  // each card has a decorative image area (#112): its top-level category's art (generic for e2e slugs)
   const cardArt = page.getByRole("article").first().getByTestId("product-illustration");
   await expect(cardArt).toHaveAttribute("data-icon", "generic");
   await expect(cardArt).toHaveAttribute("aria-hidden", "true");
@@ -140,6 +140,14 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
     .click();
   await expect(crumbs.getByRole("link", { name: parent.nl })).toBeVisible();
   await expect(crumbs.getByText(child.nl)).toHaveAttribute("aria-current", "page");
+  // the card shows its top-level category's illustration (#112): the parent's, a slug without its
+  // own icon, so the generic one; decorative only
+  const card = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }) });
+  const childCardArt = card.getByTestId("product-illustration");
+  await expect(childCardArt).toHaveAttribute("data-icon", "generic");
+  await expect(childCardArt).toHaveAttribute("aria-hidden", "true");
   await page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }).click();
   await expect(page).toHaveURL(new RegExp(`/nl/p/${productCnk(PAGE_SIZE + EXTRA)}$`));
   await expect(page.getByRole("button", { name: "In winkelwagen" })).toBeDisabled();

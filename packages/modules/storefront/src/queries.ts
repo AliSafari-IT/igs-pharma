@@ -5,6 +5,7 @@ import {
   productVisibilityFacts,
   searchStorefrontCandidates,
   storefrontCategoryIndex,
+  storefrontTopCategories,
 } from "@igs/module-catalog";
 import { storefrontAvailability } from "@igs/module-inventory";
 import { productsWithCurrentPrice, storefrontPriceCards } from "@igs/module-pricing";
@@ -71,6 +72,7 @@ export const listStorefrontProducts = query({
       prices: new Map([...cards].map(([id, card]) => [id, toPriceView(card)])),
       loadStatuses: (ids) =>
         storefrontAvailability(ctx.tx, ids, ctx.now, currentLowStockThreshold()),
+      loadTopCategories: (ids) => storefrontTopCategories(ctx.tx, ids, input.locale),
       category: set.category,
     });
   },
@@ -104,6 +106,7 @@ export const getStorefrontProduct = query({
       price: toPriceView(card),
       status: statuses.get(detail.id) ?? "out",
       isMedicine: detail.isMedicine,
+      topCategory: detail.breadcrumb[0] ?? null,
       description: detail.description,
       warnings: detail.warnings,
       breadcrumb: [...detail.breadcrumb],

@@ -71,9 +71,9 @@ export interface CandidateSet {
   readonly category: { readonly slug: string; readonly name: string } | null;
 }
 
-/** The categories with the number of storefront-visible products directly in each. */
-async function categoryRows(tx: Tx) {
-  const rows = await tx
+/** Every category, in tree order (sort order, then id). */
+function categoryTreeRows(tx: Tx) {
+  return tx
     .select({
       id: categories.id,
       parentId: categories.parentId,
@@ -86,6 +86,13 @@ async function categoryRows(tx: Tx) {
     })
     .from(categories)
     .orderBy(asc(categories.sortOrder), asc(categories.id));
+}
+
+type CategoryTreeRow = Awaited<ReturnType<typeof categoryTreeRows>>[number];
+
+/** The categories with the number of storefront-visible products directly in each. */
+async function categoryRows(tx: Tx) {
+  const rows = await categoryTreeRows(tx);
   const links = await tx
     .select({ categoryId: productCategories.categoryId, productId: productCategories.productId })
     .from(productCategories)
@@ -118,6 +125,31 @@ function subtreeIds(
   };
   walk(rootId);
   return ids;
+}
+
+/**
+ * The path from the root to a product's deepest category (the first in tree order among equals),
+ * empty when it is in none. The ONE rule behind the product page's breadcrumb and the list item's
+ * top category, so a card and its page always show the same category.
+ */
+function breadcrumbRows(
+  rows: readonly CategoryTreeRow[],
+  linked: ReadonlySet<string>,
+): CategoryTreeRow[] {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const depthOf = (id: string): number => {
+    let depth = 0;
+    for (let at: string | null | undefined = id; at; at = byId.get(at)?.parentId) depth++;
+    return depth;
+  };
+  const mine = rows.filter((r) => linked.has(r.id));
+  // a stable sort keeps tree order among categories of the same depth
+  const deepest = [...mine].sort((a, b) => depthOf(b.id) - depthOf(a.id))[0];
+  const path: CategoryTreeRow[] = [];
+  for (let at = deepest; at; at = at.parentId ? byId.get(at.parentId) : undefined) {
+    path.unshift(at);
+  }
+  return path;
 }
 
 /** `catalog.category_not_found` carrier: the caller turns it into the typed error. */
@@ -262,19 +294,11 @@ export async function getStorefrontProductDetail(
     .from(productCategories)
     .where(eq(productCategories.productId, row.id));
   const linked = new Set(links.map((l) => l.categoryId));
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const depthOf = (id: string): number => {
-    let depth = 0;
-    for (let at: string | null | undefined = id; at; at = byId.get(at)?.parentId) depth++;
-    return depth;
-  };
   const mine = rows.filter((r) => linked.has(r.id));
-  // the breadcrumb follows the deepest category (the first in tree order among equals)
-  const deepest = [...mine].sort((a, b) => depthOf(b.id) - depthOf(a.id))[0];
-  const breadcrumb: { slug: string; name: string }[] = [];
-  for (let at = deepest; at; at = at.parentId ? byId.get(at.parentId) : undefined) {
-    breadcrumb.unshift({ slug: at.slug, name: categoryNameIn(at, locale) });
-  }
+  const breadcrumb = breadcrumbRows(rows, linked).map((at) => ({
+    slug: at.slug,
+    name: categoryNameIn(at, locale),
+  }));
   return {
     id: row.id,
     cnk: row.cnk,
@@ -291,6 +315,36 @@ export async function getStorefrontProductDetail(
     breadcrumb,
     categories: mine.map((r) => ({ slug: r.slug, name: categoryNameIn(r, locale) })),
   };
+}
+
+/**
+ * The top-level category of each given product: the root of its breadcrumb path (see
+ * `breadcrumbRows`), named in `locale`. A product in no category is absent from the answer. It
+ * answers only for the ids it is given, which the caller took from a storefront-visible-only helper.
+ */
+export async function storefrontTopCategories(
+  tx: Tx,
+  productIds: readonly string[],
+  locale: ContentLocale,
+): Promise<ReadonlyMap<string, { readonly slug: string; readonly name: string }>> {
+  const out = new Map<string, { readonly slug: string; readonly name: string }>();
+  if (productIds.length === 0) return out;
+  const rows = await categoryTreeRows(tx);
+  const links = await tx
+    .select({ productId: productCategories.productId, categoryId: productCategories.categoryId })
+    .from(productCategories)
+    .where(inArray(productCategories.productId, [...productIds]));
+  const linkedOf = new Map<string, Set<string>>();
+  for (const link of links) {
+    const set = linkedOf.get(link.productId);
+    if (set) set.add(link.categoryId);
+    else linkedOf.set(link.productId, new Set([link.categoryId]));
+  }
+  for (const [productId, linked] of linkedOf) {
+    const root = breadcrumbRows(rows, linked)[0];
+    if (root) out.set(productId, { slug: root.slug, name: categoryNameIn(root, locale) });
+  }
+  return out;
 }
 
 /** The category tree for the storefront: every category, and the visible products directly in each. */

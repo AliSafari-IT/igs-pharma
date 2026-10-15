@@ -34,6 +34,7 @@ import {
   setProductCategories,
   setProductStatusRegulated,
   storefrontCategoryIndex,
+  storefrontTopCategories,
 } from "@igs/module-catalog";
 import {
   ensureRbacCatalogue,
@@ -97,12 +98,14 @@ const storefrontReads = query({
     const index = await storefrontCategoryIndex(ctx.tx, "nl");
     const prices = await storefrontPriceCards(ctx.tx, [input.productId], ctx.now);
     const statuses = await storefrontAvailability(ctx.tx, [input.productId], ctx.now);
+    const tops = await storefrontTopCategories(ctx.tx, [input.productId], "nl");
     return {
       candidates: set.candidates.length,
       name: detail?.name ?? null,
       categories: index.categories.length,
       priced: prices.size,
       statuses: statuses.size,
+      tops: tops.size,
     };
   },
 });
@@ -247,7 +250,7 @@ describe("the application as igs_app", () => {
     expect(reads.candidates).toBeGreaterThan(0);
     expect(reads.name).toBe("Rollen product");
     expect(reads.categories).toBeGreaterThan(0);
-    expect([reads.priced, reads.statuses]).toEqual([1, 1]);
+    expect([reads.priced, reads.statuses, reads.tops]).toEqual([1, 1, 1]);
 
     // an idempotent command publishing an outbox event: idempotency_keys INSERT/UPDATE, outbox INSERT
     registerEvents(Pinged);

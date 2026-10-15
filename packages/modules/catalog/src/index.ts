@@ -76,6 +76,7 @@ export {
   productVisibilityFacts,
   searchStorefrontCandidates,
   storefrontCategoryIndex,
+  storefrontTopCategories,
 } from "./listing";
 export { SEARCH_FOLD_FROM, SEARCH_FOLD_TO, foldSearch, searchTerms } from "./domain";
 export { approvedForStorefront, inUuidSet, isMedicineSql } from "./visibility";

@@ -655,6 +655,30 @@ describe("the product page and the category tree", () => {
     ]);
     expect(page.categories).toEqual([{ slug: `leaf-${tag}`, name: `Leaf ${tag} FR` }]);
     expect(page.price.amountCents).toBe(500);
+    expect(page.topCategory).toEqual({ slug: `bc-${tag}`, name: `Root ${tag} FR` });
+  });
+
+  it("a list item's top category is the root of its deepest category, as on its page", async () => {
+    const tag = marker();
+    const shallow = await category(null, `ts-${tag}`, `Shallow ${tag}`);
+    const deepRoot = await category(null, `td-${tag}`, `Deep ${tag}`);
+    const deepMid = await category(deepRoot, `td-m-${tag}`);
+    const deepLeaf = await category(deepMid, `td-l-${tag}`);
+    // in a top-level category and a third-level one: the deeper path wins, whatever the link order
+    const both = await make({ name: `${tag} 1 both`, categoryIds: [shallow, deepLeaf] });
+    const top = await make({ name: `${tag} 2 top`, categoryIds: [shallow] });
+    const none = await make({ name: `${tag} 3 none` });
+    const page = await listStorefrontProducts({ locale: "fr", q: tag }, storefront);
+    expect(page.items.map((i) => [i.cnk, i.topCategory])).toEqual([
+      [both.cnk, { slug: `td-${tag}`, name: `Deep ${tag} FR` }],
+      [top.cnk, { slug: `ts-${tag}`, name: `Shallow ${tag} FR` }],
+      [none.cnk, null],
+    ]);
+    for (const item of page.items) {
+      const detail = await getStorefrontProduct({ cnk: item.cnk, locale: "fr" }, storefront);
+      expect(detail.topCategory, item.cnk).toEqual(item.topCategory);
+      expect(detail.breadcrumb[0] ?? null, item.cnk).toEqual(item.topCategory);
+    }
   });
 
   it("counts only visible, priced products (a product in two categories counts once per ancestor)", async () => {

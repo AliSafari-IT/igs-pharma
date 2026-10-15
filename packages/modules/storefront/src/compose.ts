@@ -39,6 +39,8 @@ export interface ListingParts {
   readonly loadStatuses: (
     ids: readonly string[],
   ) => Promise<ReadonlyMap<string, AvailabilityStatus>>;
+  /** The top-level category of these products (called for the page only); one absent has none. */
+  readonly loadTopCategories: (ids: readonly string[]) => Promise<ReadonlyMap<string, CategoryRef>>;
   readonly category: CategoryRef | null;
 }
 
@@ -101,7 +103,9 @@ export async function composeListing(
   const start = (input.page - 1) * input.pageSize;
   const slice = ordered.slice(start, start + input.pageSize);
 
-  const pageStatuses = statuses ?? (await parts.loadStatuses(slice.map((c) => c.id)));
+  const sliceIds = slice.map((c) => c.id);
+  const pageStatuses = statuses ?? (await parts.loadStatuses(sliceIds));
+  const topCategories = await parts.loadTopCategories(sliceIds);
   const items: StorefrontListItem[] = slice.map((candidate) => {
     const price = parts.prices.get(candidate.id);
     if (!price) throw new Error("storefront: a listed product has no price"); // filtered above
@@ -115,6 +119,7 @@ export async function composeListing(
       price,
       status: pageStatuses.get(candidate.id) ?? "out",
       isMedicine: candidate.isMedicine,
+      topCategory: topCategories.get(candidate.id) ?? null,
     };
   });
   return {
