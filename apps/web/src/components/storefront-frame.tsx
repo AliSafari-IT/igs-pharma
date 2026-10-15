@@ -79,23 +79,33 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
           >
             IGS-Pharma
           </a>
-          <nav aria-label={t("language")}>
-            <ul className="flex flex-wrap gap-x-3">
-              {locales.map((code) => (
-                <li key={code}>
-                  <Link
-                    href={`/${code}${path}`}
-                    lang={code}
-                    hrefLang={code}
-                    aria-current={code === locale ? "true" : undefined}
-                    className={`inline-flex min-h-[44px] items-center ${code === locale ? "font-semibold" : ""}`}
-                  >
-                    {LANGUAGE_NAMES[code]}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+            {/* the pharmacy behind the shop (#112): the footer's identity block, on every page */}
+            <Link
+              href="#footer-about"
+              data-testid="header-pharmacy-link"
+              className="inline-flex min-h-[44px] items-center"
+            >
+              {t("headerPharmacyLink")}
+            </Link>
+            <nav aria-label={t("language")}>
+              <ul className="flex flex-wrap gap-x-3">
+                {locales.map((code) => (
+                  <li key={code}>
+                    <Link
+                      href={`/${code}${path}`}
+                      lang={code}
+                      hrefLang={code}
+                      aria-current={code === locale ? "true" : undefined}
+                      className={`inline-flex min-h-[44px] items-center ${code === locale ? "font-semibold" : ""}`}
+                    >
+                      {LANGUAGE_NAMES[code]}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
         </Container>
         <Container className="pb-3">
           <SearchForm locale={locale} defaultValue={query} />

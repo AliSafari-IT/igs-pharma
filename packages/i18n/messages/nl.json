@@ -99,6 +99,8 @@
     "noProductsInStock": "Geen producten op voorraad in deze categorie.",
     "findPharmacyHeading": "Vind uw apotheek",
     "findPharmacyIntro": "De apotheek achter deze webshop:",
-    "pharmacyDetailsLink": "Alle gegevens van de apotheek"
+    "pharmacyDetailsLink": "Alle gegevens van de apotheek",
+    "headerPharmacyLink": "Onze apotheek",
+    "askPharmacistHeading": "Vraag het uw apotheker"
   }
 }
