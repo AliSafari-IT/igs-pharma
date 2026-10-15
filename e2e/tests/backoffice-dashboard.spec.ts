@@ -104,11 +104,14 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   ]) {
     await expect(nav.getByRole("link", { name: link, exact: true })).toBeVisible();
   }
-  for (const tile of ["products", "stock", "requests"]) {
+  for (const tile of ["products", "stock", "reservations", "requests"]) {
     await expect(page.getByTestId(`tile-${tile}`)).toBeVisible();
   }
   await expect(page.getByTestId("tile-products").getByText("Awaiting approval")).toBeVisible();
   await expect(page.getByTestId("tile-stock").getByText("Out of stock")).toBeVisible();
+  await expect(page.getByTestId("tile-reservations")).toContainText(
+    /Orders and checkout holds|No active reservations/,
+  );
   await expect(page.getByTestId("tile-requests")).toContainText(/Open|No open data requests/);
   await expectAxeClean(page);
 
@@ -182,6 +185,7 @@ test("a content editor sees only the catalogue tile and the catalogue and accoun
   await expect(page.getByTestId("staff-role")).toHaveText("Content editor");
   await expect(page.getByTestId("tile-products")).toBeVisible();
   await expect(page.getByTestId("tile-stock")).toHaveCount(0);
+  await expect(page.getByTestId("tile-reservations")).toHaveCount(0);
   await expect(page.getByTestId("tile-requests")).toHaveCount(0);
   const nav = page.getByRole("navigation", { name: "Back-office" });
   await expect(nav.getByRole("link", { name: "Products", exact: true })).toBeVisible();

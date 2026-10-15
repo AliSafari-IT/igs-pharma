@@ -1,11 +1,17 @@
 import type { ResolvedActor } from "@igs/auth";
 import { type ProductCounts, getProductCounts } from "@igs/module-catalog";
-import { listStock } from "@igs/module-inventory";
+import { getStockSummary } from "@igs/module-inventory";
 import { listDsr } from "@igs/module-privacy";
 import { logger } from "@igs/observability/logger";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 
-import { type StockAlerts, type TileResult, scanStockAlerts, settle } from "../lib/dashboard";
+import {
+  type ReservationCounts,
+  type StockAlerts,
+  type TileResult,
+  mapTile,
+  settle,
+} from "../lib/dashboard";
 
 export interface RequestCounts {
   readonly open: number;
@@ -16,6 +22,7 @@ export interface RequestCounts {
 export interface Dashboard {
   readonly products?: TileResult<ProductCounts>;
   readonly stock?: TileResult<StockAlerts>;
+  readonly reservations?: TileResult<ReservationCounts>;
   readonly requests?: TileResult<RequestCounts>;
 }
 
@@ -28,20 +35,18 @@ const report = (tile: string) => (error: unknown) =>
 /**
  * The dashboard's tiles (igs-pharma#115), each read through an exported query and each settled on
  * its own: one failing source gives that tile an error state and the others still render. A tile
- * is loaded only for a member who holds its permission (the queries check it again, D-005).
+ * is loaded only for a member who holds its permission (the queries check it again, D-005). The
+ * stock alerts and active reservations tiles share one read, the inventory's stock summary.
  */
 export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
   const can = (permission: Parameters<typeof hasPermission>[1]) =>
     hasPermission(actor.roles, permission);
-  const [products, stock, requests] = await Promise.all([
+  const [products, stockSummary, requests] = await Promise.all([
     can(PERMISSIONS.catalog.productsRead)
       ? settle(() => getProductCounts({}, actor), report("products"))
       : undefined,
     can(PERMISSIONS.inventory.stockRead)
-      ? settle(
-          () => scanStockAlerts((page) => listStock({ page, pageSize: 100 }, actor)),
-          report("stock"),
-        )
+      ? settle(() => getStockSummary({}, actor), report("stock"))
       : undefined,
     can(PERMISSIONS.privacy.dsrRead)
       ? settle(async (): Promise<RequestCounts> => {
@@ -55,7 +60,15 @@ export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
   ]);
   return {
     ...(products ? { products } : {}),
-    ...(stock ? { stock } : {}),
+    ...(stockSummary
+      ? {
+          stock: mapTile(stockSummary, ({ low, out }): StockAlerts => ({ low, out })),
+          reservations: mapTile(
+            stockSummary,
+            ({ activeReservations }): ReservationCounts => ({ active: activeReservations }),
+          ),
+        }
+      : {}),
     ...(requests ? { requests } : {}),
   };
 }

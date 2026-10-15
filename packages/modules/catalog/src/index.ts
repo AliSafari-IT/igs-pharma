@@ -57,6 +57,7 @@ export { CATALOG_AUDIT, type RegisterAuditAction, registerAuditActions } from ".
 export { canManageRegulated } from "./commands";
 export {
   type ProductRef,
+  allProductIds,
   productRefsByCnk,
   productRefsById,
   productRefsForActor,

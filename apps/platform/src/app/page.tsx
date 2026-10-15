@@ -1,8 +1,8 @@
+import { DEFAULT_LOW_STOCK } from "@igs/module-inventory";
 import { Container, Link } from "@igs/ui";
 
 import { DashboardTile, Stat } from "../components/dashboard-tile";
 import { PageHeader } from "../components/page-header";
-import { LOW_STOCK_THRESHOLD } from "../lib/dashboard";
 import { currentActor, requireStaffActor } from "../server/actor";
 import { loadDashboard } from "../server/dashboard";
 import { ensureKernelConfigured } from "../server/kernel";
@@ -25,8 +25,8 @@ export default async function DashboardPage() {
   }
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
-  const { products, stock, requests } = await loadDashboard(actor);
-  const none = !products && !stock && !requests;
+  const { products, stock, reservations, requests } = await loadDashboard(actor);
+  const none = !products && !stock && !reservations && !requests;
 
   return (
     <Container asChild size="lg">
@@ -68,22 +68,34 @@ export default async function DashboardPage() {
                 linkLabel="Open stock"
               >
                 {(alerts) => (
-                  <>
-                    <dl className="grid grid-cols-2 gap-3">
-                      <Stat
-                        label={`Low (1 to ${LOW_STOCK_THRESHOLD})`}
-                        value={alerts.low}
-                        tone="attention"
-                      />
-                      <Stat label="Out of stock" value={alerts.out} tone="attention" />
-                    </dl>
-                    {alerts.capped ? (
-                      <p className="text-sm text-[var(--color-text-subtle)]">
-                        Counted over the first {alerts.scanned} of {alerts.total} products.
-                      </p>
-                    ) : null}
-                  </>
+                  <dl className="grid grid-cols-2 gap-3">
+                    <Stat
+                      label={`Low (1 to ${DEFAULT_LOW_STOCK})`}
+                      value={alerts.low}
+                      tone="attention"
+                    />
+                    <Stat label="Out of stock" value={alerts.out} tone="attention" />
+                  </dl>
                 )}
+              </DashboardTile>
+            ) : null}
+            {reservations ? (
+              <DashboardTile
+                id="reservations"
+                title="Active reservations"
+                result={reservations}
+                href="/stock"
+                linkLabel="Open stock"
+              >
+                {(counts) =>
+                  counts.active === 0 ? (
+                    <p className="text-[var(--color-text-subtle)]">No active reservations.</p>
+                  ) : (
+                    <dl className="grid grid-cols-2 gap-3">
+                      <Stat label="Orders and checkout holds" value={counts.active} />
+                    </dl>
+                  )
+                }
               </DashboardTile>
             ) : null}
             {requests ? (

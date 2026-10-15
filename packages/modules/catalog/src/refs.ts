@@ -61,6 +61,15 @@ export async function productRefsById(
 }
 
 /**
+ * Every product id, in no particular order: the set `searchProductRefs` pages through without a `q`
+ * (inventory's stock summary counts over exactly the products its stock list shows, #115).
+ */
+export async function allProductIds(tx: Tx): Promise<readonly string[]> {
+  const rows = await tx.select({ id: products.id }).from(products);
+  return rows.map((row) => row.id);
+}
+
+/**
  * A page of products by CNK order. `q` matches a CNK prefix or a substring of the name in any
  * language (case-insensitive), as in `catalog.product.list`.
  */
