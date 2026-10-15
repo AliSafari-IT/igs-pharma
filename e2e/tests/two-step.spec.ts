@@ -111,7 +111,7 @@ test("adding a passkey turns 2-step login on, audited; the passkey alone signs i
 
   await page.getByRole("button", { name: "Add a passkey" }).click();
   await expect(page).toHaveURL(`${PLATFORM}/account`);
-  await expect(page.getByText("Smoke Owner")).toBeVisible();
+  await expect(page.locator("#main").getByText("Smoke Owner")).toBeVisible();
   await expect(page.locator("dd").filter({ hasText: /^1 passkey$/ })).toBeVisible();
 
   const audit = await sql<{ action: string; data: unknown }[]>`
@@ -126,7 +126,7 @@ test("adding a passkey turns 2-step login on, audited; the passkey alone signs i
   await expectAxeClean(page);
   await page.getByRole("button", { name: "Sign in with a passkey" }).click();
   await expect(page).toHaveURL(`${PLATFORM}/account`);
-  await expect(page.getByText("Smoke Owner")).toBeVisible();
+  await expect(page.locator("#main").getByText("Smoke Owner")).toBeVisible();
 
   const [verified] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM identity.sessions

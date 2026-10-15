@@ -65,7 +65,7 @@ test("signed in: profile and DB-resolved roles, axe clean", async ({ page, conte
   await signIn(context);
   await page.goto(ACCOUNT, { waitUntil: "networkidle" });
 
-  await expect(page.getByText("Smoke Staff")).toBeVisible();
+  await expect(page.locator("#main").getByText("Smoke Staff")).toBeVisible();
   await expect(page.locator("dd").filter({ hasText: /^staff$/ })).toBeVisible();
   await expect(page.locator("dd").filter({ hasText: /^active$/ })).toBeVisible();
   const rows = page.locator("tbody tr");
@@ -90,5 +90,5 @@ test("a suspended user is signed out on the next request", async ({ page, contex
   await sql`UPDATE identity.users SET status = 'suspended' WHERE id = ${userId}`;
   await page.goto(ACCOUNT, { waitUntil: "networkidle" });
   await expect(page.getByText("You are not signed in")).toBeVisible();
-  await expect(page.getByText("Smoke Staff")).toHaveCount(0);
+  await expect(page.locator("#main").getByText("Smoke Staff")).toHaveCount(0);
 });

@@ -41,6 +41,8 @@ export {
   getProduct,
   listBrands,
   listProducts,
+  getProductCounts,
+  type ProductCounts,
 } from "./queries";
 export {
   type CategoryNode,

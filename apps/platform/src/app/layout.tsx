@@ -1,8 +1,11 @@
 import { fontDisplay, fontSans } from "@igs/ui/fonts";
 import type { ReactNode } from "react";
 
+import { BackOfficeShell } from "../components/back-office-shell";
 import { IdleGuard } from "../components/idle-guard";
-import { currentActor } from "../server/actor";
+import { visibleNav } from "../lib/nav";
+import { currentActor, needsTwoStep } from "../server/actor";
+import { ensureKernelConfigured } from "../server/kernel";
 
 // Tailwind + @igs/ui tokens + global base styles (one entry, T-015)
 import "./globals.css";
@@ -20,10 +23,21 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // #95: a signed-in staff tab clears itself after 30 minutes without input; the server refuses
   // the next request either way
   const actor = await currentActor();
+  // the back-office frame (#115) for a staff member who has finished 2-step setup; the sign-in,
+  // setup and enrolment pages stay bare
+  let framed: ReactNode = children;
+  if (actor?.kind === "staff" && !needsTwoStep(actor)) {
+    await ensureKernelConfigured(); // loads the RBAC catalogue the menu is filtered by
+    framed = (
+      <BackOfficeShell name={actor.profile.name} groups={visibleNav(actor.roles)}>
+        {children}
+      </BackOfficeShell>
+    );
+  }
   return (
     <html lang="en" className={`${fontSans.variable} ${fontDisplay.variable}`}>
       <body className="bg-[var(--color-surface)] text-[var(--color-text)] font-sans antialiased">
-        {actor?.kind === "staff" ? <IdleGuard>{children}</IdleGuard> : children}
+        {actor?.kind === "staff" ? <IdleGuard>{framed}</IdleGuard> : children}
       </body>
     </html>
   );

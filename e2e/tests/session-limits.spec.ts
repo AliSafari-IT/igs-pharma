@@ -169,7 +169,7 @@ test("an idle tab clears its content and offers to sign in again", async ({ page
   await page.clock.install();
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Staff", level: 1 })).toBeVisible();
-  await expect(page.getByText(`Tab Owner ${tag}`)).toBeVisible();
+  await expect(page.locator("#main").getByText(`Tab Owner ${tag}`)).toBeVisible();
 
   await page.clock.fastForward("31:00");
   const prompt = page.getByTestId("idle-prompt");
@@ -177,7 +177,7 @@ test("an idle tab clears its content and offers to sign in again", async ({ page
   await expect(prompt.getByText("No activity for 30 minutes")).toBeVisible();
   // no staff data stays on the screen (Next.js's own inline data scripts are not the screen)
   await expect(page.getByRole("heading", { name: "Staff", level: 1 })).toHaveCount(0);
-  await expect(page.getByText(`Tab Owner ${tag}`)).toHaveCount(0);
+  await expect(page.locator("#main").getByText(`Tab Owner ${tag}`)).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(`Tab Owner ${tag}`);
   await expectAxeClean(page);
 
@@ -203,7 +203,7 @@ test("work in another tab keeps a tab from clearing itself, and a tab does not s
   await busy.keyboard.press("Shift");
   await context.clock.fastForward("10:00");
   await expect(quiet.getByTestId("idle-prompt")).toHaveCount(0);
-  await expect(quiet.getByText(`Two Tabs ${tag}`)).toBeVisible();
+  await expect(quiet.locator("#main").getByText(`Two Tabs ${tag}`)).toBeVisible();
 
   // nobody types for 30 more minutes: both tabs clear, and no tab signed the session out
   await context.clock.fastForward("21:00");
@@ -225,7 +225,7 @@ test("a tab that was asleep clears the moment it wakes, not 30 minutes later (#1
   await signIn(context, token);
   await page.clock.install();
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
-  await expect(page.getByText(`Sleeper ${tag}`)).toBeVisible();
+  await expect(page.locator("#main").getByText(`Sleeper ${tag}`)).toBeVisible();
 
   // the laptop sleeps for an hour: the clock jumps, no timer ran
   await page.clock.setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
@@ -243,7 +243,7 @@ test("a hidden tab that becomes visible again clears at once: visibilitychange (
   await signIn(context, token);
   await page.clock.install();
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
-  await expect(page.getByText(`Hidden ${tag}`)).toBeVisible();
+  await expect(page.locator("#main").getByText(`Hidden ${tag}`)).toBeVisible();
 
   await page.clock.setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
