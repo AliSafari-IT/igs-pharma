@@ -1,6 +1,6 @@
 import { isDomainError } from "@igs/kernel";
 import { type StockPage, listStock } from "@igs/module-inventory";
-import { Alert, Badge, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
+import { Alert, Badge, Button, Container, EmptyState, Input, Label, Link, Stack } from "@igs/ui";
 
 import { PageHeader } from "../../components/page-header";
 import { StockImport } from "../../components/stock-import";
@@ -88,73 +88,76 @@ export default async function StockListPage({ searchParams }: Props) {
               </search>
 
               {result.items.length === 0 ? (
-                <p className="text-[var(--color-text-subtle)]">
-                  {q ? `No products match “${q}”.` : "No products in the catalogue yet."}
-                </p>
+                <EmptyState
+                  title={q ? `No products match “${q}”` : "No products in the catalogue yet"}
+                  data-testid="stock-empty"
+                />
               ) : (
-                <table className="w-full border-collapse text-left">
-                  <caption className="sr-only">
-                    Stock, page {result.page} of {pages}
-                  </caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        CNK
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Name (Dutch)
-                      </th>
-                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                        On hand
-                      </th>
-                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                        Reserved
-                      </th>
-                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                        Available
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        Last movement
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.items.map((item) => (
-                      <tr key={item.productId} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">
-                          <Link href={`/stock/${item.productId}`}>
-                            <code>{item.cnk}</code>
-                          </Link>
-                        </td>
-                        <td className="py-2 pr-4">
-                          {item.nameNl ?? (
-                            <span className="text-[var(--color-text-subtle)]">
-                              No Dutch name yet
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 pr-4 text-right">{item.onHand}</td>
-                        <td className="py-2 pr-4 text-right">{item.reserved}</td>
-                        <td className="py-2 pr-4 text-right">
-                          {item.available}
-                          {item.short > 0 ? (
-                            <>
-                              {" "}
-                              <Badge variant="amber">Short by {item.short}</Badge>
-                            </>
-                          ) : null}
-                        </td>
-                        <td className="py-2">
-                          {item.lastMovementAt ? (
-                            formatMoment(item.lastMovementAt)
-                          ) : (
-                            <span className="text-[var(--color-text-subtle)]">Never</span>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <caption className="sr-only">
+                      Stock, page {result.page} of {pages}
+                    </caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          CNK
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Name (Dutch)
+                        </th>
+                        <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                          On hand
+                        </th>
+                        <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                          Reserved
+                        </th>
+                        <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                          Available
+                        </th>
+                        <th scope="col" className="py-2 font-semibold">
+                          Last movement
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {result.items.map((item) => (
+                        <tr key={item.productId} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">
+                            <Link href={`/stock/${item.productId}`}>
+                              <code>{item.cnk}</code>
+                            </Link>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {item.nameNl ?? (
+                              <span className="text-[var(--color-text-subtle)]">
+                                No Dutch name yet
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 text-right tabular-nums">{item.onHand}</td>
+                          <td className="py-2 pr-4 text-right tabular-nums">{item.reserved}</td>
+                          <td className="py-2 pr-4 text-right tabular-nums">
+                            {item.available}
+                            {item.short > 0 ? (
+                              <>
+                                {" "}
+                                <Badge variant="amber">Short by {item.short}</Badge>
+                              </>
+                            ) : null}
+                          </td>
+                          <td className="py-2">
+                            {item.lastMovementAt ? (
+                              formatMoment(item.lastMovementAt)
+                            ) : (
+                              <span className="text-[var(--color-text-subtle)]">Never</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               <nav aria-label="Pages" className="flex items-center gap-4">

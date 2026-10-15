@@ -117,6 +117,9 @@ test("owner: list, create with Dutch and French, then make active", async ({ pag
   await expect(rows.first()).toContainText(nameNl);
   await expect(rows.first()).toContainText("Active");
 
+  await page.goto(`${PLATFORM}/products?q=zz-no-match`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("products-empty")).toHaveText("No products match “zz-no-match”");
+
   const [audit] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM audit.events
     WHERE actor_id = ${userId} AND action IN ('catalog.product.created', 'catalog.product.status_changed')`;

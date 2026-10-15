@@ -1,7 +1,7 @@
 import { isDomainError } from "@igs/kernel";
 import { type ProductPage, listProducts } from "@igs/module-catalog";
 import { currentPrices } from "@igs/module-pricing";
-import { Alert, Badge, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
+import { Alert, Badge, Button, Container, EmptyState, Input, Label, Link, Stack } from "@igs/ui";
 
 import { STATUS_BADGE, STATUS_LABELS, catalogErrorMessage } from "../../components/catalog-labels";
 import { PageHeader } from "../../components/page-header";
@@ -93,65 +93,71 @@ export default async function ProductsPage({ searchParams }: Props) {
               </search>
 
               {result.items.length === 0 ? (
-                <p className="text-[var(--color-text-subtle)]">
-                  {q ? `No products match “${q}”.` : "No products yet."}
-                </p>
+                <EmptyState
+                  title={q ? `No products match “${q}”` : "No products yet"}
+                  data-testid="products-empty"
+                />
               ) : (
-                <table className="w-full border-collapse text-left">
-                  <caption className="sr-only">
-                    Products, page {result.page} of {pages}
-                  </caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        CNK
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Name (Dutch)
-                      </th>
-                      {priceOf ? (
-                        <th scope="col" className="py-2 pr-4 text-right font-semibold">
-                          Price
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left">
+                    <caption className="sr-only">
+                      Products, page {result.page} of {pages}
+                    </caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          CNK
                         </th>
-                      ) : null}
-                      <th scope="col" className="py-2 font-semibold">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.items.map((item) => (
-                      <tr key={item.id} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">
-                          <Link href={`/products/${item.id}`}>
-                            <code>{item.cnk}</code>
-                          </Link>
-                        </td>
-                        <td className="py-2 pr-4">
-                          {item.nameNl ?? (
-                            <span className="text-[var(--color-text-subtle)]">
-                              No Dutch name yet
-                            </span>
-                          )}
-                        </td>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Name (Dutch)
+                        </th>
                         {priceOf ? (
-                          <td className="py-2 pr-4 text-right tabular-nums">
-                            {priceOf.has(item.id) ? (
-                              formatEuros(priceOf.get(item.id) ?? 0)
-                            ) : (
-                              <span className="sr-only">No price</span>
+                          <th
+                            scope="col"
+                            className="py-2 pr-4 text-right font-semibold tabular-nums"
+                          >
+                            Price
+                          </th>
+                        ) : null}
+                        <th scope="col" className="py-2 font-semibold">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.items.map((item) => (
+                        <tr key={item.id} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">
+                            <Link href={`/products/${item.id}`}>
+                              <code>{item.cnk}</code>
+                            </Link>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {item.nameNl ?? (
+                              <span className="text-[var(--color-text-subtle)]">
+                                No Dutch name yet
+                              </span>
                             )}
                           </td>
-                        ) : null}
-                        <td className="py-2">
-                          <Badge variant={STATUS_BADGE[item.status]}>
-                            {STATUS_LABELS[item.status]}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          {priceOf ? (
+                            <td className="py-2 pr-4 text-right tabular-nums">
+                              {priceOf.has(item.id) ? (
+                                formatEuros(priceOf.get(item.id) ?? 0)
+                              ) : (
+                                <span className="sr-only">No price</span>
+                              )}
+                            </td>
+                          ) : null}
+                          <td className="py-2">
+                            <Badge variant={STATUS_BADGE[item.status]}>
+                              {STATUS_LABELS[item.status]}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               <nav aria-label="Pages" className="flex items-center gap-4">
