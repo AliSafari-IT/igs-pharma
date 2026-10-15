@@ -99,6 +99,8 @@
     "noProductsInStock": "No products in stock in this category.",
     "findPharmacyHeading": "Find your pharmacy",
     "findPharmacyIntro": "The pharmacy behind this shop:",
-    "pharmacyDetailsLink": "All pharmacy details"
+    "pharmacyDetailsLink": "All pharmacy details",
+    "headerPharmacyLink": "Our pharmacy",
+    "askPharmacistHeading": "Ask your pharmacist"
   }
 }

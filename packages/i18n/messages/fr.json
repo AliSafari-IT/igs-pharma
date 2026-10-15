@@ -99,6 +99,8 @@
     "noProductsInStock": "Aucun produit en stock dans cette catégorie.",
     "findPharmacyHeading": "Trouver votre pharmacie",
     "findPharmacyIntro": "La pharmacie derrière cette boutique en ligne :",
-    "pharmacyDetailsLink": "Toutes les coordonnées de la pharmacie"
+    "pharmacyDetailsLink": "Toutes les coordonnées de la pharmacie",
+    "headerPharmacyLink": "Notre pharmacie",
+    "askPharmacistHeading": "Demandez à votre pharmacien"
   }
 }

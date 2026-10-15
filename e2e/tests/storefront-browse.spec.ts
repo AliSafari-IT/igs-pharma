@@ -94,6 +94,9 @@ test("home: the shell, the category grid, the products, the identity footer", as
     "href",
     "#footer-about",
   );
+  // the header links to the same pharmacy details on every page (#112)
+  await expect(page.getByTestId("header-pharmacy-link")).toHaveText("Onze apotheek");
+  await expect(page.getByTestId("header-pharmacy-link")).toHaveAttribute("href", "#footer-about");
   const footer = page.getByTestId("site-footer");
   // the identity comes from one config with stand-ins, and says so
   await expect(footer.getByTestId("identity-placeholder")).toHaveText(/nog te vervangen/);

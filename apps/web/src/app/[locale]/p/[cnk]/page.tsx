@@ -86,13 +86,21 @@ export default async function ProductPage({ params }: Props) {
                 <StockBadge locale={locale} status={product.status} />
               </div>
               {product.isMedicine ? (
-                <p
+                // "ask your pharmacist" (#112): amber as background and border only, never as text
+                <div
                   role="note"
+                  aria-labelledby="pharmacist-heading"
                   data-testid="medicine-notice"
-                  className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+                  className="rounded-[var(--radius-md)] border-l-4 border-[var(--color-accent)] bg-[var(--color-accent-subtle)] p-4"
                 >
-                  {t("medicineNotice")}
-                </p>
+                  <h2
+                    id="pharmacist-heading"
+                    className="font-display text-lg font-semibold text-[var(--color-text)]"
+                  >
+                    {t("askPharmacistHeading")}
+                  </h2>
+                  <p className="mt-1 text-[var(--color-text)]">{t("medicineNotice")}</p>
+                </div>
               ) : null}
               <div className="flex flex-col gap-1">
                 <div>

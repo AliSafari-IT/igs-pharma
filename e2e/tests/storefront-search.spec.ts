@@ -202,7 +202,12 @@ test("the product page shows each availability state, the breadcrumb and the med
   await expectAxeClean(page);
 
   await page.goto(`${WEB}/nl/p/${cnk(4)}`, { waitUntil: "networkidle" });
-  await expect(page.getByTestId("medicine-notice")).toContainText("bijsluiter");
+  const notice = page.getByTestId("medicine-notice");
+  await expect(notice).toContainText("bijsluiter");
+  // the amber "ask your pharmacist" panel (#112) has its own heading
+  await expect(
+    notice.getByRole("heading", { level: 2, name: "Vraag het uw apotheker" }),
+  ).toBeVisible();
   await expectAxeClean(page);
 });
 

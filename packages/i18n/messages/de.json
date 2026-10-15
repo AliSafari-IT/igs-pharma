@@ -99,6 +99,8 @@
     "noProductsInStock": "Keine vorrätigen Produkte in dieser Kategorie.",
     "findPharmacyHeading": "Ihre Apotheke finden",
     "findPharmacyIntro": "Die Apotheke hinter diesem Onlineshop:",
-    "pharmacyDetailsLink": "Alle Angaben zur Apotheke"
+    "pharmacyDetailsLink": "Alle Angaben zur Apotheke",
+    "headerPharmacyLink": "Unsere Apotheke",
+    "askPharmacistHeading": "Fragen Sie Ihren Apotheker"
   }
 }
