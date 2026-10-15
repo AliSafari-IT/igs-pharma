@@ -14,6 +14,7 @@ import {
   defineEvent,
   grantPgBossRuntime,
   purgeExpired,
+  query,
   registerEvents,
 } from "@igs/kernel";
 import { configureKernelForTests } from "@igs/kernel/testing";
@@ -27,11 +28,12 @@ import {
 import {
   createCategory,
   createProductRegulated,
-  getStorefrontProduct,
-  listStorefrontProducts,
+  getStorefrontProductDetail,
   registerAuditActions as registerCatalogAudit,
+  searchStorefrontCandidates,
   setProductCategories,
   setProductStatusRegulated,
+  storefrontCategoryIndex,
 } from "@igs/module-catalog";
 import {
   ensureRbacCatalogue,
@@ -45,11 +47,12 @@ import {
   registerAuditActions as registerInventoryAudit,
   registerInventoryJobs,
   reserveStock,
+  storefrontAvailability,
 } from "@igs/module-inventory";
 import {
   registerAuditActions as registerPricingAudit,
   setPrice,
-  storefrontPrices,
+  storefrontPriceCards,
 } from "@igs/module-pricing";
 import {
   PRIVACY_JOBS,
@@ -76,6 +79,31 @@ const ping = command({
   handler: async ({ input, ctx }) => {
     await ctx.outbox.publish(Pinged, { n: input.n });
     return { n: input.n };
+  },
+});
+
+/**
+ * The table reads of the storefront read model (`@igs/module-storefront`, igs-pharma#103), in one
+ * query under the storefront's permission, the way the read model composes them. The worker does not
+ * depend on the read model; what this test checks is that the runtime role's grants cover those reads.
+ */
+const storefrontReads = query({
+  name: "runtime.roles.storefront_reads",
+  input: z.object({ cnk: z.string(), productId: z.uuid() }),
+  permission: "catalog.storefront.read",
+  handler: async ({ input, ctx }) => {
+    const set = await searchStorefrontCandidates(ctx.tx, { locale: "nl" });
+    const detail = await getStorefrontProductDetail(ctx.tx, input.cnk, "nl");
+    const index = await storefrontCategoryIndex(ctx.tx, "nl");
+    const prices = await storefrontPriceCards(ctx.tx, [input.productId], ctx.now);
+    const statuses = await storefrontAvailability(ctx.tx, [input.productId], ctx.now);
+    return {
+      candidates: set.candidates.length,
+      name: detail?.name ?? null,
+      categories: index.categories.length,
+      priced: prices.size,
+      statuses: statuses.size,
+    };
   },
 });
 
@@ -215,11 +243,11 @@ describe("the application as igs_app", () => {
     );
 
     // the storefront reads (and prices) as the same runtime role
-    expect((await listStorefrontProducts({ locale: "nl" }, storefront)).total).toBeGreaterThan(0);
-    expect((await getStorefrontProduct({ cnk: "9900123", locale: "nl" }, storefront)).name).toBe(
-      "Rollen product",
-    );
-    expect(await storefrontPrices({ productIds: [productId] }, storefront)).toHaveLength(1);
+    const reads = await storefrontReads({ cnk: "9900123", productId }, storefront);
+    expect(reads.candidates).toBeGreaterThan(0);
+    expect(reads.name).toBe("Rollen product");
+    expect(reads.categories).toBeGreaterThan(0);
+    expect([reads.priced, reads.statuses]).toEqual([1, 1]);
 
     // an idempotent command publishing an outbox event: idempotency_keys INSERT/UPDATE, outbox INSERT
     registerEvents(Pinged);

@@ -63,15 +63,6 @@ export {
   searchProductRefs,
   storefrontProductRefsById,
 } from "./refs";
-export {
-  type StorefrontCategory,
-  type StorefrontProduct,
-  type StorefrontProductItem,
-  type StorefrontProductPage,
-  getStorefrontProduct,
-  listStorefrontCategories,
-  listStorefrontProducts,
-} from "./storefront";
 export { assertSellable, storefrontVisible, storefrontVisibleIds } from "./visibility";
 export {
   CategoryNotFound,
