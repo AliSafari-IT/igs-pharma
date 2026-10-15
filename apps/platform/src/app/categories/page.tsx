@@ -5,6 +5,7 @@ import { Alert, Button, Container, Link, Stack } from "@igs/ui";
 import { catalogErrorMessage } from "../../components/catalog-labels";
 import { CategoryForm } from "../../components/category-form";
 import { parentOptions } from "../../components/category-options";
+import { PageHeader } from "../../components/page-header";
 import { requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
 import { moveCategoryAction } from "./actions";
@@ -104,10 +105,11 @@ export default async function CategoriesPage({ searchParams }: Props) {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <Link href="/">Back to the dashboard</Link>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-            Categories
-          </h1>
+          <PageHeader
+            title="Categories"
+            description="How products are grouped in the storefront."
+            back={{ href: "/", label: "Back to the dashboard" }}
+          />
 
           {error ? (
             <Alert variant="error" title="You can't see the catalogue">

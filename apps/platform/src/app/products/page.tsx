@@ -4,6 +4,7 @@ import { currentPrices } from "@igs/module-pricing";
 import { Alert, Badge, Button, Container, Input, Label, Link, Stack } from "@igs/ui";
 
 import { STATUS_BADGE, STATUS_LABELS, catalogErrorMessage } from "../../components/catalog-labels";
+import { PageHeader } from "../../components/page-header";
 import { formatEuros } from "../../components/price-labels";
 import { requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
@@ -53,16 +54,17 @@ export default async function ProductsPage({ searchParams }: Props) {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-              Products
-            </h1>
-            {result ? (
-              <Button asChild>
-                <a href="/products/new">New product</a>
-              </Button>
-            ) : null}
-          </div>
+          <PageHeader
+            title="Products"
+            description="The catalogue: every product and its status."
+            action={
+              result ? (
+                <Button asChild>
+                  <a href="/products/new">New product</a>
+                </Button>
+              ) : null
+            }
+          />
 
           {error ? (
             <Alert variant="error" title="You can't see the catalogue">
