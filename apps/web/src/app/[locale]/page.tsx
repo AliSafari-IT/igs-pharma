@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { CategoryGrid } from "../../components/category-grid";
+import { PharmacyPanel } from "../../components/pharmacy-panel";
 import { ProductGrid } from "../../components/product-grid";
 import { StorefrontFrame } from "../../components/storefront-frame";
 import { topLevel } from "../../lib/category-path";
@@ -16,9 +17,9 @@ import { STOREFRONT_ACTOR, categoryTree, localeOf } from "../../server/storefron
 const FEATURED = 6;
 
 /**
- * The storefront home (igs-pharma#62, #104): what the shop is, the categories as a grid and the
- * latest products. The copy is factual: no claims about quality or health (medicine advertising
- * rules).
+ * The storefront home (igs-pharma#62, #104, #112): what the shop is (a calm hero band), where the
+ * pharmacy is, the categories as a grid and the latest products. The copy is factual: no claims
+ * about quality or health (medicine advertising rules).
  */
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = localeOf((await params).locale);
@@ -40,8 +41,18 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <StorefrontFrame locale={locale} path="">
-      <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">IGS-Pharma</h1>
-      <p className="mt-2 max-w-prose text-lg text-[var(--color-text-subtle)]">{t("tagline")}</p>
+      <div className="grid gap-4 lg:grid-cols-[3fr_2fr] lg:gap-6">
+        <div
+          data-testid="home-hero"
+          className="flex flex-col justify-center rounded-[var(--radius-lg)] bg-[var(--color-primary-subtle)] p-6 sm:p-8"
+        >
+          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
+            IGS-Pharma
+          </h1>
+          <p className="mt-2 max-w-prose text-lg text-[var(--color-text-subtle)]">{t("tagline")}</p>
+        </div>
+        <PharmacyPanel locale={locale} />
+      </div>
       {!listing ? (
         <div className="mt-6">
           <Alert variant="error" title={t("unavailable")} />

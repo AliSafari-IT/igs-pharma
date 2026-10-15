@@ -96,6 +96,9 @@
     "inStockOnly": "Alleen op voorraad",
     "applyFilters": "Toepassen",
     "clearFilters": "Filters wissen",
-    "noProductsInStock": "Geen producten op voorraad in deze categorie."
+    "noProductsInStock": "Geen producten op voorraad in deze categorie.",
+    "findPharmacyHeading": "Vind uw apotheek",
+    "findPharmacyIntro": "De apotheek achter deze webshop:",
+    "pharmacyDetailsLink": "Alle gegevens van de apotheek"
   }
 }

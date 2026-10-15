@@ -96,6 +96,9 @@
     "inStockOnly": "In stock only",
     "applyFilters": "Apply",
     "clearFilters": "Clear filters",
-    "noProductsInStock": "No products in stock in this category."
+    "noProductsInStock": "No products in stock in this category.",
+    "findPharmacyHeading": "Find your pharmacy",
+    "findPharmacyIntro": "The pharmacy behind this shop:",
+    "pharmacyDetailsLink": "All pharmacy details"
   }
 }

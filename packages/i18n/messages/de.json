@@ -96,6 +96,9 @@
     "inStockOnly": "Nur vorrätige",
     "applyFilters": "Anwenden",
     "clearFilters": "Filter zurücksetzen",
-    "noProductsInStock": "Keine vorrätigen Produkte in dieser Kategorie."
+    "noProductsInStock": "Keine vorrätigen Produkte in dieser Kategorie.",
+    "findPharmacyHeading": "Ihre Apotheke finden",
+    "findPharmacyIntro": "Die Apotheke hinter diesem Onlineshop:",
+    "pharmacyDetailsLink": "Alle Angaben zur Apotheke"
   }
 }

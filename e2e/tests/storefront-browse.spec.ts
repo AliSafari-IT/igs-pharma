@@ -85,6 +85,15 @@ test("home: the shell, the category grid, the products, the identity footer", as
     page.getByRole("heading", { level: 2, name: "Producten per categorie" }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: new RegExp(parent.nl) }).first()).toBeVisible();
+  // "Find your pharmacy" (#112): the same identity config as the footer, stand-ins marked as such
+  const panel = page.getByTestId("pharmacy-panel");
+  await expect(panel.getByRole("heading", { level: 2, name: "Vind uw apotheek" })).toBeVisible();
+  await expect(panel).toContainText("[opening hours]");
+  await expect(panel.getByTestId("pharmacy-panel-placeholder")).toHaveText(/nog te vervangen/);
+  await expect(panel.getByRole("link", { name: "Alle gegevens van de apotheek" })).toHaveAttribute(
+    "href",
+    "#footer-about",
+  );
   const footer = page.getByTestId("site-footer");
   // the identity comes from one config with stand-ins, and says so
   await expect(footer.getByTestId("identity-placeholder")).toHaveText(/nog te vervangen/);
