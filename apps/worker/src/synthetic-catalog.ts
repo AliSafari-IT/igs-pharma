@@ -1,8 +1,9 @@
 /**
- * The synthetic catalogue (igs-pharma#50): about twenty FAKE products (CNKs 0000001–0000020, names
- * starting with "Demo", "Synthetic test product, not for sale") and two fake brands, plus demo
- * stock for them (igs-pharma#53) and demo categories they are in (igs-pharma#54). Nothing here describes a real product. `seed-catalog.ts` is the
- * CLI around it.
+ * The synthetic catalogue (igs-pharma#50): 35 FAKE products (CNKs 0000001–0000035, names starting
+ * with "Demo", "Synthetic test product, not for sale") and two fake brands, plus demo stock for
+ * them (igs-pharma#53) and demo categories they are in (igs-pharma#54). Products 21–35 fill the
+ * storefront for a demo (igs-pharma#112). Nothing here describes a real product. `seed-catalog.ts`
+ * is the CLI around it.
  */
 import { type Actor, isDomainError } from "@igs/kernel";
 import {
@@ -257,6 +258,159 @@ export const PRODUCTS: readonly SeedProduct[] = [
     names: { nl: "Demo Wattenstaafjes", fr: "Démo Cotons-tiges" },
     categories: ["hygiene", "baby"],
     type: "general",
+    legal: "general_sale",
+    vat: "BE_21",
+    status: "active",
+  },
+  // demo fill-up (igs-pharma#112): appended only, so the indices above (and the CNKs on staging)
+  // keep their products; every top-level category ends up with at least four active products
+  {
+    names: {
+      nl: "Demo Bruistabletten",
+      fr: "Démo Comprimés effervescents",
+      en: "Demo Effervescent Tablets",
+    },
+    categories: ["pain-fever"],
+    type: "otc_medicine",
+    legal: "otc",
+    vat: "BE_6",
+    brand: "demo-pharma",
+    status: "active",
+    ageMin: 12,
+  },
+  {
+    names: { nl: "Demo Warmtepleister", fr: "Démo Patch chauffant", en: "Demo Heat Patch" },
+    categories: ["pain-fever"],
+    type: "medical_device",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: {
+      nl: "Demo Allergie Neusspray",
+      fr: "Démo Spray nasal allergie",
+      en: "Demo Allergy Nasal Spray",
+    },
+    categories: ["allergy"],
+    type: "otc_medicine",
+    legal: "otc",
+    vat: "BE_6",
+    brand: "demo-pharma",
+    status: "active",
+    ageMin: 12,
+  },
+  {
+    names: { nl: "Demo Neusspoeling", fr: "Démo Rinçage nasal", en: "Demo Nasal Rinse" },
+    categories: ["allergy", "cold-flu"],
+    type: "medical_device",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Zakdoekjes", fr: "Démo Mouchoirs", en: "Demo Tissues" },
+    categories: ["allergy", "cold-flu"],
+    type: "general",
+    legal: "general_sale",
+    vat: "BE_21",
+    status: "active",
+  },
+  {
+    names: {
+      nl: "Demo Ontsmettingsspray",
+      fr: "Démo Spray désinfectant",
+      en: "Demo Disinfectant Spray",
+    },
+    categories: ["first-aid"],
+    type: "biocide",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-pharma",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Zwachtel", fr: "Démo Bande de gaze", en: "Demo Gauze Bandage" },
+    categories: ["first-aid"],
+    type: "medical_device",
+    legal: "general_sale",
+    vat: "BE_6",
+    brand: "demo-pharma",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Tandpasta", fr: "Démo Dentifrice", en: "Demo Toothpaste" },
+    categories: ["hygiene"],
+    type: "cosmetic",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Mondwater", fr: "Démo Bain de bouche", en: "Demo Mouthwash" },
+    categories: ["hygiene"],
+    type: "cosmetic",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Bodylotion", fr: "Démo Lait corporel", en: "Demo Body Lotion" },
+    categories: ["skin-care"],
+    type: "cosmetic",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Aftersun", fr: "Démo Après-soleil", en: "Demo After Sun" },
+    categories: ["sun-care"],
+    type: "cosmetic",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Babyshampoo", fr: "Démo Shampooing bébé", en: "Demo Baby Shampoo" },
+    categories: ["baby"],
+    type: "cosmetic",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Billencrème", fr: "Démo Crème pour le change", en: "Demo Nappy Cream" },
+    categories: ["baby", "skin-care"],
+    type: "cosmetic",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Multivitamine", fr: "Démo Multivitamines", en: "Demo Multivitamin" },
+    categories: ["vitamins"],
+    type: "food_supplement",
+    legal: "general_sale",
+    vat: "BE_6",
+    brand: "demo-care",
+    status: "active",
+  },
+  {
+    names: {
+      nl: "Demo Lippenbalsem SPF 15",
+      fr: "Démo Baume à lèvres SPF 15",
+      en: "Demo Lip Balm SPF 15",
+    },
+    categories: ["sun-care"],
+    type: "cosmetic",
     legal: "general_sale",
     vat: "BE_21",
     status: "active",
