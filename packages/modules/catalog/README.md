@@ -9,7 +9,8 @@ A product is **storefront-visible** only if `status = 'active'` AND `legal_statu
 `product_type <> 'rx_medicine'` (`pharmacy_only`, `otc` and `general_sale` stay visible).
 
 - `storefrontVisible()` (`src/visibility.ts`) is the one SQL predicate. Every storefront-actor read
-  applies it: `catalog.storefront.*` queries, and the refs used by `pricing.price.*` and
+  applies it: the storefront helpers in `src/listing.ts` that `@igs/module-storefront` composes
+  (the only storefront read path), and the refs used by `pricing.price.*` and
   `inventory.availability.get` (`productRefsForActor`: staff holding `catalog.products.read` see
   every product, anyone else only visible ones).
 - A hidden product behaves exactly like one that does not exist (same `*_not_found` code, same

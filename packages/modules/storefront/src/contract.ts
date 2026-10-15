@@ -118,7 +118,7 @@ export const productSchema = itemSchema.extend({
 });
 export type StorefrontProductView = z.infer<typeof productSchema>;
 
-/** `storefront.categories` input and output (the shape of today's `catalog.storefront.categories`). */
+/** `storefront.categories` input and output (the shape the removed `catalog.storefront.categories` had). */
 export const categoriesInputSchema = z.object({ locale: localeSchema });
 export const categoryNodeSchema = z.object({
   id: z.uuid(),
