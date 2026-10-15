@@ -8,14 +8,20 @@ import { type ChangeAccessState, changeAccess } from "../app/staff/actions";
 import { authErrorMessage } from "./auth-errors";
 import { identityErrorMessage } from "./identity-labels";
 
+/** A role as the picker shows it: the key is what the form sends, the label what staff read. */
+export interface RoleOption {
+  readonly key: string;
+  readonly label: string;
+}
+
 interface Props {
   readonly userId: string;
   readonly name: string;
   readonly status: "active" | "suspended";
   /** Roles this person holds. */
-  readonly roles: readonly string[];
+  readonly roles: readonly RoleOption[];
   /** Roles that can still be granted to them. */
-  readonly grantable: readonly string[];
+  readonly grantable: readonly RoleOption[];
   /** The account holds a pharmacist role (D-035: the pharmacist actions apply). */
   readonly pharmacist: boolean;
 }
@@ -101,13 +107,13 @@ export function StaffAccessDialog({ userId, name, status, roles, grantable, phar
                 >
                   <option value="">Choose a role</option>
                   {grantable.map((role) => (
-                    <option key={`g-${role}`} value={role}>
-                      Grant: {role}
+                    <option key={`g-${role.key}`} value={role.key}>
+                      Grant: {role.label}
                     </option>
                   ))}
                   {roles.map((role) => (
-                    <option key={`r-${role}`} value={role}>
-                      Currently held: {role}
+                    <option key={`r-${role.key}`} value={role.key}>
+                      Currently held: {role.label}
                     </option>
                   ))}
                 </select>

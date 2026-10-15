@@ -3,6 +3,7 @@ import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 import { redirect } from "next/navigation";
 
 import { AddPasskey } from "../../components/add-passkey";
+import { PageHeader } from "../../components/page-header";
 import { TotpSetup } from "../../components/totp-setup";
 import { currentActor, needsTwoStep, signInPath } from "../../server/actor";
 
@@ -130,9 +131,7 @@ export default async function AccountPage() {
     <Container asChild size="md">
       <main className="py-10">
         <Stack gap={6}>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-            Your account
-          </h1>
+          <PageHeader title="Your account" />
           {actor ? <Account actor={actor} /> : <SignedOut />}
         </Stack>
       </main>

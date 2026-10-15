@@ -4,6 +4,7 @@ import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 
 import { DsrExtendDialog, DsrNoticeForm } from "../../../../components/dsr-extension";
 import { DsrStatusDialog } from "../../../../components/dsr-status-dialog";
+import { PageHeader } from "../../../../components/page-header";
 import {
   DSR_CHANNEL_LABELS,
   DSR_EXTENSION_REASON_LABELS,
@@ -69,7 +70,7 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <Link href="/privacy/requests">Back to data requests</Link>
+          {request ? null : <Link href="/privacy/requests">Back to data requests</Link>}
 
           {error ? (
             <Alert variant="error" title="You can't see this request">
@@ -79,25 +80,24 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
 
           {request ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-                    {DSR_TYPE_LABELS[request.type]} request
-                  </h1>
-                  <p className="break-all text-[var(--color-text-subtle)]">{request.subjectRef}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant={DSR_STATUS_BADGE[request.status]}>
-                    {DSR_STATUS_LABELS[request.status]}
-                  </Badge>
-                  {request.overdue ? <Badge variant="error">Overdue</Badge> : null}
-                  {request.extension ? <Badge variant="primary">Extended</Badge> : null}
-                  {request.canExtend ? <DsrExtendDialog requestId={request.id} /> : null}
-                  {request.nextStatuses.length > 0 ? (
-                    <DsrStatusDialog requestId={request.id} nextStatuses={request.nextStatuses} />
-                  ) : null}
-                </div>
-              </div>
+              <PageHeader
+                title={`${DSR_TYPE_LABELS[request.type]} request`}
+                back={{ href: "/privacy/requests", label: "Back to data requests" }}
+                description={<span className="break-all">{request.subjectRef}</span>}
+                action={
+                  <>
+                    <Badge variant={DSR_STATUS_BADGE[request.status]}>
+                      {DSR_STATUS_LABELS[request.status]}
+                    </Badge>
+                    {request.overdue ? <Badge variant="error">Overdue</Badge> : null}
+                    {request.extension ? <Badge variant="primary">Extended</Badge> : null}
+                    {request.canExtend ? <DsrExtendDialog requestId={request.id} /> : null}
+                    {request.nextStatuses.length > 0 ? (
+                      <DsrStatusDialog requestId={request.id} nextStatuses={request.nextStatuses} />
+                    ) : null}
+                  </>
+                }
+              />
 
               {first(flash.created) === "1" ? (
                 <Alert variant="success" title="Request logged">

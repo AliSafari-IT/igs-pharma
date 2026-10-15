@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { BackOfficeShell } from "../components/back-office-shell";
 import { IdleGuard } from "../components/idle-guard";
 import { visibleNav } from "../lib/nav";
+import { staffRoleSummary } from "../lib/role-labels";
 import { currentActor, needsTwoStep } from "../server/actor";
 import { ensureKernelConfigured } from "../server/kernel";
 
@@ -29,7 +30,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   if (actor?.kind === "staff" && !needsTwoStep(actor)) {
     await ensureKernelConfigured(); // loads the RBAC catalogue the menu is filtered by
     framed = (
-      <BackOfficeShell name={actor.profile.name} groups={visibleNav(actor.roles)}>
+      <BackOfficeShell
+        name={actor.profile.name}
+        roleSummary={staffRoleSummary(actor.roles)}
+        groups={visibleNav(actor.roles)}
+      >
         {children}
       </BackOfficeShell>
     );

@@ -86,6 +86,7 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
   await expect(page.getByTestId("staff-name")).toHaveText("Olivia Owner");
+  await expect(page.getByTestId("staff-role")).toHaveText("Owner");
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Back-office" });
@@ -120,6 +121,22 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
       .getByRole("link", { name: "Products", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Products", level: 1 })).toBeVisible();
+  // The shared page header (#112 V1): one h1, in the header, with the primary action beside it.
+  const header = page.getByRole("main").locator("header").first();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(header.getByRole("heading", { name: "Products", level: 1 })).toBeVisible();
+  await expect(header.getByRole("link", { name: "New product" })).toBeVisible();
+
+  // Form and detail pages share it too (#112 V1 item 2 part 2), back link inside the header.
+  await header.getByRole("link", { name: "New product" }).click();
+  await expect(page).toHaveURL(`${PLATFORM}/products/new`);
+  const formHeader = page.getByRole("main").locator("header").first();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(formHeader.getByRole("heading", { name: "New product", level: 1 })).toBeVisible();
+  await expect(formHeader.getByRole("link", { name: "Back to products" })).toHaveAttribute(
+    "href",
+    "/products",
+  );
 });
 
 test("the products tile counts medicines whose text no pharmacist approved", async ({
@@ -162,6 +179,7 @@ test("a content editor sees only the catalogue tile and the catalogue and accoun
   await signIn(context, editorToken);
   await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("staff-name")).toHaveText("Eddie Editor");
+  await expect(page.getByTestId("staff-role")).toHaveText("Content editor");
   await expect(page.getByTestId("tile-products")).toBeVisible();
   await expect(page.getByTestId("tile-stock")).toHaveCount(0);
   await expect(page.getByTestId("tile-requests")).toHaveCount(0);
@@ -181,6 +199,9 @@ test("sign out ends the session and goes to the sign-in page", async ({ page, co
   await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(`${PLATFORM}/sign-in`);
+  // #112 V1: the sign-in page is the branded card: wordmark, then one h1
+  await expect(page.getByTestId("auth-wordmark")).toContainText("IGS-Pharma");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sign in to the back-office");
   // the session is gone: a protected page sends us back to sign in
   await page.goto(`${PLATFORM}/stock`);
   await expect(page).toHaveURL(/\/sign-in$/);
