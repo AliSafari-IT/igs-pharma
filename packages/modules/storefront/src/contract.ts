@@ -25,13 +25,17 @@ export const DEFAULT_PAGE_SIZE = 24;
 export const MAX_PAGE_SIZE = 48;
 export const MAX_PAGE = 10_000;
 
-/** `q`: trimmed; omitted or empty means no text filter; one character is refused. */
+/** Postgres refuses a NUL byte in text (22021), so it is refused here, before any query runs. */
+const hasNul = (value: string | undefined): boolean => value?.includes("\u0000") ?? false;
+
+/** `q`: trimmed; omitted or empty means no text filter; one character and a NUL byte are refused. */
 const queryInput = z
   .string()
   .trim()
   .max(MAX_QUERY_LENGTH)
   .optional()
   .transform((value) => (value === "" ? undefined : value))
+  .refine((value) => !hasNul(value), { message: "invalid_character" })
   .refine((value) => value === undefined || [...value].length >= MIN_QUERY_LENGTH, {
     message: "too_short",
   });
@@ -41,7 +45,12 @@ export const listInputSchema = z.object({
   locale: localeSchema,
   q: queryInput,
   /** That category or any descendant. */
-  categorySlug: z.string().min(1).max(100).optional(),
+  categorySlug: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine((value) => !hasNul(value), { message: "invalid_character" })
+    .optional(),
   /** Omitted: all; `in_stock`: available or low. */
   availability: z.enum(["in_stock"]).optional(),
   /** Default: `relevance` when `q` is given, otherwise `name`. */

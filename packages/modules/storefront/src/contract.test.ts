@@ -32,6 +32,17 @@ describe("storefront.products.list input", () => {
     expect(listInputSchema.safeParse({ locale: "fr", q: "éé" }).success).toBe(true);
   });
 
+  it("refuses a NUL byte in q and in the category slug, before any query runs", () => {
+    const q = listInputSchema.safeParse({ locale: "nl", q: "ab\u0000cd" });
+    expect(q.success).toBe(false);
+    expect(q.error?.issues.map((issue) => issue.message)).toContain("invalid_character");
+    expect(listInputSchema.safeParse({ locale: "nl", q: "\u0000\u0000" }).success).toBe(false);
+    expect(listInputSchema.safeParse({ locale: "nl", categorySlug: "zal\u0000ven" }).success).toBe(
+      false,
+    );
+    expect(listInputSchema.safeParse({ locale: "nl", categorySlug: "zalven" }).success).toBe(true);
+  });
+
   it.each([
     [{ page: 0 }],
     [{ page: 10_001 }],

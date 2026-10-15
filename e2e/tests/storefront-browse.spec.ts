@@ -61,6 +61,10 @@ test.beforeAll(async () => {
     await sql`
       INSERT INTO catalog.product_categories (product_id, category_id)
       VALUES (${id}, ${n === PAGE_SIZE + EXTRA ? kidId : topId})`;
+    // a product without a current price is not on the storefront (#103)
+    await sql`
+      INSERT INTO pricing.prices (id, product_id, channel, amount_cents, valid_from, created_by_type, created_by)
+      VALUES (gen_random_uuid(), ${id}, 'web', ${500 + n}, now() - interval '1 hour', 'system', 'e2e')`;
   }
 });
 

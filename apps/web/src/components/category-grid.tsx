@@ -1,10 +1,11 @@
-import type { ContentLocale, StorefrontCategory } from "@igs/module-catalog";
+import type { ContentLocale } from "@igs/module-catalog";
+import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
 interface Props {
   readonly locale: ContentLocale;
-  readonly categories: readonly StorefrontCategory[];
+  readonly categories: readonly StorefrontCategoryNode[];
 }
 
 /** The top-level categories as cards (name and how many products), two to a row on a phone. */
