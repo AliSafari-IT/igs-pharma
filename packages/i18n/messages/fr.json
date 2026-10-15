@@ -96,6 +96,9 @@
     "inStockOnly": "En stock uniquement",
     "applyFilters": "Appliquer",
     "clearFilters": "Effacer les filtres",
-    "noProductsInStock": "Aucun produit en stock dans cette catégorie."
+    "noProductsInStock": "Aucun produit en stock dans cette catégorie.",
+    "findPharmacyHeading": "Trouver votre pharmacie",
+    "findPharmacyIntro": "La pharmacie derrière cette boutique en ligne :",
+    "pharmacyDetailsLink": "Toutes les coordonnées de la pharmacie"
   }
 }
