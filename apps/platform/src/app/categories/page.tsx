@@ -1,6 +1,6 @@
 import { isDomainError } from "@igs/kernel";
 import { type CategoryNode, MAX_CATEGORY_DEPTH, listCategories } from "@igs/module-catalog";
-import { Alert, Button, Container, Link, Stack } from "@igs/ui";
+import { Alert, Button, Container, EmptyState, Link, Stack } from "@igs/ui";
 
 import { catalogErrorMessage } from "../../components/catalog-labels";
 import { CategoryForm } from "../../components/category-form";
@@ -131,7 +131,7 @@ export default async function CategoriesPage({ searchParams }: Props) {
                   All categories
                 </h2>
                 {nodes.length === 0 ? (
-                  <p className="text-[var(--color-text-subtle)]">No categories yet.</p>
+                  <EmptyState title="No categories yet" data-testid="categories-empty" />
                 ) : (
                   <Branch nodes={nodes} parentId={null} focus={flash.created ?? flash.moved} />
                 )}
