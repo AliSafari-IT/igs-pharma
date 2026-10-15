@@ -12,6 +12,9 @@ const pages = [
   ["web 404", "http://localhost:3000/de/nope"],
   ["platform /dev/ui", "http://localhost:3001/dev/ui"],
   ["platform /account (signed out)", "http://localhost:3001/account"],
+  ["platform /sign-in", "http://localhost:3001/sign-in"],
+  ["platform /setup (signed out)", "http://localhost:3001/setup"],
+  ["platform /enrol (no link)", "http://localhost:3001/enrol"],
 ] as const;
 
 for (const [name, url] of pages) {

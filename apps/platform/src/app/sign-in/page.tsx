@@ -1,6 +1,7 @@
-import { Alert, Container, Stack } from "@igs/ui";
+import { Alert } from "@igs/ui";
 import { redirect } from "next/navigation";
 
+import { AuthFrame } from "../../components/auth-frame";
 import { PasskeySignIn } from "../../components/passkey-sign-in";
 import { currentActor, needsTwoStep } from "../../server/actor";
 
@@ -22,23 +23,16 @@ export default async function SignInPage({
   const actor = await currentActor();
   if (actor) redirect(needsTwoStep(actor) ? "/setup" : "/account");
   return (
-    <Container asChild size="sm">
-      <main className="py-10">
-        <Stack gap={6}>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">
-            Sign in to the back-office
-          </h1>
-          <p className="text-[var(--color-text-muted)]">
-            Use the passkey on your phone, computer or security key.
-          </p>
-          {notice ? (
-            <Alert variant="info" title="You were signed out">
-              {notice}
-            </Alert>
-          ) : null}
-          <PasskeySignIn />
-        </Stack>
-      </main>
-    </Container>
+    <AuthFrame title="Sign in to the back-office">
+      <p className="text-[var(--color-text-muted)]">
+        Use the passkey on your phone, computer or security key.
+      </p>
+      {notice ? (
+        <Alert variant="info" title="You were signed out">
+          {notice}
+        </Alert>
+      ) : null}
+      <PasskeySignIn />
+    </AuthFrame>
   );
 }

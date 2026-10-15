@@ -183,6 +183,9 @@ test("sign out ends the session and goes to the sign-in page", async ({ page, co
   await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(`${PLATFORM}/sign-in`);
+  // #112 V1: the sign-in page is the branded card: wordmark, then one h1
+  await expect(page.getByTestId("auth-wordmark")).toContainText("IGS-Pharma");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sign in to the back-office");
   // the session is gone: a protected page sends us back to sign in
   await page.goto(`${PLATFORM}/stock`);
   await expect(page).toHaveURL(/\/sign-in$/);
