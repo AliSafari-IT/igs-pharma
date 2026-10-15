@@ -1,7 +1,7 @@
 // What the synthetic catalogue may contain (igs-pharma#50, filled up for a demo in igs-pharma#112):
 // clearly fake names, no prescription products, legal statuses that fit their type, and enough
-// active products per top-level category that the storefront does not look empty. No database.
-import { legalStatusFits } from "@igs/module-catalog";
+// storefront products per top-level category that the storefront does not look empty. No database.
+import { isMedicine, legalStatusFits } from "@igs/module-catalog";
 import { describe, expect, it } from "vitest";
 
 import { CATEGORIES, PRODUCTS } from "../src/synthetic-catalog";
@@ -45,13 +45,18 @@ describe("synthetic catalogue content", () => {
     }
   });
 
-  it("shows at least four active products in every top-level category", () => {
+  it("shows at least four storefront products in every top-level category", () => {
+    // the seed's system actor cannot approve medicine text (D-034), so a seeded medicine stays off
+    // the storefront: only active non-medicines count
     const tops = CATEGORIES.filter((c) => !("parent" in c)).map((c) => c.slug);
     for (const top of tops) {
-      const active = PRODUCTS.filter(
-        (p) => p.status === "active" && p.categories.some((slug) => topOf(slug) === top),
+      const visible = PRODUCTS.filter(
+        (p) =>
+          p.status === "active" &&
+          !isMedicine(p.type, p.legal) &&
+          p.categories.some((slug) => topOf(slug) === top),
       );
-      expect(active.length, top).toBeGreaterThanOrEqual(4);
+      expect(visible.length, top).toBeGreaterThanOrEqual(4);
     }
   });
 

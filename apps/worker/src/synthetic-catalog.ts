@@ -1,7 +1,7 @@
 /**
- * The synthetic catalogue (igs-pharma#50): 35 FAKE products (CNKs 0000001–0000035, names starting
+ * The synthetic catalogue (igs-pharma#50): 38 FAKE products (CNKs 0000001–0000038, names starting
  * with "Demo", "Synthetic test product, not for sale") and two fake brands, plus demo stock for
- * them (igs-pharma#53) and demo categories they are in (igs-pharma#54). Products 21–35 fill the
+ * them (igs-pharma#53) and demo categories they are in (igs-pharma#54). Products 21–38 fill the
  * storefront for a demo (igs-pharma#112). Nothing here describes a real product. `seed-catalog.ts`
  * is the CLI around it.
  */
@@ -263,20 +263,25 @@ export const PRODUCTS: readonly SeedProduct[] = [
     status: "active",
   },
   // demo fill-up (igs-pharma#112): appended only, so the indices above (and the CNKs on staging)
-  // keep their products; every top-level category ends up with at least four active products
+  // keep their products. All non-medicines: the seed's system actor cannot approve medicine text
+  // (D-034), so a seeded medicine never reaches the storefront. Every top-level category ends up
+  // with at least four storefront-visible products.
   {
-    names: {
-      nl: "Demo Bruistabletten",
-      fr: "Démo Comprimés effervescents",
-      en: "Demo Effervescent Tablets",
-    },
-    categories: ["pain-fever"],
-    type: "otc_medicine",
-    legal: "otc",
-    vat: "BE_6",
-    brand: "demo-pharma",
+    names: { nl: "Demo Koelkompres", fr: "Démo Compresse froide", en: "Demo Cold Pack" },
+    categories: ["pain-fever", "first-aid"],
+    type: "medical_device",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-care",
     status: "active",
-    ageMin: 12,
+  },
+  {
+    names: { nl: "Demo Warmwaterkruik", fr: "Démo Bouillotte", en: "Demo Hot Water Bottle" },
+    categories: ["pain-fever"],
+    type: "general",
+    legal: "general_sale",
+    vat: "BE_21",
+    status: "active",
   },
   {
     names: { nl: "Demo Warmtepleister", fr: "Démo Patch chauffant", en: "Demo Heat Patch" },
@@ -288,18 +293,30 @@ export const PRODUCTS: readonly SeedProduct[] = [
     status: "active",
   },
   {
-    names: {
-      nl: "Demo Allergie Neusspray",
-      fr: "Démo Spray nasal allergie",
-      en: "Demo Allergy Nasal Spray",
-    },
+    names: { nl: "Demo Stofmasker", fr: "Démo Masque anti-poussière", en: "Demo Dust Mask" },
     categories: ["allergy"],
-    type: "otc_medicine",
-    legal: "otc",
-    vat: "BE_6",
+    type: "medical_device",
+    legal: "general_sale",
+    vat: "BE_21",
     brand: "demo-pharma",
     status: "active",
-    ageMin: 12,
+  },
+  {
+    names: { nl: "Demo Kussenhoes", fr: "Démo Housse d'oreiller", en: "Demo Pillow Cover" },
+    categories: ["allergy"],
+    type: "general",
+    legal: "general_sale",
+    vat: "BE_21",
+    status: "active",
+  },
+  {
+    names: { nl: "Demo Stoominhalator", fr: "Démo Inhalateur à vapeur", en: "Demo Steam Inhaler" },
+    categories: ["cold-flu"],
+    type: "medical_device",
+    legal: "general_sale",
+    vat: "BE_21",
+    brand: "demo-pharma",
+    status: "active",
   },
   {
     names: { nl: "Demo Neusspoeling", fr: "Démo Rinçage nasal", en: "Demo Nasal Rinse" },
