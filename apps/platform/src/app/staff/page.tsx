@@ -4,6 +4,7 @@ import { PHARMACIST_ROLES, ROLES, ROLE_KEYS } from "@igs/rbac";
 import { Alert, Badge, Container, Stack } from "@igs/ui";
 
 import { identityErrorMessage } from "../../components/identity-labels";
+import { PageHeader } from "../../components/page-header";
 import { ResetSignInDialog } from "../../components/reset-sign-in-dialog";
 import { StaffAccessDialog } from "../../components/staff-access-dialog";
 import { staffRoleLabel } from "../../lib/role-labels";
@@ -57,11 +58,10 @@ export default async function StaffPage() {
     <Container asChild size="lg">
       <main className="py-10">
         <Stack gap={6}>
-          <h1 className="font-display text-4xl font-medium text-[var(--color-primary)]">Staff</h1>
-          <p className="max-w-prose text-[var(--color-text-subtle)]">
-            Staff sign in with a passkey. Someone who lost every passkey can't sign in: reset their
-            sign-in here and give them the new link.
-          </p>
+          <PageHeader
+            title="Staff"
+            description="Staff sign in with a passkey. Someone who lost every passkey can't sign in: reset their sign-in here and give them the new link."
+          />
           {error ? (
             <Alert variant="error" title="You can't see the staff list">
               {identityErrorMessage(error)}

@@ -121,6 +121,11 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
       .getByRole("link", { name: "Products", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Products", level: 1 })).toBeVisible();
+  // The shared page header (#112 V1): one h1, in the header, with the primary action beside it.
+  const header = page.getByRole("main").locator("header").first();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(header.getByRole("heading", { name: "Products", level: 1 })).toBeVisible();
+  await expect(header.getByRole("link", { name: "New product" })).toBeVisible();
 });
 
 test("the products tile counts medicines whose text no pharmacist approved", async ({
