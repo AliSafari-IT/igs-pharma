@@ -18,6 +18,14 @@ describe("parseListParams", () => {
     expect(parseListParams({ q: "a" })).toMatchObject({ q: undefined, qTooShort: true });
     expect(parseListParams({ q: "   " })).toMatchObject({ q: undefined, qTooShort: false });
   });
+  it("turns control characters, a NUL byte above all, into spaces", () => {
+    expect(parseListParams({ q: "ab\u0000cd" }).q).toBe("ab cd");
+    expect(parseListParams({ q: "\u0000zalf\t\n" }).q).toBe("zalf");
+    expect(parseListParams({ q: "\u0000\u0000" })).toMatchObject({
+      q: undefined,
+      qTooShort: false,
+    });
+  });
   it("drops unknown sorts and sorts a page does not offer", () => {
     expect(parseListParams({ sort: "price_asc" }).sort).toBe("price_asc");
     expect(parseListParams({ sort: "evil" }).sort).toBeUndefined();

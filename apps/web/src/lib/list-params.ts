@@ -27,6 +27,9 @@ export interface ListParams {
   readonly page: number;
 }
 
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/g;
+
 const first = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
 
@@ -39,7 +42,8 @@ export function parseListParams(
   raw: RawParams,
   allowedSorts: readonly ListSort[] = ALL_SORTS,
 ): ListParams {
-  const text = first(raw["q"])?.trim().slice(0, MAX_QUERY_LENGTH);
+  // control characters (a NUL byte above all, which Postgres refuses) become spaces
+  const text = first(raw["q"])?.replace(CONTROL_CHARACTERS, " ").trim().slice(0, MAX_QUERY_LENGTH);
   const q = text ? text : undefined;
   const qTooShort = q !== undefined && [...q].length < MIN_QUERY_LENGTH;
   const sortValue = first(raw["sort"]);
