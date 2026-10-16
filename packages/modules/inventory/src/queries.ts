@@ -234,6 +234,11 @@ export interface StockSummary {
   readonly out: number;
   /** Reservations still setting stock aside: active orders, and holds not yet past `expires_at`. */
   readonly activeReservations: number;
+  /**
+   * Products SHORT for their orders: the active orders reserve more than the shelf holds
+   * (`availabilityOf().short > 0`, the stock list's "Short by" badge, igs-pharma#112).
+   */
+  readonly short: number;
 }
 
 /**
@@ -243,7 +248,8 @@ export interface StockSummary {
  * (`stockLevels`), what is set aside is the active orders plus the holds with `now < expires_at`
  * (`reservedQuantities`), and available is `max(0, on hand − held − ordered)` (`availabilityOf`).
  * A product without movements has 0 on hand, so it counts as out. `activeReservations` counts the
- * reservations `getStock` shows: active, and for a hold not yet lapsed.
+ * reservations `getStock` shows: active, and for a hold not yet lapsed. `short` counts the products
+ * whose active orders exceed on hand (`availabilityOf().short > 0`); holds never make one short.
  */
 export const getStockSummary = query({
   name: "inventory.stock.summary",
@@ -251,10 +257,15 @@ export const getStockSummary = query({
   permission: PERMISSIONS.inventory.stockRead,
   async handler({ ctx }): Promise<StockSummary> {
     const ids = await allProductIds(ctx.tx);
-    if (ids.length === 0) return { low: 0, out: 0, activeReservations: 0 };
+    if (ids.length === 0) return { low: 0, out: 0, activeReservations: 0, short: 0 };
     const now = ctx.now.toISOString();
     const rows = Array.from(
-      await ctx.tx.execute<{ low: number; out: number; active_reservations: number }>(sql`
+      await ctx.tx.execute<{
+        low: number;
+        out: number;
+        active_reservations: number;
+        short: number;
+      }>(sql`
         WITH listed AS (
           SELECT DISTINCT value::uuid AS product_id
           FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)
@@ -285,6 +296,7 @@ export const getStockSummary = query({
             greatest(
               0, coalesce(o.on_hand, 0) - coalesce(r.held, 0) - coalesce(r.ordered, 0)
             ) AS available,
+            coalesce(r.ordered, 0) > coalesce(o.on_hand, 0) AS is_short,
             coalesce(r.live, 0) AS live
           FROM listed l
           LEFT JOIN on_hand o ON o.product_id = l.product_id
@@ -293,7 +305,8 @@ export const getStockSummary = query({
         SELECT
           (count(*) FILTER (WHERE available BETWEEN 1 AND ${DEFAULT_LOW_STOCK}::int))::int AS low,
           (count(*) FILTER (WHERE available <= 0))::int AS "out",
-          coalesce(sum(live), 0)::int AS active_reservations
+          coalesce(sum(live), 0)::int AS active_reservations,
+          (count(*) FILTER (WHERE is_short))::int AS "short"
         FROM availability`),
     );
     const row = rows[0];
@@ -301,6 +314,7 @@ export const getStockSummary = query({
       low: Number(row?.low ?? 0),
       out: Number(row?.out ?? 0),
       activeReservations: Number(row?.active_reservations ?? 0),
+      short: Number(row?.short ?? 0),
     };
   },
 });
