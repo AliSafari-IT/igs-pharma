@@ -81,6 +81,9 @@ test("home: the shell, the category grid, the products, the identity footer", as
   await page.goto(`${WEB}/nl`, { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { level: 1, name: "IGS-Pharma" })).toBeVisible();
   await expect(page.getByText("Online bestellen kan binnenkort.")).toBeVisible();
+  // the categories and products stream in behind a placeholder (#104); it is gone once they are shown
+  await expect(page.locator('section[aria-labelledby="home-products"]')).toBeVisible();
+  await expect(page.getByTestId("home-skeleton")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { level: 2, name: "Producten per categorie" }),
   ).toBeVisible();

@@ -27,23 +27,44 @@ export function ListingSkeleton({ label, cards = 6 }: Props) {
         <Skeleton className="h-[44px] w-40" />
         <Skeleton className="h-[44px] w-28" />
       </div>
-      <ul aria-hidden="true" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: cards }, (_, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: identical placeholders, never reordered
-          <li key={index}>
-            <div className="flex h-full flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
-              <Skeleton className="aspect-[4/3] w-full" />
-              <Skeleton className="h-7 w-3/4" />
-              <Skeleton className="h-5 w-1/3" />
-              <Skeleton className="h-5 w-full" />
-              <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-6 w-20" />
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <ProductCardsSkeleton cards={cards} className="mt-4" />
     </div>
+  );
+}
+
+/**
+ * The product cards alone, at `ProductGrid`'s sizes (the same 1/2/3-column grid and 4:3 image box):
+ * shared by `ListingSkeleton` and the home page's `HomeSkeleton`. Hidden from screen readers as a
+ * whole; the caller says "Loading…" once.
+ */
+export function ProductCardsSkeleton({
+  cards = 6,
+  className,
+}: {
+  readonly cards?: number;
+  /** Spacing above the grid where the real page has it (the listing's `mt-4`). */
+  readonly className?: string;
+}) {
+  return (
+    <ul
+      aria-hidden="true"
+      className={`${className ? `${className} ` : ""}grid gap-4 sm:grid-cols-2 lg:grid-cols-3`}
+    >
+      {Array.from({ length: cards }, (_, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: identical placeholders, never reordered
+        <li key={index}>
+          <div className="flex h-full flex-col gap-2 rounded-[var(--radius-lg)] border border-[var(--color-border)] p-4">
+            <Skeleton className="aspect-[4/3] w-full" />
+            <Skeleton className="h-7 w-3/4" />
+            <Skeleton className="h-5 w-1/3" />
+            <Skeleton className="h-5 w-full" />
+            <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-6 w-20" />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
