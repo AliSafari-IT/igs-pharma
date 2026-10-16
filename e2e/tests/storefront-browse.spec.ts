@@ -165,6 +165,8 @@ test("a category with more than a page paginates, and the language switch keeps 
   await page.goto(`${WEB}/nl/c/${parent.slug}`, { waitUntil: "networkidle" });
   await expect(page.getByRole("article")).toHaveCount(PAGE_SIZE);
   await expect(page.getByText(`${PAGE_SIZE + EXTRA} producten`)).toBeVisible();
+  // the listing streams in behind a placeholder (#104, §10.8); once it is there the placeholder is gone
+  await expect(page.getByTestId("listing-skeleton")).toHaveCount(0);
   const pages = page.getByRole("navigation", { name: "Pagina's" });
   await expect(pages.getByText("1", { exact: true })).toHaveAttribute("aria-current", "page");
   await expectAxeClean(page);
