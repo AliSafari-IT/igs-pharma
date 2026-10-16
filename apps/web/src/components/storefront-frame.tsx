@@ -1,3 +1,4 @@
+import { getFeatureFlags } from "@igs/config";
 import { locales } from "@igs/i18n";
 import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
@@ -34,11 +35,16 @@ interface Props {
 /**
  * The shared shell of the storefront pages (igs-pharma#62): the preview banner, the header with the
  * language links, the category tree as navigation, and the main content. The banner shows only on a
- * request the proxy marked as a verified preview.
+ * request the proxy marked as a verified preview. The account link shows only while customer accounts
+ * are switched on (igs-pharma#115, D-044).
  */
 export async function StorefrontFrame({ locale, path, activeSlug, query, children }: Props) {
   const t = await getTranslations({ locale, namespace: "storefront" });
   const preview = (await headers()).get(PREVIEW_HEADER) === "1";
+  const { customerAccounts } = getFeatureFlags();
+  const tAccount = customerAccounts
+    ? await getTranslations({ locale, namespace: "account" })
+    : null;
 
   let tree: readonly StorefrontCategoryNode[] = [];
   try {
@@ -88,6 +94,15 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
             >
               {t("headerPharmacyLink")}
             </Link>
+            {tAccount ? (
+              <Link
+                href={`/${locale}/account/sign-in`}
+                data-testid="header-account-link"
+                className="inline-flex min-h-[44px] items-center"
+              >
+                {tAccount("headerSignIn")}
+              </Link>
+            ) : null}
             <nav aria-label={t("language")}>
               <ul className="flex flex-wrap gap-x-3">
                 {locales.map((code) => (

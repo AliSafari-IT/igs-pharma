@@ -30,6 +30,7 @@ export default defineConfig({
     "backoffice-dashboard.spec.ts",
     "session-limits.spec.ts",
     "reservations.spec.ts",
+    "customer-accounts.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",
