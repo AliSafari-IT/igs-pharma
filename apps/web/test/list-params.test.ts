@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isCnk, listQuery, parseListParams } from "../src/lib/list-params";
+import { isCnk, listQuery, parseListParams, searchStreams } from "../src/lib/list-params";
 
 describe("parseListParams", () => {
   it("defaults", () => {
@@ -60,5 +60,14 @@ describe("isCnk", () => {
     expect(isCnk("12345678")).toBe(false);
     expect(isCnk("12345a7")).toBe(false);
     expect(isCnk(undefined)).toBe(false);
+  });
+});
+
+describe("searchStreams", () => {
+  it("streams a text query only: a CNK is decided before the response starts", () => {
+    expect(searchStreams("zalf")).toBe(true);
+    expect(searchStreams("123456")).toBe(true);
+    expect(searchStreams("1234567")).toBe(false);
+    expect(searchStreams(undefined)).toBe(false);
   });
 });

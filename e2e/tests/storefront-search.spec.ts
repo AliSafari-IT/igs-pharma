@@ -110,6 +110,8 @@ test("the header search finds products by name, and the form works from every pa
   ).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(SEEDS.length);
   await expect(page.getByText(`${SEEDS.length} producten`)).toBeVisible();
+  // the results stream in behind a placeholder (#104, §10.8); once they are there it is gone
+  await expect(page.getByTestId("listing-skeleton")).toHaveCount(0);
   // the field keeps what was typed
   await expect(page.getByRole("searchbox")).toHaveValue(word);
   await expectAxeClean(page);
