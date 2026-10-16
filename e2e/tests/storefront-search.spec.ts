@@ -125,9 +125,11 @@ test("sort by price and the in-stock filter, kept in the URL and in the language
   await page.getByLabel("Sorteren op").selectOption("price_asc");
   await page.getByRole("button", { name: "Toepassen" }).click();
   await expect(page).toHaveURL(new RegExp(`q=${word}&sort=price_asc`));
-  const names = await page.getByRole("article").getByRole("heading").allTextContents();
-  expect(names[0]).toBe(seed(1).name);
-  expect(names.at(-1)).toBe(seed(2).name);
+  // the sorted results stream in (#104, §10.8): wait for them, never read the list once
+  const names = page.getByRole("article").getByRole("heading");
+  await expect(names).toHaveCount(SEEDS.length);
+  await expect(names.first()).toHaveText(seed(1).name);
+  await expect(names.last()).toHaveText(seed(2).name);
 
   await page.getByLabel("Alleen op voorraad").check();
   await page.getByRole("button", { name: "Toepassen" }).click();
