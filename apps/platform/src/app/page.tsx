@@ -2,7 +2,9 @@ import { DEFAULT_LOW_STOCK } from "@igs/module-inventory";
 import { Container, Link } from "@igs/ui";
 
 import { DashboardTile, Stat } from "../components/dashboard-tile";
+import { NeedsAttention } from "../components/needs-attention";
 import { PageHeader } from "../components/page-header";
+import { needsAttention } from "../lib/dashboard";
 import { currentActor, requireStaffActor } from "../server/actor";
 import { loadDashboard } from "../server/dashboard";
 import { ensureKernelConfigured } from "../server/kernel";
@@ -68,13 +70,14 @@ export default async function DashboardPage() {
                 linkLabel="Open stock"
               >
                 {(alerts) => (
-                  <dl className="grid grid-cols-2 gap-3">
+                  <dl className="grid grid-cols-3 gap-3">
                     <Stat
                       label={`Low (1 to ${DEFAULT_LOW_STOCK})`}
                       value={alerts.low}
                       tone="attention"
                     />
                     <Stat label="Out of stock" value={alerts.out} tone="attention" />
+                    <Stat label="Short for orders" value={alerts.short} tone="attention" />
                   </dl>
                 )}
               </DashboardTile>
@@ -120,6 +123,9 @@ export default async function DashboardPage() {
             ) : null}
           </div>
         )}
+        {products || stock || requests ? (
+          <NeedsAttention attention={needsAttention({ products, stock, requests })} />
+        ) : null}
       </main>
     </Container>
   );

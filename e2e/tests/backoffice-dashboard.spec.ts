@@ -109,6 +109,13 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   }
   await expect(page.getByTestId("tile-products").getByText("Awaiting approval")).toBeVisible();
   await expect(page.getByTestId("tile-stock").getByText("Out of stock")).toBeVisible();
+  await expect(page.getByTestId("tile-stock").getByText("Short for orders")).toBeVisible();
+  // #112 V1 item 1: the "Needs attention" panel under the tiles, a list or its calm empty line
+  const attention = page.getByTestId("needs-attention");
+  await expect(attention.getByRole("heading", { name: "Needs attention", level: 2 })).toBeVisible();
+  await expect(attention).toContainText(
+    /short for orders|overdue|out of stock|awaiting|Nothing needs attention/,
+  );
   await expect(page.getByTestId("tile-reservations")).toContainText(
     /Orders and checkout holds|No active reservations/,
   );
@@ -168,6 +175,11 @@ test("the products tile counts medicines whose text no pharmacist approved", asy
     INSERT INTO catalog.product_content (product_id, locale, name, source)
     VALUES (${productId}, 'nl', 'Demo E2E dashboard', 'manual'), (${productId}, 'fr', 'Démo E2E', 'manual')`;
   expect(await awaiting()).toBe(before + 1);
+  // the panel lists it too, linked to the products page
+  await expect(page.getByTestId("attention-awaiting").getByRole("link")).toHaveAttribute(
+    "href",
+    "/products",
+  );
   // a pharmacist approves both texts: it no longer waits
   await sql`
     UPDATE catalog.product_content SET approved_by = ${userIds[0] as string}, approved_at = now()
@@ -187,6 +199,11 @@ test("a content editor sees only the catalogue tile and the catalogue and accoun
   await expect(page.getByTestId("tile-stock")).toHaveCount(0);
   await expect(page.getByTestId("tile-reservations")).toHaveCount(0);
   await expect(page.getByTestId("tile-requests")).toHaveCount(0);
+  // the panel reads only the products tile: no stock or data-request lines
+  await expect(page.getByTestId("needs-attention")).toBeVisible();
+  for (const line of ["short", "overdue", "out"]) {
+    await expect(page.getByTestId(`attention-${line}`)).toHaveCount(0);
+  }
   const nav = page.getByRole("navigation", { name: "Back-office" });
   await expect(nav.getByRole("link", { name: "Products", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Your account", exact: true })).toBeVisible();

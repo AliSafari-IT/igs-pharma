@@ -40,12 +40,12 @@ beforeEach(() => {
 
 describe("loadDashboard", () => {
   it("fills the stock alerts and active reservations tiles from one stock summary", async () => {
-    fakes.getStockSummary.mockResolvedValue({ low: 2, out: 5, activeReservations: 7 });
+    fakes.getStockSummary.mockResolvedValue({ low: 2, out: 5, activeReservations: 7, short: 1 });
     const owner = actor("owner");
     const dashboard = await loadDashboard(owner);
     expect(fakes.getStockSummary).toHaveBeenCalledTimes(1);
     expect(fakes.getStockSummary).toHaveBeenCalledWith({}, owner);
-    expect(dashboard.stock).toEqual({ state: "ok", data: { low: 2, out: 5 } });
+    expect(dashboard.stock).toEqual({ state: "ok", data: { low: 2, out: 5, short: 1 } });
     expect(dashboard.reservations).toEqual({ state: "ok", data: { active: 7 } });
   });
 

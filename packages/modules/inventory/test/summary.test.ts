@@ -1,6 +1,7 @@
-// The dashboard's stock summary (igs-pharma#115) against real Postgres: out, low and active
-// reservations counted in one statement, and the same answers as paging through `listStock` and
-// opening every product with `getStock`. A database of its own, so the counts are exact.
+// The dashboard's stock summary (igs-pharma#115) against real Postgres: out, low, active
+// reservations and products short for their orders (#112), counted in one statement, and the same
+// answers as paging through `listStock` and opening every product with `getStock`. A database of
+// its own, so the counts are exact.
 import { randomUUID } from "node:crypto";
 
 import { newId } from "@igs/db/ids";
@@ -115,18 +116,21 @@ async function countedFromTheList() {
   let low = 0;
   let out = 0;
   let activeReservations = 0;
+  let short = 0;
   for (let page = 1; ; page += 1) {
     const result = await listStock({ page, pageSize: 100 }, pharmacist);
     for (const item of result.items) {
       const status = availabilityStatus(item.available, DEFAULT_LOW_STOCK);
       if (status === "out") out += 1;
       if (status === "low") low += 1;
+      if (item.short > 0) short += 1;
       const stock = await getStock({ productId: item.productId }, pharmacist);
       activeReservations += stock.reservations.length;
+      expect(stock.short).toBe(item.short);
     }
     if (page * result.pageSize >= result.total) break;
   }
-  return { low, out, activeReservations };
+  return { low, out, activeReservations, short };
 }
 
 describe("inventory.stock.summary", () => {
@@ -135,6 +139,7 @@ describe("inventory.stock.summary", () => {
       low: 0,
       out: 0,
       activeReservations: 0,
+      short: 0,
     });
   });
 
@@ -171,7 +176,7 @@ describe("inventory.stock.summary", () => {
     await stocked(1); // low
 
     const summary = await getStockSummary({}, pharmacist);
-    expect(summary).toEqual({ low: 4, out: 3, activeReservations: 3 });
+    expect(summary).toEqual({ low: 4, out: 3, activeReservations: 3, short: 0 });
     expect(await countedFromTheList()).toEqual(summary);
   });
 
@@ -182,6 +187,41 @@ describe("inventory.stock.summary", () => {
     await stocked(DEFAULT_LOW_STOCK + 1);
     expect(await getStockSummary({}, pharmacist)).toEqual({ ...before, low: before.low + 1 });
     expect(await countedFromTheList()).toEqual(await getStockSummary({}, pharmacist));
+  });
+
+  it("counts a product short when its orders exceed on hand, and never for holds alone", async () => {
+    kernel.clock.set(at(21 * MINUTE)); // where the earlier tests left the holds
+    const before = await getStockSummary({}, pharmacist);
+    // an order of 4 on a shelf of 5, then 3 broken: on hand 2, ordered 4, short by 2
+    const shortForOrders = await stocked(5);
+    const orderRef = holder();
+    await reserveStock({ productId: shortForOrders, quantity: 4, holderRef: orderRef }, checkout);
+    await confirmReservation(
+      { holderRef: orderRef, items: [{ productId: shortForOrders, quantity: 4 }] },
+      checkout,
+    );
+    await adjustStock(
+      { productId: shortForOrders, delta: -3, reason: "adjustment", note: "breakage" },
+      owner,
+    );
+    // a hold of 2 on a shelf of 2, then 1 broken: on hand below the hold, but not short
+    const heldOnly = await stocked(2);
+    await reserveStock({ productId: heldOnly, quantity: 2, holderRef: holder() }, checkout);
+    await adjustStock(
+      { productId: heldOnly, delta: -1, reason: "adjustment", note: "breakage" },
+      owner,
+    );
+
+    expect((await getStock({ productId: shortForOrders }, pharmacist)).short).toBe(2);
+    expect((await getStock({ productId: heldOnly }, pharmacist)).short).toBe(0);
+    const summary = await getStockSummary({}, pharmacist);
+    expect(summary).toEqual({
+      low: before.low,
+      out: before.out + 2,
+      activeReservations: before.activeReservations + 2,
+      short: before.short + 1,
+    });
+    expect(await countedFromTheList()).toEqual(summary);
   });
 
   it("has the stock list's permission: staff who read stock, not a content editor or the storefront", async () => {
