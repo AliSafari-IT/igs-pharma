@@ -10,8 +10,10 @@ describe("StorefrontSkeleton", () => {
   it("says it is loading once, in words, in a status region", () => {
     for (const variant of ["listing", "product"] as const) {
       const out = html(variant);
-      expect(out).toContain('<div role="status" class="sr-only">Chargement...</div>');
-      expect(out.match(/role="status"/g)).toHaveLength(1);
+      // <output> is a status region by its own role (Biome's useSemanticElements)
+      expect(out).toContain('<output class="sr-only">Chargement...</output>');
+      expect(out.match(/<output/g)).toHaveLength(1);
+      expect(out).not.toContain('role="status"');
     }
   });
 

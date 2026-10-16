@@ -59,8 +59,8 @@ function ProductBody() {
  * What the storefront shows while a page loads (igs-pharma#104): the frame's header, search row and
  * category column, and the page body, as grey blocks of the real sizes (same grid, same 4:3 image
  * box), so nothing moves when the content arrives. It reads no data, so it shows at once. The
- * blocks are hidden from screen readers; one status region says "Loading…" in words. No script and
- * no inline style (CSP, D-031); tokens only.
+ * blocks are hidden from screen readers; one `<output>` (a status region) says "Loading…" in
+ * words. No script and no inline style (CSP, D-031); tokens only.
  */
 export function StorefrontSkeleton({ label, variant }: Props) {
   return (
@@ -87,7 +87,7 @@ export function StorefrontSkeleton({ label, variant }: Props) {
             </div>
           </div>
           <main id="main" className="min-w-0">
-            <div role="status" className="sr-only">{label}</div>
+            <output className="sr-only">{label}</output>
             {variant === "product" ? <ProductBody /> : <ListingBody />}
           </main>
         </Container>
