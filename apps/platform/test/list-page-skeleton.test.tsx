@@ -7,8 +7,9 @@ describe("ListPageSkeleton", () => {
   it("shows the page's real heading and says what is loading, once", () => {
     const out = renderToStaticMarkup(<ListPageSkeleton title="Data requests" />);
     expect(out).toContain(">Data requests</h1>");
-    expect(out).toContain('<div role="status" class="sr-only">Loading data requests…</div>');
-    expect(out.match(/role="status"/g)).toHaveLength(1);
+    // <output> is a status region by its own role (Biome's useSemanticElements)
+    expect(out).toContain('<output class="sr-only">Loading data requests…</output>');
+    expect(out.match(/<output/g)).toHaveLength(1);
   });
 
   it("hides every grey block from screen readers and never nests a div in the description", () => {

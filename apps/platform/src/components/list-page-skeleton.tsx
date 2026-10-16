@@ -16,8 +16,8 @@ interface Props {
  * What a back-office list page shows while it loads (igs-pharma#104): the real page header, then
  * grey blocks where the description, the search row and the table rows will be, in the same
  * column and spacing, so the page does not jump when the data arrives. The blocks are hidden from
- * screen readers; one status region says "Loading…" in words. No script and no inline style (CSP,
- * D-031); tokens only.
+ * screen readers; one `<output>` (a status region) says "Loading…" in words. No script and no
+ * inline style (CSP, D-031); tokens only.
  */
 export function ListPageSkeleton({ title, search = false }: Props) {
   // PageHeader puts the description in a <p>, which may not hold a <div> (Skeleton): the same
@@ -33,7 +33,7 @@ export function ListPageSkeleton({ title, search = false }: Props) {
       <main className="py-10" data-testid="list-skeleton">
         <Stack gap={6}>
           <PageHeader title={title} description={description} />
-          <div role="status" className="sr-only">{`Loading ${title.toLowerCase()}…`}</div>
+          <output className="sr-only">{`Loading ${title.toLowerCase()}…`}</output>
           {search ? (
             <div className="flex flex-wrap items-end gap-3">
               <Skeleton className="h-11 min-w-64 flex-1" />
