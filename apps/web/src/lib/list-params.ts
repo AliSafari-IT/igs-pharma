@@ -73,3 +73,10 @@ export function listQuery(params: Pick<ListParams, "q" | "sort" | "inStock">, pa
 /** A shopper's input that is exactly a CNK: the product page is the answer. */
 export const isCnk = (value: string | undefined): value is string =>
   value !== undefined && /^[0-9]{7}$/.test(value);
+
+/**
+ * Whether the search page streams its results behind a placeholder (#104, design-system §10.8): a
+ * query that is not a CNK. A CNK may redirect to its product, which must be decided before the
+ * response starts, so it is looked up up front; without a query there is nothing to wait for.
+ */
+export const searchStreams = (q: string | undefined): boolean => Boolean(q) && !isCnk(q);
