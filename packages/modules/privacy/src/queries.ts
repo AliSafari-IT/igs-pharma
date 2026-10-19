@@ -1,4 +1,4 @@
-import { notFound, query } from "@igs/kernel";
+import { type Ctx, notFound, query } from "@igs/kernel";
 import { PERMISSIONS } from "@igs/rbac";
 import { type SQL, and, asc, count, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -84,32 +84,36 @@ const asConsentView = (row: {
  * A subject's consents: the current state per purpose is its latest event (ids are UUIDv7, so they
  * break a tie between events recorded at the same instant), plus the history.
  */
+/** The consent state and history of one subject; `subjectRef` is already normalised. */
+export async function readConsents(tx: Ctx["tx"], subjectRef: string): Promise<SubjectConsents> {
+  const latest = await tx
+    .selectDistinctOn([consentEvents.purpose], consentColumns)
+    .from(consentEvents)
+    .where(eq(consentEvents.subjectRef, subjectRef))
+    .orderBy(consentEvents.purpose, desc(consentEvents.at), desc(consentEvents.id));
+  const history = await tx
+    .select(consentColumns)
+    .from(consentEvents)
+    .where(eq(consentEvents.subjectRef, subjectRef))
+    .orderBy(desc(consentEvents.at), desc(consentEvents.id))
+    .limit(CONSENT_HISTORY_LIMIT);
+  const byPurpose = new Map(latest.map((row) => [row.purpose, asConsentView(row)]));
+  return {
+    subjectRef,
+    purposes: CONSENT_PURPOSES.map((purpose) => ({
+      purpose,
+      current: byPurpose.get(purpose) ?? null,
+    })),
+    history: history.map(asConsentView),
+  };
+}
+
 export const getConsents = query({
   name: "privacy.consent.get",
   input: z.object({ subjectRef: z.string().max(MAX_SUBJECT_REF_LENGTH + 20) }),
   permission: PERMISSIONS.privacy.consentRead,
   async handler({ input, ctx }): Promise<SubjectConsents> {
-    const subjectRef = subjectRefOrThrow(input.subjectRef);
-    const latest = await ctx.tx
-      .selectDistinctOn([consentEvents.purpose], consentColumns)
-      .from(consentEvents)
-      .where(eq(consentEvents.subjectRef, subjectRef))
-      .orderBy(consentEvents.purpose, desc(consentEvents.at), desc(consentEvents.id));
-    const history = await ctx.tx
-      .select(consentColumns)
-      .from(consentEvents)
-      .where(eq(consentEvents.subjectRef, subjectRef))
-      .orderBy(desc(consentEvents.at), desc(consentEvents.id))
-      .limit(CONSENT_HISTORY_LIMIT);
-    const byPurpose = new Map(latest.map((row) => [row.purpose, asConsentView(row)]));
-    return {
-      subjectRef,
-      purposes: CONSENT_PURPOSES.map((purpose) => ({
-        purpose,
-        current: byPurpose.get(purpose) ?? null,
-      })),
-      history: history.map(asConsentView),
-    };
+    return readConsents(ctx.tx, subjectRefOrThrow(input.subjectRef));
   },
 });
 

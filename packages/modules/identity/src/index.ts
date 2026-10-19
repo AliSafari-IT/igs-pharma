@@ -34,6 +34,7 @@ export {
   suspendUser,
 } from "./commands";
 export { MailRequested, requestMail } from "./mail";
+export { type OwnAccount, getOwnAccount, updateOwnProfile } from "./self";
 export {
   IDENTITY_JOBS,
   IDENTITY_QUEUES,
