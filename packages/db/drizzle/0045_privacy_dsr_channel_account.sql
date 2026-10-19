@@ -1,0 +1,2 @@
+ALTER TABLE "privacy"."dsr_requests" DROP CONSTRAINT "dsr_requests_channel_check";--> statement-breakpoint
+ALTER TABLE "privacy"."dsr_requests" ADD CONSTRAINT "dsr_requests_channel_check" CHECK (channel IN ('email', 'in_store', 'post', 'other', 'account'));

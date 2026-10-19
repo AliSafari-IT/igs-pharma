@@ -70,4 +70,12 @@ export {
   getRetentionPolicy,
   listDsr,
 } from "./queries";
+export {
+  type OwnDsr,
+  SELF_DSR_TYPES,
+  getOwnConsents,
+  listOwnDsr,
+  recordOwnConsent,
+  requestOwnDsr,
+} from "./self";
 export { PRIVACY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";

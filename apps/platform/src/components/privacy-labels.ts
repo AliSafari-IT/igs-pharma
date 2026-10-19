@@ -34,8 +34,10 @@ export const DSR_CHANNEL_LABELS: Record<DsrChannel, string> = {
   in_store: "In the pharmacy",
   post: "Post",
   other: "Other",
+  account: "Customer account",
 };
 
+/** The channels staff can pick when logging a request by hand: `account` requests arrive on their own. */
 export const DSR_CHANNEL_OPTIONS = [
   "email",
   "in_store",

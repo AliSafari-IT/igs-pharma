@@ -58,6 +58,7 @@ describe("hasPermission (code catalogue installed)", () => {
         PHARMACIST_ONLY.includes(permission) ||
         SYSTEM_ONLY.includes(permission) ||
         permission.endsWith(".own") ||
+        permission.includes(".self.") ||
         permission === PERMISSIONS.orders.create;
       if (forbidden) expect(hasPermission(["owner"], permission), permission).toBe(false);
     }
@@ -68,7 +69,11 @@ describe("hasPermission (code catalogue installed)", () => {
   it("the owner set against the previous 'everything except …' derivation (#79 C7 review diff)", () => {
     // How the owner used to be computed, kept here only to print and pin what changed.
     const previous = ALL_PERMISSIONS.filter(
-      (p) => !PHARMACIST_ONLY.includes(p) && !SYSTEM_ONLY.includes(p) && !p.endsWith(".own"),
+      (p) =>
+        !PHARMACIST_ONLY.includes(p) &&
+        !SYSTEM_ONLY.includes(p) &&
+        !p.endsWith(".own") &&
+        !p.includes(".self."),
     );
     const current = ALL_PERMISSIONS.filter((p) => hasPermission(["owner"], p));
     const removed = previous.filter((p) => !current.includes(p)).sort();
@@ -128,6 +133,20 @@ describe("hasPermission (code catalogue installed)", () => {
     expect(hasPermission(["customer"], PERMISSIONS.orders.read)).toBe(false);
     expect(hasPermission(["customer_service"], PERMISSIONS.orders.read)).toBe(true);
     expect(hasPermission(["customer_service"], PERMISSIONS.orders.readOwn)).toBe(false);
+  });
+
+  it("the .self. permissions belong to the customer role alone (D-044)", () => {
+    const self = ALL_PERMISSIONS.filter((permission) => permission.includes(".self."));
+    expect(self.sort()).toEqual([
+      "account.self.read",
+      "account.self.update",
+      "privacy.self.consent.manage",
+      "privacy.self.dsr.create",
+    ]);
+    for (const permission of self) {
+      const holders = ROLE_KEYS.filter((role) => hasPermission([role], permission));
+      expect(holders, permission).toEqual(["customer"]);
+    }
   });
 
   it("any one matching role is enough; unknown roles and no roles grant nothing", () => {

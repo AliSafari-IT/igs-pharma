@@ -65,6 +65,19 @@ export const PERMISSIONS = {
     dsrManage: "privacy.dsr.manage",
     /** System actors only: the retention job deletes expired ledger rows (igs-pharma#88). */
     retentionPurge: "privacy.retention.purge",
+    /** Customer: read and change their OWN consents (source `storefront`); the subject is the actor's e-mail. */
+    selfConsentManage: "privacy.self.consent.manage",
+    /** Customer: ask for their OWN data (access) or its erasure; staff process the request. */
+    selfDsrCreate: "privacy.self.dsr.create",
+  },
+  /**
+   * A customer's own account (igs-pharma#114, D-044). `.self.` permissions are customer-only: every command
+   * behind them acts on `actor.id` and takes no user id in its input, so there is nothing to scope with
+   * `authorizeResource`.
+   */
+  account: {
+    selfRead: "account.self.read",
+    selfUpdate: "account.self.update",
   },
   staff: {
     invite: "staff.invite",
@@ -230,7 +243,15 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.catalog.productsManage,
   ],
-  customer: [PERMISSIONS.orders.create, PERMISSIONS.orders.readOwn, PERMISSIONS.catalog.read],
+  customer: [
+    PERMISSIONS.orders.create,
+    PERMISSIONS.orders.readOwn,
+    PERMISSIONS.catalog.read,
+    PERMISSIONS.account.selfRead,
+    PERMISSIONS.account.selfUpdate,
+    PERMISSIONS.privacy.selfConsentManage,
+    PERMISSIONS.privacy.selfDsrCreate,
+  ],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
   system_auth: [PERMISSIONS.identity.securityEventsRecord, PERMISSIONS.identity.mailRequest],
   system_storefront: [

@@ -32,8 +32,8 @@ export const DSR_TYPES = [
 ] as const;
 export type DsrType = (typeof DSR_TYPES)[number];
 
-/** How the request reached us. */
-export const DSR_CHANNELS = ["email", "in_store", "post", "other"] as const;
+/** How the request reached us. `account` is a customer's own request from their storefront account (D-044). */
+export const DSR_CHANNELS = ["email", "in_store", "post", "other", "account"] as const;
 export type DsrChannel = (typeof DSR_CHANNELS)[number];
 
 export const DSR_STATUSES = ["received", "in_progress", "completed", "rejected"] as const;

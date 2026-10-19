@@ -758,6 +758,9 @@ importers:
       '@igs/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@igs/module-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@igs/rbac':
         specifier: workspace:*
         version: link:../../rbac
@@ -774,9 +777,6 @@ importers:
       '@igs/module-audit':
         specifier: workspace:*
         version: link:../audit
-      '@igs/module-identity':
-        specifier: workspace:*
-        version: link:../identity
       '@igs/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig

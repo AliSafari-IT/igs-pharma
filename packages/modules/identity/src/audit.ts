@@ -14,6 +14,7 @@ export const IDENTITY_AUDIT = {
   factorsReset: "identity.factors.reset",
   backupCodesRegenerated: "identity.mfa.backup_codes_regenerated",
   mailRequested: "identity.mail.requested",
+  profileUpdated: "identity.profile.updated",
 } as const;
 
 const roleChange = z.object({
@@ -26,6 +27,11 @@ const mfaChange = z.object({ userId: z.uuid(), method: z.enum(["passkey", "totp"
 const mailRequest = z.object({
   userId: z.uuid(),
   template: z.enum(["verify_email", "reset_password", "account_exists"]),
+});
+const profileUpdated = z.object({
+  userId: z.uuid(),
+  nameChanged: z.boolean(),
+  localeChanged: z.boolean(),
 });
 const bootstrapped = z.object({ userId: z.uuid(), roleKey: z.string() });
 
@@ -54,4 +60,5 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(IDENTITY_AUDIT.factorsReset, userChange);
   register(IDENTITY_AUDIT.backupCodesRegenerated, userChange);
   register(IDENTITY_AUDIT.mailRequested, mailRequest);
+  register(IDENTITY_AUDIT.profileUpdated, profileUpdated);
 }
