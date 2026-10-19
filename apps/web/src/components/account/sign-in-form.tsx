@@ -19,6 +19,8 @@ import { PasswordField } from "./password-field";
 
 interface Props {
   readonly locale: ContentLocale;
+  /** An account page to return to after signing in again (`safeNext`), else the storefront home. */
+  readonly next?: string | null | undefined;
 }
 
 const EMAIL_ID = "sign-in-email";
@@ -29,7 +31,7 @@ const PASSWORD_ID = "sign-in-password";
  * so the page never says whether an address has an account (see `signInFailure`). The password is
  * only checked for presence here: its length rule is for choosing one, not for typing it.
  */
-export function SignInForm({ locale }: Props) {
+export function SignInForm({ locale, next }: Props) {
   const t = useTranslations("account");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,7 +54,7 @@ export function SignInForm({ locale }: Props) {
       const { error } = await customerAuthClient.signIn.email({ email: email.trim(), password });
       if (!error) {
         // a full load, so the server renders the page with the new session cookie
-        window.location.assign(`/${locale}`);
+        window.location.assign(`/${locale}${next ?? ""}`);
         return;
       }
       setFailure(signInFailure(error));

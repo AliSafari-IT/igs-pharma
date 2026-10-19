@@ -160,6 +160,9 @@ importers:
       '@igs/module-pricing':
         specifier: workspace:*
         version: link:../../packages/modules/pricing
+      '@igs/module-privacy':
+        specifier: workspace:*
+        version: link:../../packages/modules/privacy
       '@igs/module-storefront':
         specifier: workspace:*
         version: link:../../packages/modules/storefront
