@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import type { ContentLocale } from "@igs/module-catalog";
+import { hasCustomerSessionCookie } from "../lib/account-area";
 import { PREVIEW_HEADER } from "../preview";
 import { categoryTree } from "../server/storefront";
 import { CategoryNav } from "./category-nav";
@@ -40,7 +41,9 @@ interface Props {
  */
 export async function StorefrontFrame({ locale, path, activeSlug, query, children }: Props) {
   const t = await getTranslations({ locale, namespace: "storefront" });
-  const preview = (await headers()).get(PREVIEW_HEADER) === "1";
+  const requestHeaders = await headers();
+  const preview = requestHeaders.get(PREVIEW_HEADER) === "1";
+  const signedIn = hasCustomerSessionCookie(requestHeaders.get("cookie"));
   const { customerAccounts } = getFeatureFlags();
   const tAccount = customerAccounts
     ? await getTranslations({ locale, namespace: "account" })
@@ -96,11 +99,11 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
             </Link>
             {tAccount ? (
               <Link
-                href={`/${locale}/account/sign-in`}
+                href={`/${locale}/account${signedIn ? "" : "/sign-in"}`}
                 data-testid="header-account-link"
                 className="inline-flex min-h-[44px] items-center"
               >
-                {tAccount("headerSignIn")}
+                {tAccount(signedIn ? "headerAccount" : "headerSignIn")}
               </Link>
             ) : null}
             <nav aria-label={t("language")}>
