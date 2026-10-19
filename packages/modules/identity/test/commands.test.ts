@@ -334,6 +334,7 @@ describe("registerAuditActions", () => {
       "identity.factors.reset",
       "identity.mfa.backup_codes_regenerated",
       "identity.mail.requested",
+      "identity.profile.updated",
     ]);
   });
 });
