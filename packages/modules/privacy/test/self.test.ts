@@ -121,7 +121,7 @@ describe("privacy.self.dsr", () => {
     const { requestId } = await requestOwnDsr({ type: "erasure" }, actor);
 
     const [row] = await iso.sql<
-      { subject_ref: string; type: string; channel: string; status: string; due_at: Date }[]
+      { subject_ref: string; type: string; channel: string; status: string; due_at: string }[]
     >`SELECT subject_ref, type, channel, status, due_at FROM privacy.dsr_requests WHERE id = ${requestId}`;
     expect(row).toMatchObject({
       subject_ref: subjectRef,
@@ -129,7 +129,7 @@ describe("privacy.self.dsr", () => {
       channel: "account",
       status: "received",
     });
-    expect(row?.due_at.getTime()).toBe(dsrDueAt(NOW).getTime());
+    expect(new Date(row?.due_at ?? 0).getTime()).toBe(dsrDueAt(NOW).getTime());
 
     const audit = await iso.sql<{ action: string; data: Record<string, unknown> }[]>`
       SELECT action, data FROM audit.events WHERE entity_id = ${requestId}`;
