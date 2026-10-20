@@ -68,3 +68,22 @@ export async function assertSellable(tx: Tx, productId: string): Promise<void> {
   const [visible] = await storefrontVisibleIds(tx, [productId]);
   if (!visible) throw notFound("catalog.product_not_sellable");
 }
+
+/** What the cart needs to know about a product it may hold (igs-pharma#116). */
+export interface SellableFacts {
+  readonly id: string;
+  /** A medicine: the cart allows fewer packs of it, and its order needs a pharmacist. */
+  readonly isMedicine: boolean;
+}
+
+/** The storefront-visible products among `ids` (the others are simply absent), with whether each is a medicine. */
+export async function sellableFacts(
+  tx: Tx,
+  ids: readonly string[],
+): Promise<readonly SellableFacts[]> {
+  if (ids.length === 0) return [];
+  return tx
+    .select({ id: products.id, isMedicine: sql<boolean>`${isMedicineSql()}` })
+    .from(products)
+    .where(and(inUuidSet(products.id, ids), storefrontVisible()));
+}

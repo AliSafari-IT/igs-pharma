@@ -40,9 +40,10 @@ describe("committed grants migrations equal the generator output", () => {
 
   it("every later grants migration (entries with `since`) is committed and equal", () => {
     const later = new Set(
-      APP_SCHEMAS.flatMap((s) => s.objects.map((o) => o.since ?? GRANTS_MIGRATION)).filter(
-        (n) => n > GRANTS_MIGRATION,
-      ),
+      APP_SCHEMAS.flatMap((s) => [
+        s.since ?? GRANTS_MIGRATION,
+        ...s.objects.map((o) => o.since ?? GRANTS_MIGRATION),
+      ]).filter((n) => n > GRANTS_MIGRATION),
     );
     for (const migration of later) {
       const file = fileOf(migration);

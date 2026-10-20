@@ -64,7 +64,13 @@ export {
   searchProductRefs,
   storefrontProductRefsById,
 } from "./refs";
-export { assertSellable, storefrontVisible, storefrontVisibleIds } from "./visibility";
+export {
+  type SellableFacts,
+  assertSellable,
+  sellableFacts,
+  storefrontVisible,
+  storefrontVisibleIds,
+} from "./visibility";
 export {
   CategoryNotFound,
   type CandidateFilters,

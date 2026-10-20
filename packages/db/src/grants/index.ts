@@ -10,6 +10,7 @@ import { audit } from "./audit";
 import { catalog } from "./catalog";
 import { identity } from "./identity";
 import { inventory } from "./inventory";
+import { orders } from "./orders";
 import { pgboss } from "./pgboss";
 import { pricing } from "./pricing";
 import { privacy } from "./privacy";
@@ -24,6 +25,7 @@ export const APP_SCHEMAS: readonly SchemaGrants[] = [
   catalog,
   identity,
   inventory,
+  orders,
   pricing,
   privacy,
   system,

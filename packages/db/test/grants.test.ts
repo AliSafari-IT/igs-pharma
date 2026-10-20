@@ -333,7 +333,8 @@ describe("a database built the old way converges, and the migration is idempoten
     await db.migrate({ upTo: previous });
     admin = postgres(db.superUrl, { max: 2, onnotice: () => {} });
     // simulate grants made by hand on the server: broad, on every schema, plus PUBLIC and defaults
-    for (const { schema } of APP_SCHEMAS) {
+    // the schemas that exist before 0026 (a later one, like `orders`, is created by its own migration)
+    for (const { schema } of APP_SCHEMAS.filter((s) => (s.since ?? 26) <= 26)) {
       await admin.unsafe(
         `GRANT USAGE, CREATE ON SCHEMA "${schema}" TO "${APP_ROLE}", "${WORKER_ROLE}"`,
       );
