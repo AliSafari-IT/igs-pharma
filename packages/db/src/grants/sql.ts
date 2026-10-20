@@ -139,13 +139,16 @@ export function renderGrantsSql(
 ): string {
   const migration = options.migration ?? GRANTS_MIGRATION;
   const statements: string[] = [];
+  // at 0026, only the schemas that exist then: a later one is created (and granted) by its own migrations
+  const rendered =
+    migration === GRANTS_MIGRATION
+      ? schemas.filter((g) => (g.since ?? GRANTS_MIGRATION) <= GRANTS_MIGRATION)
+      : schemas;
   if (migration === GRANTS_MIGRATION) {
-    // only the schemas that exist at 0026: a later one is created (and granted) by its own migrations
-    schemas = schemas.filter((g) => (g.since ?? GRANTS_MIGRATION) <= GRANTS_MIGRATION);
     // pgboss is checked too: it is installed by the migrate entry, so on a first run it does not exist yet
-    statements.push(assertionStatement([...schemas.map((g) => g.schema), "pgboss"]));
+    statements.push(assertionStatement([...rendered.map((g) => g.schema), "pgboss"]));
   }
-  for (const grants of schemas) {
+  for (const grants of rendered) {
     const objects = grants.objects.filter((o) =>
       migration === GRANTS_MIGRATION
         ? (o.since ?? GRANTS_MIGRATION) <= GRANTS_MIGRATION
