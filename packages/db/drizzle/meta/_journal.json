@@ -344,6 +344,20 @@
       "when": 1792521715894,
       "tag": "0048_orders_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792522532399,
+      "tag": "0049_orders_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792522561590,
+      "tag": "0050_orders_checkout_grants",
+      "breakpoints": true
     }
   ]
 }

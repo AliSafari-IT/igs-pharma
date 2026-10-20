@@ -245,6 +245,9 @@ importers:
       '@igs/module-inventory':
         specifier: workspace:*
         version: link:../../packages/modules/inventory
+      '@igs/module-orders':
+        specifier: workspace:*
+        version: link:../../packages/modules/orders
       '@igs/module-pricing':
         specifier: workspace:*
         version: link:../../packages/modules/pricing
@@ -718,9 +721,18 @@ importers:
       '@igs/module-catalog':
         specifier: workspace:*
         version: link:../catalog
+      '@igs/module-inventory':
+        specifier: workspace:*
+        version: link:../inventory
+      '@igs/module-pricing':
+        specifier: workspace:*
+        version: link:../pricing
       '@igs/rbac':
         specifier: workspace:*
         version: link:../../rbac
+      '@igs/time':
+        specifier: workspace:*
+        version: link:../../time
       drizzle-orm:
         specifier: 0.38.3
         version: 0.38.3(@types/react@19.2.18)(kysely@0.29.6)(pg@8.23.1)(postgres@3.4.5)(react@19.2.8)

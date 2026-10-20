@@ -14,11 +14,14 @@ import {
 } from "drizzle-orm/pg-core";
 
 import {
+  CHECKOUT_STATUSES,
   ORDER_CURRENCY,
   ORDER_LOCALES,
   ORDER_REFERENCE_PATTERN,
   ORDER_STATUSES,
   ORDER_VAT_CLASSES,
+  PAYMENT_PROVIDERS,
+  PAYMENT_STATUSES,
 } from "./domain";
 
 /**
@@ -102,6 +105,8 @@ export const ordersTable = orders.table(
     reference: text("reference").notNull(),
     /** The customer's user id; NULL for a guest order. */
     customerId: uuid("customer_id"),
+    /** The checkout it was placed from (one order per checkout); its holds are `checkout:<id>`. */
+    checkoutId: uuid("checkout_id").notNull(),
     locale: text("locale").notNull(),
     status: text("status").notNull().default("pending_payment"),
     /** At least one line is a medicine: a pharmacist must approve before it is prepared. */
@@ -133,6 +138,7 @@ export const ordersTable = orders.table(
     ),
     check("orders_version_check", sql`${t.version} >= 1`),
     uniqueIndex("orders_reference_idx").on(t.reference),
+    uniqueIndex("orders_checkout_idx").on(t.checkoutId),
     index("orders_customer_created_idx").on(t.customerId, t.createdAt),
     index("orders_status_created_idx").on(t.status, t.createdAt),
   ],
@@ -207,5 +213,134 @@ export const orderEvents = orders.table(
     ),
     check("order_events_to_status_check", oneOf("to_status", ORDER_STATUSES)),
     index("order_events_order_at_idx").on(t.orderId, t.at),
+  ],
+);
+
+/** The last order number handed out per calendar year (Brussels), for `IGS-<year>-<number>`. */
+export const referenceCounters = orders.table(
+  "reference_counters",
+  {
+    year: integer("year").primaryKey(),
+    lastNumber: integer("last_number").notNull(),
+  },
+  (t) => [check("reference_counters_check", sql`${t.year} >= 2026 AND ${t.lastNumber} >= 1`)],
+);
+
+/**
+ * A checkout (D-045 step 2): the cart's lines with their prices copied from pricing at the start,
+ * and the stock held for them (inventory holds with `holder_ref = checkout:<id>`). Whose it is
+ * follows the cart: a customer's by `customer_id`, a guest's by the same cookie hash as the cart.
+ */
+export const checkouts = orders.table(
+  "checkouts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    tokenHash: text("token_hash"),
+    customerId: uuid("customer_id"),
+    locale: text("locale").notNull(),
+    status: text("status").notNull().default("open"),
+    needsReview: boolean("needs_review").notNull(),
+    totalCents: integer("total_cents").notNull(),
+    vatCents: integer("vat_cents").notNull(),
+    /** When the stock holds lapse: the order must be placed before. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("checkouts_token_hash_check", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check("checkouts_owner_check", sql`(${t.tokenHash} IS NULL) <> (${t.customerId} IS NULL)`),
+    check("checkouts_locale_check", oneOf("locale", ORDER_LOCALES)),
+    check("checkouts_status_check", oneOf("status", CHECKOUT_STATUSES)),
+    check(
+      "checkouts_totals_check",
+      sql`${t.totalCents} >= 0 AND ${t.vatCents} >= 0 AND ${t.vatCents} <= ${t.totalCents}`,
+    ),
+    index("checkouts_token_open_idx").on(t.tokenHash).where(sql`${t.status} = 'open'`),
+    index("checkouts_customer_open_idx").on(t.customerId).where(sql`${t.status} = 'open'`),
+    index("checkouts_created_at_idx").on(t.createdAt),
+  ],
+);
+
+export const checkoutLines = orders.table(
+  "checkout_lines",
+  {
+    checkoutId: uuid("checkout_id")
+      .notNull()
+      .references(() => checkouts.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").notNull(),
+    cnk: text("cnk").notNull(),
+    name: text("name").notNull(),
+    isMedicine: boolean("is_medicine").notNull(),
+    vatClass: text("vat_class").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    lineTotalCents: integer("line_total_cents").notNull(),
+    vatCents: integer("vat_cents").notNull(),
+    position: integer("position").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.checkoutId, t.productId] }),
+    check("checkout_lines_vat_class_check", oneOf("vat_class", ORDER_VAT_CLASSES)),
+    check(
+      "checkout_lines_quantity_check",
+      sql`${t.quantity} > 0 AND ${t.quantity} <= ${sql.raw(String(MAX_LINE_QUANTITY))}`,
+    ),
+    check(
+      "checkout_lines_amounts_check",
+      sql`${t.unitPriceCents} >= 0 AND ${t.lineTotalCents} = ${t.quantity} * ${t.unitPriceCents}
+        AND ${t.vatCents} >= 0 AND ${t.vatCents} <= ${t.lineTotalCents}`,
+    ),
+  ],
+);
+
+/**
+ * Who to contact about an order (D-045 step 3): name, e-mail and phone. Personal data, kept apart
+ * from the order so it can be purged on its own retention (privacy, follow-up) while the order
+ * stays. Sprints 3–4 are pharmacy pickup only: no address yet.
+ */
+export const orderContacts = orders.table("order_contacts", {
+  orderId: uuid("order_id")
+    .primaryKey()
+    .references(() => ordersTable.id, { onDelete: "restrict" }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * A payment of an order (D-045 step 4). Created in `created` with the order; the route handler then
+ * asks the provider (outside any transaction, D-019) and stores its id and checkout URL. The status
+ * only moves forward and is kept apart from the order's.
+ */
+export const payments = orders.table(
+  "payments",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "restrict" }),
+    provider: text("provider").notNull(),
+    providerPaymentId: text("provider_payment_id"),
+    checkoutUrl: text("checkout_url"),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default(ORDER_CURRENCY),
+    status: text("status").notNull().default("created"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("payments_provider_check", oneOf("provider", PAYMENT_PROVIDERS)),
+    check("payments_status_check", oneOf("status", PAYMENT_STATUSES)),
+    check("payments_currency_check", oneOf("currency", [ORDER_CURRENCY])),
+    check("payments_amount_check", sql`${t.amountCents} > 0`),
+    uniqueIndex("payments_provider_payment_idx").on(t.providerPaymentId),
+    index("payments_order_idx").on(t.orderId),
+    index("payments_status_created_idx").on(t.status, t.createdAt),
   ],
 );

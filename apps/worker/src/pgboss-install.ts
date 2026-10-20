@@ -2,6 +2,7 @@ import { ensureKernelQueues, grantPgBossRuntime } from "@igs/kernel";
 import { ensureAuditQueues } from "@igs/module-audit";
 import { ensureIdentityQueues } from "@igs/module-identity";
 import { ensureInventoryQueues } from "@igs/module-inventory";
+import { ensureOrdersQueues } from "@igs/module-orders";
 import { ensurePrivacyQueues } from "@igs/module-privacy";
 
 /** The slice of a started pg-boss that the migrate entry needs. */
@@ -25,6 +26,7 @@ export async function installPgBossQueuesAndGrants(boss: InstallableBoss): Promi
   await ensureAuditQueues(boss);
   await ensureIdentityQueues(boss);
   await ensureInventoryQueues(boss);
+  await ensureOrdersQueues(boss);
   await ensurePrivacyQueues(boss);
   await grantPgBossRuntime(boss.getDb());
 }

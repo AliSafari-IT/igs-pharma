@@ -22,7 +22,10 @@
     "@igs/db": "workspace:*",
     "@igs/kernel": "workspace:*",
     "@igs/module-catalog": "workspace:*",
+    "@igs/module-inventory": "workspace:*",
+    "@igs/module-pricing": "workspace:*",
     "@igs/rbac": "workspace:*",
+    "@igs/time": "workspace:*",
     "drizzle-orm": "0.38.3",
     "zod": "4.6.5"
   },

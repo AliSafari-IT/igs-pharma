@@ -94,3 +94,39 @@ export const DAY_MS = 86_400_000;
  * SHA-256 is stored, so a database read never yields a usable cookie.
  */
 export const CART_TOKEN_PATTERN = /^[A-Za-z0-9_-]{22}$/;
+
+// ── checkout and payment ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * A checkout freezes the cart's lines and prices and holds the stock for `CHECKOUT_HOLD_MINUTES`.
+ * `open` until the order is placed (`placed`) or the shopper starts again (`cancelled`).
+ */
+export const CHECKOUT_STATUSES = ["open", "placed", "cancelled"] as const;
+export type CheckoutStatus = (typeof CHECKOUT_STATUSES)[number];
+
+/** How long a checkout holds the stock (inventory's default hold). */
+export const CHECKOUT_HOLD_MINUTES = 15;
+export const MINUTE_MS = 60_000;
+
+/** Payment providers. Phase 1: Mollie, instant methods only. */
+export const PAYMENT_PROVIDERS = ["mollie"] as const;
+
+/**
+ * A payment's state, kept apart from the order's: `created` before the provider knows it, then the
+ * provider's own statuses (Mollie: open, pending, authorized, paid, failed, canceled, expired).
+ */
+export const PAYMENT_STATUSES = [
+  "created",
+  "open",
+  "pending",
+  "authorized",
+  "paid",
+  "failed",
+  "canceled",
+  "expired",
+] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+/** `IGS-<year>-<number, 6 digits at least>`. */
+export const formatOrderReference = (year: number, number: number): string =>
+  `IGS-${year}-${String(number).padStart(6, "0")}`;

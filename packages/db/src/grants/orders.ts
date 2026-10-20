@@ -1,6 +1,6 @@
 import { type SchemaGrants, fn, table } from "./types";
 
-/** igs-pharma#116 (D-045): the orders module's schema, introduced by migrations 0047 and 0048. */
+/** igs-pharma#116 (D-045): the orders module's schema, introduced by migrations 0047 and 0048 (carts, orders) and 0049/0050 (checkout, payments). */
 export const orders: SchemaGrants = {
   schema: "orders",
   usage: { app: true, worker: false },
@@ -44,5 +44,39 @@ export const orders: SchemaGrants = {
       since: 48,
     }),
     fn("orders.reject_mutation()", { note: "trigger function: orders are kept", since: 48 }),
+    table("orders.reference_counters", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "the last order number per year, for IGS-<year>-<number>",
+      since: 50,
+    }),
+    table("orders.checkouts", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "deleted only by the definer purge, 30 days after the start",
+      since: 50,
+    }),
+    table("orders.checkout_lines", "mutable", {
+      app: ["SELECT", "INSERT"],
+      note: "written with the checkout; deleted with it by the purge",
+      since: 50,
+    }),
+    table("orders.order_contacts", "mutable", {
+      app: ["SELECT", "INSERT"],
+      note: "personal data, insert-only for the runtime by grant, apart from the order for its own retention (follow-up)",
+      since: 50,
+    }),
+    table("orders.payments", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "no DELETE for anyone (a trigger refuses it); a trigger moves the status forward only",
+      since: 50,
+    }),
+    fn("orders.payment_guard()", {
+      note: "trigger function: a payment's status only moves forward",
+      since: 50,
+    }),
+    fn("orders.purge_expired_carts()", {
+      worker: true,
+      note: "SECURITY DEFINER, zero arguments: the worker's daily purge of expired carts and month-old checkouts",
+      since: 50,
+    }),
   ],
 };

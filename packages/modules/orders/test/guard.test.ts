@@ -67,9 +67,9 @@ async function placeOrder(
   const reference = `IGS-2026-${String(nextReference++).padStart(6, "0")}`;
   await app.begin(async (sql) => {
     await sql`
-      INSERT INTO orders.orders (id, reference, locale, needs_review, total_cents, vat_cents,
+      INSERT INTO orders.orders (id, checkout_id, reference, locale, needs_review, total_cents, vat_cents,
         created_by_type, created_by_id, updated_by_type, updated_by_id)
-      VALUES (${id}, ${reference}, 'nl', ${rows.some((row) => row.isMedicine)}, ${total}, ${vat},
+      VALUES (${id}, ${randomUUID()}, ${reference}, 'nl', ${rows.some((row) => row.isMedicine)}, ${total}, ${vat},
         'anonymous', 'guest', 'anonymous', 'guest')`;
     let cnk = 1_000_000;
     for (const row of rows) {
@@ -152,9 +152,9 @@ describe("the order lifecycle", () => {
     const refused = await failure(
       app.begin(
         (sql) => sql`
-          INSERT INTO orders.orders (id, reference, locale, status, needs_review, total_cents, vat_cents,
+          INSERT INTO orders.orders (id, checkout_id, reference, locale, status, needs_review, total_cents, vat_cents,
             created_by_type, created_by_id, updated_by_type, updated_by_id)
-          VALUES (${id}, 'IGS-2026-999999', 'nl', 'ready_to_prepare', false, 0, 0, 'user', 'x', 'user', 'x')`,
+          VALUES (${id}, ${randomUUID()}, 'IGS-2026-999999', 'nl', 'ready_to_prepare', false, 0, 0, 'user', 'x', 'user', 'x')`,
       ),
     );
     expect(refused?.message).toMatch(/starts in pending_payment/);
@@ -201,9 +201,9 @@ describe("lines and totals", () => {
     const refused = await failure(
       app.begin(
         (sql) => sql`
-          INSERT INTO orders.orders (id, reference, locale, needs_review, total_cents, vat_cents,
+          INSERT INTO orders.orders (id, checkout_id, reference, locale, needs_review, total_cents, vat_cents,
             created_by_type, created_by_id, updated_by_type, updated_by_id)
-          VALUES (${newId()}, 'IGS-2026-900001', 'nl', false, 0, 0, 'user', 'x', 'user', 'x')`,
+          VALUES (${newId()}, ${randomUUID()}, 'IGS-2026-900001', 'nl', false, 0, 0, 'user', 'x', 'user', 'x')`,
       ),
     );
     expect(refused?.message).toMatch(/does not match its lines/);
@@ -218,9 +218,9 @@ describe("lines and totals", () => {
     const lying = await failure(
       app.begin(async (sql) => {
         await sql`
-          INSERT INTO orders.orders (id, reference, locale, needs_review, total_cents, vat_cents,
+          INSERT INTO orders.orders (id, checkout_id, reference, locale, needs_review, total_cents, vat_cents,
             created_by_type, created_by_id, updated_by_type, updated_by_id)
-          VALUES (${id}, 'IGS-2026-900002', 'nl', false, 499, 28, 'user', 'x', 'user', 'x')`;
+          VALUES (${id}, ${randomUUID()}, 'IGS-2026-900002', 'nl', false, 499, 28, 'user', 'x', 'user', 'x')`;
         await sql`
           INSERT INTO orders.order_lines (id, order_id, product_id, cnk, name, is_medicine, vat_class,
             quantity, unit_price_cents, line_total_cents, vat_cents)

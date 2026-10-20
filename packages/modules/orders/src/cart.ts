@@ -28,7 +28,7 @@ import { cartLines, carts } from "./schema";
 
 type Cart = typeof carts.$inferSelect;
 
-const cartToken = z.string().regex(CART_TOKEN_PATTERN);
+export const cartToken = z.string().regex(CART_TOKEN_PATTERN);
 
 /** A fresh cart cookie value: 128 random bits, base64url (22 characters). */
 export function newCartToken(): string {
@@ -44,16 +44,19 @@ const expiresFrom = (now: Date) => new Date(now.getTime() + CART_TTL_DAYS * DAY_
 const isExpired = (cart: Pick<Cart, "expiresAt">, now: Date) =>
   cart.expiresAt.getTime() <= now.getTime();
 
+/** Whose cart (and checkout): a customer by user id, anyone else by the cookie's hash. */
+export type Owner = { customerId: string } | { tokenHash: string };
+
 /** How the actor's cart is found: by user id for a customer, by token hash for anyone else. */
-function ownerOf(
+export function ownerOf(
   ctx: Pick<Ctx, "actor" | "can">,
   token: string | undefined,
-): { customerId: string } | { tokenHash: string } | undefined {
+): Owner | undefined {
   if (isCustomer(ctx)) return { customerId: ctx.actor.id };
   return token === undefined ? undefined : { tokenHash: sha256Hex(token) };
 }
 
-const whereOwner = (owner: { customerId: string } | { tokenHash: string }) =>
+const whereOwner = (owner: Owner) =>
   "customerId" in owner
     ? eq(carts.customerId, owner.customerId)
     : eq(carts.tokenHash, owner.tokenHash);
@@ -62,10 +65,7 @@ const whereOwner = (owner: { customerId: string } | { tokenHash: string }) =>
  * The owner's cart, LOCKED, or `undefined`. An expired cart is deleted on the way (with its lines):
  * it is over, and makes room for a new one.
  */
-async function lockCart(
-  ctx: Ctx,
-  owner: { customerId: string } | { tokenHash: string },
-): Promise<Cart | undefined> {
+export async function lockCart(ctx: Ctx, owner: Owner): Promise<Cart | undefined> {
   const [cart] = await ctx.tx.select().from(carts).where(whereOwner(owner)).for("update");
   if (!cart) return undefined;
   if (!isExpired(cart, ctx.now)) return cart;
@@ -74,10 +74,7 @@ async function lockCart(
 }
 
 /** The owner's cart, LOCKED, created when there is none. */
-async function lockOrCreateCart(
-  ctx: Ctx,
-  owner: { customerId: string } | { tokenHash: string },
-): Promise<Cart> {
+async function lockOrCreateCart(ctx: Ctx, owner: Owner): Promise<Cart> {
   const existing = await lockCart(ctx, owner);
   if (existing) return existing;
   // a concurrent first add for the same owner hits the unique index: then read the winner's cart
