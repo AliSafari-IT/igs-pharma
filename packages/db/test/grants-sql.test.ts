@@ -38,6 +38,19 @@ describe("committed grants migrations equal the generator output", () => {
     expect(first).toContain("'pgboss'");
   });
 
+  it("a schema introduced after 0026 gets the ownership assertion first, then its USAGE", () => {
+    for (const schema of APP_SCHEMAS.filter(
+      (s) => (s.since ?? GRANTS_MIGRATION) > GRANTS_MIGRATION,
+    )) {
+      const [first, second] = renderGrantsSql(APP_SCHEMAS, { migration: schema.since }).split(
+        "\n--> statement-breakpoint\n",
+      );
+      expect(first, schema.schema).toMatch(/^DO \$\$/);
+      expect(first, schema.schema).toContain(`n.nspname IN ('${schema.schema}')`);
+      expect(second, schema.schema).toBe(`GRANT USAGE ON SCHEMA "${schema.schema}" TO "igs_app";`);
+    }
+  });
+
   it("every later grants migration (entries with `since`) is committed and equal", () => {
     const later = new Set(
       APP_SCHEMAS.flatMap((s) => [

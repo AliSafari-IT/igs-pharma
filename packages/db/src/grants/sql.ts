@@ -131,7 +131,8 @@ export const GRANTS_MIGRATION = 26;
  *   exactly the manifest entries introduced up to 26. Idempotent: it converges on a database whose
  *   grants were made by hand. No `ALTER DEFAULT PRIVILEGES`.
  * - any later `migration: N`: only the `GRANT`s of the entries with `since: N` (a module's own
- *   migration, D-036), no reset; for a schema itself introduced by N (`since: N`), its `USAGE` first.
+ *   migration, D-036), no reset; for a schema itself introduced by N (`since: N`), first the ownership and
+ *   role assertion for that schema, then its `USAGE`.
  */
 export function renderGrantsSql(
   schemas: readonly SchemaGrants[],
@@ -159,7 +160,9 @@ export function renderGrantsSql(
       statements.push(...usageStatements(grants));
     } else if (migration !== GRANTS_MIGRATION && grants.since === migration) {
       // a schema created after 0026 starts with nothing granted (no PUBLIC grant on a new schema or
-      // table, and its migration revokes EXECUTE on its functions): only USAGE is added
+      // table, and its migration revokes EXECUTE on its functions): the same ownership and role
+      // assertion as 0026, for this schema, then its USAGE
+      statements.push(assertionStatement([grants.schema]));
       statements.push(...usageStatements(grants));
     }
     for (const object of objects) statements.push(...objectStatements(object));
