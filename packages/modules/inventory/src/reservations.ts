@@ -28,7 +28,10 @@ import { reservations } from "./schema";
  * `order` that never expires on its own, only a release or a consume ends it. The lifecycle is
  * enforced by the database as well (migration 0038).
  *
- * The commands are SYSTEM-ONLY (`inventory.reservation.manage`): the future checkout calls them.
+ * The commands are SYSTEM-ONLY (`inventory.reservation.manage`). Reserve, confirm, release and
+ * consume are also `internal` (igs-pharma#116 S1): the orders module runs them through `ctx.run`
+ * inside its own, already authorized, checkout commands, so the customer needs no reservation
+ * permission; called directly, only a system actor holding the permission may run them.
  * Staff end a reservation with `releaseReservationByStaff` (`inventory.stock.manage`). A holder is
  * an OPAQUE reference (a checkout or order id), never customer data.
  *
@@ -130,6 +133,8 @@ export const reserveStock = command({
     created: z.boolean(),
   }),
   permission: PERMISSIONS.inventory.reservationManage,
+  // the checkout runs it through ctx.run for the customer (S1); directly, system actors only
+  internal: true,
   // changes (and audits) something only when there is something to change; a retry changes nothing
   audit: "none",
   async handler({ input, ctx }) {
@@ -231,6 +236,8 @@ export const confirmReservation = command({
   input: z.object({ holderRef, items: expectedItems }),
   output: holderOutput,
   permission: PERMISSIONS.inventory.reservationManage,
+  // the checkout runs it through ctx.run for the customer (S1); directly, system actors only
+  internal: true,
   // changes (and audits) something only when there is something to change; a retry changes nothing
   audit: "none",
   async handler({ input, ctx }) {
@@ -312,6 +319,8 @@ export const releaseReservation = command({
   input: z.object({ holderRef, reason: releaseReason }),
   output: z.object({ holderRef: z.string(), released: z.number().int() }),
   permission: PERMISSIONS.inventory.reservationManage,
+  // the checkout runs it through ctx.run for the customer (S1); directly, system actors only
+  internal: true,
   // changes (and audits) something only when there is something to change; a retry changes nothing
   audit: "none",
   async handler({ input, ctx }) {
@@ -361,6 +370,8 @@ export const consumeReservation = command({
     reservations: z.array(idempotencyOutput.extend({ movementId: z.uuid() })),
   }),
   permission: PERMISSIONS.inventory.reservationManage,
+  // the checkout runs it through ctx.run for the customer (S1); directly, system actors only
+  internal: true,
   async handler({ input, ctx }) {
     await lockStock(ctx.tx);
     // the lock order everyone shares (advisory → stock-level rows by product → reservation rows):

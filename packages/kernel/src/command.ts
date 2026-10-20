@@ -97,6 +97,14 @@ export interface CommandSpec<I, O> {
   readonly permission: PermissionSpec;
   /** Default `"required"`: the handler must record an audit entry or the execution rolls back. */
   readonly audit?: "required" | "none";
+  /**
+   * igs-pharma#116 S1: a building block of other commands. Run through `ctx.run`, its own
+   * `permission` is NOT checked: the calling command authorized the actor and decides the input (the
+   * checkout reserves stock for the customer, who holds no reservation permission). Called directly,
+   * it is authorized as usual AND only a `system` actor may run it (a job, a seed), so a route or a
+   * Server Action can never reach it with a user's or a guest's actor (`kernel.internal_command`).
+   */
+  readonly internal?: boolean;
   /** D-019: no external I/O (HTTP, PSP, e-mail, file storage) in here — side effects leave via the outbox. */
   readonly handler: (args: { input: I; ctx: Ctx }) => Promise<O>;
 }
@@ -336,7 +344,8 @@ function runJoined<I, O>(
 ): Promise<O> {
   const spec = cmd.spec;
   return traced(config, spec.name, actor, async () => {
-    authorize(spec.permission, actor);
+    // an internal command is part of its caller, which has authorized the actor (S1)
+    if (!spec.internal) authorize(spec.permission, actor);
     const input = parseInput(spec.input, rawInput);
     return runHandler(config, spec, input, tx, actor, now, buffer);
   });
@@ -417,6 +426,9 @@ export function command<I, O>(spec: CommandSpec<I, O>): Command<I, O> {
     return traced(config, spec.name, actor, async () => {
       // authorize BEFORE validating: an unauthorised caller learns nothing about the input schema (K1)
       authorize(spec.permission, actor);
+      if (spec.internal && actor.type !== "system") {
+        throw invariant("kernel.internal_command", { command: spec.name });
+      }
       const input = parseInput(spec.input, rawInput);
 
       const key = options.idempotencyKey;
