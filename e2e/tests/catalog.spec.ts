@@ -119,6 +119,12 @@ test("owner: list, create with Dutch and French, then make active", async ({ pag
 
   await page.goto(`${PLATFORM}/products?q=zz-no-match`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("products-empty")).toHaveText("No products match “zz-no-match”");
+  // #104: "Clear search" goes back to the whole list, with an empty search box
+  await page.getByTestId("clear-search").click();
+  await expect(page).toHaveURL(`${PLATFORM}/products`);
+  await expect(page.getByLabel("Search by CNK or name")).toHaveValue("");
+  await expect(page.getByTestId("clear-search")).toHaveCount(0);
+  await expect(page.locator("tbody tr").first()).toBeVisible();
 
   const [audit] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM audit.events
