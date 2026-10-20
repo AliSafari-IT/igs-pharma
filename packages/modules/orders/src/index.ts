@@ -5,6 +5,7 @@ export {
   CART_TTL_DAYS,
   CHECKOUT_HOLD_MINUTES,
   CHECKOUT_STATUSES,
+  type CheckoutStatus,
   MAX_PER_ORDER_MEDICINE,
   MAX_PER_ORDER_OTHER,
   ORDER_CURRENCY,
@@ -28,6 +29,13 @@ export {
   setCartLine,
 } from "./cart";
 export { placeOrder, startCheckout } from "./checkout";
+export {
+  type BasketLineView,
+  type CheckoutView,
+  type OrderView,
+  getCheckout,
+  getOrder,
+} from "./views";
 export { ORDERS_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {
   ORDERS_JOBS,

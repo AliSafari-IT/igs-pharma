@@ -1,7 +1,7 @@
 "use server";
 
 import { isDomainError } from "@igs/kernel";
-import { getCart, newCartToken, setCartLine } from "@igs/module-orders";
+import { getCart, newCartToken, setCartLine, startCheckout } from "@igs/module-orders";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -78,4 +78,27 @@ export async function updateCartLine(form: FormData): Promise<void> {
     result = resultOfCode(error.code);
   }
   back(locale, result);
+}
+
+/**
+ * "Checkout" on the cart (and "Start again" on a lapsed checkout): re-prices the cart and holds its
+ * stock, then opens the checkout page. A refusal (short, no longer sellable, empty) comes back to
+ * the cart with its `?result=`.
+ */
+export async function startCheckoutAction(form: FormData): Promise<void> {
+  const locale = cartLocale(text(form, "locale"));
+  const { actor, token } = await cartActor();
+  if (actor.type === "anonymous" && !token) back(locale, "empty");
+  let checkoutId: string | null = null;
+  let result: CartResult = "failed";
+  try {
+    ({ checkoutId } = await startCheckout({ cartToken: token, locale }, actor, {
+      origin: await requestOrigin(),
+    }));
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    result = resultOfCode(error.code);
+  }
+  if (!checkoutId) back(locale, result);
+  redirect(`/${locale}/checkout/${checkoutId}`);
 }

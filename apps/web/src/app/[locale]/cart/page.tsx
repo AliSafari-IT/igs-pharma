@@ -8,7 +8,7 @@ import { StorefrontFrame } from "../../../components/storefront-frame";
 import { isSuccessResult, resultMessageKey, resultOf } from "../../../lib/cart-area";
 import { cartActor, cartLocale } from "../../../server/cart";
 import { INTL_LOCALE, localeOf } from "../../../server/storefront";
-import { updateCartLine } from "./actions";
+import { startCheckoutAction, updateCartLine } from "./actions";
 
 interface Props {
   readonly params: Promise<{ locale: string }>;
@@ -25,7 +25,8 @@ export async function generateMetadata({ params }: Props) {
 
 /**
  * The cart (igs-pharma#116): its lines with today's price, a quantity field per line (up to the
- * per-order limit) and a remove button, an indicative total, and the way to checkout once it opens.
+ * per-order limit) and a remove button, an indicative total, and "Checkout", which holds the stock
+ * and opens the checkout page.
  * Every form posts to a Server Action and comes back here with a `?result=`, so it works without
  * JavaScript. A line whose product can no longer be bought stays, explained, until it is removed.
  */
@@ -140,10 +141,17 @@ export default async function CartPage({ params, searchParams }: Props) {
                 <Price cents={cart.totalCents} locale={intl} vatLabel={t("vatIncluded")} />
               </p>
               <p className="text-sm text-[var(--color-text-subtle)]">{t("totalNote")}</p>
-              <Button disabled className="min-h-[44px]">
-                {t("checkout")}
-              </Button>
-              <p className="text-sm text-[var(--color-text-subtle)]">{t("checkoutSoon")}</p>
+              <form action={startCheckoutAction}>
+                <input type="hidden" name="locale" value={locale} />
+                <Button
+                  type="submit"
+                  disabled={!cart.lines.some((line) => line.sellable)}
+                  className="min-h-[44px]"
+                  data-testid="start-checkout"
+                >
+                  {t("checkout")}
+                </Button>
+              </form>
             </div>
           </>
         )}

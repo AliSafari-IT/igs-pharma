@@ -104,6 +104,10 @@ test("owner: a file with an unknown CNK changes nothing", async ({ page, context
   await page.goto(`${PLATFORM}/stock?q=zz-no-match`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("stock-empty")).toHaveText("No products match “zz-no-match”");
   await expect(page.getByRole("table")).toHaveCount(0);
+  // #104: "Clear search" goes back to the whole list
+  await page.getByTestId("clear-search").click();
+  await expect(page).toHaveURL(`${PLATFORM}/stock`);
+  await expect(page.getByTestId("clear-search")).toHaveCount(0);
 });
 
 test("owner: upload, preview, confirm, then see on-hand and history", async ({ page, context }) => {
