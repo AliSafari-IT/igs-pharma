@@ -51,6 +51,7 @@ import {
   reserveStock,
   storefrontAvailability,
 } from "@igs/module-inventory";
+import { registerOrdersJobs } from "@igs/module-orders";
 import {
   registerAuditActions as registerPricingAudit,
   setPrice,
@@ -427,7 +428,16 @@ describe("the retention jobs as igs_worker (igs-pharma#88)", () => {
          created_by_type, created_by_id, updated_by_type, updated_by_id)
       VALUES (${randomUUID()}, ${randomUUID()}, '0192f000-0000-7000-8000-000000000001', 2, 'hold',
         'checkout:00000000-0000-7000-8000-0000000000a1', 'active', now() - interval '5 minutes', 'system', 'checkout', 'system', 'checkout')`;
+    // an expired guest cart and a month-old checkout (igs-pharma#116)
+    await admin`
+      INSERT INTO orders.carts (id, token_hash, created_at, updated_at, expires_at)
+      VALUES (${randomUUID()}, ${"a".repeat(64)}, now() - interval '40 days', now() - interval '40 days', now() - interval '10 days')`;
+    await admin`
+      INSERT INTO orders.checkouts (id, token_hash, locale, status, needs_review, total_cents, vat_cents, expires_at, created_at, updated_at)
+      VALUES (${randomUUID()}, ${"b".repeat(64)}, 'nl', 'cancelled', false, 0, 0, now() - interval '31 days', now() - interval '31 days', now() - interval '31 days')`;
     await registerInventoryJobs(boss as never, runtime);
+    await registerOrdersJobs(boss as never, runtime);
+    await boss.send("orders.carts.purge", {});
     await boss.send("inventory.reservations.expire", {});
     await registerPrivacyJobs(boss as never, runtime);
     await boss.send("inventory.plans.purge", {});
@@ -439,12 +449,14 @@ describe("the retention jobs as igs_worker (igs-pharma#88)", () => {
             "inventory.plans.purged",
             "privacy.retention.purged",
             "inventory.reservations.expired",
+            "orders.carts.purged",
           ]),
         ),
       { timeout: 20_000, interval: 250 },
     );
 
     expect(logs.find((l) => l.msg === "inventory.plans.purged")?.obj).toEqual({ purged: 1 });
+    expect(logs.find((l) => l.msg === "orders.carts.purged")?.obj).toEqual({ purged: 2 });
     expect(logs.find((l) => l.msg === "privacy.retention.purged")?.obj).toMatchObject({
       consentEvents: 1,
     });
@@ -517,6 +529,9 @@ describe("a worker started before the migrate entry has run", () => {
       );
       await expect(registerPrivacyJobs(boss as never, runtime)).rejects.toThrow(
         /kernel\.queue_missing.*privacy\.retention\.purge/s,
+      );
+      await expect(registerOrdersJobs(boss as never, runtime)).rejects.toThrow(
+        /kernel\.queue_missing.*orders\.carts\.purge/s,
       );
       // and the runtime role could not have created them anyway
       await expect(boss.createQueue("runtime.roles.rogue")).rejects.toThrow();

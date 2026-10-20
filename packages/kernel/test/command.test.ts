@@ -639,6 +639,50 @@ describe("nested commands (Q7)", () => {
   });
 });
 
+describe("internal commands (igs-pharma#116 S1)", () => {
+  const building = command({
+    name: "test.inner.internal",
+    input: z.object({ id: z.string() }),
+    permission: "staff.manage",
+    internal: true,
+    async handler({ input, ctx }) {
+      await insertItem(ctx, input.id);
+      await record(ctx, "test.inner.created");
+    },
+  });
+
+  it("run through ctx.run, the caller's authorization stands in for the inner permission", async () => {
+    const outer = command({
+      name: "test.outer.internal",
+      input: z.object({}),
+      permission: "orders.review.decide",
+      audit: "none",
+      async handler({ ctx }) {
+        await ctx.run(building, { id: "via-outer" });
+      },
+    });
+    // a pharmacist does not hold staff.manage, yet the nested internal command runs
+    await outer({}, pharmacist());
+    expect(await count("kernel_items")).toBe(1);
+  });
+
+  it("called directly it needs its permission, and only a system actor may call it", async () => {
+    await expect(building({ id: "p" }, pharmacist())).rejects.toMatchObject({
+      code: "kernel.forbidden",
+    });
+    // a user who holds the permission is still refused: no route reaches an internal command
+    await expect(building({ id: "o" }, actors.user({ roles: ["owner"] }))).rejects.toMatchObject({
+      kind: "InvariantViolation",
+      code: "kernel.internal_command",
+    });
+    await expect(building({ id: "a" }, actors.anonymous())).rejects.toMatchObject({
+      code: "kernel.forbidden",
+    });
+    await building({ id: "s" }, actors.system({ roles: ["owner"] }));
+    expect(await count("kernel_items")).toBe(1);
+  });
+});
+
 describe("spans (no PII)", () => {
   it("one span per execution with command name, actor type and outcome — never input values or actor id", async () => {
     const marker = "VERY-SECRET-INPUT-VALUE";

@@ -101,7 +101,8 @@
     "findPharmacyIntro": "The pharmacy behind this shop:",
     "pharmacyDetailsLink": "All pharmacy details",
     "headerPharmacyLink": "Our pharmacy",
-    "askPharmacistHeading": "Ask your pharmacist"
+    "askPharmacistHeading": "Ask your pharmacist",
+    "headerCart": "Cart"
   },
   "account": {
     "headerSignIn": "Sign in",
@@ -215,5 +216,30 @@
     "resultFreshRequired": "Sign in again first, then repeat your request.",
     "resultFailed": "That didn't work. Try again.",
     "legalPlaceholder": "Placeholder text until the pharmacy's counsel supplies the final wording."
+  },
+  "cart": {
+    "title": "Cart",
+    "empty": "Your cart is empty.",
+    "continueShopping": "Continue shopping",
+    "unavailable": "Your cart is temporarily unavailable. Please try again later.",
+    "noLongerAvailable": "Product no longer available",
+    "each": "each, incl. VAT",
+    "priceUnknown": "Price to follow",
+    "quantity": "Quantity",
+    "update": "Update",
+    "remove": "Remove",
+    "removeNamed": "Remove {name}",
+    "total": "Total",
+    "vatIncluded": "incl. VAT",
+    "totalNote": "Indicative: prices are recalculated at checkout.",
+    "checkout": "Checkout",
+    "checkoutSoon": "Ordering online will be possible soon.",
+    "resultAdded": "Added to your cart.",
+    "resultUpdated": "Quantity updated.",
+    "resultRemoved": "Product removed.",
+    "resultLimit": "You cannot order more of this product.",
+    "resultFull": "Your cart is full.",
+    "resultUnavailable": "This product is no longer available.",
+    "resultFailed": "That did not work. Please try again."
   }
 }

@@ -27,6 +27,7 @@ import {
   registerAuditActions as registerInventoryAuditActions,
   registerInventoryJobs,
 } from "@igs/module-inventory";
+import { type OrdersJobScheduler, registerOrdersJobs } from "@igs/module-orders";
 import {
   type PrivacyJobScheduler,
   registerAuditActions as registerPrivacyAuditActions,
@@ -106,6 +107,8 @@ async function main() {
   // (04:12) and personal data past its retention period (03:52), Europe/Brussels, never 02:xx.
   await registerInventoryJobs(boss as unknown as InventoryJobScheduler);
   await registerPrivacyJobs(boss as unknown as PrivacyJobScheduler);
+  // igs-pharma#116: expired carts and month-old checkouts (04:27 Europe/Brussels), a definer function
+  await registerOrdersJobs(boss as unknown as OrdersJobScheduler);
   // Account mail (igs-pharma#114): the worker is the only process that talks to a mail server (D-019).
   // `identity.mail.requested` events arrive through the outbox; expired links are purged hourly.
   await registerIdentityJobs(boss as unknown as IdentityJobScheduler, createMailSender(env));

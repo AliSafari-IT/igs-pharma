@@ -9,6 +9,8 @@ import {
   registerAuditActions as registerIdentityAuditActions,
   requestMail,
 } from "@igs/module-identity";
+import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
+import { registerAuditActions as registerOrdersAuditActions } from "@igs/module-orders";
 import { configureStorefront } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
 
@@ -48,6 +50,10 @@ export function ensureAuthConfigured(): void {
   if (configured) return;
   const env = parseEnvFor(auditEnv);
   registerIdentityAuditActions(registerAuditAction);
+  // the cart and checkout (igs-pharma#116) audit their changes; the checkout holds stock through
+  // inventory's reservation commands, which audit too
+  registerOrdersAuditActions(registerAuditAction);
+  registerInventoryAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
   // The name says "auth" but this is the web app's one synchronous composition root: every request
   // path goes through it, so the storefront read model's setting is parsed HERE (modules do not read

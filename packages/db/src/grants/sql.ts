@@ -131,7 +131,8 @@ export const GRANTS_MIGRATION = 26;
  *   exactly the manifest entries introduced up to 26. Idempotent: it converges on a database whose
  *   grants were made by hand. No `ALTER DEFAULT PRIVILEGES`.
  * - any later `migration: N`: only the `GRANT`s of the entries with `since: N` (a module's own
- *   migration, D-036), no reset.
+ *   migration, D-036), no reset; for a schema itself introduced by N (`since: N`), first the ownership and
+ *   role assertion for that schema, then its `USAGE`.
  */
 export function renderGrantsSql(
   schemas: readonly SchemaGrants[],
@@ -139,11 +140,16 @@ export function renderGrantsSql(
 ): string {
   const migration = options.migration ?? GRANTS_MIGRATION;
   const statements: string[] = [];
+  // at 0026, only the schemas that exist then: a later one is created (and granted) by its own migrations
+  const rendered =
+    migration === GRANTS_MIGRATION
+      ? schemas.filter((g) => (g.since ?? GRANTS_MIGRATION) <= GRANTS_MIGRATION)
+      : schemas;
   if (migration === GRANTS_MIGRATION) {
     // pgboss is checked too: it is installed by the migrate entry, so on a first run it does not exist yet
-    statements.push(assertionStatement([...schemas.map((g) => g.schema), "pgboss"]));
+    statements.push(assertionStatement([...rendered.map((g) => g.schema), "pgboss"]));
   }
-  for (const grants of schemas) {
+  for (const grants of rendered) {
     const objects = grants.objects.filter((o) =>
       migration === GRANTS_MIGRATION
         ? (o.since ?? GRANTS_MIGRATION) <= GRANTS_MIGRATION
@@ -151,6 +157,12 @@ export function renderGrantsSql(
     );
     if (migration === GRANTS_MIGRATION) {
       statements.push(...resetStatements(grants.schema));
+      statements.push(...usageStatements(grants));
+    } else if (migration !== GRANTS_MIGRATION && grants.since === migration) {
+      // a schema created after 0026 starts with nothing granted (no PUBLIC grant on a new schema or
+      // table, and its migration revokes EXECUTE on its functions): the same ownership and role
+      // assertion as 0026, for this schema, then its USAGE
+      statements.push(assertionStatement([grants.schema]));
       statements.push(...usageStatements(grants));
     }
     for (const object of objects) statements.push(...objectStatements(object));

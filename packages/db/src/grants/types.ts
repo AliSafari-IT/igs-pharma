@@ -59,6 +59,11 @@ export interface SchemaGrants {
   readonly schema: string;
   /** Who gets `USAGE` on the schema (never `CREATE`). */
   readonly usage: { readonly app: boolean; readonly worker: boolean };
+  /**
+   * The grants migration that introduced the SCHEMA (default 26): a schema created later gets its
+   * `USAGE` in that migration, together with its entries (igs-pharma#116, `orders`).
+   */
+  readonly since?: number;
   readonly objects: readonly ObjectGrant[];
 }
 

@@ -2,6 +2,7 @@ import { type Tx, notFound } from "@igs/kernel";
 import { type SQL, and, eq, ne, sql } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 
+import type { ContentLocale, VatClass } from "./domain";
 import { productContent, products } from "./schema";
 
 /**
@@ -67,4 +68,41 @@ export async function storefrontVisibleIds(
 export async function assertSellable(tx: Tx, productId: string): Promise<void> {
   const [visible] = await storefrontVisibleIds(tx, [productId]);
   if (!visible) throw notFound("catalog.product_not_sellable");
+}
+
+/** What the cart and the checkout need to know about a product they may hold (igs-pharma#116). */
+export interface SellableFacts {
+  readonly id: string;
+  readonly cnk: string;
+  /** The name in the requested locale, else the Dutch one (an active product always has Dutch text). */
+  readonly name: string;
+  /** A medicine: the cart allows fewer packs of it, and its order needs a pharmacist. */
+  readonly isMedicine: boolean;
+  readonly vatClass: VatClass;
+}
+
+/** The text column of `locale`'s content row, as a scalar subquery. */
+const nameIn = (locale: ContentLocale): SQL =>
+  sql`(SELECT ${productContent.name} FROM ${productContent} WHERE ${productContent.productId} = ${products.id} AND ${productContent.locale} = ${locale})`;
+
+/**
+ * The storefront-visible products among `ids` (the others are simply absent), with what a basket
+ * line needs: CNK, name in `locale`, whether it is a medicine, VAT class.
+ */
+export async function sellableFacts(
+  tx: Tx,
+  ids: readonly string[],
+  locale: ContentLocale = "nl",
+): Promise<readonly SellableFacts[]> {
+  if (ids.length === 0) return [];
+  return tx
+    .select({
+      id: products.id,
+      cnk: products.cnk,
+      name: sql<string>`coalesce(${nameIn(locale)}, ${nameIn("nl")}, ${products.cnk})`,
+      isMedicine: sql<boolean>`${isMedicineSql()}`,
+      vatClass: sql<VatClass>`${products.vatClass}`,
+    })
+    .from(products)
+    .where(and(inUuidSet(products.id, ids), storefrontVisible()));
 }

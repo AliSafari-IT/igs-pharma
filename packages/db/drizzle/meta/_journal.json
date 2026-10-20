@@ -330,6 +330,34 @@
       "when": 1792440121067,
       "tag": "0046_rbac_seed_customer_self_service",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792521642148,
+      "tag": "0047_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792521715894,
+      "tag": "0048_orders_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792522532399,
+      "tag": "0049_orders_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1792522561590,
+      "tag": "0050_orders_checkout_grants",
+      "breakpoints": true
     }
   ]
 }

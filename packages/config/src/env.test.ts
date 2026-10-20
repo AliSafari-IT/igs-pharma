@@ -99,6 +99,18 @@ describe("parseEnv", () => {
     );
   });
 
+  it("the cart (#116): strict flag, off by default", () => {
+    expect(parseEnv(valid).NEXT_PUBLIC_FEATURE_CART).toBe(false);
+    expect(parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_CART: "true" }).NEXT_PUBLIC_FEATURE_CART).toBe(
+      true,
+    );
+    for (const bad of ["yes", "1", "TRUE", "on"]) {
+      expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_CART: bad }), bad).toThrow(
+        /FEATURE_CART/,
+      );
+    }
+  });
+
   it("customer accounts (#114): strict flag, off by default; STOREFRONT_URL a URL, empty = unset", () => {
     expect(
       parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "true" })
