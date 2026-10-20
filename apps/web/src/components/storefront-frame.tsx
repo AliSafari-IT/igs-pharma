@@ -37,14 +37,14 @@ interface Props {
  * The shared shell of the storefront pages (igs-pharma#62): the preview banner, the header with the
  * language links, the category tree as navigation, and the main content. The banner shows only on a
  * request the proxy marked as a verified preview. The account link shows only while customer accounts
- * are switched on (igs-pharma#115, D-044).
+ * are switched on (igs-pharma#115, D-044), the cart link only while the cart is (igs-pharma#116).
  */
 export async function StorefrontFrame({ locale, path, activeSlug, query, children }: Props) {
   const t = await getTranslations({ locale, namespace: "storefront" });
   const requestHeaders = await headers();
   const preview = requestHeaders.get(PREVIEW_HEADER) === "1";
   const signedIn = hasCustomerSessionCookie(requestHeaders.get("cookie"));
-  const { customerAccounts } = getFeatureFlags();
+  const { customerAccounts, cart } = getFeatureFlags();
   const tAccount = customerAccounts
     ? await getTranslations({ locale, namespace: "account" })
     : null;
@@ -104,6 +104,15 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
                 className="inline-flex min-h-[44px] items-center"
               >
                 {tAccount(signedIn ? "headerAccount" : "headerSignIn")}
+              </Link>
+            ) : null}
+            {cart ? (
+              <Link
+                href={`/${locale}/cart`}
+                data-testid="header-cart-link"
+                className="inline-flex min-h-[44px] items-center"
+              >
+                {t("headerCart")}
               </Link>
             ) : null}
             <nav aria-label={t("language")}>

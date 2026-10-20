@@ -157,6 +157,9 @@ importers:
       '@igs/module-inventory':
         specifier: workspace:*
         version: link:../../packages/modules/inventory
+      '@igs/module-orders':
+        specifier: workspace:*
+        version: link:../../packages/modules/orders
       '@igs/module-pricing':
         specifier: workspace:*
         version: link:../../packages/modules/pricing

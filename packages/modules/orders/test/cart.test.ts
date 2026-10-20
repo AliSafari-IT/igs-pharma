@@ -109,8 +109,16 @@ describe("a guest's cart", () => {
 
     expect(await getCart({ cartToken: token }, guest())).toEqual({
       cartId,
-      lines: [{ productId, quantity: 3, sellable: true, maxQuantity: MAX_PER_ORDER_OTHER }],
+      lines: [
+        expect.objectContaining({
+          productId,
+          quantity: 3,
+          sellable: true,
+          maxQuantity: MAX_PER_ORDER_OTHER,
+        }),
+      ],
       maxLines: CART_MAX_LINES,
+      totalCents: 0, // no price set in these tests
     });
     const [row] = await cartRow(cartId);
     expect(row).toMatchObject({ token_hash: sha256Hex(token), customer_id: null });
@@ -155,7 +163,12 @@ describe("a guest's cart", () => {
     await setCartLine({ cartToken: token, productId: b, quantity: 0 }, guest());
 
     expect((await getCart({ cartToken: token }, guest())).lines).toEqual([
-      { productId: a, quantity: 4, sellable: true, maxQuantity: MAX_PER_ORDER_OTHER },
+      expect.objectContaining({
+        productId: a,
+        quantity: 4,
+        sellable: true,
+        maxQuantity: MAX_PER_ORDER_OTHER,
+      }),
     ]);
     expect((await auditOf(cartId as string)).map((e) => e.data["quantity"])).toEqual([1, 2, 4, 0]);
   });
@@ -181,7 +194,12 @@ describe("a guest's cart", () => {
       ),
     ).toBe("orders.cart_quantity_limit");
     expect((await getCart({ cartToken: token }, guest())).lines).toEqual([
-      { productId: medicine, quantity: 2, sellable: true, maxQuantity: MAX_PER_ORDER_MEDICINE },
+      expect.objectContaining({
+        productId: medicine,
+        quantity: 2,
+        sellable: true,
+        maxQuantity: MAX_PER_ORDER_MEDICINE,
+      }),
     ]);
   });
 
@@ -198,7 +216,7 @@ describe("a guest's cart", () => {
     await setCartLine({ cartToken: token, productId, quantity: 1 }, guest());
     await setProductStatusRegulated({ productId, status: "archived" }, pharmacist);
     expect((await getCart({ cartToken: token }, guest())).lines).toEqual([
-      { productId, quantity: 1, sellable: false, maxQuantity: null },
+      expect.objectContaining({ productId, quantity: 1, sellable: false, maxQuantity: null }),
     ]);
     // it can no longer be raised, but it can be removed
     expect(await codeOf(setCartLine({ cartToken: token, productId, quantity: 2 }, guest()))).toBe(
@@ -278,7 +296,12 @@ describe("a customer's cart", () => {
       expect.objectContaining({ token_hash: null, customer_id: bob.id }),
     ]);
     expect((await getCart({}, bob)).lines).toEqual([
-      { productId, quantity: 2, sellable: true, maxQuantity: MAX_PER_ORDER_OTHER },
+      expect.objectContaining({
+        productId,
+        quantity: 2,
+        sellable: true,
+        maxQuantity: MAX_PER_ORDER_OTHER,
+      }),
     ]);
     // signed out again, the old cookie opens an empty cart
     expect((await getCart({ cartToken: token }, guest())).lines).toEqual([]);

@@ -24,6 +24,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   CHECKOUT_HOLD_MINUTES,
+  getCart,
   newCartToken,
   placeOrder,
   registerAuditActions,
@@ -116,6 +117,25 @@ async function guestCart(lines: readonly { productId: string; quantity: number }
   for (const line of lines) await setCartLine({ cartToken: token, ...line }, actor);
   return { token, actor };
 }
+
+describe("the cart for display", () => {
+  it("names each line in the shopper's language, with today's price and an indicative total", async () => {
+    const productId = await product({ priceCents: 1_250 });
+    const unpriced = await product({ priceCents: null });
+    const { token, actor } = await guestCart([
+      { productId, quantity: 2 },
+      { productId: unpriced, quantity: 1 },
+    ]);
+    const cart = await getCart({ cartToken: token, locale: "fr" }, actor);
+    expect(cart.lines).toEqual([
+      expect.objectContaining({ productId, unitPriceCents: 1_250, sellable: true }),
+      expect.objectContaining({ productId: unpriced, unitPriceCents: null, sellable: true }),
+    ]);
+    expect(cart.lines[0]?.name).toMatch(/^Produit /);
+    expect(cart.lines[0]?.cnk).toMatch(/^[0-9]{7}$/);
+    expect(cart.totalCents).toBe(2_500);
+  });
+});
 
 describe("starting the checkout", () => {
   it("copies the lines with today's prices and VAT, and holds the stock for 15 minutes", async () => {

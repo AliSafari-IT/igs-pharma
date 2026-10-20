@@ -101,7 +101,8 @@
     "findPharmacyIntro": "La pharmacie derrière cette boutique en ligne :",
     "pharmacyDetailsLink": "Toutes les coordonnées de la pharmacie",
     "headerPharmacyLink": "Notre pharmacie",
-    "askPharmacistHeading": "Demandez à votre pharmacien"
+    "askPharmacistHeading": "Demandez à votre pharmacien",
+    "headerCart": "Panier"
   },
   "account": {
     "headerSignIn": "Se connecter",
@@ -215,5 +216,30 @@
     "resultFreshRequired": "Reconnectez-vous d'abord, puis répétez votre demande.",
     "resultFailed": "Cela n'a pas fonctionné. Réessayez.",
     "legalPlaceholder": "Texte provisoire jusqu'à ce que le conseiller juridique de la pharmacie fournisse la formulation définitive."
+  },
+  "cart": {
+    "title": "Panier",
+    "empty": "Votre panier est vide.",
+    "continueShopping": "Continuer vos achats",
+    "unavailable": "Votre panier est temporairement indisponible. Veuillez réessayer plus tard.",
+    "noLongerAvailable": "Produit plus disponible",
+    "each": "la pièce, TVA comprise",
+    "priceUnknown": "Prix à venir",
+    "quantity": "Quantité",
+    "update": "Modifier",
+    "remove": "Retirer",
+    "removeNamed": "Retirer {name}",
+    "total": "Total",
+    "vatIncluded": "TVA comprise",
+    "totalNote": "Indicatif : les prix sont recalculés lors du paiement.",
+    "checkout": "Commander",
+    "checkoutSoon": "La commande en ligne sera bientôt possible.",
+    "resultAdded": "Ajouté à votre panier.",
+    "resultUpdated": "Quantité modifiée.",
+    "resultRemoved": "Produit retiré.",
+    "resultLimit": "Vous ne pouvez pas commander davantage de ce produit.",
+    "resultFull": "Votre panier est plein.",
+    "resultUnavailable": "Ce produit n'est plus disponible.",
+    "resultFailed": "Cela n'a pas fonctionné. Veuillez réessayer."
   }
 }

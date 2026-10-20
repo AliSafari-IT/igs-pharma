@@ -1,3 +1,4 @@
+import { getFeatureFlags } from "@igs/config/feature-flags";
 import { isDomainError } from "@igs/kernel";
 import { type StorefrontProductView, getStorefrontProduct } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
@@ -10,6 +11,7 @@ import { ProductIllustration } from "../../../../components/product-illustration
 import { StorefrontFrame } from "../../../../components/storefront-frame";
 import { ensureKernelConfigured } from "../../../../server/kernel";
 import { STOREFRONT_ACTOR, localeOf } from "../../../../server/storefront";
+import { addToCart } from "../../cart/actions";
 
 interface Props {
   readonly params: Promise<{ locale: string; cnk: string }>;
@@ -17,7 +19,7 @@ interface Props {
 
 /**
  * One product (igs-pharma#104): breadcrumb, name, brand, CNK, price with VAT, availability, the
- * texts and warnings, and a disabled cart button until ordering opens. A medicine gets the neutral
+ * texts and warnings, and the cart button (disabled with a notice until the cart is switched on, #116). A medicine gets the neutral
  * "read the leaflet, ask your pharmacist" notice; the page makes no claim about what a product
  * does beyond the pharmacist-approved text.
  */
@@ -104,14 +106,35 @@ export default async function ProductPage({ params }: Props) {
                   <p className="mt-1 text-[var(--color-text)]">{t("medicineNotice")}</p>
                 </div>
               ) : null}
-              <div className="flex flex-col gap-1">
-                <div>
-                  <Button disabled className="min-h-[44px]">
-                    {t("addToCart")}
-                  </Button>
+              {getFeatureFlags().cart ? (
+                // the cart (#116): one more of it per press, the limits are checked on the server
+                <form action={addToCart} className="flex flex-col gap-1">
+                  <input type="hidden" name="locale" value={locale} />
+                  <input type="hidden" name="productId" value={product.id} />
+                  <div>
+                    <Button
+                      type="submit"
+                      disabled={product.status === "out"}
+                      className="min-h-[44px]"
+                      data-testid="add-to-cart"
+                    >
+                      {t("addToCart")}
+                    </Button>
+                  </div>
+                  {product.status === "out" ? (
+                    <p className="text-sm text-[var(--color-text-subtle)]">{t("outOfStock")}</p>
+                  ) : null}
+                </form>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <div>
+                    <Button disabled className="min-h-[44px]">
+                      {t("addToCart")}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-[var(--color-text-subtle)]">{t("addToCartSoon")}</p>
                 </div>
-                <p className="text-sm text-[var(--color-text-subtle)]">{t("addToCartSoon")}</p>
-              </div>
+              )}
             </div>
           </div>
           {product.description ? (

@@ -109,6 +109,14 @@ export const featureFlagsEnv = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /**
+   * The storefront cart (igs-pharma#116): the "Add to cart" button, the cart page and the header
+   * link. Strictly `true` or `false`; off, the cart page answers 404 and the button stays disabled.
+   */
+  NEXT_PUBLIC_FEATURE_CART: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 /**

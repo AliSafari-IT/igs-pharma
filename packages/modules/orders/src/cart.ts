@@ -3,12 +3,20 @@ import { randomBytes } from "node:crypto";
 import { sha256Hex } from "@igs/crypto";
 import { type Ctx, command, conflict, notFound, query, validationFailed } from "@igs/kernel";
 import { sellableFacts } from "@igs/module-catalog";
+import { storefrontPriceCards } from "@igs/module-pricing";
 import { PERMISSIONS } from "@igs/rbac";
 import { and, asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { ORDERS_AUDIT } from "./audit";
-import { CART_MAX_LINES, CART_TOKEN_PATTERN, CART_TTL_DAYS, DAY_MS, maxPerOrder } from "./domain";
+import {
+  CART_MAX_LINES,
+  CART_TOKEN_PATTERN,
+  CART_TTL_DAYS,
+  DAY_MS,
+  ORDER_LOCALES,
+  maxPerOrder,
+} from "./domain";
 import { cartLines, carts } from "./schema";
 
 /**
@@ -121,6 +129,10 @@ export interface CartLineView {
   readonly sellable: boolean;
   /** How many of it one order may hold (O-3); `null` for a line that is not sellable. */
   readonly maxQuantity: number | null;
+  /** For display, `null` when not sellable: the CNK, the name in the asked locale, today's price incl. VAT. */
+  readonly cnk: string | null;
+  readonly name: string | null;
+  readonly unitPriceCents: number | null;
 }
 
 export interface CartView {
@@ -128,9 +140,14 @@ export interface CartView {
   readonly cartId: string | null;
   readonly lines: readonly CartLineView[];
   readonly maxLines: number;
+  /**
+   * What the sellable, priced lines cost at today's prices (incl. VAT): an indication only, the
+   * checkout re-prices.
+   */
+  readonly totalCents: number;
 }
 
-const emptyCart: CartView = { cartId: null, lines: [], maxLines: CART_MAX_LINES };
+const emptyCart: CartView = { cartId: null, lines: [], maxLines: CART_MAX_LINES, totalCents: 0 };
 
 /**
  * The actor's cart, its lines in the order they were added. A guest without a cookie, or whose
@@ -138,7 +155,11 @@ const emptyCart: CartView = { cartId: null, lines: [], maxLines: CART_MAX_LINES 
  */
 export const getCart = query({
   name: "orders.cart.get",
-  input: z.object({ cartToken: cartToken.optional() }),
+  input: z.object({
+    cartToken: cartToken.optional(),
+    /** The language of the line names (default Dutch). */
+    locale: z.enum(ORDER_LOCALES).default("nl"),
+  }),
   permission: "public",
   async handler({ input, ctx }): Promise<CartView> {
     const owner = ownerOf(ctx, input.cartToken);
@@ -151,26 +172,28 @@ export const getCart = query({
       .from(cartLines)
       .where(eq(cartLines.cartId, cart.id))
       .orderBy(asc(cartLines.addedAt), asc(cartLines.productId));
+    const ids = lines.map((line) => line.productId);
     const facts = new Map(
-      (
-        await sellableFacts(
-          ctx.tx,
-          lines.map((line) => line.productId),
-        )
-      ).map((f) => [f.id, f]),
+      (await sellableFacts(ctx.tx, ids, input.locale)).map((fact) => [fact.id, fact]),
     );
+    const prices = await storefrontPriceCards(ctx.tx, ids, ctx.now);
+    const views = lines.map((line): CartLineView => {
+      const fact = facts.get(line.productId);
+      return {
+        productId: line.productId,
+        quantity: line.quantity,
+        sellable: fact !== undefined,
+        maxQuantity: fact ? maxPerOrder(fact.isMedicine) : null,
+        cnk: fact?.cnk ?? null,
+        name: fact?.name ?? null,
+        unitPriceCents: fact ? (prices.get(line.productId)?.amountCents ?? null) : null,
+      };
+    });
     return {
       cartId: cart.id,
-      lines: lines.map((line) => {
-        const fact = facts.get(line.productId);
-        return {
-          productId: line.productId,
-          quantity: line.quantity,
-          sellable: fact !== undefined,
-          maxQuantity: fact ? maxPerOrder(fact.isMedicine) : null,
-        };
-      }),
+      lines: views,
       maxLines: CART_MAX_LINES,
+      totalCents: views.reduce((sum, line) => sum + (line.unitPriceCents ?? 0) * line.quantity, 0),
     };
   },
 });

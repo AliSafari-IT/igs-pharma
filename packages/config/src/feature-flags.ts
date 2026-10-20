@@ -8,6 +8,8 @@ export interface FeatureFlags {
   euCommonLogo: boolean;
   /** Customer accounts on the storefront (igs-pharma#114); off by default. */
   customerAccounts: boolean;
+  /** The storefront cart (igs-pharma#116); off by default. */
+  cart: boolean;
 }
 
 export function getFeatureFlags(): FeatureFlags {
@@ -16,5 +18,6 @@ export function getFeatureFlags(): FeatureFlags {
       process.env["NEXT_PUBLIC_FEATURE_PRESCRIPTION_RESERVATIONS"] === "true",
     euCommonLogo: process.env["NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO"] === "true",
     customerAccounts: process.env["NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS"] === "true",
+    cart: process.env["NEXT_PUBLIC_FEATURE_CART"] === "true",
   };
 }

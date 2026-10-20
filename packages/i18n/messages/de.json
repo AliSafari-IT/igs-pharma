@@ -101,7 +101,8 @@
     "findPharmacyIntro": "Die Apotheke hinter diesem Onlineshop:",
     "pharmacyDetailsLink": "Alle Angaben zur Apotheke",
     "headerPharmacyLink": "Unsere Apotheke",
-    "askPharmacistHeading": "Fragen Sie Ihren Apotheker"
+    "askPharmacistHeading": "Fragen Sie Ihren Apotheker",
+    "headerCart": "Warenkorb"
   },
   "account": {
     "headerSignIn": "Anmelden",
@@ -215,5 +216,30 @@
     "resultFreshRequired": "Melden Sie sich zuerst erneut an und wiederholen Sie dann Ihre Anfrage.",
     "resultFailed": "Das hat nicht geklappt. Versuchen Sie es erneut.",
     "legalPlaceholder": "Platzhaltertext, bis die Rechtsberatung der Apotheke die endgültige Formulierung liefert."
+  },
+  "cart": {
+    "title": "Warenkorb",
+    "empty": "Ihr Warenkorb ist leer.",
+    "continueShopping": "Weiter einkaufen",
+    "unavailable": "Ihr Warenkorb ist vorübergehend nicht verfügbar. Bitte versuchen Sie es später erneut.",
+    "noLongerAvailable": "Produkt nicht mehr verfügbar",
+    "each": "pro Stück, inkl. MwSt.",
+    "priceUnknown": "Preis folgt",
+    "quantity": "Menge",
+    "update": "Ändern",
+    "remove": "Entfernen",
+    "removeNamed": "{name} entfernen",
+    "total": "Gesamt",
+    "vatIncluded": "inkl. MwSt.",
+    "totalNote": "Unverbindlich: Die Preise werden an der Kasse neu berechnet.",
+    "checkout": "Zur Kasse",
+    "checkoutSoon": "Online-Bestellungen sind bald möglich.",
+    "resultAdded": "Zum Warenkorb hinzugefügt.",
+    "resultUpdated": "Menge geändert.",
+    "resultRemoved": "Produkt entfernt.",
+    "resultLimit": "Von diesem Produkt können Sie nicht mehr bestellen.",
+    "resultFull": "Ihr Warenkorb ist voll.",
+    "resultUnavailable": "Dieses Produkt ist nicht mehr verfügbar.",
+    "resultFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut."
   }
 }

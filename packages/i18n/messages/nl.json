@@ -101,7 +101,8 @@
     "findPharmacyIntro": "De apotheek achter deze webshop:",
     "pharmacyDetailsLink": "Alle gegevens van de apotheek",
     "headerPharmacyLink": "Onze apotheek",
-    "askPharmacistHeading": "Vraag het uw apotheker"
+    "askPharmacistHeading": "Vraag het uw apotheker",
+    "headerCart": "Winkelmandje"
   },
   "account": {
     "headerSignIn": "Aanmelden",
@@ -215,5 +216,30 @@
     "resultFreshRequired": "Meld u eerst opnieuw aan en herhaal dan uw aanvraag.",
     "resultFailed": "Dat is niet gelukt. Probeer het opnieuw.",
     "legalPlaceholder": "Tijdelijke tekst tot de juridische raadgever van de apotheek de definitieve formulering aanlevert."
+  },
+  "cart": {
+    "title": "Winkelmandje",
+    "empty": "Je winkelmandje is leeg.",
+    "continueShopping": "Verder winkelen",
+    "unavailable": "Je winkelmandje is tijdelijk niet beschikbaar. Probeer het later opnieuw.",
+    "noLongerAvailable": "Product niet meer beschikbaar",
+    "each": "per stuk, incl. btw",
+    "priceUnknown": "Prijs volgt",
+    "quantity": "Aantal",
+    "update": "Aanpassen",
+    "remove": "Verwijderen",
+    "removeNamed": "{name} verwijderen",
+    "total": "Totaal",
+    "vatIncluded": "incl. btw",
+    "totalNote": "Indicatief: de prijzen worden opnieuw berekend bij het afrekenen.",
+    "checkout": "Afrekenen",
+    "checkoutSoon": "Online bestellen is binnenkort mogelijk.",
+    "resultAdded": "Toegevoegd aan je winkelmandje.",
+    "resultUpdated": "Aantal aangepast.",
+    "resultRemoved": "Product verwijderd.",
+    "resultLimit": "Je kunt niet meer van dit product bestellen.",
+    "resultFull": "Je winkelmandje is vol.",
+    "resultUnavailable": "Dit product is niet meer beschikbaar.",
+    "resultFailed": "Dat is niet gelukt. Probeer het opnieuw."
   }
 }
