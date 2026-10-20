@@ -1,5 +1,5 @@
 import { notFound, query } from "@igs/kernel";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { cartToken, ownerOf } from "./cart";
@@ -155,7 +155,8 @@ export const getOrder = query({
       .select({ status: payments.status })
       .from(payments)
       .where(eq(payments.orderId, order.id))
-      .orderBy(asc(payments.createdAt))
+      // the latest attempt decides (retries add rows); the id (UUIDv7) breaks a same-instant tie
+      .orderBy(desc(payments.createdAt), desc(payments.id))
       .limit(1);
     return {
       orderId: order.id,

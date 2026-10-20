@@ -409,6 +409,11 @@ describe("reading a checkout and an order (owner only)", () => {
     });
     // never the contact
     expect(JSON.stringify(order)).not.toContain("example.be");
+    // a later payment attempt (a retry) is the one the order page shows
+    await iso.sql`
+      INSERT INTO orders.payments (id, order_id, provider, amount_cents, status, created_at, updated_at)
+      VALUES (${randomUUID()}, ${orderId}, 'mollie', 450, 'open', now() + interval '1 minute', now() + interval '1 minute')`;
+    expect((await getOrder({ cartToken: token, orderId }, actor)).paymentStatus).toBe("open");
 
     for (const [who, input] of [
       ["another guest", { cartToken: newCartToken() }],
