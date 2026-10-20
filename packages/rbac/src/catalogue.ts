@@ -16,6 +16,12 @@ export const PERMISSIONS = {
     readOwn: "orders.read.own",
     create: "orders.create",
     reviewDecide: "orders.review.decide",
+    /**
+     * System-only (igs-pharma#116): attach a provider payment to an order's payment and record what
+     * the provider says about it (paid confirms the stock holds; failed cancels the order). Held by
+     * the webhook, the "pay now" route and the worker's reconciliation, never by a person.
+     */
+    paymentManage: "orders.payment.manage",
   },
   catalog: {
     read: "catalog.read",
@@ -154,6 +160,11 @@ export const ROLES = {
     description:
       "Stock reservations: the checkout reserves, confirms, releases and consumes; the worker expires lapsed holds",
   },
+  system_payments: {
+    kind: "system",
+    description:
+      "Payments: the storefront's pay route and webhook and the worker's reconciliation record what the provider says",
+  },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -180,6 +191,7 @@ export const SYSTEM_ONLY: readonly Permission[] = [
   // the storefront's narrow price read (#96): staff read prices with `pricing.price.read`
   PERMISSIONS.pricing.storefrontRead,
   PERMISSIONS.inventory.reservationManage,
+  PERMISSIONS.orders.paymentManage,
 ];
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
@@ -274,6 +286,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   ],
   system_maintenance: [PERMISSIONS.privacy.retentionPurge],
   system_reservations: [PERMISSIONS.inventory.reservationManage],
+  system_payments: [PERMISSIONS.orders.paymentManage],
 };
 
 /** One row of `identity.role_permissions`. */

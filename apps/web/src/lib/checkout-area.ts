@@ -86,3 +86,45 @@ export function brusselsTime(at: Date, intlLocale: string): string {
     timeZone: "Europe/Brussels",
   }).format(at);
 }
+
+/**
+ * What the order page says about paying (igs-pharma#116), as a message key of the `order`
+ * namespace, or `null` for nothing. `payable`: online payment is configured.
+ * - `pay`: waiting for payment, and "Pay now" works (a payment not yet started, or still open);
+ * - `paymentSoon`: waiting for payment, but payment is not configured;
+ * - `paymentProcessing`: the bank is still confirming (pending, authorized);
+ * - `paymentFailed`: the payment failed, was cancelled or lapsed, so the order was cancelled;
+ * - `stockShort`: paid, but the stock holds lapsed before the payment came in.
+ */
+export type PaymentNotice =
+  | "pay"
+  | "paymentSoon"
+  | "paymentProcessing"
+  | "paymentFailed"
+  | "stockShort";
+
+export function paymentNoticeOf(
+  orderStatus: string,
+  paymentStatus: string | null,
+  payable: boolean,
+): PaymentNotice | null {
+  if (orderStatus === "paid_stock_short") return "stockShort";
+  if (orderStatus === "pending_payment") {
+    if (paymentStatus === "pending" || paymentStatus === "authorized") return "paymentProcessing";
+    if (paymentStatus === "created" || paymentStatus === "open") {
+      return payable ? "pay" : "paymentSoon";
+    }
+    return null;
+  }
+  if (
+    orderStatus === "cancelled" &&
+    (paymentStatus === "failed" || paymentStatus === "canceled" || paymentStatus === "expired")
+  ) {
+    return "paymentFailed";
+  }
+  return null;
+}
+
+/** The `?payment=` reason the pay route sends back with, else `null`. */
+export const payReturnOf = (value: unknown): "unavailable" | null =>
+  value === "unavailable" ? "unavailable" : null;

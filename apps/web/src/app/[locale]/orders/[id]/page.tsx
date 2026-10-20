@@ -1,38 +1,61 @@
 import { isDomainError } from "@igs/kernel";
 import { type OrderView, getOrder } from "@igs/module-orders";
 import { logger } from "@igs/observability/logger";
-import { Alert, Link, Price } from "@igs/ui";
+import { Alert, Button, Link, Price } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { StorefrontFrame } from "../../../../components/storefront-frame";
-import { statusMessageKey, uuidOf } from "../../../../lib/checkout-area";
+import {
+  payReturnOf,
+  paymentNoticeOf,
+  statusMessageKey,
+  uuidOf,
+} from "../../../../lib/checkout-area";
 import { cartActor, cartLocale } from "../../../../server/cart";
+import { paymentsSetup, refreshPayment } from "../../../../server/payments";
 import { INTL_LOCALE } from "../../../../server/storefront";
 
 interface Props {
   readonly params: Promise<{ locale: string; id: string }>;
+  readonly searchParams: Promise<{ payment?: string | string[] }>;
 }
+
+/** Payment statuses that may have moved on at Mollie since we last heard. */
+const UNSETTLED = new Set(["open", "pending", "authorized"]);
 
 export const metadata = { robots: { index: false, follow: false } };
 
 /**
  * An order's page (igs-pharma#116, Sprint 3 E2), for its owner only: the reference to quote, where
- * it stands, what was ordered. Online payment is not wired yet (Mollie, S2): while the payment is
- * still `created` the page says so plainly, and nothing suggests the order was paid.
+ * it stands, what was ordered. While the order waits for payment it offers "Pay now" (a link to
+ * `./pay`, which sends the shopper to Mollie); without payment configured it says so plainly, and
+ * nothing suggests the order was paid. Mollie sends the shopper back here, so an unsettled payment
+ * is re-read once on view.
  */
-export default async function OrderPage({ params }: Props) {
+export default async function OrderPage({ params, searchParams }: Props) {
   const { locale: rawLocale, id } = await params;
+  const payReturn = payReturnOf((await searchParams).payment);
   const locale = cartLocale(rawLocale);
   const orderId = uuidOf(id);
   if (!orderId) notFound();
   const t = await getTranslations({ locale, namespace: "order" });
   const intl = INTL_LOCALE[locale];
 
+  const payments = paymentsSetup();
   let order: OrderView | null = null;
   try {
     const { actor, token } = await cartActor();
     order = await getOrder({ cartToken: token, orderId }, actor);
+    if (
+      payments &&
+      order.status === "pending_payment" &&
+      order.paymentStatus &&
+      UNSETTLED.has(order.paymentStatus)
+    ) {
+      await refreshPayment(orderId, payments);
+      order = await getOrder({ cartToken: token, orderId }, actor);
+    }
   } catch (error) {
     if (isDomainError(error) && error.code === "orders.order_not_found") notFound();
     logger.error({ event: "storefront.order_failed", err: error }, "storefront.order_failed");
@@ -59,11 +82,21 @@ export default async function OrderPage({ params }: Props) {
                 {t("status")}: <strong>{t(statusMessageKey(order.status))}</strong>
               </p>
             </div>
-            {order.status === "pending_payment" && order.paymentStatus === "created" ? (
-              <Alert variant="info" title={t("paymentSoon")} data-testid="payment-soon">
-                {t("paymentSoonDetail")}
+            {payReturn === "unavailable" ? (
+              <Alert
+                variant="error"
+                title={t("paymentUnavailable")}
+                data-testid="payment-unavailable"
+              >
+                {t("paymentUnavailableDetail")}
               </Alert>
             ) : null}
+            <PaymentNotice
+              notice={paymentNoticeOf(order.status, order.paymentStatus, payments !== null)}
+              payHref={`/${locale}/orders/${orderId}/pay`}
+              cartHref={`/${locale}/cart`}
+              t={t}
+            />
             {order.needsReview ? (
               <div
                 role="note"
@@ -97,4 +130,55 @@ export default async function OrderPage({ params }: Props) {
       </div>
     </StorefrontFrame>
   );
+}
+
+function PaymentNotice({
+  notice,
+  payHref,
+  cartHref,
+  t,
+}: {
+  readonly notice: ReturnType<typeof paymentNoticeOf>;
+  readonly payHref: string;
+  readonly cartHref: string;
+  readonly t: (key: string) => string;
+}) {
+  switch (notice) {
+    case "pay":
+      return (
+        <div className="flex flex-col items-start gap-3" data-testid="payment-pay">
+          <p>{t("payDetail")}</p>
+          {/* a plain link, never prefetched: following it starts the payment */}
+          <Button asChild variant="primary" size="lg">
+            <a href={payHref}>{t("payNow")}</a>
+          </Button>
+        </div>
+      );
+    case "paymentSoon":
+      return (
+        <Alert variant="info" title={t("paymentSoon")} data-testid="payment-soon">
+          {t("paymentSoonDetail")}
+        </Alert>
+      );
+    case "paymentProcessing":
+      return (
+        <Alert variant="info" title={t("paymentProcessing")} data-testid="payment-processing">
+          {t("paymentProcessingDetail")}
+        </Alert>
+      );
+    case "paymentFailed":
+      return (
+        <Alert variant="error" title={t("paymentFailed")} data-testid="payment-failed">
+          {t("paymentFailedDetail")} <Link href={cartHref}>{t("backToCart")}</Link>
+        </Alert>
+      );
+    case "stockShort":
+      return (
+        <Alert variant="info" title={t("stockShort")} data-testid="payment-stock-short">
+          {t("stockShortDetail")}
+        </Alert>
+      );
+    default:
+      return null;
+  }
 }

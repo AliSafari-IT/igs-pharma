@@ -7,6 +7,8 @@ import {
   brusselsTime,
   contactErrors,
   normalisePhone,
+  payReturnOf,
+  paymentNoticeOf,
   placeFailureOf,
   statusMessageKey,
   uuidOf,
@@ -85,7 +87,17 @@ describe("messages", () => {
         "failureInvalid",
         "failureFailed",
       ],
-      order: ORDER_STATUSES.map(statusMessageKey),
+      order: [
+        ...ORDER_STATUSES.map(statusMessageKey),
+        "payNow",
+        "payDetail",
+        "paymentSoon",
+        "paymentProcessing",
+        "paymentFailed",
+        "backToCart",
+        "stockShort",
+        "paymentUnavailable",
+      ],
       cart: ["resultShort", "resultEmpty"],
     } as const;
     expect(statusMessageKey("ready_for_pickup")).toBe("statusReadyForPickup");
@@ -97,5 +109,37 @@ describe("messages", () => {
         }
       }
     }
+  });
+});
+
+describe("paymentNoticeOf (igs-pharma#116)", () => {
+  it("offers Pay now while the order waits and payment is configured", () => {
+    expect(paymentNoticeOf("pending_payment", "created", true)).toBe("pay");
+    expect(paymentNoticeOf("pending_payment", "open", true)).toBe("pay");
+    expect(paymentNoticeOf("pending_payment", "created", false)).toBe("paymentSoon");
+    expect(paymentNoticeOf("pending_payment", "open", false)).toBe("paymentSoon");
+  });
+
+  it("never offers to pay again while the bank confirms, or once the order moved on", () => {
+    expect(paymentNoticeOf("pending_payment", "pending", true)).toBe("paymentProcessing");
+    expect(paymentNoticeOf("pending_payment", "authorized", true)).toBe("paymentProcessing");
+    expect(paymentNoticeOf("in_review", "paid", true)).toBeNull();
+    expect(paymentNoticeOf("ready_to_prepare", "paid", true)).toBeNull();
+    expect(paymentNoticeOf("expired", "created", true)).toBeNull();
+  });
+
+  it("says a failed payment cancelled the order, and a late one left stock short", () => {
+    for (const status of ["failed", "canceled", "expired"]) {
+      expect(paymentNoticeOf("cancelled", status, true)).toBe("paymentFailed");
+    }
+    expect(paymentNoticeOf("cancelled", null, true)).toBeNull();
+    expect(paymentNoticeOf("paid_stock_short", "paid", true)).toBe("stockShort");
+  });
+
+  it("reads only the known return reason", () => {
+    expect(payReturnOf("unavailable")).toBe("unavailable");
+    expect(payReturnOf(["unavailable"])).toBeNull();
+    expect(payReturnOf("<script>")).toBeNull();
+    expect(payReturnOf(undefined)).toBeNull();
   });
 });

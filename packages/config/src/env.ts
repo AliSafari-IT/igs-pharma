@@ -307,9 +307,34 @@ export const mailEnv = z.object({
   MAIL_FROM: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(3).max(200).optional()),
 });
 
+/**
+ * Online payment through Mollie (igs-pharma#116, D-045): read by the storefront's route handlers and
+ * the worker only (D-019: never inside a command). Both optional: without a key the shop takes
+ * orders but offers no payment, and the reconciliation job only expires unpaid orders.
+ */
+export const paymentsEnv = z.object({
+  /** `test_…` on staging, `live_…` in production; a secret (it can move money). */
+  MOLLIE_API_KEY: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z
+      .string()
+      .regex(/^(test|live)_[A-Za-z0-9]{20,}$/, "a Mollie API key (test_… or live_…)")
+      .optional(),
+  ),
+  /**
+   * The public https origin Mollie calls back (`<origin>/api/webhooks/mollie`); unset, payments are
+   * still created and the worker's reconciliation picks up their status instead.
+   */
+  MOLLIE_WEBHOOK_BASE_URL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().url().startsWith("https://", "Mollie calls https only").optional(),
+  ),
+});
+
 /** What the worker needs: no `AUTH_*`, no feature flags. */
 export const workerEnv = z.object({
   ...mailEnv.shape,
+  ...paymentsEnv.shape,
   ...dbEnv.shape,
   ...appEnv.shape,
   ...cryptoEnv.shape,

@@ -10,6 +10,7 @@ import {
   migrateDsn,
   parseEnv,
   parseEnvFor,
+  paymentsEnv,
   previewSecrets,
   siteGateEnabled,
   siteGateEnv,
@@ -97,6 +98,28 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "yes" })).toThrow(
       /EU_COMMON_LOGO/,
     );
+  });
+
+  it("Mollie (#116): both optional; a key looks like test_/live_, the webhook origin is https", () => {
+    expect(parseEnvFor(paymentsEnv, {})).toEqual({});
+    expect(parseEnvFor(paymentsEnv, { MOLLIE_API_KEY: "", MOLLIE_WEBHOOK_BASE_URL: "" })).toEqual(
+      {},
+    );
+    const key = `test_${"a".repeat(30)}`;
+    expect(
+      parseEnvFor(paymentsEnv, {
+        MOLLIE_API_KEY: key,
+        MOLLIE_WEBHOOK_BASE_URL: "https://igs-pharma.example",
+      }),
+    ).toEqual({ MOLLIE_API_KEY: key, MOLLIE_WEBHOOK_BASE_URL: "https://igs-pharma.example" });
+    for (const bad of ["abc", "test_short", `prod_${"a".repeat(30)}`]) {
+      expect(() => parseEnvFor(paymentsEnv, { MOLLIE_API_KEY: bad }), bad).toThrow(
+        /MOLLIE_API_KEY/,
+      );
+    }
+    expect(() =>
+      parseEnvFor(paymentsEnv, { MOLLIE_WEBHOOK_BASE_URL: "http://igs-pharma.example" }),
+    ).toThrow(/MOLLIE_WEBHOOK_BASE_URL/);
   });
 
   it("the cart (#116): strict flag, off by default", () => {

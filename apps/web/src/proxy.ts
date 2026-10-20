@@ -50,6 +50,8 @@ function isOpenPath(pathname: string): boolean {
     pathname === "/api/health" ||
     pathname.startsWith("/api/health/") ||
     pathname === "/api/csp-report" ||
+    // Mollie's server calls it, never with a preview cookie (igs-pharma#116)
+    pathname === "/api/webhooks/mollie" ||
     pathname === "/.well-known/asafarim-app.json"
   );
 }

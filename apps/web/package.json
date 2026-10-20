@@ -24,6 +24,7 @@
     "@igs/module-privacy": "workspace:*",
     "@igs/module-storefront": "workspace:*",
     "@igs/observability": "workspace:*",
+    "@igs/payments": "workspace:*",
     "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",
     "next": "16.0.11",
