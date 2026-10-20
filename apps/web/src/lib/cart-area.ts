@@ -30,6 +30,8 @@ export const CART_RESULTS = [
   "limit",
   "full",
   "unavailable",
+  "short",
+  "empty",
   "failed",
 ] as const;
 export type CartResult = (typeof CART_RESULTS)[number];
@@ -58,7 +60,12 @@ export function resultOfCode(code: string): CartResult {
     case "orders.cart_full":
       return "full";
     case "catalog.product_not_sellable":
+    case "orders.checkout_unavailable":
       return "unavailable";
+    case "orders.checkout_short":
+      return "short";
+    case "orders.cart_empty":
+      return "empty";
     default:
       return "failed";
   }

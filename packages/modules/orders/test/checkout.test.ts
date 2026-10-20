@@ -25,6 +25,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   CHECKOUT_HOLD_MINUTES,
   getCart,
+  getCheckout,
+  getOrder,
   newCartToken,
   placeOrder,
   registerAuditActions,
@@ -363,5 +365,74 @@ describe("placing the order", () => {
     const [order] = await iso.sql<{ customer_id: string; locale: string }[]>`
       SELECT customer_id, locale FROM orders.orders WHERE id = ${orderId}`;
     expect(order).toEqual({ customer_id: bob.id, locale: "en" });
+  });
+});
+
+describe("reading a checkout and an order (owner only)", () => {
+  it("shows the owner the checkout, then the order placed from it; anyone else gets not_found", async () => {
+    const medicine = await product({ medicine: true, priceCents: 450 });
+    const { token, actor } = await guestCart([{ productId: medicine, quantity: 1 }]);
+    const { checkoutId } = await startCheckout({ cartToken: token, locale: "fr" }, actor);
+
+    const view = await getCheckout({ cartToken: token, checkoutId }, actor);
+    expect(view).toMatchObject({
+      checkoutId,
+      status: "open",
+      locale: "fr",
+      expired: false,
+      needsReview: true,
+      totalCents: 450,
+      orderId: null,
+    });
+    expect(view.lines).toEqual([
+      expect.objectContaining({
+        productId: medicine,
+        quantity: 1,
+        unitPriceCents: 450,
+        isMedicine: true,
+      }),
+    ]);
+
+    const { orderId, reference } = await placeOrder(
+      { cartToken: token, checkoutId, contact },
+      actor,
+    );
+    expect((await getCheckout({ cartToken: token, checkoutId }, actor)).orderId).toBe(orderId);
+    const order = await getOrder({ cartToken: token, orderId }, actor);
+    expect(order).toMatchObject({
+      orderId,
+      reference,
+      status: "pending_payment",
+      needsReview: true,
+      totalCents: 450,
+      paymentStatus: "created",
+    });
+    // never the contact
+    expect(JSON.stringify(order)).not.toContain("example.be");
+
+    for (const [who, input] of [
+      ["another guest", { cartToken: newCartToken() }],
+      ["no cookie", {}],
+    ] as const) {
+      expect((await codeOf(getCheckout({ ...input, checkoutId }, guest()))).code, who).toBe(
+        "orders.checkout_not_found",
+      );
+      expect((await codeOf(getOrder({ ...input, orderId }, guest()))).code, who).toBe(
+        "orders.order_not_found",
+      );
+    }
+    // a signed-in customer cannot read a guest's order either
+    expect((await codeOf(getOrder({ orderId }, customer()))).code).toBe("orders.order_not_found");
+  });
+
+  it("a customer reads their own order, and says when the checkout's holds lapsed", async () => {
+    const carol = customer();
+    await setCartLine({ productId: await product(), quantity: 1 }, carol);
+    const { checkoutId } = await startCheckout({ locale: "nl" }, carol);
+    kernel.clock.set(new Date(t0.getTime() + CHECKOUT_HOLD_MINUTES * MINUTE));
+    expect((await getCheckout({ checkoutId }, carol)).expired).toBe(true);
+    expect((await codeOf(getCheckout({ checkoutId }, customer()))).code).toBe(
+      "orders.checkout_not_found",
+    );
   });
 });
