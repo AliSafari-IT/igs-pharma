@@ -933,7 +933,8 @@ describe("the database enforces the lifecycle whoever writes", () => {
     expect(
       await raw(() => iso.sql`DELETE FROM inventory.reservations WHERE product_id = ${productId}`),
     ).toContain("reservations are kept");
-    expect(await raw(() => iso.sql`TRUNCATE inventory.reservations`)).toContain(
+    // CASCADE: the lot allocations (igs-pharma#165) reference the table
+    expect(await raw(() => iso.sql`TRUNCATE inventory.reservations CASCADE`)).toContain(
       "reservations are kept",
     );
     expect(await rowsOf(productId)).toHaveLength(1);

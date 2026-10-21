@@ -127,6 +127,10 @@ const ERRORS: Record<string, string> = {
   "inventory.reservation_not_active":
     "The stock for this order was already handed out or released.",
   "inventory.reservation_not_confirmed": "The stock for this order isn't confirmed yet.",
+  "inventory.stock_not_sellable":
+    "Part of the stock for this order can't be sold (quarantined, too close to expiry, or its lot not recorded). It can't be packed until sellable stock comes in.",
+  "inventory.allocation_short":
+    "There aren't enough sellable lots for this order: it can't be packed until stock comes in or a lot is released.",
   "orders.order_not_stock_short": "This order is no longer waiting for stock.",
   "orders.stock_still_short":
     "There still isn't enough stock for every product of this order. Nothing was reserved.",

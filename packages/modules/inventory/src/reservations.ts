@@ -5,6 +5,13 @@ import { PERMISSIONS } from "@igs/rbac";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import {
+  activeShares,
+  endAllocations,
+  productsWithOrders,
+  reconcileAllocations,
+  requireAllocated,
+} from "./allocations";
 import { INVENTORY_AUDIT } from "./audit";
 import {
   DEFAULT_LOCATION_ID,
@@ -26,7 +33,6 @@ import {
   sellableOnHand,
   stockLevels,
 } from "./ledger";
-import { takeFefo } from "./lots";
 import { reservations } from "./schema";
 
 /**
@@ -115,6 +121,31 @@ function activeOf(ctx: Ctx, holder: string) {
     )
     .orderBy(asc(reservations.productId))
     .for("update");
+}
+
+/**
+ * The holder's active reservations, locked in the order every stock writer shares: look first, take
+ * the products' stock-level rows (sorted), then lock and read the rows. A line that appeared between
+ * the look and the lock is reported, never consumed or confirmed unlocked.
+ */
+async function lockHolder(ctx: Ctx, holder: string) {
+  const lookedAt = await ctx.tx
+    .select({ productId: reservations.productId })
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.holderRef, holder),
+        eq(reservations.locationId, DEFAULT_LOCATION_ID),
+        eq(reservations.status, "active"),
+      ),
+    );
+  const locked = new Set<string>();
+  for (const productId of [...new Set(lookedAt.map((row) => row.productId))].sort()) {
+    await lockLevel(ctx, productId);
+    locked.add(productId);
+  }
+  const active = await activeOf(ctx, holder);
+  return { active, unlocked: active.some((row) => !locked.has(row.productId)) };
 }
 
 // ── reserve ──────────────────────────────────────────────────────────────────────────────────────
@@ -251,7 +282,9 @@ export const confirmReservation = command({
   // changes (and audits) something only when there is something to change; a retry changes nothing
   audit: "none",
   async handler({ input, ctx }) {
-    const active = await activeOf(ctx, input.holderRef);
+    const { active, unlocked } = await lockHolder(ctx, input.holderRef);
+    // a line that appeared meanwhile is not the basket the caller expects
+    if (unlocked) throw conflict("inventory.reservation_mismatch");
     if (active.length === 0) {
       const [ended] = await ctx.tx
         .select({ id: reservations.id })
@@ -299,12 +332,22 @@ export const confirmReservation = command({
         );
       for (const row of holds) await audit(ctx, INVENTORY_AUDIT.reservationConfirmed, row);
     }
+    // igs-pharma#165: the order is allocated to lots now (a retry finds it allocated: no change)
+    await reconcileAllocations(
+      ctx,
+      active.map((row) => row.productId),
+      { confirmed: new Set(holds.map((row) => row.id)) },
+    );
     return { holderRef: input.holderRef, reservations: active.map(view) };
   },
 });
 
 // ── release ──────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Ends `rows` (locked by the caller after their stock-level rows) and their lot allocation; the lots
+ * they had are then offered to the orders of the same products that are short.
+ */
 async function release(ctx: Ctx, rows: readonly Row[], reason: ReleaseReason): Promise<void> {
   if (rows.length === 0) return;
   await ctx.tx
@@ -317,6 +360,18 @@ async function release(ctx: Ctx, rows: readonly Row[], reason: ReleaseReason): P
       ),
     );
   for (const row of rows) await audit(ctx, INVENTORY_AUDIT.reservationReleased, row, { reason });
+  const orders = rows.filter((row) => row.kind === "order");
+  if (orders.length > 0) {
+    await endAllocations(
+      ctx,
+      orders.map((row) => row.id),
+      "released",
+    );
+    await reconcileAllocations(
+      ctx,
+      orders.map((row) => row.productId),
+    );
+  }
 }
 
 /**
@@ -334,7 +389,8 @@ export const releaseReservation = command({
   // changes (and audits) something only when there is something to change; a retry changes nothing
   audit: "none",
   async handler({ input, ctx }) {
-    const active = await activeOf(ctx, input.holderRef);
+    // a line that appeared between the look and the lock stays: a retry releases it
+    const { active } = await lockHolder(ctx, input.holderRef);
     await release(ctx, active, input.reason);
     return { holderRef: input.holderRef, released: active.length };
   },
@@ -351,6 +407,13 @@ export const releaseReservationByStaff = command({
   output: idempotencyOutput,
   permission: PERMISSIONS.inventory.stockManage,
   async handler({ input, ctx }) {
+    const [peek] = await ctx.tx
+      .select({ productId: reservations.productId })
+      .from(reservations)
+      .where(eq(reservations.id, input.reservationId));
+    if (!peek) throw notFound("inventory.reservation_not_found");
+    // the stock-level row first, like every stock writer
+    await lockLevel(ctx, peek.productId);
     const [row] = await ctx.tx
       .select()
       .from(reservations)
@@ -367,7 +430,8 @@ export const releaseReservationByStaff = command({
 
 /**
  * Picking: in ONE transaction every active ORDER of `holderRef` is marked `consumed` and its stock
- * leaves the shelf as a `sale` movement in the ledger (the ledger stays the truth). A holder with
+ * leaves the shelf as one `sale` movement per allocated lot (igs-pharma#165; the ledger stays the
+ * truth). A holder with
  * nothing active is `inventory.reservation_not_active` (consuming twice is refused); a hold that was
  * never confirmed cannot be consumed (`inventory.reservation_not_confirmed`). When the shelf holds
  * less than the order (it is short) the movement is refused: `inventory.negative_stock`.
@@ -386,27 +450,10 @@ export const consumeReservation = command({
     await lockStock(ctx.tx);
     // the lock order everyone shares (advisory → stock-level rows by product → reservation rows):
     // a retried reserve takes the level row first, so consume must not hold a reservation row
-    // while it waits for one (40P01). Look first, lock the levels, then lock and read the rows.
-    const lookedAt = await ctx.tx
-      .select({ productId: reservations.productId })
-      .from(reservations)
-      .where(
-        and(
-          eq(reservations.holderRef, input.holderRef),
-          eq(reservations.locationId, DEFAULT_LOCATION_ID),
-          eq(reservations.status, "active"),
-        ),
-      );
-    const locked = new Set<string>();
-    for (const productId of [...new Set(lookedAt.map((row) => row.productId))].sort()) {
-      await lockLevel(ctx, productId);
-      locked.add(productId);
-    }
-    const active = await activeOf(ctx, input.holderRef);
-    if (active.some((row) => !locked.has(row.productId))) {
-      // a line appeared between the look and the lock: not a state to consume from
-      throw conflict("inventory.reservation_not_confirmed");
-    }
+    // while it waits for one (40P01)
+    const { active, unlocked } = await lockHolder(ctx, input.holderRef);
+    // a line appeared between the look and the lock: not a state to consume from
+    if (unlocked) throw conflict("inventory.reservation_not_confirmed");
     if (active.length === 0) {
       const [any] = await ctx.tx
         .select({ id: reservations.id })
@@ -420,29 +467,50 @@ export const consumeReservation = command({
     if (active.some((row) => row.kind !== "order")) {
       throw conflict("inventory.reservation_not_confirmed");
     }
-    // igs-pharma#164: each line leaves the shelf from its sellable lots, earliest expiry first; a
-    // line whose sellable lots hold less is refused (never picked from a quarantined, unknown or
-    // near-expiry lot): `inventory.negative_stock` when the shelf itself holds less,
-    // `inventory.stock_not_sellable` when the rest is not sellable
+    // igs-pharma#165: each line leaves the shelf from exactly its allocated lots, checked (and
+    // allocated again where needed) now; a line not allocated in full is refused, so nothing is
+    // ever picked from a quarantined, unknown or near-expiry lot: `inventory.negative_stock` when
+    // the shelf itself holds less, `inventory.stock_not_sellable` when the rest is not sellable,
+    // `inventory.allocation_short` when the sellable stock is allocated to older orders
+    await reconcileAllocations(
+      ctx,
+      active.map((row) => row.productId),
+    );
+    const shares = await activeShares(
+      ctx.tx,
+      active.map((row) => row.id),
+    );
     const entries = [];
     for (const row of active) {
-      const taken = await takeFefo(ctx.tx, row.productId, row.quantity, ctx.now);
-      if (!taken) {
+      const mine = shares.get(row.id) ?? [];
+      if (mine.reduce((sum, share) => sum + share.quantity, 0) < row.quantity) {
         const { onHand } = levelOf(await stockLevels(ctx.tx, [row.productId]), row.productId);
+        const sellable = (await sellableOnHand(ctx.tx, [row.productId], ctx.now)).get(
+          row.productId,
+        );
         throw conflict(
-          onHand < row.quantity ? "inventory.negative_stock" : "inventory.stock_not_sellable",
+          onHand < row.quantity
+            ? "inventory.negative_stock"
+            : (sellable ?? 0) < row.quantity
+              ? "inventory.stock_not_sellable"
+              : "inventory.allocation_short",
         );
       }
-      for (const lot of taken) {
+      for (const share of mine) {
         entries.push({
           productId: row.productId,
-          lotId: lot.lotId,
-          delta: -lot.quantity,
+          lotId: share.lotId,
+          delta: -share.quantity,
           reason: "sale" as const,
         });
       }
     }
     const movements = await recordMovements(ctx.tx, ctx, entries);
+    await endAllocations(
+      ctx,
+      active.map((row) => row.id),
+      "consumed",
+    );
     // the first movement of each product (one active reservation per product and holder)
     const byProduct = new Map<string, string>();
     for (const movement of movements) {
@@ -468,6 +536,58 @@ export const consumeReservation = command({
         ...view(row),
         movementId: byProduct.get(row.productId) ?? "",
       })),
+    };
+  },
+});
+
+// ── allocation ───────────────────────────────────────────────────────────────────────────────────
+
+const allocationOutput = z.object({
+  reservationId: z.uuid(),
+  productId: z.uuid(),
+  quantity: z.number().int(),
+  allocated: z.number().int(),
+});
+
+/**
+ * Packing (igs-pharma#165): the orders of `holderRef` are allocated to sellable lots in full, checked
+ * (and allocated again where needed) now; else `inventory.allocation_short`, and the order is not
+ * packed. The orders module runs it through `ctx.run` before an order is ready for pickup.
+ */
+export const checkAllocation = command({
+  name: "inventory.reservation.check_allocation",
+  input: z.object({ holderRef }),
+  output: z.object({ holderRef: z.string(), reservations: z.array(allocationOutput) }),
+  permission: PERMISSIONS.inventory.reservationManage,
+  internal: true,
+  // audits only what it allocates again
+  audit: "none",
+  async handler({ input, ctx }) {
+    return {
+      holderRef: input.holderRef,
+      reservations: [...(await requireAllocated(ctx, input.holderRef))],
+    };
+  },
+});
+
+/**
+ * The hourly check (igs-pharma#165): allocates again every active order whose lots stopped being
+ * sellable (a lot crossed the expiry buffer overnight) or that is short and may now be filled.
+ * Writes nothing when nothing changed.
+ */
+export const reallocateOrders = command({
+  name: "inventory.reservation.reallocate",
+  input: z.object({}),
+  output: z.object({ orders: z.number().int(), short: z.number().int() }),
+  permission: PERMISSIONS.inventory.reservationManage,
+  // audits only what it allocates again
+  audit: "none",
+  async handler({ ctx }) {
+    await lockStock(ctx.tx);
+    const results = await reconcileAllocations(ctx, await productsWithOrders(ctx.tx));
+    return {
+      orders: results.length,
+      short: results.filter((result) => result.allocated < result.quantity).length,
     };
   },
 });

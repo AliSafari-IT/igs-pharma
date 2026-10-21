@@ -132,7 +132,14 @@ async function countedFromTheList() {
     }
     if (page * result.pageSize >= result.total) break;
   }
-  return { low, out, activeReservations, short, flaggedLots };
+  // igs-pharma#165: the order lines whose active lot allocation falls short, counted straight
+  const [unallocated] = await iso.sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM inventory.reservations r
+    WHERE r.status = 'active' AND r.kind = 'order'
+      AND r.quantity > (SELECT coalesce(sum(a.quantity), 0) FROM inventory.reservation_allocations a
+                        WHERE a.reservation_id = r.id AND a.status = 'active')`;
+  const unallocatedOrders = unallocated?.n ?? 0;
+  return { low, out, activeReservations, short, flaggedLots, unallocatedOrders };
 }
 
 describe("inventory.stock.summary", () => {
@@ -143,6 +150,7 @@ describe("inventory.stock.summary", () => {
       activeReservations: 0,
       short: 0,
       flaggedLots: 0,
+      unallocatedOrders: 0,
     });
   });
 
@@ -179,7 +187,14 @@ describe("inventory.stock.summary", () => {
     await stocked(1); // low
 
     const summary = await getStockSummary({}, pharmacist);
-    expect(summary).toEqual({ low: 4, out: 3, activeReservations: 3, short: 0, flaggedLots: 0 });
+    expect(summary).toEqual({
+      low: 4,
+      out: 3,
+      activeReservations: 3,
+      short: 0,
+      flaggedLots: 0,
+      unallocatedOrders: 0,
+    });
     expect(await countedFromTheList()).toEqual(summary);
   });
 
@@ -224,6 +239,8 @@ describe("inventory.stock.summary", () => {
       activeReservations: before.activeReservations + 2,
       short: before.short + 1,
       flaggedLots: before.flaggedLots,
+      // the order of 4 keeps the 2 left and is flagged (igs-pharma#165)
+      unallocatedOrders: before.unallocatedOrders + 1,
     });
     expect(await countedFromTheList()).toEqual(summary);
   });

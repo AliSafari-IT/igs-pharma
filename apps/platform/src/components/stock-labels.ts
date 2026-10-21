@@ -152,6 +152,8 @@ const ERRORS: Record<string, string> = {
   "inventory.lot_not_quarantined": "This lot is not in quarantine.",
   "inventory.stock_not_sellable":
     "The stock left for this order can't be sold (quarantined, too close to expiry, or its lot not recorded).",
+  "inventory.allocation_short":
+    "The sellable stock is already allocated to older orders, so this order can't be picked yet.",
   "kernel.idempotency_in_progress": "This file is being imported right now. Reload in a moment.",
   "kernel.forbidden": "You don't have permission to work with stock.",
   "kernel.mfa_required": "Confirm your 2-step login first.",

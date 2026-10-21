@@ -4,6 +4,7 @@ import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 import type { ReactNode } from "react";
 
+import { LotsToPick } from "../../../components/lots-to-pick";
 import { RefundForm, ReviewForm, StepForm } from "../../../components/order-actions";
 import {
   ORDER_STATUS_BADGE,
@@ -29,6 +30,14 @@ interface Props {
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<{ done?: string | string[] }>;
 }
+
+/** While its stock is set aside for it: the order is picked from its allocated lots (igs-pharma#165). */
+const PICKING_STATUSES: ReadonlySet<string> = new Set([
+  "in_review",
+  "ready_to_prepare",
+  "preparing",
+  "ready_for_pickup",
+]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
@@ -156,6 +165,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
               <StepForm orderId={order.orderId} version={order.version} to={step} />
             </Section>
           ) : null}
+
+          {PICKING_STATUSES.has(order.status) ? <LotsToPick order={order} actor={actor} /> : null}
 
           <Section title="Products">
             <table className="w-full border-collapse text-left">

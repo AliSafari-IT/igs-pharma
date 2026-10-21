@@ -1,5 +1,6 @@
 import { type Ctx, command, conflict, forbidden, isDomainError, notFound } from "@igs/kernel";
 import {
+  checkAllocation,
   confirmReservation,
   consumeReservation,
   releaseReservation,
@@ -124,6 +125,11 @@ export const advanceOrder = command({
     const from = order.status as OrderStatus;
     if (!canTransition(from, input.to, { needsReview: order.needsReview })) {
       throw conflict("orders.invalid_transition", { from, to: input.to });
+    }
+    if (input.to === "ready_for_pickup") {
+      // packed only from sellable lots allocated in full (igs-pharma#165): else
+      // `inventory.allocation_short`, and the order stays in preparation
+      await ctx.run(checkAllocation, { holderRef: holderOf(order.checkoutId) });
     }
     if (input.to === "collected") {
       await ctx.run(consumeReservation, { holderRef: holderOf(order.checkoutId) });

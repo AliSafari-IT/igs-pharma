@@ -114,7 +114,11 @@ describe("the job", () => {
       INVENTORY_JOBS.purgePlans.queue,
       INVENTORY_JOBS.expireReservations.deadLetterQueue,
       INVENTORY_JOBS.expireReservations.queue,
+      INVENTORY_JOBS.checkAllocations.deadLetterQueue,
+      INVENTORY_JOBS.checkAllocations.queue,
     ]);
+    // the hourly allocation check (igs-pharma#165) skips the 02:00 hour
+    expect(INVENTORY_JOBS.checkAllocations.cron).toBe("23 0-1,3-23 * * *");
   });
 
   it("warns, without data, when it failed after all its retries", () => {

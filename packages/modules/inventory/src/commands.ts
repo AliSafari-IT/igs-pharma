@@ -5,6 +5,7 @@ import { PERMISSIONS } from "@igs/rbac";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { reconcileAllocations } from "./allocations";
 import { INVENTORY_AUDIT } from "./audit";
 import { ADJUST_REASONS, IMPORT_PLAN_TTL_MS, MAX_IMPORT_CHARS } from "./domain";
 import { levelOf, lockStock, planImport, recordMovements, stockLevels } from "./ledger";
@@ -126,6 +127,11 @@ export const importStock = command({
       entityId: plan.id,
       data: { importId: plan.id, rows: plan.rows.length, changed: changes.length },
     });
+    // orders on the changed products are allocated again where they no longer fit (igs-pharma#165)
+    await reconcileAllocations(
+      ctx,
+      changes.map((row) => row.productId),
+    );
     return { importId: plan.id, rows: plan.rows.length, changed: changes.length };
   },
 });
@@ -198,6 +204,7 @@ export const adjustStock = command({
         reason: input.reason,
       },
     });
+    await reconcileAllocations(ctx, [product.id]);
     return {
       movementId,
       lotId,

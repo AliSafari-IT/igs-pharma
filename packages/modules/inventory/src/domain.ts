@@ -123,6 +123,26 @@ export type ReservationKind = (typeof RESERVATION_KINDS)[number];
 export const RESERVATION_STATUSES = ["active", "released", "consumed", "expired"] as const;
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
 
+/**
+ * An order reservation's share of one lot (igs-pharma#165, ADR 0011 §4): `active` while it stands,
+ * `superseded` when the order was allocated again, `consumed` at pickup, `released` with the order.
+ */
+export const ALLOCATION_STATUSES = ["active", "superseded", "consumed", "released"] as const;
+export type AllocationStatus = (typeof ALLOCATION_STATUSES)[number];
+
+/**
+ * Why an order's lots were (re)allocated: the order was `confirmed` (paid); an allocated lot is no
+ * longer sellable (quarantine, expiry buffer, `lot_not_sellable`) or holds less than allocated
+ * (`lot_short`); or stock came in for an order that was short (`stock_added`).
+ */
+export const ALLOCATION_CAUSES = [
+  "confirmed",
+  "lot_not_sellable",
+  "lot_short",
+  "stock_added",
+] as const;
+export type AllocationCause = (typeof ALLOCATION_CAUSES)[number];
+
 /** Why a reservation was released: stock goes back to available. */
 export const RELEASE_REASONS = [
   "checkout_cancelled",

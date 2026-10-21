@@ -16,6 +16,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import {
+  ALLOCATION_STATUSES,
   EXPIRY_BUFFER_DEFAULT_DAYS,
   EXPIRY_BUFFER_MAX_DAYS,
   HOLDER_REF_PATTERN,
@@ -300,5 +301,51 @@ export const reservations = inventory.table(
     index("reservations_hold_expiry_idx")
       .on(t.expiresAt)
       .where(sql`${t.status} = 'active' AND ${t.kind} = 'hold'`),
+  ],
+);
+
+/**
+ * Which lots an order reservation will be picked from (igs-pharma#165, ADR 0011 §4). Allocated when
+ * the hold becomes an order, earliest expiry first, from sellable lots only; allocated again when a
+ * lot stops being sellable or holds less; consumed lot by lot at pickup. A row is never deleted and
+ * keeps its reservation, lot and quantity: a new allocation supersedes it (a trigger enforces the
+ * lifecycle). The active rows of a reservation may sum to less than its quantity: the order is then
+ * short of sellable stock and staff are flagged.
+ */
+export const reservationAllocations = inventory.table(
+  "reservation_allocations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    reservationId: uuid("reservation_id")
+      .notNull()
+      .references(() => reservations.id, { onDelete: "restrict" }),
+    productId: uuid("product_id").notNull(),
+    lotId: uuid("lot_id")
+      .notNull()
+      .references(() => lots.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    status: text("status").notNull().default("active"),
+    createdByType: text("created_by_type").notNull(),
+    createdById: text("created_by_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check(
+      "reservation_allocations_quantity_check",
+      sql`${t.quantity} > 0 AND ${t.quantity} <= ${sql.raw(String(MAX_QUANTITY))}`,
+    ),
+    check("reservation_allocations_status_check", oneOf("status", ALLOCATION_STATUSES)),
+    // one active share per reservation and lot
+    uniqueIndex("reservation_allocations_active_idx")
+      .on(t.reservationId, t.lotId)
+      .where(sql`${t.status} = 'active'`),
+    // what is already allocated from a lot
+    index("reservation_allocations_lot_active_idx")
+      .on(t.lotId)
+      .where(sql`${t.status} = 'active'`),
+    index("reservation_allocations_reservation_idx").on(t.reservationId),
   ],
 );
