@@ -10,6 +10,7 @@ import {
   payReturnOf,
   paymentNoticeOf,
   statusMessageKey,
+  statusTokenOf,
   uuidOf,
 } from "../../../../lib/checkout-area";
 import { cartActor, cartLocale } from "../../../../server/cart";
@@ -18,7 +19,7 @@ import { INTL_LOCALE } from "../../../../server/storefront";
 
 interface Props {
   readonly params: Promise<{ locale: string; id: string }>;
-  readonly searchParams: Promise<{ payment?: string | string[] }>;
+  readonly searchParams: Promise<{ payment?: string | string[]; t?: string | string[] }>;
 }
 
 /** Payment statuses that may have moved on at Mollie since we last heard. */
@@ -35,7 +36,9 @@ export const metadata = { robots: { index: false, follow: false } };
  */
 export default async function OrderPage({ params, searchParams }: Props) {
   const { locale: rawLocale, id } = await params;
-  const payReturn = payReturnOf((await searchParams).payment);
+  const query = await searchParams;
+  const payReturn = payReturnOf(query.payment);
+  const statusToken = statusTokenOf(query.t);
   const locale = cartLocale(rawLocale);
   const orderId = uuidOf(id);
   if (!orderId) notFound();
@@ -46,7 +49,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
   let order: OrderView | null = null;
   try {
     const { actor, token } = await cartActor();
-    order = await getOrder({ cartToken: token, orderId }, actor);
+    const read = { cartToken: token, orderId, ...(statusToken ? { statusToken } : {}) };
+    order = await getOrder(read, actor);
     if (
       payments &&
       order.status === "pending_payment" &&
@@ -54,7 +58,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
       UNSETTLED.has(order.paymentStatus)
     ) {
       await refreshPayment(orderId, payments);
-      order = await getOrder({ cartToken: token, orderId }, actor);
+      order = await getOrder(read, actor);
     }
   } catch (error) {
     if (isDomainError(error) && error.code === "orders.order_not_found") notFound();
@@ -82,6 +86,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 {t("status")}: <strong>{t(statusMessageKey(order.status))}</strong>
               </p>
             </div>
+            {statusToken ? (
+              <Alert variant="info" title={t("statusLinkTitle")} data-testid="status-link">
+                {t("statusLinkBody")}
+              </Alert>
+            ) : null}
             {payReturn === "unavailable" ? (
               <Alert
                 variant="error"
@@ -93,7 +102,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
             ) : null}
             <PaymentNotice
               notice={paymentNoticeOf(order.status, order.paymentStatus, payments !== null)}
-              payHref={`/${locale}/orders/${orderId}/pay`}
+              payHref={`/${locale}/orders/${orderId}/pay${statusToken ? `?t=${statusToken}` : ""}`}
               cartHref={`/${locale}/cart`}
               t={t}
             />

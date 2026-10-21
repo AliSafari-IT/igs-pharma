@@ -78,6 +78,18 @@ export const statusMessageKey = (status: string): string =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("")}`;
 
+/** "21 okt. 2026" in Brussels: when an order was placed. */
+export function brusselsDate(at: Date, intlLocale: string): string {
+  return new Intl.DateTimeFormat(intlLocale, {
+    dateStyle: "medium",
+    timeZone: "Europe/Brussels",
+  }).format(at);
+}
+
+/** A status link token from `?t=` (the same shape as the cart cookie), else `null`. */
+export const statusTokenOf = (value: unknown): string | null =>
+  typeof value === "string" && /^[A-Za-z0-9_-]{22}$/.test(value) ? value : null;
+
 /** "14:35" in Brussels: when a checkout's stock holds lapse. */
 export function brusselsTime(at: Date, intlLocale: string): string {
   return new Intl.DateTimeFormat(intlLocale, {

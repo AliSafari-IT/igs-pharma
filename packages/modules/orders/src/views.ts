@@ -1,5 +1,7 @@
+import { sha256Hex } from "@igs/crypto";
 import { notFound, query } from "@igs/kernel";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { PERMISSIONS } from "@igs/rbac";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { cartToken, ownerOf } from "./cart";
@@ -110,11 +112,16 @@ export interface OrderView {
 
 export const getOrder = query({
   name: "orders.order.get",
-  input: z.object({ cartToken: cartToken.optional(), orderId: z.uuid() }),
+  input: z.object({
+    cartToken: cartToken.optional(),
+    /** The order's status link token (`?t=`): opens it without the cart cookie. */
+    statusToken: cartToken.optional(),
+    orderId: z.uuid(),
+  }),
   permission: "public",
   async handler({ input, ctx }): Promise<OrderView> {
     const owner = ownerOf(ctx, input.cartToken);
-    if (!owner) throw notFound("orders.order_not_found");
+    if (!owner && !input.statusToken) throw notFound("orders.order_not_found");
     const [order] = await ctx.tx
       .select({
         id: ordersTable.id,
@@ -125,17 +132,24 @@ export const getOrder = query({
         vatCents: ordersTable.vatCents,
         createdAt: ordersTable.createdAt,
         customerId: ordersTable.customerId,
+        statusTokenHash: ordersTable.statusTokenHash,
         tokenHash: checkouts.tokenHash,
       })
       .from(ordersTable)
       // a guest order is theirs through the checkout it was placed from (same cart cookie)
       .leftJoin(checkouts, eq(checkouts.id, ordersTable.checkoutId))
       .where(eq(ordersTable.id, input.orderId));
+    const byLink =
+      input.statusToken !== undefined &&
+      order?.statusTokenHash != null &&
+      order.statusTokenHash === sha256Hex(input.statusToken);
     const owns =
       order !== undefined &&
-      ("customerId" in owner
-        ? order.customerId === owner.customerId
-        : order.customerId === null && order.tokenHash === owner.tokenHash);
+      (byLink ||
+        (owner !== undefined &&
+          ("customerId" in owner
+            ? order.customerId === owner.customerId
+            : order.customerId === null && order.tokenHash === owner.tokenHash)));
     if (!order || !owns) throw notFound("orders.order_not_found");
 
     const lines = await ctx.tx
@@ -168,6 +182,67 @@ export const getOrder = query({
       createdAt: order.createdAt,
       lines,
       paymentStatus: (payment?.status as PaymentStatus | undefined) ?? null,
+    };
+  },
+});
+
+export interface OwnOrderListItem {
+  readonly orderId: string;
+  readonly reference: string;
+  readonly status: OrderStatus;
+  readonly totalCents: number;
+  readonly createdAt: Date;
+  readonly paymentStatus: PaymentStatus | null;
+}
+
+export interface OwnOrderPage {
+  readonly items: readonly OwnOrderListItem[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+/** A signed-in customer's own orders, newest first. Guests have no list (their link opens one order). */
+export const listOwnOrders = query({
+  name: "orders.order.list_own",
+  input: z.object({
+    page: z.coerce.number().int().min(1).max(10_000).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  }),
+  permission: PERMISSIONS.orders.readOwn,
+  async handler({ input, ctx }): Promise<OwnOrderPage> {
+    const owner = ownerOf(ctx, undefined);
+    if (!owner || !("customerId" in owner)) throw notFound("orders.order_not_found");
+    const mine = eq(ordersTable.customerId, owner.customerId);
+    const rows = await ctx.tx
+      .select({
+        orderId: ordersTable.id,
+        reference: ordersTable.reference,
+        status: ordersTable.status,
+        totalCents: ordersTable.totalCents,
+        createdAt: ordersTable.createdAt,
+        paymentStatus: sql<string | null>`(
+          SELECT p.status FROM ${payments} p
+          WHERE p.order_id = ${sql.raw('"orders"."orders"."id"')}
+          ORDER BY p.created_at DESC, p.id DESC
+          LIMIT 1
+        )`,
+      })
+      .from(ordersTable)
+      .where(mine)
+      .orderBy(desc(ordersTable.createdAt), desc(ordersTable.id))
+      .limit(input.pageSize)
+      .offset((input.page - 1) * input.pageSize);
+    const [counted] = await ctx.tx.select({ n: count() }).from(ordersTable).where(mine);
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        status: row.status as OrderStatus,
+        paymentStatus: row.paymentStatus as PaymentStatus | null,
+      })),
+      total: counted?.n ?? 0,
+      page: input.page,
+      pageSize: input.pageSize,
     };
   },
 });

@@ -165,7 +165,19 @@
     "overviewGreeting": "Hallo {name}",
     "overviewSignedInAs": "Sie sind angemeldet als {email}.",
     "ordersTitle": "Bestellungen",
-    "ordersSoon": "Die Online-Bestellung startet bald. Ihre Bestellungen erscheinen hier.",
+    "navOrders": "Bestellungen",
+    "ordersViewAll": "Ihre Bestellungen ansehen",
+    "ordersIntro": "Ihre Bestellungen, die neuesten zuerst.",
+    "ordersEmpty": "Sie haben noch keine Bestellungen.",
+    "ordersUnavailable": "Ihre Bestellungen sind vorübergehend nicht abrufbar. Versuchen Sie es später erneut.",
+    "ordersFreshBody": "Ihre Bestellungen sind persönliche Daten. Melden Sie sich erneut an, um sie anzusehen.",
+    "ordersColReference": "Bestellnummer",
+    "ordersColDate": "Datum",
+    "ordersColStatus": "Status",
+    "ordersColTotal": "Summe",
+    "ordersPages": "Seiten",
+    "ordersPrevious": "Vorherige Seite",
+    "ordersNext": "Nächste Seite",
     "profileTitle": "Ihre Daten",
     "profileIntro": "Ändern Sie den Namen, den wir verwenden, und die Sprache der E-Mails, die wir Ihnen senden.",
     "languageLabel": "Sprache unserer E-Mails",
@@ -310,6 +322,8 @@
     "statusReadyForPickup": "Abholbereit",
     "statusCollected": "Abgeholt",
     "statusCancelled": "Storniert",
-    "statusExpired": "Abgelaufen"
+    "statusExpired": "Abgelaufen",
+    "statusLinkTitle": "Speichern Sie diese Seite",
+    "statusLinkBody": "Mit dem Link dieser Seite verfolgen Sie Ihre Bestellung, auch ohne Konto oder auf einem anderen Gerät. Teilen Sie ihn mit niemandem."
   }
 }

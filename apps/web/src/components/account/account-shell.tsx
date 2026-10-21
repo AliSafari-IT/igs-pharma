@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { StorefrontFrame } from "../storefront-frame";
 import { SignOutButton } from "./sign-out-button";
 
-export type AccountSection = "overview" | "profile" | "security" | "privacy";
+export type AccountSection = "overview" | "orders" | "profile" | "security" | "privacy";
 
 const SECTIONS: readonly {
   readonly key: AccountSection;
@@ -14,6 +14,7 @@ const SECTIONS: readonly {
   readonly label: string;
 }[] = [
   { key: "overview", path: "", label: "navOverview" },
+  { key: "orders", path: "/orders", label: "navOrders" },
   { key: "profile", path: "/profile", label: "navProfile" },
   { key: "security", path: "/security", label: "navSecurity" },
   { key: "privacy", path: "/privacy", label: "navPrivacy" },

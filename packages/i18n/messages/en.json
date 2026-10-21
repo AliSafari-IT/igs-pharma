@@ -165,7 +165,19 @@
     "overviewGreeting": "Hello, {name}",
     "overviewSignedInAs": "You are signed in as {email}.",
     "ordersTitle": "Orders",
-    "ordersSoon": "Online ordering opens soon. Your orders will appear here.",
+    "navOrders": "Orders",
+    "ordersViewAll": "View your orders",
+    "ordersIntro": "Your orders, newest first.",
+    "ordersEmpty": "You have no orders yet.",
+    "ordersUnavailable": "Your orders can't be shown right now. Try again later.",
+    "ordersFreshBody": "Your orders are personal data. Sign in again to see them.",
+    "ordersColReference": "Order number",
+    "ordersColDate": "Date",
+    "ordersColStatus": "Status",
+    "ordersColTotal": "Total",
+    "ordersPages": "Pages",
+    "ordersPrevious": "Previous page",
+    "ordersNext": "Next page",
     "profileTitle": "Your details",
     "profileIntro": "Change the name we use for you and the language of the e-mails we send you.",
     "languageLabel": "Language of our e-mails",
@@ -310,6 +322,8 @@
     "statusReadyForPickup": "Ready for pickup",
     "statusCollected": "Collected",
     "statusCancelled": "Cancelled",
-    "statusExpired": "Expired"
+    "statusExpired": "Expired",
+    "statusLinkTitle": "Keep this page",
+    "statusLinkBody": "The link to this page lets you follow your order, even without an account or on another device. Don't share it with anyone."
   }
 }

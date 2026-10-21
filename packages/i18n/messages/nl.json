@@ -165,7 +165,19 @@
     "overviewGreeting": "Dag {name}",
     "overviewSignedInAs": "U bent aangemeld als {email}.",
     "ordersTitle": "Bestellingen",
-    "ordersSoon": "Online bestellen opent binnenkort. Uw bestellingen verschijnen hier.",
+    "navOrders": "Bestellingen",
+    "ordersViewAll": "Bekijk uw bestellingen",
+    "ordersIntro": "Uw bestellingen, de nieuwste eerst.",
+    "ordersEmpty": "U hebt nog geen bestellingen.",
+    "ordersUnavailable": "Uw bestellingen zijn tijdelijk niet te bekijken. Probeer het later opnieuw.",
+    "ordersFreshBody": "Uw bestellingen zijn persoonlijke gegevens. Meld u opnieuw aan om ze te bekijken.",
+    "ordersColReference": "Bestelnummer",
+    "ordersColDate": "Datum",
+    "ordersColStatus": "Status",
+    "ordersColTotal": "Totaal",
+    "ordersPages": "Pagina's",
+    "ordersPrevious": "Vorige pagina",
+    "ordersNext": "Volgende pagina",
     "profileTitle": "Uw gegevens",
     "profileIntro": "Pas de naam aan die we gebruiken en de taal van de e-mails die we u sturen.",
     "languageLabel": "Taal van onze e-mails",
@@ -310,6 +322,8 @@
     "statusReadyForPickup": "Klaar om af te halen",
     "statusCollected": "Afgehaald",
     "statusCancelled": "Geannuleerd",
-    "statusExpired": "Verlopen"
+    "statusExpired": "Verlopen",
+    "statusLinkTitle": "Bewaar deze pagina",
+    "statusLinkBody": "Met de link van deze pagina volg je je bestelling, ook zonder account of op een ander toestel. Deel hem met niemand."
   }
 }

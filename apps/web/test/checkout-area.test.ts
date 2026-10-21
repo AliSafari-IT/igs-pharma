@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { resultOfCode } from "../src/lib/cart-area";
 import {
+  brusselsDate,
   brusselsTime,
   contactErrors,
   normalisePhone,
@@ -11,6 +12,7 @@ import {
   paymentNoticeOf,
   placeFailureOf,
   statusMessageKey,
+  statusTokenOf,
   uuidOf,
 } from "../src/lib/checkout-area";
 
@@ -97,6 +99,23 @@ describe("messages", () => {
         "backToCart",
         "stockShort",
         "paymentUnavailable",
+        "statusLinkTitle",
+        "statusLinkBody",
+      ],
+      account: [
+        "navOrders",
+        "ordersViewAll",
+        "ordersIntro",
+        "ordersEmpty",
+        "ordersUnavailable",
+        "ordersFreshBody",
+        "ordersColReference",
+        "ordersColDate",
+        "ordersColStatus",
+        "ordersColTotal",
+        "ordersPages",
+        "ordersPrevious",
+        "ordersNext",
       ],
       cart: ["resultShort", "resultEmpty"],
     } as const;
@@ -141,5 +160,25 @@ describe("paymentNoticeOf (igs-pharma#116)", () => {
     expect(payReturnOf(["unavailable"])).toBeNull();
     expect(payReturnOf("<script>")).toBeNull();
     expect(payReturnOf(undefined)).toBeNull();
+  });
+});
+
+describe("the order status link (igs-pharma#116)", () => {
+  it("reads only a well-formed token from ?t=", () => {
+    expect(statusTokenOf("n4tmZ53R5qsKPVfCoBDzAQ")).toBe("n4tmZ53R5qsKPVfCoBDzAQ");
+    for (const bad of [
+      undefined,
+      "",
+      "short",
+      "n4tmZ53R5qsKPVfCoBDzAQx",
+      "n4tmZ53R5qsKPVfCoBDz+Q",
+      ["n4tmZ53R5qsKPVfCoBDzAQ"],
+    ]) {
+      expect(statusTokenOf(bad)).toBeNull();
+    }
+  });
+
+  it("dates an order in Brussels", () => {
+    expect(brusselsDate(new Date("2026-10-21T23:30:00Z"), "nl-BE")).toBe("22 okt 2026");
   });
 });
