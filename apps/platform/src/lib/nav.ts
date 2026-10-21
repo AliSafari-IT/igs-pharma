@@ -19,6 +19,10 @@ export interface NavGroup {
 
 export const NAV: readonly NavGroup[] = [
   {
+    label: "Orders",
+    items: [{ label: "Orders", href: "/orders", permission: PERMISSIONS.orders.read }],
+  },
+  {
     label: "Catalogue",
     items: [
       { label: "Products", href: "/products", permission: PERMISSIONS.catalog.productsRead },

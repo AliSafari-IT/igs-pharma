@@ -1,6 +1,6 @@
 import { type SchemaGrants, fn, table } from "./types";
 
-/** igs-pharma#116 (D-045): the orders module's schema, introduced by migrations 0047 and 0048 (carts, orders) and 0049/0050 (checkout, payments). */
+/** igs-pharma#116 (D-045): the orders module's schema, introduced by migrations 0047 and 0048 (carts, orders), 0049/0050 (checkout, payments) and 0053/0054 (pharmacist reviews). */
 export const orders: SchemaGrants = {
   schema: "orders",
   usage: { app: true, worker: false },
@@ -77,6 +77,19 @@ export const orders: SchemaGrants = {
       worker: true,
       note: "SECURITY DEFINER, zero arguments: the worker's daily purge of expired carts and month-old checkouts",
       since: 50,
+    }),
+    table("orders.order_reviews", "append_only", {
+      app: ["SELECT", "INSERT"],
+      note: "append-only (triggers refuse UPDATE and DELETE)",
+      since: 54,
+    }),
+    fn("orders.order_review_guard()", {
+      note: "trigger function",
+      since: 54,
+    }),
+    fn("orders.order_approval_required()", {
+      note: "trigger function",
+      since: 54,
     }),
   ],
 };

@@ -96,6 +96,12 @@ const move = (id: string, to: OrderStatus, actor = "staff-1") =>
       updated_by_type = 'user', updated_by_id = ${actor}, updated_at = now()
     WHERE id = ${id}`;
 
+/** The pharmacist's approval on record (migration 0053), needed before in_review → ready_to_prepare. */
+const approve = (id: string) =>
+  app`
+    INSERT INTO orders.order_reviews (id, order_id, decision, reviewer_id)
+    VALUES (${newId()}, ${id}, 'approved', 'pharmacist-1')`;
+
 /** The shortest legal path from `pending_payment` to `status` for an order without a medicine. */
 const PATH: Record<OrderStatus, readonly OrderStatus[]> = {
   pending_payment: [],
@@ -122,6 +128,7 @@ describe("the order lifecycle", () => {
       for (const to of ORDER_STATUSES) {
         if (from === to) continue;
         const id = await orderAt(from);
+        if (from === "in_review" && to === "ready_to_prepare") await approve(id);
         const refused = await failure(move(id, to));
         const allowed = canTransition(from, to, { needsReview: false });
         if (allowed === (refused !== undefined)) mismatches.push(`${from} → ${to}`);
@@ -143,6 +150,10 @@ describe("the order lifecycle", () => {
 
     const reviewed = await placeOrder(medicine);
     await move(reviewed, "in_review");
+    expect((await failure(move(reviewed, "ready_to_prepare")))?.message).toMatch(
+      /no approved review/,
+    );
+    await approve(reviewed);
     await move(reviewed, "ready_to_prepare", "pharmacist-1");
     expect(await statusOf(reviewed)).toEqual({ status: "ready_to_prepare", version: 3 });
   });

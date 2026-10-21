@@ -21,6 +21,7 @@ import {
   MINUTE_MS,
   ORDER_LOCALES,
   formatOrderReference,
+  holderOf,
   maxPerOrder,
 } from "./domain";
 import {
@@ -50,8 +51,6 @@ import {
  */
 
 type Checkout = typeof checkouts.$inferSelect;
-
-const holderOf = (checkoutId: string) => `checkout:${checkoutId}`;
 
 function requireOwner(ctx: Ctx, token: string | undefined): Owner {
   const owner = ownerOf(ctx, token);

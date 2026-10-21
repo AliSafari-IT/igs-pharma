@@ -15,6 +15,7 @@ const labels = (groups: ReturnType<typeof visibleNav>) =>
 describe("visibleNav", () => {
   it("shows everything to someone who holds every permission, in the fixed group order", () => {
     const all = holding(
+      PERMISSIONS.orders.read,
       PERMISSIONS.catalog.productsRead,
       PERMISSIONS.inventory.stockRead,
       PERMISSIONS.privacy.dsrRead,
@@ -22,6 +23,7 @@ describe("visibleNav", () => {
       PERMISSIONS.staff.manage,
     );
     expect(labels(visibleNav([], all))).toEqual([
+      "Orders: Orders",
       "Catalogue: Products, Categories",
       "Stock: Stock",
       "Privacy: Data requests, Consents",

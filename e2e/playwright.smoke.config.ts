@@ -31,6 +31,7 @@ export default defineConfig({
     "session-limits.spec.ts",
     "reservations.spec.ts",
     "customer-accounts.spec.ts",
+    "orders.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",

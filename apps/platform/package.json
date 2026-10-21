@@ -18,6 +18,7 @@
     "@igs/module-catalog": "workspace:*",
     "@igs/module-identity": "workspace:*",
     "@igs/module-inventory": "workspace:*",
+    "@igs/module-orders": "workspace:*",
     "@igs/module-pricing": "workspace:*",
     "@igs/module-privacy": "workspace:*",
     "@igs/module-storefront": "workspace:*",

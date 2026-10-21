@@ -17,6 +17,9 @@ export {
   type OrderStatus,
   PAYMENT_STATUSES,
   type PaymentStatus,
+  REVIEW_DECISIONS,
+  REVIEW_NOTE_MAX,
+  type ReviewDecision,
   canTransition,
   maxPerOrder,
 } from "./domain";
@@ -66,3 +69,16 @@ export {
   startPayment,
   syncPayment,
 } from "./payments";
+export {
+  FULFILMENT_STEPS,
+  type FulfilmentStep,
+  advanceOrder,
+  decideReview,
+} from "./fulfilment";
+export {
+  type StaffOrderListItem,
+  type StaffOrderPage,
+  type StaffOrderView,
+  getOrderForStaff,
+  listOrdersForStaff,
+} from "./staff";
