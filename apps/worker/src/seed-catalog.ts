@@ -1,9 +1,9 @@
 /**
  * Synthetic catalogue seed (igs-pharma#50): loads the FAKE products and brands of
  * `synthetic-catalog.ts`, their demo stock (igs-pharma#53) and demo categories (igs-pharma#54), and
- * the demo prices of `synthetic-prices.ts` (igs-pharma#59) and the demo privacy requests and
- * consents of `synthetic-privacy.ts` (igs-pharma#58), so the back-office can be tried on staging
- * and in development.
+ * the demo prices of `synthetic-prices.ts` (igs-pharma#59), the demo orders of `synthetic-orders.ts`
+ * and the demo privacy requests and consents of `synthetic-privacy.ts` (igs-pharma#58), so the
+ * back-office can be tried on staging and in development.
  *
  *   NODE_ENV=development pnpm --filter @igs/worker seed-catalog                (dev)
  *   NODE_ENV=production IGS_ALLOW_SYNTHETIC_SEED=1 node dist/seed-catalog.js   (staging only)
@@ -28,6 +28,7 @@ import {
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
+import { registerAuditActions as registerOrdersAuditActions } from "@igs/module-orders";
 import { registerAuditActions as registerPricingAuditActions } from "@igs/module-pricing";
 import { registerAuditActions as registerPrivacyAuditActions } from "@igs/module-privacy";
 
@@ -38,6 +39,7 @@ import {
   seedSyntheticCategories,
   seedSyntheticStock,
 } from "./synthetic-catalog";
+import { seedSyntheticOrders } from "./synthetic-orders";
 import { seedSyntheticPrices } from "./synthetic-prices";
 import { seedSyntheticPrivacy } from "./synthetic-privacy";
 import { seedSyntheticReservations } from "./synthetic-reservations";
@@ -69,6 +71,7 @@ async function main() {
   registerInventoryAuditActions(registerAuditAction);
   registerPricingAuditActions(registerAuditAction);
   registerPrivacyAuditActions(registerAuditAction);
+  registerOrdersAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort() });
   try {
     await checkDatabase();
@@ -92,6 +95,10 @@ async function main() {
     const prices = await seedSyntheticPrices();
     process.stdout.write(
       `Demo prices: ${prices.priced} product(s) priced, ${prices.scheduled} change(s) scheduled for tomorrow, ${prices.skipped} left as they were.\n`,
+    );
+    const orders = await seedSyntheticOrders();
+    process.stdout.write(
+      `Demo orders: ${orders.placed} placed, ${orders.skipped} left as they were.\n`,
     );
     const privacy = await seedSyntheticPrivacy();
     process.stdout.write(
