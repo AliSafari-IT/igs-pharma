@@ -11,6 +11,8 @@ export const ORDERS_AUDIT = {
   orderExpired: "orders.order.expired",
   orderReviewed: "orders.order.reviewed",
   orderAdvanced: "orders.order.advanced",
+  refundRequested: "orders.refund.requested",
+  refundStatusRecorded: "orders.refund.status_recorded",
 } as const;
 
 /** Ids and counts only (D-028): never the cart token, which opens the cart. */
@@ -58,6 +60,30 @@ const orderAdvanced = z.object({
   to: z.string().max(30),
 });
 
+/**
+ * igs-pharma#156: ids, the reason code, the amount and the approving pharmacist's id; never the
+ * staff note or the customer. The requester is the audit entry's actor.
+ */
+const refundRequested = z.object({
+  orderId: z.uuid(),
+  refundId: z.uuid(),
+  paymentId: z.uuid(),
+  reason: z.string().max(30),
+  amountCents: z.number().int().min(1),
+  currency: z.string().length(3),
+  approvedById: z.string().max(64).nullable(),
+});
+/** The provider's refund id (`re_…`, useless without our API key) and the outcome. */
+const refundStatusRecorded = z.object({
+  orderId: z.uuid(),
+  refundId: z.uuid(),
+  status: z.string().max(20),
+  amountCents: z.number().int().min(1),
+  currency: z.string().length(3),
+  providerRefundId: z.string().max(70).nullable(),
+  failureCode: z.string().max(40).nullable(),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -75,4 +101,6 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(ORDERS_AUDIT.orderExpired, orderExpired);
   register(ORDERS_AUDIT.orderReviewed, orderReviewed);
   register(ORDERS_AUDIT.orderAdvanced, orderAdvanced);
+  register(ORDERS_AUDIT.refundRequested, refundRequested);
+  register(ORDERS_AUDIT.refundStatusRecorded, refundStatusRecorded);
 }

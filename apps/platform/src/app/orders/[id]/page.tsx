@@ -4,11 +4,14 @@ import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 import type { ReactNode } from "react";
 
-import { ReviewForm, StepForm } from "../../../components/order-actions";
+import { RefundForm, ReviewForm, StepForm } from "../../../components/order-actions";
 import {
   ORDER_STATUS_BADGE,
   ORDER_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
+  REFUND_REASON_LABELS,
+  REFUND_STATUS_BADGE,
+  REFUND_STATUS_LABELS,
   REVIEW_DECISION_LABELS,
   nextStep,
   orderErrorMessage,
@@ -73,6 +76,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
   const canDecide =
     order.status === "in_review" && hasPermission(actor.roles, PERMISSIONS.orders.reviewDecide);
+  // a medicine order's refund needs a pharmacist (the command checks it again)
+  const canRefund =
+    order.refundDue &&
+    hasPermission(actor.roles, PERMISSIONS.orders.refundRequest) &&
+    (!order.needsReview || hasPermission(actor.roles, PERMISSIONS.orders.reviewDecide));
   const step = nextStep(order.status);
   const canStep = step !== null && hasPermission(actor.roles, PERMISSIONS.orders.manage);
   const who = (actorType: string, actorId: string) =>
@@ -102,6 +110,11 @@ export default async function OrderPage({ params, searchParams }: Props) {
             }
           />
 
+          {done === "refund" ? (
+            <Alert variant="success" title="Refund requested">
+              The refund is sent to Mollie in the background. Its status shows below.
+            </Alert>
+          ) : null}
           {done === "review" || done === "step" ? (
             <Alert variant="success" title="Saved">
               The order is now “{ORDER_STATUS_LABELS[order.status]}”.
@@ -109,8 +122,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
           ) : null}
           {order.refundDue ? (
             <Alert variant="error" title="Refund due" data-testid="refund-due">
-              This order was paid but is closed (cancelled or expired). Refund it in the Mollie
-              dashboard.
+              This order was paid but is closed (cancelled or expired).{" "}
+              {canRefund
+                ? "Refund it below."
+                : order.needsReview
+                  ? "It holds a medicine: a pharmacist asks for its refund."
+                  : "An owner or a pharmacist asks for its refund."}
             </Alert>
           ) : null}
           {order.status === "paid_stock_short" ? (
@@ -124,6 +141,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
             <Section title="Pharmacist review">
               <p>This order holds a medicine. Approve it before it is prepared.</p>
               <ReviewForm orderId={order.orderId} version={order.version} />
+            </Section>
+          ) : null}
+          {canRefund ? (
+            <Section title="Refund">
+              <p>The full amount goes back to the customer through Mollie.</p>
+              <RefundForm orderId={order.orderId} />
             </Section>
           ) : null}
           {canStep && step ? (
@@ -223,6 +246,41 @@ export default async function OrderPage({ params, searchParams }: Props) {
               ) : null}
             </Section>
           </div>
+
+          {order.refunds.length > 0 ? (
+            <Section title="Refunds">
+              <ul className="flex flex-col gap-3" data-testid="refunds">
+                {order.refunds.map((item) => (
+                  <li key={item.refundId} className="flex flex-col gap-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Badge variant={REFUND_STATUS_BADGE[item.status]}>
+                        {REFUND_STATUS_LABELS[item.status]}
+                      </Badge>
+                      {formatEuros(item.amountCents)} · {REFUND_REASON_LABELS[item.reason]} ·{" "}
+                      {formatMoment(item.requestedAt)} ·{" "}
+                      {who(item.requestedByType, item.requestedById)}
+                    </span>
+                    {item.providerRefundId ? (
+                      <span className="text-[var(--color-text-subtle)]">
+                        Mollie refund <code>{item.providerRefundId}</code>
+                      </span>
+                    ) : null}
+                    {item.failureCode ? (
+                      <span className="text-[var(--color-text-subtle)]">
+                        Mollie refused it ({item.failureCode}). Check the payment in Mollie, then
+                        ask again.
+                      </span>
+                    ) : null}
+                    {item.note ? (
+                      <span className="whitespace-pre-line text-[var(--color-text-subtle)]">
+                        {item.note}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
 
           <Section title="History">
             <ol className="flex flex-col gap-1">

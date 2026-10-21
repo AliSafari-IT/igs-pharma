@@ -115,7 +115,8 @@ async function main() {
   await registerPrivacyJobs(boss as unknown as PrivacyJobScheduler);
   // igs-pharma#116: expired carts and month-old checkouts (04:27 Europe/Brussels), a definer function;
   // every 5 minutes, Mollie payments whose webhook never came are re-read and orders unpaid for 24 h
-  // expire. Without MOLLIE_API_KEY only the expiry runs.
+  // expire. igs-pharma#156: `orders.refund.requested` events are executed at Mollie (and re-run by the
+  // reconciliation while unsettled). Without MOLLIE_API_KEY only the expiry runs; refunds wait.
   await registerOrdersJobs(
     boss as unknown as OrdersJobScheduler,
     undefined,

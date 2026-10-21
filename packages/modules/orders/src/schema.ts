@@ -22,6 +22,9 @@ import {
   ORDER_VAT_CLASSES,
   PAYMENT_PROVIDERS,
   PAYMENT_STATUSES,
+  REFUND_NOTE_MAX,
+  REFUND_REASONS,
+  REFUND_STATUSES,
   REVIEW_DECISIONS,
   REVIEW_NOTE_MAX,
 } from "./domain";
@@ -371,5 +374,61 @@ export const payments = orders.table(
     uniqueIndex("payments_provider_payment_idx").on(t.providerPaymentId),
     index("payments_order_idx").on(t.orderId),
     index("payments_status_created_idx").on(t.status, t.createdAt),
+  ],
+);
+
+/**
+ * A refund of a paid payment (igs-pharma#156): full amount only, at most one that is not failed or
+ * canceled per payment. Recorded by a command before the provider is asked; the worker then asks the
+ * provider (our id is the idempotency key) and records its refund id and status. A trigger moves the
+ * status forward only; no DELETE for anyone.
+ */
+export const refunds = orders.table(
+  "refunds",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "restrict" }),
+    paymentId: uuid("payment_id")
+      .notNull()
+      .references(() => payments.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull().default(ORDER_CURRENCY),
+    status: text("status").notNull().default("requested"),
+    reason: text("reason").notNull(),
+    /** Staff-only, never sent to the provider or audited. */
+    note: text("note"),
+    requestedByType: text("requested_by_type").notNull(),
+    requestedById: text("requested_by_id").notNull(),
+    /** The pharmacist who authorised the refund of an order that holds a medicine. */
+    approvedById: text("approved_by_id"),
+    providerRefundId: text("provider_refund_id"),
+    /** The provider's refusal code when it failed. */
+    failureCode: text("failure_code"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+    /** When the provider accepted it. */
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    /** When it reached an end state. */
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("refunds_status_check", oneOf("status", REFUND_STATUSES)),
+    check("refunds_reason_check", oneOf("reason", REFUND_REASONS)),
+    check("refunds_currency_check", oneOf("currency", [ORDER_CURRENCY])),
+    check("refunds_amount_check", sql`${t.amountCents} > 0`),
+    check(
+      "refunds_note_check",
+      sql`${t.note} IS NULL OR char_length(${t.note}) BETWEEN 1 AND ${sql.raw(String(REFUND_NOTE_MAX))}`,
+    ),
+    uniqueIndex("refunds_provider_refund_idx").on(t.providerRefundId),
+    uniqueIndex("refunds_one_active_idx")
+      .on(t.paymentId)
+      .where(sql`${t.status} IN ('requested', 'pending', 'refunded')`),
+    index("refunds_order_idx").on(t.orderId),
+    index("refunds_status_updated_idx").on(t.status, t.updatedAt),
   ],
 );

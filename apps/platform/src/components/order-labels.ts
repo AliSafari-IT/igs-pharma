@@ -2,6 +2,8 @@ import type {
   FulfilmentStep,
   OrderStatus,
   PaymentStatus,
+  RefundReason,
+  RefundStatus,
   ReviewDecision,
 } from "@igs/module-orders";
 import type { BadgeVariant } from "@igs/ui";
@@ -61,6 +63,38 @@ export const REVIEW_DECISION_LABELS: Record<ReviewDecision, string> = {
   rejected: "Rejected",
 };
 
+export const REFUND_STATUS_LABELS: Record<RefundStatus, string> = {
+  requested: "Requested",
+  pending: "Sent to Mollie",
+  refunded: "Refunded",
+  failed: "Failed",
+  canceled: "Cancelled at Mollie",
+};
+
+export const REFUND_STATUS_BADGE: Record<RefundStatus, BadgeVariant> = {
+  requested: "amber",
+  pending: "amber",
+  refunded: "success",
+  failed: "error",
+  canceled: "neutral",
+};
+
+export const REFUND_REASON_LABELS: Record<RefundReason, string> = {
+  pharmacist_rejected: "Pharmacist rejected the order",
+  stock_short: "Stock short",
+  paid_after_close: "Paid after the order closed",
+  customer_request: "Customer request",
+  other: "Other",
+};
+
+/** The reasons staff choose from (the pharmacist's rejection sets its own). */
+export const REFUND_REASON_OPTIONS = [
+  "paid_after_close",
+  "customer_request",
+  "stock_short",
+  "other",
+] as const satisfies readonly RefundReason[];
+
 /** The button that moves an order to this step. */
 export const STEP_ACTION_LABELS: Record<FulfilmentStep, string> = {
   preparing: "Start preparing",
@@ -93,6 +127,10 @@ const ERRORS: Record<string, string> = {
   "inventory.reservation_not_active":
     "The stock for this order was already handed out or released.",
   "inventory.reservation_not_confirmed": "The stock for this order isn't confirmed yet.",
+  "orders.order_not_refundable": "Only a paid order that is cancelled or expired can be refunded.",
+  "orders.refund_exists": "A refund for this order is already under way or done.",
+  "orders.refund_needs_pharmacist":
+    "This order holds a medicine: a pharmacist asks for its refund.",
   "kernel.forbidden": "You don't have access to this.",
   "kernel.mfa_required": "Confirm your sign-in with your second step first.",
   "kernel.validation_failed": "Check what you entered.",

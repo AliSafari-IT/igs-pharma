@@ -19,6 +19,11 @@ export const PERMISSIONS = {
     manage: "orders.order.manage",
     reviewDecide: "orders.review.decide",
     /**
+     * Staff (igs-pharma#156): ask for the refund of a closed, paid order; the worker executes it. An
+     * order that holds a medicine also needs `reviewDecide` (a pharmacist), never implied by owner.
+     */
+    refundRequest: "orders.refund.request",
+    /**
      * System-only (igs-pharma#116): attach a provider payment to an order's payment and record what
      * the provider says about it (paid confirms the stock holds; failed cancels the order). Held by
      * the webhook, the "pay now" route and the worker's reconciliation, never by a person.
@@ -206,6 +211,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   owner: [
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.manage,
+    PERMISSIONS.orders.refundRequest,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.manage,
     PERMISSIONS.catalog.productsRead,
@@ -227,6 +233,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.manage,
     PERMISSIONS.orders.reviewDecide,
+    PERMISSIONS.orders.refundRequest,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.catalog.productsRegulatedManage,
@@ -239,6 +246,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.manage,
     PERMISSIONS.orders.reviewDecide,
+    PERMISSIONS.orders.refundRequest,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.catalog.productsRegulatedManage,

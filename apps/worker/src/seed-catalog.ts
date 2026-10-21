@@ -32,6 +32,7 @@ import { registerAuditActions as registerOrdersAuditActions } from "@igs/module-
 import { registerAuditActions as registerPricingAuditActions } from "@igs/module-pricing";
 import { registerAuditActions as registerPrivacyAuditActions } from "@igs/module-privacy";
 
+import { registerWorkerEvents } from "./events";
 import {
   PRODUCTS,
   cnkFor,
@@ -73,6 +74,7 @@ async function main() {
   registerPrivacyAuditActions(registerAuditAction);
   registerOrdersAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort() });
+  registerWorkerEvents(); // the rejected demo order publishes its refund request
   try {
     await checkDatabase();
     await ensureRbacCatalogue();

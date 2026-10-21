@@ -1,6 +1,6 @@
 import { type SchemaGrants, fn, table } from "./types";
 
-/** igs-pharma#116 (D-045): the orders module's schema, introduced by migrations 0047 and 0048 (carts, orders), 0049/0050 (checkout, payments) and 0053/0054 (pharmacist reviews). */
+/** igs-pharma#116 (D-045): the orders module's schema, introduced by migrations 0047 and 0048 (carts, orders), 0049/0050 (checkout, payments) and 0053/0054 (pharmacist reviews) and 0057/0058 (refunds). */
 export const orders: SchemaGrants = {
   schema: "orders",
   usage: { app: true, worker: false },
@@ -90,6 +90,19 @@ export const orders: SchemaGrants = {
     fn("orders.order_approval_required()", {
       note: "trigger function",
       since: 54,
+    }),
+    table("orders.refunds", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "no DELETE for anyone (a trigger refuses it); a trigger moves the status forward only",
+      since: 58,
+    }),
+    fn("orders.refund_insert_guard()", {
+      note: "trigger function: only the full amount of a paid payment of a closed order",
+      since: 58,
+    }),
+    fn("orders.refund_guard()", {
+      note: "trigger function: a refund's status only moves forward",
+      since: 58,
     }),
   ],
 };

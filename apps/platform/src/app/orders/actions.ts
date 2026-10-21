@@ -1,7 +1,7 @@
 "use server";
 
 import { isDomainError } from "@igs/kernel";
-import { advanceOrder, decideReview } from "@igs/module-orders";
+import { advanceOrder, decideReview, requestRefund } from "@igs/module-orders";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -68,4 +68,27 @@ export async function advance(
   }
   revalidatePath("/orders");
   redirect(`/orders/${encodeURIComponent(orderId)}?done=step`);
+}
+
+/** Asks for the refund of a closed, paid order; the worker executes it at Mollie. */
+export async function refund(
+  _previous: OrderActionState,
+  form: FormData,
+): Promise<OrderActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const orderId = text(form, "orderId");
+  const note = text(form, "note").trim();
+  try {
+    await requestRefund(
+      { orderId, reason: text(form, "reason"), ...(note ? { note } : {}) },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/orders");
+  redirect(`/orders/${encodeURIComponent(orderId)}?done=refund`);
 }

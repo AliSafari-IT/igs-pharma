@@ -1,5 +1,6 @@
 import {
   type KernelRuntime,
+  type OutboxEnvelope,
   type QueueAdmin,
   assertQueuesExist,
   getKernelRuntime,
@@ -14,6 +15,12 @@ import {
   listUnsettledPayments,
   syncPayment,
 } from "./payments";
+import {
+  type RefundProvider,
+  RefundRequested,
+  executeRefund,
+  listUnsettledRefunds,
+} from "./refunds";
 
 /**
  * Background job of the orders module (igs-pharma#116): the daily purge of expired carts and of
@@ -64,11 +71,17 @@ export function reportCartPurgeFailed(runtime: KernelRuntime = getKernelRuntime(
   );
 }
 
+/** One pg-boss job of the refund topic: the outbox envelope the relay delivers. */
+export interface RefundJob {
+  readonly data: unknown;
+}
+
 /** The slice of pg-boss that `registerOrdersJobs` uses (structural: the module need not import pg-boss). */
 export interface OrdersJobScheduler {
   getQueue(name: string): Promise<unknown>;
   schedule(name: string, cron: string, data?: object, options?: { tz?: string }): Promise<void>;
-  work(name: string, handler: () => Promise<void>): Promise<unknown>;
+  /** pg-boss hands a handler the batch of jobs; the scheduled handlers ignore it. */
+  work(name: string, handler: (jobs: RefundJob[]) => Promise<void>): Promise<unknown>;
 }
 
 /** The slice of pg-boss that `ensureOrdersQueues` uses. */
@@ -104,17 +117,53 @@ export async function ensureOrdersQueues(boss: OrdersQueueAdmin): Promise<void> 
 const UNSETTLED_QUIET_MINUTES = 10;
 const UNSETTLED_BATCH = 50;
 
+/** Logs a failure by code only: one payment or refund must not stop the others. */
+function warnFailed(runtime: KernelRuntime, event: string, error: unknown): void {
+  runtime.logger.warn?.({ event, code: isDomainError(error) ? error.code : "error" }, event);
+}
+
+/**
+ * Executes the refunds of a batch of `orders.refund.requested` jobs (igs-pharma#156). A payload that
+ * does not parse can never succeed, so it is logged (ids only) and dropped; any other failure is
+ * thrown for a retry (the reconciliation also picks the refund up again).
+ */
+export async function handleRefundJobs(
+  jobs: readonly RefundJob[],
+  provider: RefundProvider,
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<void> {
+  for (const job of jobs) {
+    const envelope = job.data as Partial<OutboxEnvelope> | null;
+    const payload = RefundRequested.schema.safeParse(envelope?.payload);
+    if (!payload.success) {
+      runtime.logger.warn?.(
+        { eventId: envelope?.eventId, alarm: "orders.refunds.payload_invalid" },
+        "orders.refunds.payload_invalid: a refund request could not be read and was dropped",
+      );
+      continue;
+    }
+    const { status } = await executeRefund(payload.data.refundId, provider);
+    runtime.logger.info?.(
+      { eventId: envelope?.eventId, refundId: payload.data.refundId, status },
+      "orders.refunds.executed",
+    );
+  }
+}
+
 /**
  * One reconciliation run: re-reads the unsettled provider payments (when a provider is configured)
- * and expires the unpaid orders. A payment the provider no longer knows is logged and skipped; the
- * counts go to the log.
+ * and expires the unpaid orders; with a refund provider, re-runs the refunds still requested or
+ * pending (a lost job, a refund the provider is still processing). A payment or refund the provider
+ * refuses is logged and skipped; the counts go to the log.
  */
 export async function runPaymentReconciliation(
   provider: PaymentProvider | null,
   runtime: KernelRuntime = getKernelRuntime(),
-): Promise<{ synced: number; failed: number; expired: number }> {
+  refundProvider: RefundProvider | null = null,
+): Promise<{ synced: number; failed: number; expired: number; refunds: number }> {
   let synced = 0;
   let failed = 0;
+  let refundsChanged = 0;
   if (provider) {
     const ids = await listUnsettledPayments(
       { quietMinutes: UNSETTLED_QUIET_MINUTES, limit: UNSETTLED_BATCH },
@@ -125,21 +174,32 @@ export async function runPaymentReconciliation(
         const { changed } = await syncPayment(id, provider);
         if (changed) synced++;
       } catch (error) {
-        // one payment must not stop the others; an alarm-worthy refusal is logged by code only
         failed++;
-        runtime.logger.warn?.(
-          {
-            event: "orders.payments.sync_failed",
-            code: isDomainError(error) ? error.code : "error",
-          },
-          "orders.payments.sync_failed",
-        );
+        warnFailed(runtime, "orders.payments.sync_failed", error);
+      }
+    }
+  }
+  if (refundProvider) {
+    const ids = await listUnsettledRefunds(
+      { quietMinutes: UNSETTLED_QUIET_MINUTES, limit: UNSETTLED_BATCH },
+      PAYMENTS_ACTOR,
+    );
+    for (const id of ids) {
+      try {
+        const { changed } = await executeRefund(id, refundProvider);
+        if (changed) refundsChanged++;
+      } catch (error) {
+        failed++;
+        warnFailed(runtime, "orders.refunds.execute_failed", error);
       }
     }
   }
   const { expired } = await expireUnpaidOrders({}, PAYMENTS_ACTOR);
-  runtime.logger.info?.({ synced, failed, expired }, "orders.payments.reconciled");
-  return { synced, failed, expired };
+  runtime.logger.info?.(
+    { synced, failed, expired, refunds: refundsChanged },
+    "orders.payments.reconciled",
+  );
+  return { synced, failed, expired, refunds: refundsChanged };
 }
 
 /** A reconciliation that failed all its retries: payments stay unread until the next run. */
@@ -153,15 +213,19 @@ export function reportReconciliationFailed(runtime: KernelRuntime = getKernelRun
 /**
  * Verifies the queues exist (a readable `kernel.queue_missing` when the migrate entry has not run),
  * schedules the runs and registers the handlers. Safe to call on every boot. `provider`: the payment
- * provider, `null` when none is configured (the reconciliation then only expires unpaid orders).
+ * provider, `null` when none is configured (the reconciliation then only expires unpaid orders, and
+ * refund requests wait, `requested`, until a provider is configured).
  */
 export async function registerOrdersJobs(
   boss: OrdersJobScheduler,
   runtime: KernelRuntime = getKernelRuntime(),
-  provider: PaymentProvider | null = null,
+  provider: (PaymentProvider & RefundProvider) | null = null,
 ): Promise<void> {
   const { purgeCarts, reconcilePayments, timezone } = ORDERS_JOBS;
-  await assertQueuesExist(boss, ORDERS_QUEUES);
+  await assertQueuesExist(
+    boss,
+    provider ? [...ORDERS_QUEUES, RefundRequested.topic] : ORDERS_QUEUES,
+  );
   await boss.schedule(purgeCarts.queue, purgeCarts.cron, undefined, { tz: timezone });
   await boss.schedule(reconcilePayments.queue, reconcilePayments.cron, undefined, { tz: timezone });
   await boss.work(purgeCarts.queue, async () => {
@@ -169,8 +233,11 @@ export async function registerOrdersJobs(
   });
   await boss.work(purgeCarts.deadLetterQueue, async () => reportCartPurgeFailed(runtime));
   await boss.work(reconcilePayments.queue, async () => {
-    await runPaymentReconciliation(provider, runtime);
+    await runPaymentReconciliation(provider, runtime, provider);
   });
+  if (provider) {
+    await boss.work(RefundRequested.topic, (jobs) => handleRefundJobs(jobs, provider, runtime));
+  }
   await boss.work(reconcilePayments.deadLetterQueue, async () =>
     reportReconciliationFailed(runtime),
   );

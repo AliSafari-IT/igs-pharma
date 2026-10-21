@@ -125,3 +125,76 @@ describe("getPayment", () => {
     await expect(down.getPayment("tr_abc123XYZ")).rejects.toMatchObject({ code: "unreachable" });
   });
 });
+
+const refund = (overrides: Record<string, unknown> = {}) => ({
+  resource: "refund",
+  id: "re_4qqhO89gsT",
+  status: "pending",
+  amount: { value: "12.34", currency: "EUR" },
+  metadata: { refundId: "r-1", orderId: "o-1" },
+  ...overrides,
+});
+
+describe("refunds", () => {
+  it("refunds the amount with our idempotency key", async () => {
+    const { impl, calls } = fakeFetch(201, refund());
+    const made = await createMollieClient(KEY, impl).createRefund("tr_abc123XYZ", {
+      amountCents: 1234,
+      description: "IGS-2026-000001",
+      metadata: { refundId: "r-1", orderId: "o-1" },
+      idempotencyKey: "r-1",
+    });
+    expect(made).toEqual({
+      id: "re_4qqhO89gsT",
+      status: "pending",
+      amountCents: 1234,
+      currency: "EUR",
+      metadata: { refundId: "r-1", orderId: "o-1" },
+    });
+    const [call] = calls;
+    expect(call?.url).toBe("https://api.mollie.com/v2/payments/tr_abc123XYZ/refunds");
+    expect((call?.init.headers as Record<string, string>)["idempotency-key"]).toBe("r-1");
+    expect(JSON.parse(String(call?.init.body))).toEqual({
+      amount: { currency: "EUR", value: "12.34" },
+      description: "IGS-2026-000001",
+      metadata: { refundId: "r-1", orderId: "o-1" },
+    });
+  });
+
+  it("reads one refund back and lists a payment's refunds", async () => {
+    const one = fakeFetch(200, refund({ status: "refunded" }));
+    expect(
+      await createMollieClient(KEY, one.impl).getRefund("tr_abc123XYZ", "re_4qqhO89gsT"),
+    ).toMatchObject({ status: "refunded" });
+    expect(one.calls[0]?.url).toBe(
+      "https://api.mollie.com/v2/payments/tr_abc123XYZ/refunds/re_4qqhO89gsT",
+    );
+    const list = fakeFetch(200, { count: 1, _embedded: { refunds: [refund()] } });
+    expect(await createMollieClient(KEY, list.impl).listRefunds("tr_abc123XYZ")).toHaveLength(1);
+    const empty = fakeFetch(200, { count: 0, _embedded: { refunds: [] } });
+    expect(await createMollieClient(KEY, empty.impl).listRefunds("tr_abc123XYZ")).toEqual([]);
+  });
+
+  it("refuses odd ids without calling Mollie, and odd answers", async () => {
+    const { impl, calls } = fakeFetch(200, refund());
+    const client = createMollieClient(KEY, impl);
+    await expect(client.getRefund("tr_abc123XYZ", "../x")).rejects.toMatchObject({
+      code: "invalid_id",
+    });
+    await expect(client.listRefunds("tr_/x")).rejects.toMatchObject({ code: "invalid_id" });
+    expect(calls).toHaveLength(0);
+    const odd = createMollieClient(KEY, fakeFetch(200, refund({ status: "weird" })).impl);
+    await expect(odd.getRefund("tr_abc123XYZ", "re_4qqhO89gsT")).rejects.toMatchObject({
+      code: "invalid_status",
+    });
+    const refused = createMollieClient(KEY, fakeFetch(422, { detail: "too much" }).impl);
+    await expect(
+      refused.createRefund("tr_abc123XYZ", {
+        amountCents: 1,
+        description: "x",
+        metadata: {},
+        idempotencyKey: "k",
+      }),
+    ).rejects.toMatchObject({ status: 422, code: "refused" });
+  });
+});
