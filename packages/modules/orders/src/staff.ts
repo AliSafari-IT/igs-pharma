@@ -8,6 +8,7 @@ import {
   type OrderStatus,
   type PaymentStatus,
   type ReviewDecision,
+  holderOf,
 } from "./domain";
 import { type RefundView, refundsOf } from "./refunds";
 import {
@@ -127,6 +128,8 @@ export interface StaffOrderView {
   /** Pass as `expectedVersion`. */
   readonly version: number;
   readonly needsReview: boolean;
+  /** The inventory holder of its stock (the checkout's): what staff look up when it is short. */
+  readonly holderRef: string;
   readonly locale: string;
   readonly totalCents: number;
   readonly vatCents: number;
@@ -169,6 +172,7 @@ export const getOrderForStaff = query({
         status: ordersTable.status,
         version: ordersTable.version,
         needsReview: ordersTable.needsReview,
+        checkoutId: ordersTable.checkoutId,
         locale: ordersTable.locale,
         totalCents: ordersTable.totalCents,
         vatCents: ordersTable.vatCents,
@@ -222,6 +226,7 @@ export const getOrderForStaff = query({
       status: order.status as OrderStatus,
       version: order.version,
       needsReview: order.needsReview,
+      holderRef: holderOf(order.checkoutId),
       locale: order.locale,
       totalCents: order.totalCents,
       vatCents: order.vatCents,

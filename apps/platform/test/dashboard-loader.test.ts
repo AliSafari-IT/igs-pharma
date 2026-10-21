@@ -9,11 +9,13 @@ const fakes = {
   getProductCounts: vi.fn(),
   getStockSummary: vi.fn(),
   listDsr: vi.fn(),
+  listOrdersForStaff: vi.fn(),
   logger: { error: vi.fn() },
 };
 vi.mock("@igs/module-catalog", () => ({ getProductCounts: fakes.getProductCounts }));
 vi.mock("@igs/module-inventory", () => ({ getStockSummary: fakes.getStockSummary }));
 vi.mock("@igs/module-privacy", () => ({ listDsr: fakes.listDsr }));
+vi.mock("@igs/module-orders", () => ({ listOrdersForStaff: fakes.listOrdersForStaff }));
 vi.mock("@igs/observability/logger", () => ({ logger: fakes.logger }));
 
 useCodeRbacCatalogue();
@@ -30,12 +32,18 @@ const actor = (role: string) =>
   }) as unknown as ResolvedActor;
 
 beforeEach(() => {
-  for (const fake of [fakes.getProductCounts, fakes.getStockSummary, fakes.listDsr]) {
+  for (const fake of [
+    fakes.getProductCounts,
+    fakes.getStockSummary,
+    fakes.listDsr,
+    fakes.listOrdersForStaff,
+  ]) {
     fake.mockReset();
   }
   fakes.logger.error.mockReset();
   fakes.getProductCounts.mockResolvedValue({ active: 4, draft: 1, awaitingApproval: 0 });
   fakes.listDsr.mockResolvedValue({ items: [], total: 0, overdueTotal: 0 });
+  fakes.listOrdersForStaff.mockResolvedValue({ items: [], total: 0, counts: {} });
 });
 
 describe("loadDashboard", () => {
@@ -71,5 +79,17 @@ describe("loadDashboard", () => {
     expect(dashboard).not.toHaveProperty("stock");
     expect(dashboard).not.toHaveProperty("reservations");
     expect(dashboard.products?.state).toBe("ok");
+  });
+
+  it("counts the paid orders waiting for stock for a member who reads orders (#158)", async () => {
+    fakes.getStockSummary.mockResolvedValue({ low: 0, out: 0, activeReservations: 0, short: 0 });
+    fakes.listOrdersForStaff.mockResolvedValue({ items: [], total: 3, counts: {} });
+    const support = actor("customer_service");
+    expect((await loadDashboard(support)).orders).toEqual({ state: "ok", data: { stockShort: 3 } });
+    expect(fakes.listOrdersForStaff).toHaveBeenCalledWith(
+      { status: "paid_stock_short", pageSize: 1 },
+      support,
+    );
+    expect(await loadDashboard(actor("content_editor"))).not.toHaveProperty("orders");
   });
 });

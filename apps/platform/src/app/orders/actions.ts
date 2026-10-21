@@ -1,7 +1,13 @@
 "use server";
 
 import { isDomainError } from "@igs/kernel";
-import { advanceOrder, decideReview, requestRefund } from "@igs/module-orders";
+import {
+  advanceOrder,
+  cancelStockShortOrder,
+  decideReview,
+  reReserveOrder,
+  requestRefund,
+} from "@igs/module-orders";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -91,4 +97,47 @@ export async function refund(
   }
   revalidatePath("/orders");
   redirect(`/orders/${encodeURIComponent(orderId)}?done=refund`);
+}
+
+/** A stock-short order: hold its products again and send it on. */
+export async function reReserve(
+  _previous: OrderActionState,
+  form: FormData,
+): Promise<OrderActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const orderId = text(form, "orderId");
+  try {
+    await reReserveOrder({ orderId, expectedVersion: versionOf(form) }, actor, {
+      origin: await requestOrigin(),
+    });
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/orders");
+  redirect(`/orders/${encodeURIComponent(orderId)}?done=reserved`);
+}
+
+/** A stock-short order that cannot be filled: cancel it and refund it. */
+export async function cancelStockShort(
+  _previous: OrderActionState,
+  form: FormData,
+): Promise<OrderActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const orderId = text(form, "orderId");
+  const note = text(form, "note").trim();
+  try {
+    await cancelStockShortOrder(
+      { orderId, expectedVersion: versionOf(form), ...(note ? { note } : {}) },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/orders");
+  redirect(`/orders/${encodeURIComponent(orderId)}?done=cancelled`);
 }

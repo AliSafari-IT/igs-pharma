@@ -13,8 +13,10 @@ import { z } from "zod";
 import {
   type Availability,
   DEFAULT_LOCATION_ID,
+  HOLDER_REF_PATTERN,
   type MovementReason,
   type ReservationKind,
+  type ReservationStatus,
   availabilityOf,
 } from "./domain";
 import { availabilityFor, levelOf, stockLevels } from "./ledger";
@@ -338,3 +340,45 @@ export async function storefrontAvailability(
     visible.map((id) => [id, availabilityStatus(availability.get(id)?.available ?? 0, lowStock)]),
   );
 }
+
+/** One reservation of a holder, whatever its status (igs-pharma#158). */
+export interface HolderReservation {
+  readonly reservationId: string;
+  readonly productId: string;
+  readonly kind: ReservationKind;
+  readonly status: ReservationStatus;
+  readonly quantity: number;
+  readonly expiresAt: Date | null;
+  readonly createdAt: Date;
+}
+
+/**
+ * Every reservation of one holder (a checkout and its order), newest first: what staff see when an
+ * order was paid after its holds lapsed.
+ */
+export const listHolderReservations = query({
+  name: "inventory.reservation.list_holder",
+  input: z.object({ holderRef: z.string().regex(HOLDER_REF_PATTERN) }),
+  permission: PERMISSIONS.inventory.stockRead,
+  async handler({ input, ctx }): Promise<readonly HolderReservation[]> {
+    const rows = await ctx.tx
+      .select({
+        reservationId: reservations.id,
+        productId: reservations.productId,
+        kind: reservations.kind,
+        status: reservations.status,
+        quantity: reservations.quantity,
+        expiresAt: reservations.expiresAt,
+        createdAt: reservations.createdAt,
+      })
+      .from(reservations)
+      .where(eq(reservations.holderRef, input.holderRef))
+      .orderBy(desc(reservations.createdAt), desc(reservations.id))
+      .limit(RESERVATION_LIST_LIMIT);
+    return rows.map((row) => ({
+      ...row,
+      kind: row.kind as ReservationKind,
+      status: row.status as ReservationStatus,
+    }));
+  },
+});

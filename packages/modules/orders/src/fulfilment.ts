@@ -1,12 +1,18 @@
-import { type Ctx, command, conflict, notFound } from "@igs/kernel";
-import { consumeReservation, releaseReservation } from "@igs/module-inventory";
+import { type Ctx, command, conflict, forbidden, isDomainError, notFound } from "@igs/kernel";
+import {
+  confirmReservation,
+  consumeReservation,
+  releaseReservation,
+  reserveStock,
+} from "@igs/module-inventory";
 import { PERMISSIONS } from "@igs/rbac";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { ORDERS_AUDIT } from "./audit";
 import {
   type OrderStatus,
+  REFUND_NOTE_MAX,
   REVIEW_DECISIONS,
   REVIEW_NOTE_MAX,
   canTransition,
@@ -14,7 +20,7 @@ import {
 } from "./domain";
 import { requestOrderMail } from "./mails";
 import { recordRefund } from "./refunds";
-import { orderReviews, ordersTable } from "./schema";
+import { orderLines, orderReviews, ordersTable } from "./schema";
 
 /** Pharmacist review and fulfilment of paid orders (asafarim-docs:ventures/igs-pharma, D-045). */
 
@@ -133,5 +139,108 @@ export const advanceOrder = command({
       data: { orderId: order.id, from, to: input.to },
     });
     return { orderId: order.id, status: input.to, version };
+  },
+});
+
+// ── paid, stock short (igs-pharma#158) ───────────────────────────────────────────────────────────
+
+async function lockStockShort(ctx: Ctx, orderId: string, version: number): Promise<Order> {
+  const order = await lockOrder(ctx, orderId, version);
+  if (order.status !== "paid_stock_short") {
+    throw conflict("orders.order_not_stock_short", { status: order.status });
+  }
+  return order;
+}
+
+/**
+ * The stock is there again: holds the ORIGINAL products and quantities once more through the
+ * inventory commands (the paid prices on the lines never change) and confirms them, all or nothing.
+ * `orders.stock_still_short` (with the product and what is available) when a line still cannot be
+ * held. The order then goes where a paid order goes: the pharmacist's review for a medicine, else
+ * "to prepare"; the customer gets the "received" mail. Nothing is ever substituted.
+ */
+export const reReserveOrder = command({
+  name: "orders.order.re_reserve",
+  input: z.object({ orderId: z.uuid(), expectedVersion }),
+  output: result,
+  permission: PERMISSIONS.orders.manage,
+  audit: "none",
+  async handler({ input, ctx }) {
+    const order = await lockStockShort(ctx, input.orderId, input.expectedVersion);
+    const holderRef = holderOf(order.checkoutId);
+    const items = await ctx.tx
+      .select({ productId: orderLines.productId, quantity: orderLines.quantity })
+      .from(orderLines)
+      .where(eq(orderLines.orderId, order.id))
+      .orderBy(asc(orderLines.productId));
+    for (const item of items) {
+      try {
+        await ctx.run(reserveStock, { ...item, holderRef });
+      } catch (error) {
+        if (isDomainError(error) && error.code === "inventory.insufficient_stock") {
+          throw conflict("orders.stock_still_short", {
+            productId: item.productId,
+            available: Number(error.details?.["available"] ?? 0),
+          });
+        }
+        throw error;
+      }
+    }
+    await ctx.run(confirmReservation, { holderRef, items });
+    const to: OrderStatus = order.needsReview ? "in_review" : "ready_to_prepare";
+    const version = await moveOrder(ctx, order, to);
+    await requestOrderMail(ctx, { orderId: order.id, kind: "order_received" });
+    await ctx.audit.record({
+      action: ORDERS_AUDIT.orderReReserved,
+      entityType: "order",
+      entityId: order.id,
+      data: { orderId: order.id, status: to },
+    });
+    return { orderId: order.id, status: to, version };
+  },
+});
+
+/**
+ * The stock will not come: gives back whatever is still held, cancels the order and records the
+ * full refund (reason `stock_short`), which also tells the customer. The refund rules apply: owner
+ * or pharmacist, and a pharmacist for an order that holds a medicine.
+ */
+export const cancelStockShortOrder = command({
+  name: "orders.order.cancel_stock_short",
+  input: z.object({
+    orderId: z.uuid(),
+    expectedVersion,
+    /** Staff-only, kept on the refund; not audited. */
+    note: z.string().trim().min(1).max(REFUND_NOTE_MAX).optional(),
+  }),
+  output: result,
+  permission: PERMISSIONS.orders.refundRequest,
+  audit: "none",
+  async handler({ input, ctx }) {
+    const order = await lockStockShort(ctx, input.orderId, input.expectedVersion);
+    if (order.needsReview && !ctx.can(PERMISSIONS.orders.reviewDecide)) {
+      throw forbidden("orders.refund_needs_pharmacist");
+    }
+    await ctx.run(releaseReservation, {
+      holderRef: holderOf(order.checkoutId),
+      reason: "order_cancelled",
+    });
+    const version = await moveOrder(ctx, order, "cancelled");
+    const refundId = await recordRefund(
+      ctx,
+      { ...order, status: "cancelled" },
+      {
+        reason: "stock_short",
+        note: input.note,
+        approvedById: order.needsReview ? ctx.actor.id : null,
+      },
+    );
+    await ctx.audit.record({
+      action: ORDERS_AUDIT.orderCancelled,
+      entityType: "order",
+      entityId: order.id,
+      data: { orderId: order.id, from: "paid_stock_short", reason: "stock_short", refundId },
+    });
+    return { orderId: order.id, status: "cancelled", version };
   },
 });

@@ -4,7 +4,14 @@ import type { FulfilmentStep } from "@igs/module-orders";
 import { Alert, Button, Label, Select, Stack, Textarea } from "@igs/ui";
 import { useActionState, useId } from "react";
 
-import { type OrderActionState, advance, decide, refund } from "../app/orders/actions";
+import {
+  type OrderActionState,
+  advance,
+  cancelStockShort,
+  decide,
+  reReserve,
+  refund,
+} from "../app/orders/actions";
 import {
   REFUND_REASON_LABELS,
   REFUND_REASON_OPTIONS,
@@ -110,6 +117,57 @@ export function RefundForm({ orderId }: { readonly orderId: string }) {
         <div>
           <Button type="submit" variant="danger" loading={pending}>
             Refund the full amount
+          </Button>
+        </div>
+      </Stack>
+    </form>
+  );
+}
+
+/** A stock-short order: hold the same products again (all or nothing). */
+export function ReReserveForm({ orderId, version }: OrderRef) {
+  const [state, action, pending] = useActionState(reReserve, {} as OrderActionState);
+  return (
+    <form action={action} data-testid="re-reserve-form">
+      <Stack gap={3}>
+        <input type="hidden" name="orderId" value={orderId} />
+        <input type="hidden" name="expectedVersion" value={version} />
+        {state.error ? (
+          <Alert variant="error" title="Nothing was reserved">
+            {orderErrorMessage(state.error)}
+          </Alert>
+        ) : null}
+        <div>
+          <Button type="submit" loading={pending}>
+            Reserve the stock again
+          </Button>
+        </div>
+      </Stack>
+    </form>
+  );
+}
+
+/** A stock-short order that cannot be filled: cancel it and refund the full amount. */
+export function CancelStockShortForm({ orderId, version }: OrderRef) {
+  const [state, action, pending] = useActionState(cancelStockShort, {} as OrderActionState);
+  const id = useId();
+  return (
+    <form action={action} data-testid="cancel-stock-short-form">
+      <Stack gap={3}>
+        <input type="hidden" name="orderId" value={orderId} />
+        <input type="hidden" name="expectedVersion" value={version} />
+        {state.error ? (
+          <Alert variant="error" title="Nothing was changed">
+            {orderErrorMessage(state.error)}
+          </Alert>
+        ) : null}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${id}-note`}>Note (staff only, optional)</Label>
+          <Textarea id={`${id}-note`} name="note" maxLength={500} rows={3} />
+        </div>
+        <div>
+          <Button type="submit" variant="danger" loading={pending}>
+            Cancel and refund
           </Button>
         </div>
       </Stack>

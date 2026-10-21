@@ -49,6 +49,8 @@ export {
   type StockSummary,
   type AvailabilityStatus,
   DEFAULT_LOW_STOCK,
+  type HolderReservation,
+  listHolderReservations,
   availabilityStatus,
   getAvailability,
   getStock,

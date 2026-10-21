@@ -77,6 +77,24 @@ describe("needsAttention", () => {
     expect(incomplete).toBe(false);
   });
 
+  it("puts paid orders waiting for stock first (#158)", () => {
+    expect(
+      needsAttention({ orders: ok({ stockShort: 2 }), stock: ok({ out: 1, short: 0 }) }).items,
+    ).toEqual([
+      {
+        id: "stock_short_orders",
+        text: "2 paid orders are waiting for stock",
+        href: "/orders?status=paid_stock_short",
+      },
+      { id: "out", text: "1 product is out of stock", href: "/stock" },
+    ]);
+    expect(needsAttention({ orders: ok({ stockShort: 1 }) }).items[0]?.text).toBe(
+      "1 paid order is waiting for stock",
+    );
+    expect(needsAttention({ orders: ok({ stockShort: 0 }) }).items).toEqual([]);
+    expect(needsAttention({ orders: failed }).incomplete).toBe(true);
+  });
+
   it("says one in the singular", () => {
     const { items } = needsAttention({
       products: ok({ awaitingApproval: 1 }),

@@ -127,6 +127,9 @@ const ERRORS: Record<string, string> = {
   "inventory.reservation_not_active":
     "The stock for this order was already handed out or released.",
   "inventory.reservation_not_confirmed": "The stock for this order isn't confirmed yet.",
+  "orders.order_not_stock_short": "This order is no longer waiting for stock.",
+  "orders.stock_still_short":
+    "There still isn't enough stock for every product of this order. Nothing was reserved.",
   "orders.order_not_refundable": "Only a paid order that is cancelled or expired can be refunded.",
   "orders.refund_exists": "A refund for this order is already under way or done.",
   "orders.refund_needs_pharmacist":

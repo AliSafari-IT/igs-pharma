@@ -44,6 +44,8 @@ export interface ReservationCounts {
 
 /** The tiles the "Needs attention" panel reads; each is absent when the member may not see it. */
 export interface AttentionSources {
+  /** Paid orders waiting because their stock was not held (igs-pharma#158). */
+  readonly orders?: TileResult<{ readonly stockShort: number }> | undefined;
   readonly products?: TileResult<{ readonly awaitingApproval: number }> | undefined;
   readonly stock?: TileResult<Pick<StockAlerts, "out" | "short">> | undefined;
   readonly requests?: TileResult<{ readonly overdue: number }> | undefined;
@@ -51,13 +53,13 @@ export interface AttentionSources {
 
 /** One line of the panel: a plain sentence that links to the page where it is dealt with. */
 export interface AttentionItem {
-  readonly id: "short" | "overdue" | "out" | "awaiting";
+  readonly id: "stock_short_orders" | "short" | "overdue" | "out" | "awaiting";
   readonly text: string;
   readonly href: string;
 }
 
 export interface Attention {
-  /** At most four lines, most pressing first; only non-zero counts. */
+  /** At most five lines, most pressing first; only non-zero counts. */
   readonly items: readonly AttentionItem[];
   /** A source tile failed to load, so the list may be missing something. */
   readonly incomplete: boolean;
@@ -67,7 +69,8 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 
 /**
  * The dashboard's "Needs attention" list (igs-pharma#112 V1 item 1), from the tiles already loaded:
- * no query and no permission of its own. Order: products short for their orders, overdue data
+ * no query and no permission of its own. Order: paid orders short of stock (#158), products short
+ * for their orders, overdue data
  * requests, products out of stock, medicines awaiting a pharmacist's approval. A tile the member
  * may not see, or one in its error state, adds nothing (an error marks the list incomplete).
  */
@@ -77,7 +80,15 @@ export function needsAttention(sources: AttentionSources): Attention {
   const stock = ok(sources.stock);
   const requests = ok(sources.requests);
   const products = ok(sources.products);
+  const orders = ok(sources.orders);
   const items: AttentionItem[] = [];
+  if (orders && orders.stockShort > 0) {
+    items.push({
+      id: "stock_short_orders",
+      text: `${count(orders.stockShort, "paid order is", "paid orders are")} waiting for stock`,
+      href: "/orders?status=paid_stock_short",
+    });
+  }
   if (stock && stock.short > 0) {
     items.push({
       id: "short",
@@ -109,7 +120,7 @@ export function needsAttention(sources: AttentionSources): Attention {
   }
   return {
     items,
-    incomplete: [sources.stock, sources.requests, sources.products].some(
+    incomplete: [sources.orders, sources.stock, sources.requests, sources.products].some(
       (result) => result?.state === "error",
     ),
   };
