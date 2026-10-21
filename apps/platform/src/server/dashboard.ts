@@ -1,7 +1,7 @@
 import type { ResolvedActor } from "@igs/auth";
 import { type ProductCounts, getProductCounts } from "@igs/module-catalog";
 import { getStockSummary } from "@igs/module-inventory";
-import { listOrdersForStaff } from "@igs/module-orders";
+import { getStockShortSummary } from "@igs/module-orders";
 import { listDsr } from "@igs/module-privacy";
 import { logger } from "@igs/observability/logger";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
@@ -26,7 +26,7 @@ export interface Dashboard {
   readonly reservations?: TileResult<ReservationCounts>;
   readonly requests?: TileResult<RequestCounts>;
   /** No tile of its own: feeds "Needs attention" (paid orders short of stock, #158). */
-  readonly orders?: TileResult<{ readonly stockShort: number }>;
+  readonly orders?: TileResult<{ readonly stockShort: number; readonly overdue: number }>;
 }
 
 const report = (tile: string) => (error: unknown) =>
@@ -61,14 +61,10 @@ export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
         }, report("requests"))
       : undefined,
     can(PERMISSIONS.orders.read)
-      ? settle(
-          async () => ({
-            stockShort: (
-              await listOrdersForStaff({ status: "paid_stock_short", pageSize: 1 }, actor)
-            ).total,
-          }),
-          report("orders"),
-        )
+      ? settle(async () => {
+          const { waiting, overdue } = await getStockShortSummary({}, actor);
+          return { stockShort: waiting, overdue };
+        }, report("orders"))
       : undefined,
   ]);
   return {

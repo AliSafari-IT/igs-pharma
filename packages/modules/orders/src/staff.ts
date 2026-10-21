@@ -1,6 +1,6 @@
-import { notFound, query } from "@igs/kernel";
+import { type Tx, notFound, query } from "@igs/kernel";
 import { PERMISSIONS } from "@igs/rbac";
-import { asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -8,6 +8,7 @@ import {
   type OrderStatus,
   type PaymentStatus,
   type ReviewDecision,
+  STOCK_SHORT_DEADLINE_HOURS,
   holderOf,
 } from "./domain";
 import { type RefundView, refundsOf } from "./refunds";
@@ -32,6 +33,68 @@ const latestPaymentStatus = sql<string | null>`(
   ORDER BY p.created_at DESC, p.id DESC
   LIMIT 1
 )`;
+
+/** When the order last became stock-short (its status history). */
+const stockShortSince = sql<Date | null>`(
+  SELECT max(e.at) FROM ${orderEvents} e
+  WHERE e.order_id = ${sql.raw('"orders"."orders"."id"')} AND e.to_status = 'paid_stock_short'
+)`;
+
+const HOUR_MS = 3_600_000;
+
+/** The moment before which a stock-short order is past its deadline. */
+export const stockShortDeadline = (now: Date): Date =>
+  new Date(now.getTime() - STOCK_SHORT_DEADLINE_HOURS * HOUR_MS);
+
+export interface StockShortWaiting {
+  /** Paid orders waiting because their stock was not held. */
+  readonly waiting: number;
+  /** Of those, the ones past `STOCK_SHORT_DEADLINE_HOURS`, oldest first (at most 50). */
+  readonly overdue: readonly { readonly orderId: string; readonly since: Date }[];
+  readonly overdueTotal: number;
+}
+
+/**
+ * The stock-short orders and the ones past their deadline. Shared by the staff query and the
+ * worker's alert, which reads with the runtime's own transaction (ids only).
+ */
+export async function stockShortWaiting(tx: Tx, now: Date): Promise<StockShortWaiting> {
+  const [totals] = await tx
+    .select({ waiting: count() })
+    .from(ordersTable)
+    .where(eq(ordersTable.status, "paid_stock_short"));
+  const before = stockShortDeadline(now);
+  const late = await tx
+    .select({ orderId: ordersTable.id, since: stockShortSince })
+    .from(ordersTable)
+    .where(
+      and(
+        eq(ordersTable.status, "paid_stock_short"),
+        // a bare subquery has no column type to map a Date: pass the moment as text
+        sql`${stockShortSince} <= ${before.toISOString()}::timestamptz`,
+      ),
+    )
+    .orderBy(asc(stockShortSince), asc(ordersTable.id));
+  const overdue = late.flatMap((row) =>
+    row.since ? [{ orderId: row.orderId, since: new Date(row.since) }] : [],
+  );
+  return {
+    waiting: totals?.waiting ?? 0,
+    overdue: overdue.slice(0, 50),
+    overdueTotal: overdue.length,
+  };
+}
+
+/** The dashboard's count of stock-short orders, and how many are past the deadline. */
+export const getStockShortSummary = query({
+  name: "orders.order.stock_short_summary",
+  input: z.object({}),
+  permission: PERMISSIONS.orders.read,
+  async handler({ ctx }): Promise<{ readonly waiting: number; readonly overdue: number }> {
+    const { waiting, overdueTotal } = await stockShortWaiting(ctx.tx, ctx.now);
+    return { waiting, overdue: overdueTotal };
+  },
+});
 
 /** Whether the order has a refund that is not failed or canceled (full refunds only). */
 const activeRefund = sql<boolean>`EXISTS (
@@ -130,6 +193,8 @@ export interface StaffOrderView {
   readonly needsReview: boolean;
   /** The inventory holder of its stock (the checkout's): what staff look up when it is short. */
   readonly holderRef: string;
+  /** While stock-short: since when, and whether past `STOCK_SHORT_DEADLINE_HOURS`. */
+  readonly stockShort: { readonly since: Date; readonly overdue: boolean } | null;
   readonly locale: string;
   readonly totalCents: number;
   readonly vatCents: number;
@@ -179,6 +244,7 @@ export const getOrderForStaff = query({
         createdAt: ordersTable.createdAt,
         paymentStatus: latestPaymentStatus,
         refunding: activeRefund,
+        stockShortSince,
       })
       .from(ordersTable)
       .where(eq(ordersTable.id, input.orderId));
@@ -227,6 +293,13 @@ export const getOrderForStaff = query({
       version: order.version,
       needsReview: order.needsReview,
       holderRef: holderOf(order.checkoutId),
+      stockShort:
+        order.status === "paid_stock_short" && order.stockShortSince
+          ? {
+              since: new Date(order.stockShortSince),
+              overdue: new Date(order.stockShortSince) <= stockShortDeadline(ctx.now),
+            }
+          : null,
       locale: order.locale,
       totalCents: order.totalCents,
       vatCents: order.vatCents,

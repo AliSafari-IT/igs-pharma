@@ -44,8 +44,10 @@ export interface ReservationCounts {
 
 /** The tiles the "Needs attention" panel reads; each is absent when the member may not see it. */
 export interface AttentionSources {
-  /** Paid orders waiting because their stock was not held (igs-pharma#158). */
-  readonly orders?: TileResult<{ readonly stockShort: number }> | undefined;
+  /** Paid orders waiting because their stock was not held, and those past the deadline (#158). */
+  readonly orders?:
+    | TileResult<{ readonly stockShort: number; readonly overdue: number }>
+    | undefined;
   readonly products?: TileResult<{ readonly awaitingApproval: number }> | undefined;
   readonly stock?: TileResult<Pick<StockAlerts, "out" | "short">> | undefined;
   readonly requests?: TileResult<{ readonly overdue: number }> | undefined;
@@ -85,7 +87,9 @@ export function needsAttention(sources: AttentionSources): Attention {
   if (orders && orders.stockShort > 0) {
     items.push({
       id: "stock_short_orders",
-      text: `${count(orders.stockShort, "paid order is", "paid orders are")} waiting for stock`,
+      text: `${count(orders.stockShort, "paid order is", "paid orders are")} waiting for stock${
+        orders.overdue > 0 ? ` (${orders.overdue} past the deadline)` : ""
+      }`,
       href: "/orders?status=paid_stock_short",
     });
   }

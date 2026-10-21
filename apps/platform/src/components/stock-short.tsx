@@ -6,11 +6,12 @@ import {
   getStock,
   listHolderReservations,
 } from "@igs/module-inventory";
-import type { StaffOrderView } from "@igs/module-orders";
+import { STOCK_SHORT_DEADLINE_HOURS, type StaffOrderView } from "@igs/module-orders";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, type BadgeVariant } from "@igs/ui";
 
 import { CancelStockShortForm, ReReserveForm } from "./order-actions";
+import { formatMoment } from "./stock-labels";
 
 /** Back-office text for a stock hold's status (igs-pharma#158). */
 const HOLD_LABELS: Record<ReservationStatus, string> = {
@@ -97,6 +98,19 @@ export async function StockShort({
         The customer was told their payment arrived and the pharmacy is looking at the order.
         Reserve the same products again, or cancel and refund. Never swap a product.
       </Alert>
+      {order.stockShort ? (
+        <p data-testid="stock-short-since">
+          Waiting since {formatMoment(order.stockShort.since)}.{" "}
+          {order.stockShort.overdue ? (
+            <strong>
+              Past the {STOCK_SHORT_DEADLINE_HOURS}-hour deadline: resolve it now, the customer has
+              paid and is waiting.
+            </strong>
+          ) : (
+            `Resolve it within ${STOCK_SHORT_DEADLINE_HOURS} hours.`
+          )}
+        </p>
+      ) : null}
       <table className="w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-[var(--color-border-strong)]">

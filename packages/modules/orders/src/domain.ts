@@ -200,3 +200,9 @@ export const REFUND_MAIL_KINDS = [
 /** `pending` until the worker sent it (`sent`) or found nothing to send (`skipped`). */
 export const ORDER_MAIL_STATUSES = ["pending", "sent", "skipped"] as const;
 export type OrderMailStatus = (typeof ORDER_MAIL_STATUSES)[number];
+
+/**
+ * A paid order short of stock must be resolved (held again, or cancelled and refunded) within this
+ * many hours of becoming short (igs-pharma#158 follow-up); past it, staff are alerted.
+ */
+export const STOCK_SHORT_DEADLINE_HOURS = 24;

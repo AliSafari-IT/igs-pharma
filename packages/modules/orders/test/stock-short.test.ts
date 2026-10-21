@@ -27,14 +27,17 @@ import {
   type ProviderPaymentView,
   type RefundProvider,
   RefundRequested,
+  STOCK_SHORT_DEADLINE_HOURS,
   advanceOrder,
   cancelStockShortOrder,
   executeRefund,
   getOrderForStaff,
+  getStockShortSummary,
   newCartToken,
   placeOrder,
   reReserveOrder,
   registerAuditActions,
+  runStockShortAlert,
   setCartLine,
   startCheckout,
   startPayment,
@@ -364,5 +367,73 @@ describe("cancel and refund", () => {
       status: "failed",
       failureCode: "provider_refused",
     });
+  });
+});
+
+describe("the deadline", () => {
+  const HOUR = 3_600_000;
+
+  it("an order waiting past the deadline is counted, shown and raises the alarm (ids only)", async () => {
+    const { orderId } = await stockShortOrder();
+    const fresh = await view(orderId);
+    expect(fresh.stockShort?.overdue).toBe(false);
+    const since = fresh.stockShort?.since as Date;
+    expect(since).toBeInstanceOf(Date);
+
+    const before = await getStockShortSummary({}, support);
+    expect(before.waiting).toBeGreaterThanOrEqual(1);
+
+    const later = new Date(since.getTime() + (STOCK_SHORT_DEADLINE_HOURS + 1) * HOUR);
+    kernel.clock.set(later);
+    expect((await view(orderId)).stockShort?.overdue).toBe(true);
+    const after = await getStockShortSummary({}, support);
+    expect(after.overdue).toBeGreaterThan(before.overdue);
+    expect(after.overdue).toBeLessThanOrEqual(after.waiting);
+
+    const warnings: Record<string, unknown>[] = [];
+    const runtime = {
+      db: iso.db,
+      now: () => later,
+      metrics: { increment: () => {} },
+      logger: {
+        info: () => {},
+        warn: (obj: Record<string, unknown>) => void warnings.push(obj),
+      },
+    };
+    const run = await runStockShortAlert(runtime as never);
+    expect(run.overdue).toBe(after.overdue);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ alarm: "orders.stock_short_overdue" });
+    expect(warnings[0]?.["orderIds"]).toContain(orderId);
+    // nothing about the customer in the alarm
+    expect(JSON.stringify(warnings[0])).not.toContain(contact.email);
+  });
+
+  it("no alarm once resolved, and none before the deadline", async () => {
+    const { orderId } = await stockShortOrder();
+    const since = (await view(orderId)).stockShort?.since as Date;
+    await reReserveOrder({ orderId, expectedVersion: await versionOf(orderId) }, assistant);
+    expect((await view(orderId)).stockShort).toBeNull();
+
+    const warnings: Record<string, unknown>[] = [];
+    const runtime = (now: Date) => ({
+      db: iso.db,
+      now: () => now,
+      metrics: { increment: () => {} },
+      logger: {
+        info: () => {},
+        warn: (obj: Record<string, unknown>) => void warnings.push(obj),
+      },
+    });
+    await runStockShortAlert(runtime(new Date(since.getTime() + HOUR)) as never);
+    expect(warnings.flatMap((w) => (w["orderIds"] as string[] | undefined) ?? [])).not.toContain(
+      orderId,
+    );
+    await runStockShortAlert(
+      runtime(new Date(since.getTime() + (STOCK_SHORT_DEADLINE_HOURS + 1) * HOUR)) as never,
+    );
+    expect(warnings.flatMap((w) => (w["orderIds"] as string[] | undefined) ?? [])).not.toContain(
+      orderId,
+    );
   });
 });
