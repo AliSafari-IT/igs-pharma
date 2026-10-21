@@ -3,6 +3,7 @@
 import { isDomainError } from "@igs/kernel";
 import {
   MAX_IMPORT_CHARS,
+  MAX_QUANTITY,
   adjustStock,
   applyReconciliation,
   assignUnknownLot,
@@ -87,7 +88,9 @@ export async function countLots(previous: LotActionState, form: FormData): Promi
     values[name] = value;
     if (value.trim() === "") continue;
     const counted = /^[0-9]{1,7}$/.test(value.trim()) ? Number(value.trim()) : Number.NaN;
-    if (!Number.isInteger(counted)) return { error: "inventory.quantity_invalid", values };
+    if (!Number.isInteger(counted) || counted > MAX_QUANTITY) {
+      return { error: "inventory.quantity_invalid", values };
+    }
     lines.push({ lotId: name.slice("count.".length), counted });
   }
   if (lines.length === 0) return { error: "inventory.count_empty", values };
