@@ -1,9 +1,16 @@
 import { z } from "zod";
 
-import { ADJUST_REASONS, ALLOCATION_CAUSES, QUARANTINE_REASONS, RELEASE_REASONS } from "./domain";
+import {
+  ADJUST_REASONS,
+  ALLOCATION_CAUSES,
+  QUARANTINE_REASONS,
+  RECONCILIATION_SOURCES,
+  RELEASE_REASONS,
+} from "./domain";
 
 /** Audit actions recorded by the inventory commands (`<domain>.<noun>.<verb>`). */
 export const INVENTORY_AUDIT = {
+  // the retired CSV import (igs-pharma#166): kept registered for the entries already recorded
   stockImportPrepared: "inventory.stock.import_prepared",
   stockImported: "inventory.stock.imported",
   stockAdjusted: "inventory.stock.adjusted",
@@ -21,6 +28,9 @@ export const INVENTORY_AUDIT = {
   allocationAllocated: "inventory.allocation.allocated",
   allocationSuperseded: "inventory.allocation.superseded",
   allocationShort: "inventory.allocation.short",
+  reconciliationStarted: "inventory.reconciliation.started",
+  reconciliationApplied: "inventory.reconciliation.applied",
+  reconciliationDiscarded: "inventory.reconciliation.discarded",
 } as const;
 
 const stockImportPrepared = z.object({
@@ -89,6 +99,19 @@ const allocationShort = z.object({
   cause: z.enum(ALLOCATION_CAUSES),
 });
 
+/** igs-pharma#166: ids and counts only. */
+const reconciliationStarted = z.object({
+  reconciliationId: z.uuid(),
+  source: z.enum(RECONCILIATION_SOURCES),
+  lines: z.number().int().min(1),
+  differing: z.number().int().min(0),
+});
+const reconciliationApplied = z.object({
+  reconciliationId: z.uuid(),
+  changed: z.number().int().min(0),
+});
+const reconciliationDiscarded = z.object({ reconciliationId: z.uuid() });
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -115,4 +138,7 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(INVENTORY_AUDIT.allocationAllocated, allocationEvent);
   register(INVENTORY_AUDIT.allocationSuperseded, allocationEvent);
   register(INVENTORY_AUDIT.allocationShort, allocationShort);
+  register(INVENTORY_AUDIT.reconciliationStarted, reconciliationStarted);
+  register(INVENTORY_AUDIT.reconciliationApplied, reconciliationApplied);
+  register(INVENTORY_AUDIT.reconciliationDiscarded, reconciliationDiscarded);
 }

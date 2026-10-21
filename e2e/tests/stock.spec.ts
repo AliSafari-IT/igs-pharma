@@ -44,7 +44,7 @@ async function expectAxeClean(page: Page) {
 }
 
 const upload = (page: Page, text: string) =>
-  page.getByLabel("CSV file").setInputFiles({
+  page.getByLabel("Count file (CSV)").setInputFiles({
     name: "count.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(text),
@@ -92,13 +92,17 @@ test("signed out: the stock page sends you to sign in", async ({ page }) => {
   await expect(page).toHaveURL(/\/sign-in$/);
 });
 
-test("owner: a file with an unknown CNK changes nothing", async ({ page, context }) => {
+test("owner: a count file with an unknown CNK or lot counts nothing", async ({ page, context }) => {
   await signIn(context);
   await page.goto(`${PLATFORM}/stock`, { waitUntil: "networkidle" });
-  await upload(page, `cnk;quantity\n${cnk};5\n9599999;1\n`);
-  await page.getByRole("button", { name: "Preview" }).click();
+  await upload(page, `cnk;lot;expiry;counted\n${cnk};;;5\n9599999;;;1\n`);
+  await page.getByRole("button", { name: "Preview the count" }).click();
+  // the product has no stock yet, so no untracked lot to count (igs-pharma#166)
+  await expect(
+    page.getByText("Line 2: This lot is not in the web stock.", { exact: false }),
+  ).toBeVisible();
   await expect(page.getByText("Line 3: No product in the catalogue has this CNK.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Confirm import" })).toHaveCount(0);
+  await expect(page).toHaveURL(`${PLATFORM}/stock`);
   await expectAxeClean(page);
 
   await page.goto(`${PLATFORM}/stock?q=zz-no-match`, { waitUntil: "networkidle" });
@@ -110,39 +114,34 @@ test("owner: a file with an unknown CNK changes nothing", async ({ page, context
   await expect(page.getByTestId("clear-search")).toHaveCount(0);
 });
 
-test("owner: upload, preview, confirm, then see on-hand and history", async ({ page, context }) => {
+test("owner: receive, adjust, then count the lots and see on-hand and history", async ({
+  page,
+  context,
+}) => {
   await signIn(context);
   await page.goto(`${PLATFORM}/stock?q=${cnk}`, { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Stock", level: 1 })).toBeVisible();
-  await expect(page.locator("tbody tr").first()).toContainText("Never");
-  await expectAxeClean(page);
-
-  await upload(page, `cnk;quantity\n${cnk};12\n`);
-  await page.getByRole("button", { name: "Preview" }).click();
-  await expect(page.getByText("1 product will change, 0 stay the same.")).toBeVisible();
-  await expect(page.getByText("+12")).toBeVisible();
-  await expectAxeClean(page);
-  await page.getByRole("button", { name: "Confirm import" }).click();
-  await expect(page.getByText("1 product changed.")).toBeVisible();
-
-  await page.goto(`${PLATFORM}/stock?q=${cnk}`, { waitUntil: "networkidle" });
   const row = page.locator("tbody tr").first();
   await expect(row).toContainText(nameNl);
-  await expect(row).toContainText("12");
+  await expect(row).toContainText("Never");
+  await expectAxeClean(page);
   await row.getByRole("link", { name: cnk }).click();
-
   await expect(page.getByRole("heading", { name: nameNl, level: 1 })).toBeVisible();
+  await expect(page.getByTestId("reservations-empty")).toHaveText("Nothing is set aside");
+
+  // untracked stock of a non-medicine goes into its "No lot" lot (igs-pharma#164)
+  await page.getByRole("button", { name: "Receive stock" }).click();
+  const receive = page.getByRole("dialog", { name: "Receive stock" });
+  await receive.getByLabel("Quantity").fill("12");
+  await receive.getByRole("button", { name: "Receive" }).click();
+  await expect(page.getByText("The stock was received into its lot.")).toBeVisible();
   await expect(page.getByTestId("on-hand")).toHaveText("12");
   const movements = page.getByRole("region", { name: "Movements" }).locator("tbody tr");
   await expect(movements).toHaveCount(1);
-  await expect(movements.first()).toContainText("Stock count (CSV)");
-  // igs-pharma#164: the count went into the product's untracked lot, which is sellable
   const lots = page.getByRole("region", { name: "Lots" }).locator("tbody tr");
   await expect(lots).toHaveCount(1);
   await expect(lots.first()).toContainText("No lot");
   await expect(lots.first()).toContainText("Sellable");
-  await expect(page.getByTestId("reservations-empty")).toHaveText("Nothing is set aside");
-  await expect(page.getByRole("region", { name: "Movements" }).getByRole("table")).toBeVisible();
   await expectAxeClean(page);
 
   // below zero is refused, a real adjustment with its note is recorded
@@ -158,21 +157,51 @@ test("owner: upload, preview, confirm, then see on-hand and history", async ({ p
   await expect(page.getByTestId("on-hand")).toHaveText("10");
   await expect(movements.first()).toContainText("Broken boxes");
 
-  // a receipt into a lot of its own (igs-pharma#164)
+  // a receipt into a lot of its own
   await page.getByRole("button", { name: "Receive stock" }).click();
-  const receive = page.getByRole("dialog", { name: "Receive stock" });
   await receive.getByLabel("Quantity").fill("3");
   await receive.getByLabel("Lot number (optional)").fill("E2E-1");
   await receive.getByLabel("Expiry date (optional)").fill("2099-12-31");
-  await expectAxeClean(page);
   await receive.getByRole("button", { name: "Receive" }).click();
-  await expect(page.getByText("The stock was received into its lot.")).toBeVisible();
   await expect(page.getByTestId("on-hand")).toHaveText("13");
   await expect(lots).toHaveCount(2);
-  await expect(page.getByRole("region", { name: "Lots" })).toContainText("E2E-1");
+
+  // a count file: previewed per lot, nothing changes until it is applied (igs-pharma#166)
+  await page.goto(`${PLATFORM}/stock`, { waitUntil: "networkidle" });
+  await upload(page, `cnk;lot;expiry;counted\n${cnk};;;9\n${cnk};E2E-1;;3\n`);
+  await page.getByRole("button", { name: "Preview the count" }).click();
+  await expect(page.getByRole("heading", { name: "Stock count", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("count-status")).toHaveText("Preview: nothing has changed yet");
+  await expect(page.getByText("1 lot will change when you apply the count.")).toBeVisible();
+  const counted = page.getByRole("table", { name: "Counted lots" }).locator("tbody tr");
+  await expect(counted).toHaveCount(2);
+  await expect(counted.nth(0)).toContainText("-1");
+  await expect(counted.nth(1)).toContainText("No change");
+  await expectAxeClean(page);
+  await page.getByRole("button", { name: "Apply the count" }).click();
+  await expect(page.getByText("1 lot changed.")).toBeVisible();
+  await expect(page.getByTestId("count-status")).toHaveText("Applied");
+  await expect(page.getByRole("button", { name: "Apply the count" })).toHaveCount(0);
+
+  await page.goto(`${PLATFORM}/stock/${productId}`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("on-hand")).toHaveText("12");
+  await expect(movements.first()).toContainText("Stock count");
+
+  // a typed count of the product's lots, discarded: nothing changes
+  await page.getByRole("button", { name: "Count", exact: true }).click();
+  const count = page.getByRole("dialog", { name: "Count the lots" });
+  await count.getByLabel(/^E2E-1/).fill("1");
+  await expectAxeClean(page);
+  await count.getByRole("button", { name: "Preview the count" }).click();
+  await expect(page.getByTestId("count-status")).toHaveText("Preview: nothing has changed yet");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByTestId("count-status")).toHaveText("Discarded");
+  await page.goto(`${PLATFORM}/stock/${productId}`, { waitUntil: "networkidle" });
+  await expect(page.getByTestId("on-hand")).toHaveText("12");
 
   const [audit] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM audit.events
-    WHERE actor_id = ${userId} AND action IN ('inventory.stock.imported', 'inventory.stock.adjusted')`;
-  expect(audit?.n).toBe(2);
+    WHERE actor_id = ${userId}
+      AND action IN ('inventory.reconciliation.applied', 'inventory.reconciliation.discarded', 'inventory.stock.adjusted')`;
+  expect(audit?.n).toBe(3);
 });

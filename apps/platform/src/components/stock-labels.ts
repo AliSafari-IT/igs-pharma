@@ -14,7 +14,8 @@ import type { BadgeVariant } from "@igs/ui";
  * text; the back-office is English-only, so the mapping lives here).
  */
 export const REASON_LABELS: Record<MovementReason, string> = {
-  import: "Stock count (CSV)",
+  import: "Stock count (CSV, before lots)",
+  reconciliation: "Stock count",
   adjustment: "Adjustment",
   correction: "Correction",
   sale: "Sale (picked for an order)",
@@ -113,19 +114,33 @@ const ROW_ERRORS: Record<string, string> = {
   "inventory.unknown_cnk": "No product in the catalogue has this CNK.",
   "inventory.cnk_invalid": "The CNK must be exactly 7 digits.",
   "inventory.quantity_invalid": "The quantity must be a whole number from 0 to 1,000,000.",
-  "inventory.duplicate_cnk": "This CNK is already on an earlier line.",
-  "inventory.row_malformed": "Write the line as CNK;quantity.",
-  "inventory.import_empty": "The file has no stock lines.",
+  "inventory.row_malformed":
+    "Write the line as CNK;lot;expiry;counted (leave lot and expiry empty for stock without a lot).",
+  "inventory.import_empty": "The file has no count lines.",
   "inventory.too_many_rows": "The file has more than 5,000 lines. Split it into smaller files.",
-  "inventory.import_needs_lot":
-    "This product's stock is kept per lot (a medicine, or stock already in lots). Receive it with its lot instead.",
+  "inventory.lot_number_invalid": "This is not a lot number as printed on a pack.",
+  "inventory.expiry_invalid":
+    "Write the expiry date as YYYY-MM-DD or DD/MM/YYYY, and only with a lot number.",
+  "inventory.lot_required": "A medicine is always counted per lot: add its lot number.",
+  "inventory.lot_unknown":
+    "This lot is not in the web stock. Receive it on the product's stock page first.",
+  "inventory.lot_ambiguous":
+    "Several lots have this number with different expiry dates: add the expiry date.",
+  "inventory.duplicate_lot": "This lot is already counted on an earlier line.",
 };
 
 export const rowErrorMessage = (code: string): string =>
   (Object.hasOwn(ROW_ERRORS, code) && ROW_ERRORS[code]) || "This line is not valid.";
 
 const ERRORS: Record<string, string> = {
-  "inventory.import_invalid": "The file has problems, so no stock was changed.",
+  "inventory.reconciliation_invalid": "The file has problems, so nothing was counted.",
+  "inventory.count_empty": "Enter the count of at least one lot.",
+  "inventory.quantity_invalid": "A count is a whole number from 0 to 1,000,000.",
+  "inventory.reconciliation_not_found": "This count doesn't exist. Start a new one.",
+  "inventory.reconciliation_stale":
+    "Stock moved since this count was previewed, so nothing was changed. Discard it and count again.",
+  "inventory.reconciliation_discarded": "This count was discarded. Start a new one.",
+  "inventory.reconciliation_not_open": "This count has already been applied or discarded.",
   "inventory.file_missing": "Choose a CSV file to upload.",
   "inventory.file_too_large": "The file is larger than 250 KB. Split it into smaller files.",
   "inventory.product_not_found": "This product no longer exists.",

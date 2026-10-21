@@ -6,6 +6,7 @@ import { Alert, Badge, Container, EmptyState, Link, Stack } from "@igs/ui";
 import { AdjustDialog } from "../../../components/adjust-dialog";
 import {
   AssignLotDialog,
+  CountLotsDialog,
   QuarantineDialog,
   ReceiveDialog,
   ReleaseLotButton,
@@ -98,6 +99,16 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
               action={
                 <div className="flex flex-wrap gap-3">
                   <ReceiveDialog productId={stock.productId} isMedicine={stock.isMedicine} />
+                  {stock.lots.length > 0 ? (
+                    <CountLotsDialog
+                      productId={stock.productId}
+                      lots={stock.lots.map((lot) => ({
+                        lotId: lot.lotId,
+                        label: `${lotLabel(lot)}${lot.expiryDate ? ` · exp. ${formatDate(lot.expiryDate)}` : ""}`,
+                        onHand: lot.onHand,
+                      }))}
+                    />
+                  ) : null}
                   <AdjustDialog
                     productId={stock.productId}
                     onHand={stock.onHand}

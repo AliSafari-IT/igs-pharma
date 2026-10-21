@@ -1,6 +1,5 @@
 import { newId } from "@igs/db/ids";
 import { type Actor, type Tx, conflict } from "@igs/kernel";
-import { productRefsByCnk } from "@igs/module-catalog";
 import { brusselsLocal } from "@igs/time";
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 
@@ -8,10 +7,8 @@ import {
   type Availability,
   DEFAULT_LOCATION_ID,
   type MovementReason,
-  type StockCsvError,
   addDays,
   availabilityOf,
-  parseStockCsv,
 } from "./domain";
 import { lotLevels, lots, reservations, settings, stockMovements } from "./schema";
 
@@ -244,80 +241,4 @@ export async function recordMovements(
     throw error;
   }
   return rows.map((row) => ({ productId: row.productId, lotId: row.lotId, id: row.id }));
-}
-
-export interface ImportPlanRow {
-  readonly line: number;
-  readonly cnk: string;
-  readonly productId: string;
-  readonly nameNl: string | null;
-  readonly onHand: number;
-  /** The count in the file: the on-hand after the import. */
-  readonly target: number;
-  /** The movement the import writes (`0`: unchanged, nothing written). */
-  readonly delta: number;
-}
-
-export interface ImportPlan {
-  readonly rows: readonly ImportPlanRow[];
-  /** Every problem in the file; when not empty, nothing is applied. */
-  readonly errors: readonly StockCsvError[];
-}
-
-/** Validates a whole stock file against the catalog and the ledger (no writes). */
-export async function planImport(tx: Tx, csv: string): Promise<ImportPlan> {
-  const parsed = parseStockCsv(csv);
-  const refs = await productRefsByCnk(
-    tx,
-    parsed.rows.map((r) => r.cnk),
-  );
-  const byCnk = new Map(refs.map((ref) => [ref.cnk, ref]));
-  const levels = await stockLevels(
-    tx,
-    refs.map((ref) => ref.id),
-  );
-  // igs-pharma#164: a count sets a product's untracked (`no_lot`) stock only. A medicine, or a
-  // product with stock in a real or an unknown lot, needs its lot: receive or reconcile it instead.
-  const inLots = refs.length
-    ? await tx
-        .selectDistinct({ productId: lots.productId })
-        .from(lots)
-        .innerJoin(lotLevels, eq(lotLevels.lotId, lots.id))
-        .where(
-          and(
-            inArray(
-              lots.productId,
-              refs.map((ref) => ref.id),
-            ),
-            sql`${lots.tracking} <> 'no_lot'`,
-            sql`${lotLevels.onHand} > 0`,
-          ),
-        )
-    : [];
-  const needsLot = new Set(inLots.map((row) => row.productId));
-  const errors: StockCsvError[] = [...parsed.errors];
-  const rows: ImportPlanRow[] = [];
-  for (const row of parsed.rows) {
-    const ref = byCnk.get(row.cnk);
-    if (!ref) {
-      errors.push({ line: row.line, code: "inventory.unknown_cnk" });
-      continue;
-    }
-    if (ref.isMedicine || needsLot.has(ref.id)) {
-      errors.push({ line: row.line, code: "inventory.import_needs_lot" });
-      continue;
-    }
-    const { onHand } = levelOf(levels, ref.id);
-    rows.push({
-      line: row.line,
-      cnk: row.cnk,
-      productId: ref.id,
-      nameNl: ref.nameNl,
-      onHand,
-      target: row.quantity,
-      delta: row.quantity - onHand,
-    });
-  }
-  errors.sort((a, b) => a.line - b.line);
-  return { rows, errors };
 }

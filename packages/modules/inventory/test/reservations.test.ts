@@ -19,19 +19,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   HOLD_DEFAULT_MINUTES,
   adjustStock,
+  applyReconciliation,
   confirmReservation,
   consumeReservation,
   expireReservations,
   getAvailability,
   getStock,
-  importStock,
   listStock,
-  prepareStockImport,
   registerAuditActions,
   releaseReservation,
   releaseReservationByStaff,
   reserveStock,
   runReservationExpiry,
+  startReconciliationFromFile,
 } from "../src";
 
 let iso: IsolatedDatabase;
@@ -737,8 +737,11 @@ describe("shortness", () => {
     await confirm(holderRef, checkout);
     // the shelf really holds 4: the count is not refused
     const sku = (await getStock({ productId }, owner)).cnk;
-    const prepared = await prepareStockImport({ csv: `cnk;quantity\n${sku};4\n` }, owner);
-    expect((await importStock({ planId: prepared.planId }, owner)).changed).toBe(1);
+    const { reconciliationId } = await startReconciliationFromFile(
+      { csv: `cnk;lot;expiry;counted\n${sku};;;4\n` },
+      owner,
+    );
+    expect((await applyReconciliation({ reconciliationId }, owner)).changed).toBe(1);
     const stock = await stockOf(productId);
     expect([stock.onHand, stock.ordered, stock.available, stock.short]).toEqual([4, 6, 0, 2]);
     const list = await listStock({ q: sku }, owner);

@@ -10,11 +10,13 @@ export const LOCATION_KINDS = ["pharmacy"] as const;
 export type LocationKind = (typeof LOCATION_KINDS)[number];
 
 /**
- * Why stock moved: a CSV count, a counted change (breakage, loss…), fixing an earlier mistake, or a
+ * Why stock moved: a CSV count (`import`, retired by igs-pharma#166; a `reconciliation` of counted
+ * lots replaces it), a counted change (breakage, loss…), fixing an earlier mistake, or a
  * sale picked for an order (`sale`, written when a reservation is consumed, igs-pharma#99).
  */
 export const MOVEMENT_REASONS = [
   "import",
+  "reconciliation",
   "adjustment",
   "correction",
   "sale",
@@ -23,7 +25,7 @@ export const MOVEMENT_REASONS = [
 ] as const;
 export type MovementReason = (typeof MOVEMENT_REASONS)[number];
 
-/** The reasons staff pick in the Adjust dialog (`import` belongs to the CSV import). */
+/** The reasons staff pick in the Adjust dialog. */
 export const ADJUST_REASONS = ["adjustment", "correction"] as const;
 export type AdjustReason = (typeof ADJUST_REASONS)[number];
 
@@ -35,16 +37,21 @@ export const DEFAULT_LOCATION_ID = "0192f000-0000-7000-8000-000000000001";
 
 export const MAX_IMPORT_ROWS = 5_000;
 export const MAX_QUANTITY = 1_000_000;
-/** How long a prepared import (a previewed file) can be confirmed. */
+/** How long a prepared import (a previewed file) could be confirmed (the retired CSV import). */
 export const IMPORT_PLAN_TTL_MS = 60 * 60 * 1000;
-/** The CSV import's size limit in characters (5 000 rows fit comfortably). */
+/** A count file's size limit in characters (5 000 rows fit comfortably). */
 export const MAX_IMPORT_CHARS = 256_000;
 
-export interface StockCsvRow {
+/** One line of a count file (igs-pharma#166): a lot and how many units of it were counted. */
+export interface CountCsvRow {
   /** 1-based line number in the file, for error messages. */
   readonly line: number;
   readonly cnk: string;
-  readonly quantity: number;
+  /** `null`: the product's untracked (`no_lot`) stock. */
+  readonly lotNumber: string | null;
+  /** `YYYY-MM-DD`; `null` when the file gives none. */
+  readonly expiryDate: string | null;
+  readonly counted: number;
 }
 
 /** A problem with the file: `line` 0 is the file as a whole. */
@@ -53,55 +60,71 @@ export interface StockCsvError {
   readonly code: string;
 }
 
-export interface ParsedStockCsv {
-  readonly rows: readonly StockCsvRow[];
+export interface ParsedCountCsv {
+  readonly rows: readonly CountCsvRow[];
   readonly errors: readonly StockCsvError[];
 }
 
-const HEADER = /^\s*cnk\s*[;,]\s*(quantity|qty|aantal|quantité)\s*$/i;
+const COUNT_HEADER =
+  /^\s*cnk\s*;\s*(lot|lot_number|lotnummer|lot number)\s*;\s*(expiry|expiry_date|vervaldatum|expiration)\s*;\s*(counted|count|quantity|qty|aantal|quantité)\s*$/i;
 
 /** A field without one pair of surrounding double quotes (`""` inside stands for one `"`). */
 const unquote = (field: string) =>
   /^".*"$/.test(field) ? field.slice(1, -1).replaceAll('""', '"').trim() : field;
 
+/** `YYYY-MM-DD` or the Belgian `DD/MM/YYYY` (also `DD-MM-YYYY`, `DD.MM.YYYY`) as `YYYY-MM-DD`. */
+function parseExpiry(text: string): string | null {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  const local = /^(\d{2})[/.-](\d{2})[/.-](\d{4})$/.exec(text);
+  const [y, m, d] = iso ? [iso[1], iso[2], iso[3]] : local ? [local[3], local[2], local[1]] : [];
+  if (!y || !m || !d) return null;
+  const date = new Date(`${y}-${m}-${d}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== `${y}-${m}-${d}`
+    ? null
+    : `${y}-${m}-${d}`;
+}
+
 /**
- * Parses a stock count file: one `cnk;quantity` per line (`,` also accepted when a line has no
- * `;`), an optional header line, blank lines and `#` comments ignored. Quantity is the absolute
- * count on hand. Every line is checked, so all problems are reported at once. Spreadsheet exports
- * are accepted as they come: Windows, Unix or old Mac line endings, a byte-order mark, and fields
- * in double quotes (`"5410000000017";"3"`, #91).
+ * Parses a count file (igs-pharma#166): one `cnk;lot;expiry;counted` per line, an optional header,
+ * blank lines and `#` comments ignored. An empty lot is the product's untracked stock; an empty
+ * expiry leaves the lot to be found by its number alone. `counted` is how many units of that lot
+ * are in the web pool. Every line is checked, so all problems are reported at once. Spreadsheet
+ * exports are accepted as they come: any line ending, a byte-order mark, quoted fields.
  */
-export function parseStockCsv(text: string): ParsedStockCsv {
-  const rows: StockCsvRow[] = [];
+export function parseCountCsv(text: string): ParsedCountCsv {
+  const rows: CountCsvRow[] = [];
   const errors: StockCsvError[] = [];
-  const seen = new Set<string>();
-  const lines = text.replace(/^﻿/, "").split(/\r\n|\n|\r/);
+  const lines = text.replace(/^\uFEFF/, "").split(/\r\n|\n|\r/);
   lines.forEach((raw, index) => {
     const line = index + 1;
     const content = raw.trim();
     if (content === "" || content.startsWith("#")) return;
-    const parts = content.split(content.includes(";") ? ";" : ",").map((p) => unquote(p.trim()));
-    if (rows.length === 0 && errors.length === 0 && HEADER.test(parts.join(";"))) return;
-    if (parts.length !== 2) {
+    const parts = content.split(";").map((p) => unquote(p.trim()));
+    if (rows.length === 0 && errors.length === 0 && COUNT_HEADER.test(parts.join(";"))) return;
+    if (parts.length !== 4) {
       errors.push({ line, code: "inventory.row_malformed" });
       return;
     }
-    const [cnk = "", quantityText = ""] = parts;
+    const [cnk = "", lotText = "", expiryText = "", countedText = ""] = parts;
     if (!isValidCnk(cnk)) {
       errors.push({ line, code: "inventory.cnk_invalid" });
       return;
     }
-    const quantity = /^[0-9]{1,7}$/.test(quantityText) ? Number(quantityText) : Number.NaN;
-    if (!Number.isInteger(quantity) || quantity > MAX_QUANTITY) {
+    if (lotText !== "" && !LOT_NUMBER_PATTERN.test(lotText)) {
+      errors.push({ line, code: "inventory.lot_number_invalid" });
+      return;
+    }
+    const expiryDate = expiryText === "" ? null : parseExpiry(expiryText);
+    if (expiryText !== "" && (expiryDate === null || lotText === "")) {
+      errors.push({ line, code: "inventory.expiry_invalid" });
+      return;
+    }
+    const counted = /^[0-9]{1,7}$/.test(countedText) ? Number(countedText) : Number.NaN;
+    if (!Number.isInteger(counted) || counted > MAX_QUANTITY) {
       errors.push({ line, code: "inventory.quantity_invalid" });
       return;
     }
-    if (seen.has(cnk)) {
-      errors.push({ line, code: "inventory.duplicate_cnk" });
-      return;
-    }
-    seen.add(cnk);
-    rows.push({ line, cnk, quantity });
+    rows.push({ line, cnk, lotNumber: lotText === "" ? null : lotText, expiryDate, counted });
   });
   if (rows.length === 0 && errors.length === 0)
     errors.push({ line: 0, code: "inventory.import_empty" });
@@ -122,6 +145,16 @@ export type ReservationKind = (typeof RESERVATION_KINDS)[number];
  */
 export const RESERVATION_STATUSES = ["active", "released", "consumed", "expired"] as const;
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number];
+
+/**
+ * A count of web-pool lots (igs-pharma#166, ADR 0011 §1): `open` while it is a preview, then
+ * `applied` (its differences are booked) or `discarded`. It never overwrites stock silently.
+ */
+export const RECONCILIATION_STATUSES = ["open", "applied", "discarded"] as const;
+export type ReconciliationStatus = (typeof RECONCILIATION_STATUSES)[number];
+/** Where the counts came from: a count file, or typed in on a product's stock page. */
+export const RECONCILIATION_SOURCES = ["csv", "typed"] as const;
+export type ReconciliationSource = (typeof RECONCILIATION_SOURCES)[number];
 
 /**
  * An order reservation's share of one lot (igs-pharma#165, ADR 0011 §4): `active` while it stands,

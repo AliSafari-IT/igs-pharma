@@ -6,6 +6,7 @@ import { type ReactNode, useActionState, useEffect, useId, useRef } from "react"
 import {
   type LotActionState,
   assignLot,
+  countLots,
   expiryBuffer,
   quarantine,
   receive,
@@ -252,6 +253,49 @@ export function AssignLotDialog({
             defaultValue={value("expiryDate")}
             key={`expiry-${value("expiryDate")}`}
           />
+        </>
+      )}
+    </LotDialog>
+  );
+}
+
+/**
+ * Count this product's lots (igs-pharma#166): the count of each lot that was counted. Nothing
+ * changes yet: the count opens as a preview, to apply or discard.
+ */
+export function CountLotsDialog({
+  productId,
+  lots,
+}: {
+  readonly productId: string;
+  readonly lots: readonly {
+    readonly lotId: string;
+    readonly label: string;
+    readonly onHand: number;
+  }[];
+}) {
+  return (
+    <LotDialog
+      action={countLots}
+      open="Count"
+      title="Count the lots"
+      intro="Enter what is in the web stock for each lot you counted; leave a lot empty to skip it. You see the differences before anything changes."
+      submit="Preview the count"
+      hidden={{ productId }}
+      testId="count-open"
+    >
+      {(value) => (
+        <>
+          {lots.map((lot) => (
+            <TextField
+              key={`${lot.lotId}-${value(`count.${lot.lotId}`)}`}
+              label={`${lot.label} (${lot.onHand} in stock)`}
+              name={`count.${lot.lotId}`}
+              inputMode="numeric"
+              autoComplete="off"
+              defaultValue={value(`count.${lot.lotId}`)}
+            />
+          ))}
         </>
       )}
     </LotDialog>

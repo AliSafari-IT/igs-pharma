@@ -72,5 +72,19 @@ export const inventory: SchemaGrants = {
       note: "trigger function: the allocation lifecycle",
       since: 66,
     }),
+    table("inventory.reconciliations", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "counts of web-pool lots (igs-pharma#166); a trigger lets only an open one end, once, and refuses DELETE",
+      since: 68,
+    }),
+    table("inventory.reconciliation_lines", "mutable", {
+      app: ["SELECT", "INSERT"],
+      note: "the counted lots of a reconciliation, insert-only by grant; a trigger refuses UPDATE and DELETE",
+      since: 68,
+    }),
+    fn("inventory.reconciliation_guard()", {
+      note: "trigger function: the reconciliation lifecycle",
+      since: 68,
+    }),
   ],
 };
