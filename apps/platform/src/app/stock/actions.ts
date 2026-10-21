@@ -4,16 +4,17 @@ import { isDomainError } from "@igs/kernel";
 import {
   MAX_IMPORT_CHARS,
   adjustStock,
+  applyReconciliation,
   assignUnknownLot,
-  importStock,
-  prepareStockImport,
+  discardReconciliation,
   quarantineLot,
   receiveStock,
   releaseLot,
   releaseReservationByStaff,
   returnStock,
   setExpiryBuffer,
-  stockImportKey,
+  startReconciliation,
+  startReconciliationFromFile,
 } from "@igs/module-inventory";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -26,49 +27,44 @@ const text = (form: FormData, name: string) => {
   return typeof value === "string" ? value : "";
 };
 
-/** One problem line of a stock file (`line` 0 is the file as a whole). */
+/** One problem line of a count file (`line` 0 is the file as a whole). */
 export interface StockFileProblem {
   readonly line: number;
   readonly code: string;
 }
 
-/** The upload panel: the preview of a file (a stored plan), then its confirmation (igs-pharma#53, #83). */
-export interface StockImportState {
+/** The count upload (igs-pharma#166): problems in the file, or an error before reading it. */
+export interface CountUploadState {
   readonly error?: string;
   readonly fileName?: string;
-  /** The stored plan the confirm step applies: a fresh one for every preview. */
-  readonly planId?: string;
-  readonly rows?: readonly PreparedRow[];
-  /** Every problem in the file; when present nothing was stored and nothing can be confirmed. */
+  /** Every problem in the file; nothing was stored. */
   readonly problems?: readonly StockFileProblem[];
 }
-
-export type PreparedRow = Awaited<ReturnType<typeof prepareStockImport>>["rows"][number];
 
 const lineOf = (path: string): number => {
   const match = /^line\.([0-9]+)$/.exec(path);
   return match ? Number(match[1]) : 0;
 };
 
-/** Step 1: read the uploaded file and store what it would change as a plan. Writes no stock. */
-export async function previewImport(
-  _previous: StockImportState,
+/** Starts a count from an uploaded file and opens its preview. Moves no stock. */
+export async function uploadCount(
+  _previous: CountUploadState,
   form: FormData,
-): Promise<StockImportState> {
+): Promise<CountUploadState> {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "inventory.file_missing" };
   if (file.size > MAX_IMPORT_CHARS) return { error: "inventory.file_too_large" };
   const csv = await file.text();
+  let reconciliationId: string;
   try {
-    const { planId, rows } = await prepareStockImport({ csv }, actor, {
+    ({ reconciliationId } = await startReconciliationFromFile({ csv }, actor, {
       origin: await requestOrigin(),
-    });
-    return { fileName: file.name, planId, rows };
+    }));
   } catch (error) {
     if (!isDomainError(error)) throw error;
-    if (error.code === "inventory.import_invalid") {
+    if (error.code === "inventory.reconciliation_invalid") {
       return {
         fileName: file.name,
         problems: (error.fields ?? []).map((f) => ({ line: lineOf(f.path), code: f.code })),
@@ -76,33 +72,73 @@ export async function previewImport(
     }
     return { error: error.code };
   }
+  redirect(`/stock/counts/${reconciliationId}`);
 }
 
-/**
- * Step 2: apply the previewed plan. Only the plan's id is sent: the server applies what the preview
- * showed, or refuses when stock moved since. The plan id is the idempotency key, so a double click
- * replays the first result, while the same file previewed again is a new plan.
- */
-export async function confirmImport(
-  previous: StockImportState,
-  form: FormData,
-): Promise<StockImportState> {
+/** Starts a count of one product's lots, typed in on its stock page, and opens its preview. */
+export async function countLots(previous: LotActionState, form: FormData): Promise<LotActionState> {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
-  const planId = text(form, "planId");
-  let changed: number;
+  const productId = text(form, "productId");
+  const values: Record<string, string> = {};
+  const lines: { lotId: string; counted: number }[] = [];
+  for (const [name, value] of form.entries()) {
+    if (!name.startsWith("count.") || typeof value !== "string") continue;
+    values[name] = value;
+    if (value.trim() === "") continue;
+    const counted = /^[0-9]{1,7}$/.test(value.trim()) ? Number(value.trim()) : Number.NaN;
+    if (!Number.isInteger(counted)) return { error: "inventory.quantity_invalid", values };
+    lines.push({ lotId: name.slice("count.".length), counted });
+  }
+  if (lines.length === 0) return { error: "inventory.count_empty", values };
+  let reconciliationId: string;
   try {
-    const result = await importStock({ planId }, actor, {
-      idempotencyKey: stockImportKey(planId),
+    ({ reconciliationId } = await startReconciliation({ productId, lines }, actor, {
       origin: await requestOrigin(),
-    });
-    changed = result.changed;
+    }));
   } catch (error) {
     if (!isDomainError(error)) throw error;
-    return { ...previous, error: error.code };
+    return { ...previous, error: error.code, values };
+  }
+  redirect(`/stock/counts/${reconciliationId}`);
+}
+
+/** Applying or discarding a count from its preview page. */
+export interface CountActionState {
+  readonly error?: string;
+}
+
+export async function applyCount(
+  _previous: CountActionState,
+  form: FormData,
+): Promise<CountActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const reconciliationId = text(form, "reconciliationId");
+  try {
+    await applyReconciliation({ reconciliationId }, actor, { origin: await requestOrigin() });
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
   }
   revalidatePath("/stock");
-  redirect(`/stock?imported=${changed}`);
+  redirect(`/stock/counts/${reconciliationId}?done=applied`);
+}
+
+export async function discardCount(
+  _previous: CountActionState,
+  form: FormData,
+): Promise<CountActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const reconciliationId = text(form, "reconciliationId");
+  try {
+    await discardReconciliation({ reconciliationId }, actor, { origin: await requestOrigin() });
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  redirect(`/stock/counts/${reconciliationId}?done=discarded`);
 }
 
 /** The Adjust dialog on a product's stock page. */

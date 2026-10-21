@@ -26,6 +26,8 @@ import {
   MAX_QUANTITY,
   MOVEMENT_REASONS,
   QUARANTINE_REASONS,
+  RECONCILIATION_SOURCES,
+  RECONCILIATION_STATUSES,
   RELEASE_REASONS,
   RESERVATION_KINDS,
   RESERVATION_STATUSES,
@@ -347,5 +349,66 @@ export const reservationAllocations = inventory.table(
       .on(t.lotId)
       .where(sql`${t.status} = 'active'`),
     index("reservation_allocations_reservation_idx").on(t.reservationId),
+  ],
+);
+
+/**
+ * A count of lots in the web pool (igs-pharma#166, ADR 0011 §1). Starting one stores what was
+ * counted and what the ledger said per lot at that moment (the preview); applying it books one
+ * `reconciliation` movement per lot that differs, under its id, and only while every lot still holds
+ * what the preview showed. Only the status (and who ended it, when) ever changes, once; a trigger
+ * enforces it and refuses DELETE.
+ */
+export const reconciliations = inventory.table(
+  "reconciliations",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    status: text("status").notNull().default("open"),
+    source: text("source").notNull(),
+    startedByType: text("started_by_type").notNull(),
+    startedById: text("started_by_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+    endedByType: text("ended_by_type"),
+    endedById: text("ended_by_id"),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("reconciliations_status_check", oneOf("status", RECONCILIATION_STATUSES)),
+    check("reconciliations_source_check", oneOf("source", RECONCILIATION_SOURCES)),
+    check(
+      "reconciliations_ended_check",
+      sql`(${t.status} = 'open') = (${t.endedAt} IS NULL) AND (${t.endedAt} IS NULL) = (${t.endedById} IS NULL) AND (${t.endedAt} IS NULL) = (${t.endedByType} IS NULL)`,
+    ),
+    index("reconciliations_open_idx").on(t.startedAt).where(sql`${t.status} = 'open'`),
+  ],
+);
+
+/** One counted lot of a reconciliation: what the ledger held when it was previewed, and the count. */
+export const reconciliationLines = inventory.table(
+  "reconciliation_lines",
+  {
+    reconciliationId: uuid("reconciliation_id")
+      .notNull()
+      .references(() => reconciliations.id, { onDelete: "restrict" }),
+    /** Its place in the file or the form, from 1. */
+    line: integer("line").notNull(),
+    productId: uuid("product_id").notNull(),
+    lotId: uuid("lot_id")
+      .notNull()
+      .references(() => lots.id, { onDelete: "restrict" }),
+    booked: integer("booked").notNull(),
+    counted: integer("counted").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.reconciliationId, t.line] }),
+    // a lot is counted once per reconciliation
+    uniqueIndex("reconciliation_lines_lot_idx").on(t.reconciliationId, t.lotId),
+    check("reconciliation_lines_booked_check", sql`${t.booked} >= 0`),
+    check(
+      "reconciliation_lines_counted_check",
+      sql`${t.counted} >= 0 AND ${t.counted} <= ${sql.raw(String(MAX_QUANTITY))}`,
+    ),
   ],
 );

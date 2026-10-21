@@ -26,7 +26,6 @@ import {
   getInventorySettings,
   getStock,
   getStockSummary,
-  prepareStockImport,
   quarantineLot,
   receiveStock,
   registerAuditActions,
@@ -431,15 +430,5 @@ describe("the database", () => {
         VALUES (${newId()}, ${a}, ${DEFAULT_LOCATION_ID}, 'no_lot', 'X', 'system', 'raw')`,
     ).rejects.toThrow(/lots_lot_number_check/);
     await expect(iso.sql`DELETE FROM inventory.settings`).rejects.toThrow();
-  });
-
-  it("a stock-file import never sets a medicine's count (it needs its lot)", async () => {
-    const id = await product();
-    const cnk = (
-      await iso.sql<{ cnk: string }[]>`SELECT cnk FROM catalog.products WHERE id = ${id}`
-    )[0]?.cnk;
-    expect(await fieldsOf(prepareStockImport({ csv: `${cnk};4` }, owner))).toMatchObject({
-      fields: [{ path: "line.1", code: "inventory.import_needs_lot" }],
-    });
   });
 });

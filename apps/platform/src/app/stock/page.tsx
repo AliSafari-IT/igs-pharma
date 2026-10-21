@@ -1,15 +1,20 @@
 import type { ResolvedActor } from "@igs/auth";
 import { isDomainError } from "@igs/kernel";
-import { type StockPage, getInventorySettings, listStock } from "@igs/module-inventory";
+import {
+  type StockPage,
+  getInventorySettings,
+  listOpenReconciliations,
+  listStock,
+} from "@igs/module-inventory";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, EmptyState, Link, Stack } from "@igs/ui";
 import { Suspense } from "react";
 
+import { CountUpload } from "../../components/count-upload";
 import { ListPager } from "../../components/list-pager";
 import { ListSearch } from "../../components/list-search";
 import { ExpiryBufferForm } from "../../components/lot-dialogs";
 import { PageHeader } from "../../components/page-header";
-import { StockImport } from "../../components/stock-import";
 import { formatMoment, stockErrorMessage } from "../../components/stock-labels";
 import { TableSkeleton } from "../../components/table-skeleton";
 import { type ListQuery, pageCount, parseListQuery } from "../../lib/list-query";
@@ -24,7 +29,6 @@ interface Props {
   readonly searchParams: Promise<{
     q?: string | string[];
     page?: string | string[];
-    imported?: string | string[];
     buffer?: string | string[];
   }>;
 }
@@ -32,20 +36,20 @@ interface Props {
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 /**
- * The back-office stock list (igs-pharma#53): on-hand per product, by CNK, and the CSV upload.
+ * The back-office stock list (igs-pharma#53): on-hand per product, by CNK, and counting the web
+ * stock (igs-pharma#166: a count file, previewed before anything changes).
  *
- * The sign-in check runs BEFORE anything streams (#142): the header, the import notice and the
- * search box show at once; only the table (and the upload below it) waits behind `<Suspense>`.
+ * The sign-in check runs BEFORE anything streams (#142): the header, the notices and the search box
+ * show at once; only the table waits behind `<Suspense>`.
  */
 export default async function StockListPage({ searchParams }: Props) {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const params = await searchParams;
   const query = parseListQuery(params);
-  const importedText = first(params.imported);
-  const imported = importedText && /^[0-9]+$/.test(importedText) ? Number(importedText) : null;
   const canRead = hasPermission(actor.roles, PERMISSIONS.inventory.stockRead);
   const canSetBuffer = hasPermission(actor.roles, PERMISSIONS.inventory.settingsManage);
+  const canCount = hasPermission(actor.roles, PERMISSIONS.inventory.stockManage);
   const settings = canRead ? await getInventorySettings({}, actor) : null;
 
   return (
@@ -56,14 +60,6 @@ export default async function StockListPage({ searchParams }: Props) {
             title="Stock"
             description="The web shop's stock, per product and lot. Open a product to receive stock, adjust it or manage its lots."
           />
-
-          {imported !== null ? (
-            <Alert variant="success" title="Stock imported">
-              {imported === 0
-                ? "The counts already matched: nothing changed."
-                : `${imported} product${imported === 1 ? "" : "s"} changed.`}
-            </Alert>
-          ) : null}
 
           {first(params.buffer) === "1" ? (
             <Alert variant="success" title="Saved">
@@ -94,6 +90,8 @@ export default async function StockListPage({ searchParams }: Props) {
           <Suspense key={`${query.q}|${query.page}`} fallback={<TableSkeleton columns={6} />}>
             <StockTable actor={actor} query={query} />
           </Suspense>
+
+          {canRead && canCount ? <Counts actor={actor} /> : null}
         </Stack>
       </main>
     </Container>
@@ -210,8 +208,45 @@ async function StockTable({ actor, query }: { actor: ResolvedActor; query: ListQ
         total={result.total}
         noun="product"
       />
-
-      <StockImport />
     </>
+  );
+}
+
+/**
+ * Counting the web stock (igs-pharma#166): upload a count file, or count one product's lots on its
+ * page. Each count is previewed first; the open ones wait here until they are applied or discarded.
+ */
+async function Counts({ actor }: { actor: ResolvedActor }) {
+  const open = await listOpenReconciliations({}, actor);
+  return (
+    <section aria-labelledby="counts-title" className="flex flex-col gap-4" data-testid="counts">
+      <h2 id="counts-title" className="font-display text-2xl font-semibold">
+        Count the stock
+      </h2>
+      <p className="text-[var(--color-text-subtle)]">
+        One line per lot: <code>CNK;lot;expiry;counted</code>. Leave lot and expiry empty for a
+        product kept without lots; the expiry date is only needed when two lots share a number. You
+        see every difference before anything changes.
+      </p>
+      <CountUpload />
+      {open.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="font-semibold">Counts waiting to be applied</h3>
+          <ul className="flex flex-col gap-1">
+            {open.map((count) => (
+              <li key={count.reconciliationId}>
+                <Link href={`/stock/counts/${count.reconciliationId}`}>
+                  {count.source === "csv" ? "Count file" : "Typed count"} of{" "}
+                  {formatMoment(count.startedAt)}
+                </Link>{" "}
+                <span className="text-[var(--color-text-subtle)]">
+                  ({count.lines} lot{count.lines === 1 ? "" : "s"})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   );
 }

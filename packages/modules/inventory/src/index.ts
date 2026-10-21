@@ -19,7 +19,7 @@ export {
   MAX_QUANTITY,
   MOVEMENT_REASONS,
   type MovementReason,
-  type ParsedStockCsv,
+  type ParsedCountCsv,
   EXPIRY_BUFFER_DEFAULT_DAYS,
   EXPIRY_BUFFER_MAX_DAYS,
   EXPIRY_STATES,
@@ -36,12 +36,26 @@ export {
   type ReservationKind,
   type ReservationStatus,
   type StockCsvError,
-  type StockCsvRow,
+  type CountCsvRow,
+  RECONCILIATION_SOURCES,
+  RECONCILIATION_STATUSES,
+  type ReconciliationSource,
+  type ReconciliationStatus,
   availabilityOf,
-  parseStockCsv,
+  parseCountCsv,
 } from "./domain";
-export type { ImportPlan, ImportPlanRow } from "./ledger";
-export { adjustStock, importStock, prepareStockImport, stockImportKey } from "./commands";
+export { adjustStock } from "./commands";
+export {
+  type OpenReconciliation,
+  type ReconciliationLineView,
+  type ReconciliationView,
+  applyReconciliation,
+  discardReconciliation,
+  getReconciliation,
+  listOpenReconciliations,
+  startReconciliation,
+  startReconciliationFromFile,
+} from "./reconciliations";
 export {
   type LotView,
   assignUnknownLot,
