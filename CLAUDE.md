@@ -10,6 +10,8 @@ IGS-Pharma is a healthcare-grade Belgian online pharmacy platform. Phase 1 is an
 
 This repo carries **no docs**. The master plan (strategy, compliance, architecture, ADRs, design system, operations, roadmap) lives in the private repo [`AliSafari-IT/asafarim-docs`](https://github.com/AliSafari-IT/asafarim-docs) under `ventures/igs-pharma/` (start at `master-plan.md`). References written as `asafarim-docs:ventures/igs-pharma/<path>` point there; add `asafarim-docs` to the session to read them. Do not add docs, ADRs, roadmaps or plans to this repo; a code change that changes documented behaviour gets a matching docs PR in `asafarim-docs`, and deploy details (server, credentials) stay out of this repo.
 
+**Before giving any deploy, server, env/secret or operator-CLI instruction**, read `asafarim-docs:ventures/igs-pharma/07-operations/runbooks/release-to-staging.md` (§0 Quick facts, §3a Change a value in the IGS env) and follow it exactly. The server stack lives in `asafarim-platform`, not here. Never guess file names, paths or commands.
+
 ## Commands
 
 ### Daily development
