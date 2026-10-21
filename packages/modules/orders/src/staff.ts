@@ -9,6 +9,7 @@ import {
   type PaymentStatus,
   type ReviewDecision,
 } from "./domain";
+import { type RefundView, refundsOf } from "./refunds";
 import {
   orderContacts,
   orderEvents,
@@ -16,6 +17,7 @@ import {
   orderReviews,
   ordersTable,
   payments,
+  refunds,
 } from "./schema";
 import type { BasketLineView } from "./views";
 
@@ -30,8 +32,16 @@ const latestPaymentStatus = sql<string | null>`(
   LIMIT 1
 )`;
 
-const isRefundDue = (status: string, paymentStatus: string | null) =>
-  (status === "cancelled" || status === "expired") && paymentStatus === "paid";
+/** Whether the order has a refund that is not failed or canceled (full refunds only). */
+const activeRefund = sql<boolean>`EXISTS (
+  SELECT 1 FROM ${refunds} r
+  WHERE r.order_id = ${sql.raw('"orders"."orders"."id"')}
+    AND r.status IN ('requested', 'pending', 'refunded')
+)`;
+
+/** Paid, closed, and no refund under way or made. */
+const isRefundDue = (status: string, paymentStatus: string | null, refunding: boolean) =>
+  (status === "cancelled" || status === "expired") && paymentStatus === "paid" && !refunding;
 
 export interface StaffOrderListItem {
   readonly orderId: string;
@@ -75,6 +85,7 @@ export const listOrdersForStaff = query({
         createdAt: ordersTable.createdAt,
         contactName: orderContacts.name,
         paymentStatus: latestPaymentStatus,
+        refunding: activeRefund,
       })
       .from(ordersTable)
       .leftJoin(orderContacts, eq(orderContacts.orderId, ordersTable.id))
@@ -95,11 +106,11 @@ export const listOrdersForStaff = query({
       ? (counts[input.status] ?? 0)
       : grouped.reduce((sum, row) => sum + row.n, 0);
     return {
-      items: rows.map((row) => ({
+      items: rows.map(({ refunding, ...row }) => ({
         ...row,
         status: row.status as OrderStatus,
         paymentStatus: row.paymentStatus as PaymentStatus | null,
-        refundDue: isRefundDue(row.status, row.paymentStatus),
+        refundDue: isRefundDue(row.status, row.paymentStatus, refunding),
       })),
       total,
       page: input.page,
@@ -128,6 +139,8 @@ export interface StaffOrderView {
   readonly lines: readonly BasketLineView[];
   readonly paymentStatus: PaymentStatus | null;
   readonly refundDue: boolean;
+  /** Newest first. */
+  readonly refunds: readonly RefundView[];
   readonly review: {
     readonly decision: ReviewDecision;
     readonly note: string | null;
@@ -161,6 +174,7 @@ export const getOrderForStaff = query({
         vatCents: ordersTable.vatCents,
         createdAt: ordersTable.createdAt,
         paymentStatus: latestPaymentStatus,
+        refunding: activeRefund,
       })
       .from(ordersTable)
       .where(eq(ordersTable.id, input.orderId));
@@ -215,7 +229,8 @@ export const getOrderForStaff = query({
       contact: contact ?? null,
       lines,
       paymentStatus: order.paymentStatus as PaymentStatus | null,
-      refundDue: isRefundDue(order.status, order.paymentStatus),
+      refundDue: isRefundDue(order.status, order.paymentStatus, order.refunding),
+      refunds: await refundsOf(ctx, order.id),
       review: review ? { ...review, decision: review.decision as ReviewDecision } : null,
       events: events.map((event) => ({
         ...event,

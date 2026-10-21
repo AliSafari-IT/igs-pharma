@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
-import { isDomainError } from "@igs/kernel";
+import { isDomainError, registerEvents } from "@igs/kernel";
 import { type KernelTestHandles, actors, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
@@ -18,6 +18,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   type PaymentProvider,
   type ProviderPaymentView,
+  RefundRequested,
   advanceOrder,
   decideReview,
   getOrderForStaff,
@@ -41,6 +42,7 @@ beforeAll(async () => {
   registerInventoryAudit(registerAuditAction);
   registerPricingAudit(registerAuditAction);
   registerAuditActions(registerAuditAction);
+  registerEvents(RefundRequested);
 });
 afterAll(async () => {
   await iso?.drop();
@@ -172,14 +174,23 @@ describe("pharmacist review", () => {
     });
   });
 
-  it("rejected: the order is cancelled, its stock goes back, and the refund is flagged", async () => {
+  it("rejected: the order is cancelled, its stock goes back, and the refund is requested", async () => {
     const { orderId, checkoutId } = await paidOrder(true);
     await decideReview(
       { orderId, decision: "rejected", expectedVersion: await versionOf(orderId) },
       pharmacist,
     );
     const view = await getOrderForStaff({ orderId }, owner);
-    expect(view).toMatchObject({ status: "cancelled", paymentStatus: "paid", refundDue: true });
+    expect(view).toMatchObject({ status: "cancelled", paymentStatus: "paid", refundDue: false });
+    expect(view.refunds).toMatchObject([
+      {
+        status: "requested",
+        reason: "pharmacist_rejected",
+        amountCents: view.totalCents,
+        requestedById: pharmacist.id,
+        approvedById: pharmacist.id,
+      },
+    ]);
     expect((await holds(checkoutId)).map((h) => h.status)).toEqual(["released"]);
   });
 

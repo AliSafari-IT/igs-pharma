@@ -139,3 +139,38 @@ export const REVIEW_NOTE_MAX = 500;
 /** `IGS-<year>-<number, 6 digits at least>`. */
 export const formatOrderReference = (year: number, number: number): string =>
   `IGS-${year}-${String(number).padStart(6, "0")}`;
+
+// ── refunds ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A refund's state (igs-pharma#156). `requested`: recorded, the provider not yet asked; `pending`:
+ * the provider accepted it; then `refunded`, `failed` or `canceled`. Only forward; end states stay.
+ */
+export const REFUND_STATUSES = ["requested", "pending", "refunded", "failed", "canceled"] as const;
+export type RefundStatus = (typeof REFUND_STATUSES)[number];
+
+/** Statuses that block another refund of the same payment (full refunds only). */
+export const ACTIVE_REFUND_STATUSES = [
+  "requested",
+  "pending",
+  "refunded",
+] as const satisfies readonly RefundStatus[];
+
+/** Why an order is refunded. `pharmacist_rejected` is set by the review itself. */
+export const REFUND_REASONS = [
+  "pharmacist_rejected",
+  "stock_short",
+  "paid_after_close",
+  "customer_request",
+  "other",
+] as const;
+export type RefundReason = (typeof REFUND_REASONS)[number];
+
+/** Max length of the staff-only refund note. */
+export const REFUND_NOTE_MAX = 500;
+
+/** Order statuses whose paid payment is refunded: the order is closed. */
+export const REFUNDABLE_ORDER_STATUSES = [
+  "cancelled",
+  "expired",
+] as const satisfies readonly OrderStatus[];

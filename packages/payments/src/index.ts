@@ -4,8 +4,9 @@
  * rules allow these two apps and nothing else to import it. Plain `fetch`, no SDK.
  *
  * Only what the shop needs: create a payment (instant methods only, an idempotency key so a retry
- * never makes a second one) and read one back. The webhook trusts nothing but what `getPayment`
- * fetches with our key.
+ * never makes a second one) and read one back; refund a payment, read a refund back and list a
+ * payment's refunds (igs-pharma#156, used by the worker only). The webhook trusts nothing but what
+ * `getPayment` fetches with our key.
  */
 
 /** Instant methods only (O-2): no bank transfer, whose "paid" arrives days later. */
@@ -53,9 +54,44 @@ export interface ProviderPayment {
   readonly metadata: Readonly<Record<string, string>>;
 }
 
+/** Mollie's refund statuses. */
+export const MOLLIE_REFUND_STATUSES = [
+  "queued",
+  "pending",
+  "processing",
+  "refunded",
+  "failed",
+  "canceled",
+] as const;
+export type MollieRefundStatus = (typeof MOLLIE_REFUND_STATUSES)[number];
+
+/** A Mollie refund id. */
+export const MOLLIE_REFUND_ID = /^re_[A-Za-z0-9]{4,64}$/;
+
+export interface CreateRefundInput {
+  readonly amountCents: number;
+  readonly description: string;
+  /** Ids only, never personal data. */
+  readonly metadata: Readonly<Record<string, string>>;
+  /** Our refund id: the same key returns the refund already made instead of a second one. */
+  readonly idempotencyKey: string;
+}
+
+export interface ProviderRefund {
+  readonly id: string;
+  readonly status: MollieRefundStatus;
+  readonly amountCents: number;
+  readonly currency: string;
+  readonly metadata: Readonly<Record<string, string>>;
+}
+
 export interface MollieClient {
   createPayment(input: CreatePaymentInput): Promise<ProviderPayment>;
   getPayment(id: string): Promise<ProviderPayment>;
+  createRefund(paymentId: string, input: CreateRefundInput): Promise<ProviderRefund>;
+  getRefund(paymentId: string, refundId: string): Promise<ProviderRefund>;
+  /** The payment's refunds (the most recent 250, which is every refund a shop order can have). */
+  listRefunds(paymentId: string): Promise<readonly ProviderRefund[]>;
 }
 
 /** A refusal from Mollie or the network. `status` is the HTTP status (0: no answer). Never the body. */
@@ -85,6 +121,16 @@ export const valueToCents = (value: string): number => {
   return Number(match[1]) * 100 + Number(match[2]);
 };
 
+const readMetadata = (metadata: unknown): Record<string, string> => {
+  const meta: Record<string, string> = {};
+  if (metadata && typeof metadata === "object") {
+    for (const [key, value] of Object.entries(metadata)) {
+      if (typeof value === "string") meta[key] = value;
+    }
+  }
+  return meta;
+};
+
 interface MolliePaymentBody {
   id?: unknown;
   status?: unknown;
@@ -104,19 +150,41 @@ function toPayment(body: MolliePaymentBody): ProviderPayment {
     throw new MollieError(0, "invalid_amount");
   }
   const href = body._links?.checkout?.href;
-  const meta: Record<string, string> = {};
-  if (metadata && typeof metadata === "object") {
-    for (const [key, value] of Object.entries(metadata)) {
-      if (typeof value === "string") meta[key] = value;
-    }
-  }
   return {
     id,
     status: status as MollieStatus,
     amountCents: valueToCents(amount.value),
     currency: amount.currency,
     checkoutUrl: typeof href === "string" && href.startsWith("https://") ? href : null,
-    metadata: meta,
+    metadata: readMetadata(metadata),
+  };
+}
+
+interface MollieRefundBody {
+  id?: unknown;
+  status?: unknown;
+  amount?: { value?: unknown; currency?: unknown };
+  metadata?: unknown;
+}
+
+function toRefund(body: MollieRefundBody): ProviderRefund {
+  const { id, status, amount, metadata } = body;
+  if (typeof id !== "string" || !MOLLIE_REFUND_ID.test(id)) throw new MollieError(0, "invalid_id");
+  if (
+    typeof status !== "string" ||
+    !(MOLLIE_REFUND_STATUSES as readonly string[]).includes(status)
+  ) {
+    throw new MollieError(0, "invalid_status");
+  }
+  if (typeof amount?.value !== "string" || typeof amount.currency !== "string") {
+    throw new MollieError(0, "invalid_amount");
+  }
+  return {
+    id,
+    status: status as MollieRefundStatus,
+    amountCents: valueToCents(amount.value),
+    currency: amount.currency,
+    metadata: readMetadata(metadata),
   };
 }
 
@@ -125,7 +193,7 @@ function toPayment(body: MolliePaymentBody): ProviderPayment {
  * never Mollie's message body (it can echo request data back).
  */
 export function createMollieClient(apiKey: string, fetchImpl: typeof fetch = fetch): MollieClient {
-  async function call(path: string, init: RequestInit): Promise<ProviderPayment> {
+  async function call(path: string, init: RequestInit): Promise<unknown> {
     let response: Response;
     try {
       response = await fetchImpl(`${API}${path}`, {
@@ -143,12 +211,13 @@ export function createMollieClient(apiKey: string, fetchImpl: typeof fetch = fet
     if (!response.ok) {
       throw new MollieError(response.status, response.status === 404 ? "not_found" : "refused");
     }
-    return toPayment((await response.json()) as MolliePaymentBody);
+    return response.json();
   }
+  const badPaymentId = () => Promise.reject(new MollieError(0, "invalid_id"));
 
   return {
-    createPayment(input) {
-      return call("/payments", {
+    async createPayment(input) {
+      const body = await call("/payments", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": input.idempotencyKey },
         body: JSON.stringify({
@@ -161,10 +230,39 @@ export function createMollieClient(apiKey: string, fetchImpl: typeof fetch = fet
           metadata: input.metadata,
         }),
       });
+      return toPayment(body as MolliePaymentBody);
     },
-    getPayment(id) {
-      if (!MOLLIE_PAYMENT_ID.test(id)) return Promise.reject(new MollieError(0, "invalid_id"));
-      return call(`/payments/${id}`, { method: "GET" });
+    async getPayment(id) {
+      if (!MOLLIE_PAYMENT_ID.test(id)) return badPaymentId();
+      return toPayment((await call(`/payments/${id}`, { method: "GET" })) as MolliePaymentBody);
+    },
+    async createRefund(paymentId, input) {
+      if (!MOLLIE_PAYMENT_ID.test(paymentId)) return badPaymentId();
+      const body = await call(`/payments/${paymentId}/refunds`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": input.idempotencyKey },
+        body: JSON.stringify({
+          amount: { currency: "EUR", value: centsToValue(input.amountCents) },
+          description: input.description,
+          metadata: input.metadata,
+        }),
+      });
+      return toRefund(body as MollieRefundBody);
+    },
+    async getRefund(paymentId, refundId) {
+      if (!MOLLIE_PAYMENT_ID.test(paymentId)) return badPaymentId();
+      if (!MOLLIE_REFUND_ID.test(refundId)) throw new MollieError(0, "invalid_id");
+      const body = await call(`/payments/${paymentId}/refunds/${refundId}`, { method: "GET" });
+      return toRefund(body as MollieRefundBody);
+    },
+    async listRefunds(paymentId) {
+      if (!MOLLIE_PAYMENT_ID.test(paymentId)) return badPaymentId();
+      const body = (await call(`/payments/${paymentId}/refunds?limit=250`, { method: "GET" })) as {
+        _embedded?: { refunds?: unknown };
+      };
+      const refunds = body._embedded?.refunds ?? [];
+      if (!Array.isArray(refunds)) throw new MollieError(0, "invalid_list");
+      return refunds.map((refund) => toRefund(refund as MollieRefundBody));
     },
   };
 }

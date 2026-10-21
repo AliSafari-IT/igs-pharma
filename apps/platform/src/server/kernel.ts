@@ -1,6 +1,6 @@
 import { configureAuth } from "@igs/auth";
 import { auditEnv, parseEnvFor } from "@igs/config/env";
-import { configureKernel, isDomainError } from "@igs/kernel";
+import { configureKernel, isDomainError, registerEvents } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
 import {
@@ -9,7 +9,10 @@ import {
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
-import { registerAuditActions as registerOrdersAuditActions } from "@igs/module-orders";
+import {
+  RefundRequested,
+  registerAuditActions as registerOrdersAuditActions,
+} from "@igs/module-orders";
 import { registerAuditActions as registerPricingAuditActions } from "@igs/module-pricing";
 import { registerAuditActions as registerPrivacyAuditActions } from "@igs/module-privacy";
 import { logger } from "@igs/observability/logger";
@@ -56,6 +59,8 @@ export function ensureAuthConfigured(): void {
   registerPricingAuditActions(registerAuditAction);
   registerPrivacyAuditActions(registerAuditAction);
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
+  // a refund request (igs-pharma#156) leaves through the outbox; the worker asks Mollie (D-019)
+  registerEvents(RefundRequested);
   configureAuth({
     onSecurityEvent: async (event) => {
       try {

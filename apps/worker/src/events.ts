@@ -1,5 +1,6 @@
 import { registerEvents } from "@igs/kernel";
 import { MailRequested } from "@igs/module-identity";
+import { RefundRequested } from "@igs/module-orders";
 
 /**
  * The outbox events this deployment publishes: the ONE list the worker and the migrate entry both
@@ -12,4 +13,5 @@ import { MailRequested } from "@igs/module-identity";
  */
 export function registerWorkerEvents(): void {
   registerEvents(MailRequested); // identity: account mails (igs-pharma#114)
+  registerEvents(RefundRequested); // orders: refunds the worker executes (igs-pharma#156)
 }

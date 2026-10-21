@@ -13,6 +13,7 @@ import {
 import { registerAuditActions as registerPricingAudit } from "@igs/module-pricing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { registerWorkerEvents } from "../src/events";
 import {
   SEED_ACTOR,
   cnkFor,
@@ -32,6 +33,7 @@ beforeAll(async () => {
   registerInventoryAudit(registerAuditAction);
   registerPricingAudit(registerAuditAction);
   registerOrdersAudit(registerAuditAction);
+  registerWorkerEvents();
 });
 afterAll(async () => {
   await iso?.drop();
@@ -80,7 +82,11 @@ describe("seedSyntheticOrders", () => {
       status: "cancelled",
       paymentStatus: "failed",
     });
-    expect(byName["Demo – afgekeurd"]).toMatchObject({ status: "cancelled", refundDue: true });
+    // the pharmacist's rejection asked for the refund itself: no longer due, the worker executes it
+    expect(byName["Demo – afgekeurd"]).toMatchObject({ status: "cancelled", refundDue: false });
+    expect(
+      await iso.sql`SELECT status, reason FROM orders.refunds WHERE order_id = ${byName["Demo – afgekeurd"]?.orderId ?? ""}`,
+    ).toEqual([{ status: "requested", reason: "pharmacist_rejected" }]);
 
     expect(await seedSyntheticOrders()).toEqual({ placed: 0, skipped: DEMO_ORDERS.length });
     expect((await listOrdersForStaff({ pageSize: 100 }, SEED_ACTOR)).total).toBe(items.length);

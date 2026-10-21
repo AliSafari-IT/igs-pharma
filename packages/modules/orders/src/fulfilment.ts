@@ -12,6 +12,7 @@ import {
   canTransition,
   holderOf,
 } from "./domain";
+import { recordRefund } from "./refunds";
 import { orderReviews, ordersTable } from "./schema";
 
 /** Pharmacist review and fulfilment of paid orders (asafarim-docs:ventures/igs-pharma, D-045). */
@@ -83,6 +84,14 @@ export const decideReview = command({
       to = "cancelled";
     }
     const version = await moveOrder(ctx, order, to);
+    if (to === "cancelled") {
+      // the pharmacist's refusal is also the authorisation to give the money back
+      await recordRefund(
+        ctx,
+        { ...order, status: to },
+        { reason: "pharmacist_rejected", approvedById: ctx.actor.id },
+      );
+    }
     await ctx.audit.record({
       action: ORDERS_AUDIT.orderReviewed,
       entityType: "order",

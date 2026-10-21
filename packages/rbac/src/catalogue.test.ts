@@ -38,6 +38,7 @@ describe("hasPermission (code catalogue installed)", () => {
     "inventory.stock.read",
     "orders.order.manage",
     "orders.read",
+    "orders.refund.request",
     "pricing.price.manage",
     "pricing.price.read",
     "privacy.consent.read",
@@ -140,6 +141,17 @@ describe("hasPermission (code catalogue installed)", () => {
     }
     expect(hasPermission(["customer_service"], PERMISSIONS.orders.manage)).toBe(false);
     expect(hasPermission(["customer"], PERMISSIONS.orders.manage)).toBe(false);
+  });
+
+  it("refunds are asked by the owner and pharmacists only (#156)", () => {
+    for (const role of ["owner", "pharmacist_titular", "pharmacist"] as const) {
+      expect(hasPermission([role], PERMISSIONS.orders.refundRequest), role).toBe(true);
+    }
+    for (const role of ["pharmacy_assistant", "customer_service", "customer"] as const) {
+      expect(hasPermission([role], PERMISSIONS.orders.refundRequest), role).toBe(false);
+    }
+    // a medicine order's refund also needs the pharmacist permission, which the owner never holds
+    expect(hasPermission(["owner"], PERMISSIONS.orders.reviewDecide)).toBe(false);
   });
 
   it("customers hold only the .own scope of orders.read (K3)", () => {

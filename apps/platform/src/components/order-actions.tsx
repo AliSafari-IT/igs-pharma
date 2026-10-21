@@ -1,11 +1,16 @@
 "use client";
 
 import type { FulfilmentStep } from "@igs/module-orders";
-import { Alert, Button, Label, Stack, Textarea } from "@igs/ui";
+import { Alert, Button, Label, Select, Stack, Textarea } from "@igs/ui";
 import { useActionState, useId } from "react";
 
-import { type OrderActionState, advance, decide } from "../app/orders/actions";
-import { STEP_ACTION_LABELS, orderErrorMessage } from "./order-labels";
+import { type OrderActionState, advance, decide, refund } from "../app/orders/actions";
+import {
+  REFUND_REASON_LABELS,
+  REFUND_REASON_OPTIONS,
+  STEP_ACTION_LABELS,
+  orderErrorMessage,
+} from "./order-labels";
 
 interface OrderRef {
   readonly orderId: string;
@@ -66,6 +71,45 @@ export function StepForm({ orderId, version, to }: OrderRef & { readonly to: Ful
         <div>
           <Button type="submit" loading={pending}>
             {STEP_ACTION_LABELS[to]}
+          </Button>
+        </div>
+      </Stack>
+    </form>
+  );
+}
+
+/** Asks for the full refund of a closed, paid order; the note is optional and staff-only. */
+export function RefundForm({ orderId }: { readonly orderId: string }) {
+  const [state, action, pending] = useActionState(refund, {} as OrderActionState);
+  const id = useId();
+  return (
+    <form action={action} data-testid="refund-form">
+      <Stack gap={3}>
+        <input type="hidden" name="orderId" value={orderId} />
+        {state.error ? (
+          <Alert variant="error" title="Nothing was recorded">
+            {orderErrorMessage(state.error)}
+          </Alert>
+        ) : null}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${id}-reason`} required>
+            Reason
+          </Label>
+          <Select id={`${id}-reason`} name="reason" required>
+            {REFUND_REASON_OPTIONS.map((reason) => (
+              <option key={reason} value={reason}>
+                {REFUND_REASON_LABELS[reason]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${id}-note`}>Note (staff only, optional)</Label>
+          <Textarea id={`${id}-note`} name="note" maxLength={500} rows={3} />
+        </div>
+        <div>
+          <Button type="submit" variant="danger" loading={pending}>
+            Refund the full amount
           </Button>
         </div>
       </Stack>
