@@ -1,5 +1,11 @@
-import { type MailSettings, type Mailer, mailerFromEnv } from "@igs/mail";
+import {
+  type MailSettings,
+  type Mailer,
+  type OrderMailTemplateName,
+  mailerFromEnv,
+} from "@igs/mail";
 import type { MailSender } from "@igs/module-identity";
+import type { OrderMailKind, OrderMailSender } from "@igs/module-orders";
 
 /**
  * The worker's mail sender (igs-pharma#114): the identity module hands over a mail, this renders and
@@ -16,6 +22,29 @@ export function createMailSender(settings: MailSettings, mailer?: Mailer): MailS
       locale: mail.locale,
       template: mail.template,
       data: { name: mail.name, url: mail.url },
+    });
+  };
+}
+
+/** The template of each order mail kind (igs-pharma#157). */
+const ORDER_TEMPLATE: Record<OrderMailKind, OrderMailTemplateName> = {
+  order_received: "order_received",
+  stock_short: "order_stock_short",
+  ready_for_pickup: "order_ready_for_pickup",
+  refund_initiated: "order_refund_initiated",
+  refund_completed: "order_refund_completed",
+};
+
+/** The worker's order mail sender (igs-pharma#157); built lazily like the account one. */
+export function createOrderMailSender(settings: MailSettings, mailer?: Mailer): OrderMailSender {
+  let current = mailer;
+  return async (mail) => {
+    current ??= mailerFromEnv(settings);
+    await current.sendOrder({
+      to: mail.to,
+      locale: mail.locale,
+      template: ORDER_TEMPLATE[mail.kind],
+      data: { name: mail.name, reference: mail.reference, amountCents: mail.amountCents },
     });
   };
 }

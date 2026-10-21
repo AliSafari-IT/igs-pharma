@@ -17,6 +17,7 @@ import { registerAuditActions as registerPricingAudit, setPrice } from "@igs/mod
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  OrderMailRequested,
   type PaymentProvider,
   type ProviderPaymentView,
   type ProviderRefundView,
@@ -47,7 +48,7 @@ beforeAll(async () => {
   registerInventoryAudit(registerAuditAction);
   registerPricingAudit(registerAuditAction);
   registerAuditActions(registerAuditAction);
-  registerEvents(RefundRequested);
+  registerEvents(RefundRequested, OrderMailRequested);
 });
 afterAll(async () => {
   await iso?.drop();

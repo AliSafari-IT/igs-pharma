@@ -14,6 +14,7 @@ import {
   type RefundReason,
   type RefundStatus,
 } from "./domain";
+import { requestOrderMail } from "./mails";
 import { PAYMENTS_ACTOR } from "./payments";
 import { ordersTable, payments, refunds } from "./schema";
 
@@ -105,6 +106,7 @@ export async function recordRefund(
     },
   });
   await ctx.outbox.publish(RefundRequested, { refundId: row.id, orderId: order.id });
+  await requestOrderMail(ctx, { orderId: order.id, kind: "refund_initiated", refundId: row.id });
   return row.id;
 }
 
@@ -328,6 +330,13 @@ export const recordRefundStatus = command({
         failureCode: outcome.kind === "refused" ? outcome.code : null,
       },
     });
+    if (status === "refunded") {
+      await requestOrderMail(ctx, {
+        orderId: refund.orderId,
+        kind: "refund_completed",
+        refundId: refund.id,
+      });
+    }
     return { refundId: refund.id, status, changed: true };
   },
 });
