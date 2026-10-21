@@ -31,7 +31,7 @@ const latestPaymentStatus = sql<string | null>`(
 )`;
 
 const isRefundDue = (status: string, paymentStatus: string | null) =>
-  status === "cancelled" && paymentStatus === "paid";
+  (status === "cancelled" || status === "expired") && paymentStatus === "paid";
 
 export interface StaffOrderListItem {
   readonly orderId: string;

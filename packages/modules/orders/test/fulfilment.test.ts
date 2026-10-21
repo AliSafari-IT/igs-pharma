@@ -183,6 +183,27 @@ describe("pharmacist review", () => {
     expect((await holds(checkoutId)).map((h) => h.status)).toEqual(["released"]);
   });
 
+  it("a payment that lands on an expired order is flagged as a refund too", async () => {
+    const productId = await product(false);
+    const token = newCartToken();
+    const guest = actors.anonymous();
+    await setCartLine({ cartToken: token, productId, quantity: 1 }, guest);
+    const { checkoutId } = await startCheckout({ cartToken: token, locale: "nl" }, guest);
+    const { orderId } = await placeOrder({ cartToken: token, checkoutId, contact }, guest);
+    const provider = fakeProvider();
+    const id = ((await startPayment(orderId, provider, urls)) as string)
+      .split("/")
+      .at(-1) as string;
+    await iso.sql`UPDATE orders.orders SET status = 'expired', version = version + 1 WHERE id = ${orderId}`;
+    provider.pay(id);
+    await syncPayment(id, provider);
+    expect(await getOrderForStaff({ orderId }, owner)).toMatchObject({
+      status: "expired",
+      paymentStatus: "paid",
+      refundDue: true,
+    });
+  });
+
   it("only a pharmacist decides, once, on an order in review, with the version they saw", async () => {
     const { orderId } = await paidOrder(true);
     const version = await versionOf(orderId);

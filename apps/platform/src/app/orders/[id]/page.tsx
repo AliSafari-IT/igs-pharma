@@ -109,7 +109,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
           ) : null}
           {order.refundDue ? (
             <Alert variant="error" title="Refund due" data-testid="refund-due">
-              This order was cancelled after it was paid. Refund it in the Mollie dashboard.
+              This order was paid but is closed (cancelled or expired). Refund it in the Mollie
+              dashboard.
             </Alert>
           ) : null}
           {order.status === "paid_stock_short" ? (
