@@ -127,6 +127,15 @@ export const PAYMENT_STATUSES = [
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+/** Inventory holder ref of a checkout's (and its order's) stock holds. */
+export const holderOf = (checkoutId: string) => `checkout:${checkoutId}`;
+
+/** Pharmacist review decisions. */
+export const REVIEW_DECISIONS = ["approved", "rejected"] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
+/** Max length of the staff-only review note. */
+export const REVIEW_NOTE_MAX = 500;
+
 /** `IGS-<year>-<number, 6 digits at least>`. */
 export const formatOrderReference = (year: number, number: number): string =>
   `IGS-${year}-${String(number).padStart(6, "0")}`;

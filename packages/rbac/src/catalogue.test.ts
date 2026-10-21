@@ -36,6 +36,7 @@ describe("hasPermission (code catalogue installed)", () => {
     "inventory.availability.read",
     "inventory.stock.manage",
     "inventory.stock.read",
+    "orders.order.manage",
     "orders.read",
     "pricing.price.manage",
     "pricing.price.read",
@@ -126,6 +127,19 @@ describe("hasPermission (code catalogue installed)", () => {
       true,
     );
     expect(hasPermission(["pharmacist"], PERMISSIONS.pharmacy.pharmacistsManage)).toBe(false);
+  });
+
+  it("fulfilment is staff work; customer service only reads (#116)", () => {
+    for (const role of [
+      "owner",
+      "pharmacist_titular",
+      "pharmacist",
+      "pharmacy_assistant",
+    ] as const) {
+      expect(hasPermission([role], PERMISSIONS.orders.manage), role).toBe(true);
+    }
+    expect(hasPermission(["customer_service"], PERMISSIONS.orders.manage)).toBe(false);
+    expect(hasPermission(["customer"], PERMISSIONS.orders.manage)).toBe(false);
   });
 
   it("customers hold only the .own scope of orders.read (K3)", () => {

@@ -22,6 +22,7 @@ import {
   type OrderStatus,
   PAYMENT_STATUSES,
   type PaymentStatus,
+  holderOf,
 } from "./domain";
 import { carts, checkouts, orderLines, ordersTable, payments } from "./schema";
 
@@ -103,8 +104,6 @@ const providerStatus = z.enum(
   PAYMENT_STATUSES.filter((s) => s !== "created") as [string, ...string[]],
 );
 const providerPaymentId = z.string().regex(/^tr_[A-Za-z0-9]{4,64}$/);
-
-const holderOf = (checkoutId: string) => `checkout:${checkoutId}`;
 
 // ── read ─────────────────────────────────────────────────────────────────────────────────────────
 

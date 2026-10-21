@@ -9,6 +9,8 @@ export const ORDERS_AUDIT = {
   paymentAttached: "orders.payment.attached",
   paymentStatusRecorded: "orders.payment.status_recorded",
   orderExpired: "orders.order.expired",
+  orderReviewed: "orders.order.reviewed",
+  orderAdvanced: "orders.order.advanced",
 } as const;
 
 /** Ids and counts only (D-028): never the cart token, which opens the cart. */
@@ -44,6 +46,17 @@ const paymentAttached = z.object({
 });
 const paymentStatusRecorded = paymentAttached.extend({ orderStatus: z.string().max(30) });
 const orderExpired = z.object({ orderId: z.uuid() });
+/** The decision and where it sent the order; never the pharmacist's note. */
+const orderReviewed = z.object({
+  orderId: z.uuid(),
+  decision: z.enum(["approved", "rejected"]),
+  status: z.string().max(30),
+});
+const orderAdvanced = z.object({
+  orderId: z.uuid(),
+  from: z.string().max(30),
+  to: z.string().max(30),
+});
 
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
@@ -60,4 +73,6 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(ORDERS_AUDIT.paymentAttached, paymentAttached);
   register(ORDERS_AUDIT.paymentStatusRecorded, paymentStatusRecorded);
   register(ORDERS_AUDIT.orderExpired, orderExpired);
+  register(ORDERS_AUDIT.orderReviewed, orderReviewed);
+  register(ORDERS_AUDIT.orderAdvanced, orderAdvanced);
 }

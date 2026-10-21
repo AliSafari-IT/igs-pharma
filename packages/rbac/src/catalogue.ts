@@ -15,6 +15,8 @@ export const PERMISSIONS = {
     /** Customer access to their OWN orders: handlers check it with `ctx.authorizeResource`. */
     readOwn: "orders.read.own",
     create: "orders.create",
+    /** Staff: fulfilment steps of a paid order. */
+    manage: "orders.order.manage",
     reviewDecide: "orders.review.decide",
     /**
      * System-only (igs-pharma#116): attach a provider payment to an order's payment and record what
@@ -203,6 +205,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   // product, the storefront actor only the visible ones (inventory/catalog tests rely on it).
   owner: [
     PERMISSIONS.orders.read,
+    PERMISSIONS.orders.manage,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.manage,
     PERMISSIONS.catalog.productsRead,
@@ -222,6 +225,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   ],
   pharmacist_titular: [
     PERMISSIONS.orders.read,
+    PERMISSIONS.orders.manage,
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
@@ -233,6 +237,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   // asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
   pharmacist: [
     PERMISSIONS.orders.read,
+    PERMISSIONS.orders.manage,
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
@@ -242,6 +247,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   ],
   pharmacy_assistant: [
     PERMISSIONS.orders.read,
+    PERMISSIONS.orders.manage,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.inventory.stockRead,

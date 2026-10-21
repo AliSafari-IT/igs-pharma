@@ -22,6 +22,8 @@ import {
   ORDER_VAT_CLASSES,
   PAYMENT_PROVIDERS,
   PAYMENT_STATUSES,
+  REVIEW_DECISIONS,
+  REVIEW_NOTE_MAX,
 } from "./domain";
 
 /**
@@ -310,6 +312,31 @@ export const orderContacts = orders.table("order_contacts", {
   phone: text("phone").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** Pharmacist review decision, one per order; append-only (migration 0053). */
+export const orderReviews = orders.table(
+  "order_reviews",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "restrict" }),
+    decision: text("decision").notNull(),
+    note: text("note"),
+    reviewerId: text("reviewer_id").notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("order_reviews_decision_check", oneOf("decision", REVIEW_DECISIONS)),
+    uniqueIndex("order_reviews_order_idx").on(t.orderId),
+    check(
+      "order_reviews_note_check",
+      sql`${t.note} IS NULL OR char_length(${t.note}) BETWEEN 1 AND ${sql.raw(String(REVIEW_NOTE_MAX))}`,
+    ),
+  ],
+);
 
 /**
  * A payment of an order (D-045 step 4). Created in `created` with the order; the route handler then

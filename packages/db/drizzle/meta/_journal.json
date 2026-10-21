@@ -365,6 +365,27 @@
       "when": 1792530008092,
       "tag": "0051_rbac_seed_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1792574333381,
+      "tag": "0052_rbac_seed_order_manage",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1792574425664,
+      "tag": "0053_orders_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792574433576,
+      "tag": "0054_orders_reviews_grants",
+      "breakpoints": true
     }
   ]
 }
