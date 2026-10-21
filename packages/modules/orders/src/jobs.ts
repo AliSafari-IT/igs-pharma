@@ -21,6 +21,7 @@ import {
   executeRefund,
   listUnsettledRefunds,
 } from "./refunds";
+import { type StockShortWaiting, stockShortWaiting } from "./staff";
 
 /**
  * Background job of the orders module (igs-pharma#116): the daily purge of expired carts and of
@@ -46,6 +47,15 @@ export const ORDERS_JOBS = {
     queue: "orders.payments.reconcile",
     deadLetterQueue: "orders.payments.reconcile.failed",
     cron: "*/5 * * * *",
+  },
+  /**
+   * igs-pharma#158 follow-up: hourly, an alarm while a paid order has been short of stock for longer
+   * than `STOCK_SHORT_DEADLINE_HOURS` (staff must hold it again or cancel and refund it).
+   */
+  stockShortAlert: {
+    queue: "orders.stock_short.alert",
+    deadLetterQueue: "orders.stock_short.alert.failed",
+    cron: "41 0-1,3-23 * * *",
   },
   timezone: "Europe/Brussels",
   /** Only thrown errors are retried (connection, lock timeout). */
@@ -98,12 +108,15 @@ export const ORDERS_QUEUES: readonly string[] = [
   ORDERS_JOBS.purgeCarts.queue,
   ORDERS_JOBS.reconcilePayments.deadLetterQueue,
   ORDERS_JOBS.reconcilePayments.queue,
+  ORDERS_JOBS.stockShortAlert.deadLetterQueue,
+  ORDERS_JOBS.stockShortAlert.queue,
 ];
 
 /** Creates the queues. DDL on pg-boss's schema: runs in the migrate entry, never in the worker. Idempotent. */
 export async function ensureOrdersQueues(boss: OrdersQueueAdmin): Promise<void> {
-  const { purgeCarts, reconcilePayments, retryLimit, retryDelaySeconds } = ORDERS_JOBS;
-  for (const job of [purgeCarts, reconcilePayments]) {
+  const { purgeCarts, reconcilePayments, stockShortAlert, retryLimit, retryDelaySeconds } =
+    ORDERS_JOBS;
+  for (const job of [purgeCarts, reconcilePayments, stockShortAlert]) {
     await boss.createQueue(job.deadLetterQueue);
     await boss.createQueue(job.queue, {
       retryLimit,
@@ -211,6 +224,38 @@ export function reportReconciliationFailed(runtime: KernelRuntime = getKernelRun
 }
 
 /**
+ * Raises the alarm `orders.stock_short_overdue` (the count and the order ids, nothing else) while a
+ * paid order has waited for stock past its deadline; logs the counts either way. Returns the counts.
+ */
+export async function runStockShortAlert(
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<{ waiting: number; overdue: number }> {
+  const { waiting, overdue, overdueTotal }: StockShortWaiting = await runtime.db.transaction(
+    async (tx) => stockShortWaiting(tx, runtime.now()),
+  );
+  if (overdueTotal > 0) {
+    runtime.logger.warn?.(
+      {
+        alarm: "orders.stock_short_overdue",
+        overdue: overdueTotal,
+        orderIds: overdue.map((item) => item.orderId),
+      },
+      "orders.stock_short_overdue: paid orders are past their deadline waiting for stock; hold them again or cancel and refund",
+    );
+  }
+  runtime.logger.info?.({ waiting, overdue: overdueTotal }, "orders.stock_short.checked");
+  return { waiting, overdue: overdueTotal };
+}
+
+/** An alert run that failed all its retries: nobody was told about late stock-short orders. */
+export function reportStockShortAlertFailed(runtime: KernelRuntime = getKernelRuntime()): void {
+  runtime.logger.warn?.(
+    { alarm: "orders.stock_short.alert_failed" },
+    "orders.stock_short.alert_failed: the stock-short deadline check failed after all retries",
+  );
+}
+
+/**
  * Verifies the queues exist (a readable `kernel.queue_missing` when the migrate entry has not run),
  * schedules the runs and registers the handlers. Safe to call on every boot. `provider`: the payment
  * provider, `null` when none is configured (the reconciliation then only expires unpaid orders, and
@@ -221,13 +266,14 @@ export async function registerOrdersJobs(
   runtime: KernelRuntime = getKernelRuntime(),
   provider: (PaymentProvider & RefundProvider) | null = null,
 ): Promise<void> {
-  const { purgeCarts, reconcilePayments, timezone } = ORDERS_JOBS;
+  const { purgeCarts, reconcilePayments, stockShortAlert, timezone } = ORDERS_JOBS;
   await assertQueuesExist(
     boss,
     provider ? [...ORDERS_QUEUES, RefundRequested.topic] : ORDERS_QUEUES,
   );
   await boss.schedule(purgeCarts.queue, purgeCarts.cron, undefined, { tz: timezone });
   await boss.schedule(reconcilePayments.queue, reconcilePayments.cron, undefined, { tz: timezone });
+  await boss.schedule(stockShortAlert.queue, stockShortAlert.cron, undefined, { tz: timezone });
   await boss.work(purgeCarts.queue, async () => {
     await runCartPurge(runtime);
   });
@@ -235,6 +281,12 @@ export async function registerOrdersJobs(
   await boss.work(reconcilePayments.queue, async () => {
     await runPaymentReconciliation(provider, runtime, provider);
   });
+  await boss.work(stockShortAlert.queue, async () => {
+    await runStockShortAlert(runtime);
+  });
+  await boss.work(stockShortAlert.deadLetterQueue, async () =>
+    reportStockShortAlertFailed(runtime),
+  );
   if (provider) {
     await boss.work(RefundRequested.topic, (jobs) => handleRefundJobs(jobs, provider, runtime));
   }

@@ -79,7 +79,10 @@ describe("needsAttention", () => {
 
   it("puts paid orders waiting for stock first (#158)", () => {
     expect(
-      needsAttention({ orders: ok({ stockShort: 2 }), stock: ok({ out: 1, short: 0 }) }).items,
+      needsAttention({
+        orders: ok({ stockShort: 2, overdue: 0 }),
+        stock: ok({ out: 1, short: 0 }),
+      }).items,
     ).toEqual([
       {
         id: "stock_short_orders",
@@ -88,10 +91,13 @@ describe("needsAttention", () => {
       },
       { id: "out", text: "1 product is out of stock", href: "/stock" },
     ]);
-    expect(needsAttention({ orders: ok({ stockShort: 1 }) }).items[0]?.text).toBe(
+    expect(needsAttention({ orders: ok({ stockShort: 1, overdue: 0 }) }).items[0]?.text).toBe(
       "1 paid order is waiting for stock",
     );
-    expect(needsAttention({ orders: ok({ stockShort: 0 }) }).items).toEqual([]);
+    expect(needsAttention({ orders: ok({ stockShort: 3, overdue: 2 }) }).items[0]?.text).toBe(
+      "3 paid orders are waiting for stock (2 past the deadline)",
+    );
+    expect(needsAttention({ orders: ok({ stockShort: 0, overdue: 0 }) }).items).toEqual([]);
     expect(needsAttention({ orders: failed }).incomplete).toBe(true);
   });
 
