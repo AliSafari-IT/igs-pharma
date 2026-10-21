@@ -82,15 +82,15 @@ test.beforeAll(async () => {
     if (item.stock > 0) {
       await sql`
         WITH lot AS (
-      INSERT INTO inventory.lots (id, product_id, location_id, tracking, created_by_type, created_by_id)
-      VALUES (gen_random_uuid(), ${id}, ${(location as { id: string }).id}::uuid, 'no_lot', 'system', 'e2e')
-      ON CONFLICT DO NOTHING RETURNING id
-    )
-    INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
-    VALUES (gen_random_uuid(), ${id}, ${(location as { id: string }).id}::uuid,
-      coalesce((SELECT id FROM lot), (SELECT id FROM inventory.lots
-        WHERE product_id = ${id} AND location_id = ${(location as { id: string }).id}::uuid AND tracking = 'no_lot')),
-      ${item.stock}, 'adjustment', 'system', 'e2e')`;
+          INSERT INTO inventory.lots (id, product_id, location_id, tracking, lot_number, expiry_date, created_by_type, created_by_id)
+          VALUES (gen_random_uuid(), ${id}, ${(location as { id: string }).id}::uuid,
+            ${medicine ? "lot" : "no_lot"}, ${medicine ? "E2E-1" : null}, ${medicine ? "2099-12-31" : null}::date,
+            'system', 'e2e')
+          RETURNING id
+        )
+        INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+        VALUES (gen_random_uuid(), ${id}, ${(location as { id: string }).id}::uuid, (SELECT id FROM lot),
+          ${item.stock}, 'adjustment', 'system', 'e2e')`;
     }
   }
 });
