@@ -55,6 +55,8 @@ describe("proxy matcher", () => {
       "/_vercel/insights",
       "/robots.txt",
       "/favicon.ico",
+      "/icon.svg",
+      "/apple-icon.png",
     ]) {
       expect(matches(path), path).toBe(false);
     }

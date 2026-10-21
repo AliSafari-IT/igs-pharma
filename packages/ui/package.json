@@ -12,6 +12,7 @@
       "default": "./src/fonts.ts"
     },
     "./styles/*": "./src/styles/*",
+    "./brand/*": "./src/brand/*",
     "./button": {
       "types": "./src/components/button.tsx",
       "default": "./src/components/button.tsx"
