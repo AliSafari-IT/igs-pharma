@@ -19,6 +19,7 @@ import {
 import { PageHeader } from "../../../components/page-header";
 import { formatEuros } from "../../../components/price-labels";
 import { formatMoment } from "../../../components/stock-labels";
+import { StockShort } from "../../../components/stock-short";
 import { requireStaffActor } from "../../../server/actor";
 import { ensureKernelConfigured } from "../../../server/kernel";
 
@@ -115,6 +116,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
               The refund is sent to Mollie in the background. Its status shows below.
             </Alert>
           ) : null}
+          {done === "reserved" || done === "cancelled" ? (
+            <Alert variant="success" title="Saved">
+              The order is now “{ORDER_STATUS_LABELS[order.status]}”. The customer is told by
+              e-mail.
+            </Alert>
+          ) : null}
           {done === "review" || done === "step" ? (
             <Alert variant="success" title="Saved">
               The order is now “{ORDER_STATUS_LABELS[order.status]}”.
@@ -130,12 +137,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
                   : "An owner or a pharmacist asks for its refund."}
             </Alert>
           ) : null}
-          {order.status === "paid_stock_short" ? (
-            <Alert variant="error" title="Paid, but the stock wasn't held">
-              The payment came in after the stock hold ended. Check the stock, then contact the
-              customer.
-            </Alert>
-          ) : null}
+          {order.status === "paid_stock_short" ? <StockShort order={order} actor={actor} /> : null}
 
           {canDecide ? (
             <Section title="Pharmacist review">

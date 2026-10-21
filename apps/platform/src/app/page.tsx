@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   }
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
-  const { products, stock, reservations, requests } = await loadDashboard(actor);
+  const { products, stock, reservations, requests, orders } = await loadDashboard(actor);
   const none = !products && !stock && !reservations && !requests;
 
   return (
@@ -123,8 +123,8 @@ export default async function DashboardPage() {
             ) : null}
           </div>
         )}
-        {products || stock || requests ? (
-          <NeedsAttention attention={needsAttention({ products, stock, requests })} />
+        {products || stock || requests || orders ? (
+          <NeedsAttention attention={needsAttention({ orders, products, stock, requests })} />
         ) : null}
       </main>
     </Container>

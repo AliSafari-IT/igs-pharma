@@ -85,7 +85,9 @@ export {
   FULFILMENT_STEPS,
   type FulfilmentStep,
   advanceOrder,
+  cancelStockShortOrder,
   decideReview,
+  reReserveOrder,
 } from "./fulfilment";
 export {
   type StaffOrderListItem,

@@ -11,6 +11,8 @@ export const ORDERS_AUDIT = {
   orderExpired: "orders.order.expired",
   orderReviewed: "orders.order.reviewed",
   orderAdvanced: "orders.order.advanced",
+  orderReReserved: "orders.order.re_reserved",
+  orderCancelled: "orders.order.cancelled",
   refundRequested: "orders.refund.requested",
   refundStatusRecorded: "orders.refund.status_recorded",
 } as const;
@@ -60,6 +62,16 @@ const orderAdvanced = z.object({
   to: z.string().max(30),
 });
 
+/** igs-pharma#158: a stock-short order held again, and where it went. */
+const orderReReserved = z.object({ orderId: z.uuid(), status: z.string().max(30) });
+/** igs-pharma#158: a stock-short order cancelled, and its refund (null: none recorded). */
+const orderCancelled = z.object({
+  orderId: z.uuid(),
+  from: z.string().max(30),
+  reason: z.string().max(30),
+  refundId: z.uuid().nullable(),
+});
+
 /**
  * igs-pharma#156: ids, the reason code, the amount and the approving pharmacist's id; never the
  * staff note or the customer. The requester is the audit entry's actor.
@@ -101,6 +113,8 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(ORDERS_AUDIT.orderExpired, orderExpired);
   register(ORDERS_AUDIT.orderReviewed, orderReviewed);
   register(ORDERS_AUDIT.orderAdvanced, orderAdvanced);
+  register(ORDERS_AUDIT.orderReReserved, orderReReserved);
+  register(ORDERS_AUDIT.orderCancelled, orderCancelled);
   register(ORDERS_AUDIT.refundRequested, refundRequested);
   register(ORDERS_AUDIT.refundStatusRecorded, refundStatusRecorded);
 }

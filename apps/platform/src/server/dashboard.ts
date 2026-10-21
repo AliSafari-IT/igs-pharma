@@ -1,6 +1,7 @@
 import type { ResolvedActor } from "@igs/auth";
 import { type ProductCounts, getProductCounts } from "@igs/module-catalog";
 import { getStockSummary } from "@igs/module-inventory";
+import { listOrdersForStaff } from "@igs/module-orders";
 import { listDsr } from "@igs/module-privacy";
 import { logger } from "@igs/observability/logger";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
@@ -24,6 +25,8 @@ export interface Dashboard {
   readonly stock?: TileResult<StockAlerts>;
   readonly reservations?: TileResult<ReservationCounts>;
   readonly requests?: TileResult<RequestCounts>;
+  /** No tile of its own: feeds "Needs attention" (paid orders short of stock, #158). */
+  readonly orders?: TileResult<{ readonly stockShort: number }>;
 }
 
 const report = (tile: string) => (error: unknown) =>
@@ -41,7 +44,7 @@ const report = (tile: string) => (error: unknown) =>
 export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
   const can = (permission: Parameters<typeof hasPermission>[1]) =>
     hasPermission(actor.roles, permission);
-  const [products, stockSummary, requests] = await Promise.all([
+  const [products, stockSummary, requests, orders] = await Promise.all([
     can(PERMISSIONS.catalog.productsRead)
       ? settle(() => getProductCounts({}, actor), report("products"))
       : undefined,
@@ -57,6 +60,16 @@ export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
           return { open: received.total + inProgress.total, overdue: received.overdueTotal };
         }, report("requests"))
       : undefined,
+    can(PERMISSIONS.orders.read)
+      ? settle(
+          async () => ({
+            stockShort: (
+              await listOrdersForStaff({ status: "paid_stock_short", pageSize: 1 }, actor)
+            ).total,
+          }),
+          report("orders"),
+        )
+      : undefined,
   ]);
   return {
     ...(products ? { products } : {}),
@@ -70,5 +83,6 @@ export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
         }
       : {}),
     ...(requests ? { requests } : {}),
+    ...(orders ? { orders } : {}),
   };
 }
