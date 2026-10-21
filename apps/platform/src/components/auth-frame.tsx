@@ -1,6 +1,8 @@
 import { Stack } from "@igs/ui";
 import type { ReactNode } from "react";
 
+import { BrandIcon } from "./brand";
+
 interface Props {
   /** The page's only `<h1>`. */
   readonly title: string;
@@ -20,10 +22,8 @@ export function AuthFrame({ title, children }: Props) {
         <Stack gap={6}>
           <div data-testid="auth-wordmark" className="flex flex-col gap-1">
             <span className="flex items-center gap-2 font-display text-2xl font-medium text-[var(--color-primary)]">
+              <BrandIcon size={40} />
               <span>IGS-Pharma</span>
-              <svg aria-hidden="true" focusable="false" width="10" height="10" viewBox="0 0 10 10">
-                <circle cx="5" cy="5" r="5" fill="var(--color-accent)" />
-              </svg>
             </span>
             <span className="text-sm text-[var(--color-text-subtle)]">Back-office</span>
           </div>

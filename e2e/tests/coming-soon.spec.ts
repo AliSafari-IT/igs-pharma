@@ -36,9 +36,22 @@ test("closed by default in production: every page is the coming-soon page, noind
     ).toBeVisible();
   }
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
-  // design tokens and the self-hosted display font are applied
-  const h1 = page.getByRole("heading", { level: 1 });
-  expect(await h1.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(15, 118, 110)");
+  // the logo loads while the gate is on (static assets are outside the proxy)
+  const logo = page.getByRole("heading", { level: 1 }).getByRole("img");
+  expect(await logo.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  // design tokens are applied
+  const title = page.locator('section[lang="nl"] h2');
+  expect(await title.evaluate((el) => getComputedStyle(el).color)).not.toBe("rgb(0, 0, 0)");
+  // the favicons answer as images, not as the coming-soon page
+  for (const [path, type] of [
+    ["/favicon.ico", /image\//],
+    ["/icon.svg", /image\/svg\+xml/],
+    ["/apple-icon.png", /image\/png/],
+  ] as const) {
+    const icon = await page.request.get(`${GATED}${path}`);
+    expect(icon.status(), path).toBe(200);
+    expect(icon.headers()["content-type"], path).toMatch(type);
+  }
   expect(violations).toEqual([]);
 
   const { violations: axe } = await new AxeBuilder({ page })

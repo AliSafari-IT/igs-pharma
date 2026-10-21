@@ -11,6 +11,7 @@ import type { ContentLocale } from "@igs/module-catalog";
 import { hasCustomerSessionCookie } from "../lib/account-area";
 import { PREVIEW_HEADER } from "../preview";
 import { categoryTree } from "../server/storefront";
+import { BrandIcon } from "./brand";
 import { CategoryNav } from "./category-nav";
 import { SearchForm } from "./search-form";
 import { SiteFooter } from "./site-footer";
@@ -84,8 +85,9 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
         <Container className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2">
           <a
             href={`/${locale}`}
-            className="inline-flex min-h-[44px] items-center font-display text-2xl font-medium text-[var(--color-primary)]"
+            className="inline-flex min-h-[44px] items-center gap-2 font-display text-2xl font-medium text-[var(--color-primary)]"
           >
+            <BrandIcon />
             IGS-Pharma
           </a>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1">

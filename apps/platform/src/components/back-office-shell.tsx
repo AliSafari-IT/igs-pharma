@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { NavGroup } from "../lib/nav";
+import { BrandIcon } from "./brand";
 import { NavLinks } from "./nav-links";
 import { SignOutButton } from "./sign-out-button";
 
@@ -33,8 +34,9 @@ export function BackOfficeShell({ name, roleSummary, groups, children }: Props) 
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-2">
           <a
             href="/"
-            className="inline-flex min-h-[44px] items-center font-display text-xl font-medium text-[var(--color-primary)]"
+            className="inline-flex min-h-[44px] items-center gap-2 font-display text-xl font-medium text-[var(--color-primary)]"
           >
+            <BrandIcon size={32} />
             IGS-Pharma Platform
           </a>
           <div className="flex items-center gap-3">

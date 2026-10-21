@@ -151,9 +151,10 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Every path except Next.js internals and the two root files that answer for themselves: robots.txt
-  // (`src/app/robots.ts`, gate-aware) and favicon.ico. Dotted paths are NOT excluded wholesale, so a
-  // URL such as /nl/x.html still gets the security headers and the site gate. A file added to
-  // `public/` must be listed here, or the gate answers it with the coming-soon page.
-  matcher: ["/((?!_next/|_vercel/|robots\\.txt$|favicon\\.ico$).*)"],
+  // Every path except Next.js internals and the root files that answer for themselves: robots.txt
+  // (`src/app/robots.ts`, gate-aware) and the icons (favicon.ico, icon.svg, apple-icon.png).
+  // Dotted paths are NOT excluded wholesale, so a URL such as /nl/x.html still gets the security
+  // headers and the site gate. A file added to `public/` must be listed here, or the gate answers it
+  // with the coming-soon page.
+  matcher: ["/((?!_next/|_vercel/|robots\\.txt$|favicon\\.ico$|icon\\.svg$|apple-icon\\.png$).*)"],
 };
