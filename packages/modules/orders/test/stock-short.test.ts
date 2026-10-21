@@ -15,6 +15,7 @@ import { loadRbacCatalogue } from "@igs/module-identity";
 import {
   adjustStock,
   listHolderReservations,
+  receiveStock,
   registerAuditActions as registerInventoryAudit,
 } from "@igs/module-inventory";
 import { registerAuditActions as registerPricingAudit, setPrice } from "@igs/module-pricing";
@@ -117,7 +118,14 @@ async function product(medicine: boolean, stock = 10): Promise<string> {
     pharmacist,
   );
   await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
-  await adjustStock({ productId, delta: stock, reason: "adjustment", note: "seed" }, owner);
+  await receiveStock(
+    {
+      productId,
+      quantity: stock,
+      ...(medicine ? { lotNumber: "T-1", expiryDate: "2099-12-31" } : {}),
+    },
+    owner,
+  );
   await setPrice({ productId, amountCents: 1_250 }, owner);
   return productId;
 }

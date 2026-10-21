@@ -16,6 +16,15 @@ export {
   MOVEMENT_REASONS,
   type MovementReason,
   type ParsedStockCsv,
+  EXPIRY_BUFFER_DEFAULT_DAYS,
+  EXPIRY_BUFFER_MAX_DAYS,
+  EXPIRY_STATES,
+  type ExpiryState,
+  LOT_NUMBER_PATTERN,
+  LOT_TRACKING,
+  type LotTracking,
+  QUARANTINE_REASONS,
+  type QuarantineReason,
   RELEASE_REASONS,
   RESERVATION_KINDS,
   RESERVATION_STATUSES,
@@ -29,6 +38,16 @@ export {
 } from "./domain";
 export type { ImportPlan, ImportPlanRow } from "./ledger";
 export { adjustStock, importStock, prepareStockImport, stockImportKey } from "./commands";
+export {
+  type LotView,
+  assignUnknownLot,
+  getInventorySettings,
+  quarantineLot,
+  receiveStock,
+  releaseLot,
+  returnStock,
+  setExpiryBuffer,
+} from "./lots";
 export {
   confirmReservation,
   consumeReservation,

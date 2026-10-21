@@ -143,6 +143,19 @@ describe("hasPermission (code catalogue installed)", () => {
     expect(hasPermission(["customer"], PERMISSIONS.orders.manage)).toBe(false);
   });
 
+  it("lots are quarantined by pharmacists; only the titular sets the expiry buffer (#164)", () => {
+    for (const role of ["pharmacist_titular", "pharmacist"] as const) {
+      expect(hasPermission([role], PERMISSIONS.inventory.lotsQuarantine), role).toBe(true);
+    }
+    for (const role of ["owner", "pharmacy_assistant", "customer_service"] as const) {
+      expect(hasPermission([role], PERMISSIONS.inventory.lotsQuarantine), role).toBe(false);
+      expect(hasPermission([role], PERMISSIONS.inventory.settingsManage), role).toBe(false);
+    }
+    expect(
+      ROLE_KEYS.filter((r) => ROLE_PERMISSIONS[r].includes(PERMISSIONS.inventory.settingsManage)),
+    ).toEqual(["pharmacist_titular"]);
+  });
+
   it("refunds are asked by the owner and pharmacists only (#156)", () => {
     for (const role of ["owner", "pharmacist_titular", "pharmacist"] as const) {
       expect(hasPermission([role], PERMISSIONS.orders.refundRequest), role).toBe(true);

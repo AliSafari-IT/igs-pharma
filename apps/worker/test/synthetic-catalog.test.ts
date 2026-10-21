@@ -116,24 +116,31 @@ describe("seedSyntheticStock", () => {
         WHERE p.cnk = ${cnk}`
     )[0]?.on_hand;
 
-  it("stocks every seed product once, as an audited import, and leaves the other product alone", async () => {
+  it("stocks every seed product once, as audited receipts (a medicine in a lot), and leaves the other product alone", async () => {
     expect(await seedSyntheticStock()).toEqual({ stocked: PRODUCTS.length - 1, skipped: 1 });
     for (const [index] of PRODUCTS.entries()) {
       expect(await onHandOf(cnkFor(index))).toBe(index === otherActive ? 0 : demoStockFor(index));
     }
     const events = await iso.sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM audit.events
-      WHERE action = 'inventory.stock.imported' AND actor_id = ${SEED_ACTOR.id}`;
-    expect(events[0]?.n).toBe(1);
+      WHERE action = 'inventory.stock.received' AND actor_id = ${SEED_ACTOR.id}`;
+    expect(events[0]?.n).toBe(PRODUCTS.length - 1);
+    // igs-pharma#164: every demo medicine's stock is in a real lot with an expiry date
+    const untracked = await iso.sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM inventory.lots l JOIN catalog.products p ON p.id = l.product_id
+      WHERE p.product_type IN ('otc_medicine', 'rx_medicine')
+        AND (l.tracking <> 'lot' OR l.expiry_date IS NULL)`;
+    expect(untracked[0]?.n).toBe(0);
   });
 
   it("changes nothing on a second run, even after stock moved", async () => {
     await iso.sql`
       INSERT INTO inventory.stock_movements
-        (id, product_id, location_id, delta, reason, note, actor_type, actor_id)
-      SELECT gen_random_uuid(), id, '0192f000-0000-7000-8000-000000000001', 5, 'correction',
+        (id, product_id, location_id, lot_id, delta, reason, note, actor_type, actor_id)
+      SELECT gen_random_uuid(), p.id, '0192f000-0000-7000-8000-000000000001',
+        (SELECT l.id FROM inventory.lots l WHERE l.product_id = p.id LIMIT 1), 5, 'correction',
         'counted again', 'user', 'someone'
-      FROM catalog.products WHERE cnk = ${cnkFor(0)}`;
+      FROM catalog.products p WHERE p.cnk = ${cnkFor(0)}`;
     expect(await seedSyntheticStock()).toEqual({ stocked: 0, skipped: PRODUCTS.length });
     expect(await onHandOf(cnkFor(0))).toBe(demoStockFor(0) + 5);
   });

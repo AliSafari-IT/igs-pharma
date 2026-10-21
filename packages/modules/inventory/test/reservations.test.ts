@@ -83,9 +83,9 @@ async function product(): Promise<string> {
   const { productId } = await createProductRegulated(
     {
       cnk,
-      productType: "otc_medicine",
-      legalStatus: "otc",
-      vatClass: "BE_6",
+      productType: "medical_device",
+      legalStatus: "general_sale",
+      vatClass: "BE_21",
       approveContent: true, // a medicine is storefront-visible only with pharmacist-approved text (#103)
       content: [
         { locale: "nl", name: `Demo ${cnk}` },
@@ -239,8 +239,10 @@ describe("reserveStock", () => {
     // an uncommitted movement of -3 (its trigger holds the stock-level row lock)
     const open = iso.sql.begin(async (sql) => {
       await sql`
-        INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
-        VALUES (gen_random_uuid(), ${productId}, '0192f000-0000-7000-8000-000000000001', -3, 'adjustment', 'system', 'raw')`;
+        INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+        VALUES (gen_random_uuid(), ${productId}, '0192f000-0000-7000-8000-000000000001',
+          (SELECT id FROM inventory.lots WHERE product_id = ${productId} AND tracking = 'no_lot'),
+          -3, 'adjustment', 'system', 'raw')`;
       inserted();
       await gate;
     });

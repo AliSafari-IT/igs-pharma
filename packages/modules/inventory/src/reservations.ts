@@ -18,7 +18,15 @@ import {
   type ReleaseReason,
   type ReservationKind,
 } from "./domain";
-import { lockStock, recordMovements, reservedQuantities } from "./ledger";
+import {
+  levelOf,
+  lockStock,
+  recordMovements,
+  reservedQuantities,
+  sellableOnHand,
+  stockLevels,
+} from "./ledger";
+import { takeFefo } from "./lots";
 import { reservations } from "./schema";
 
 /**
@@ -141,7 +149,7 @@ export const reserveStock = command({
     const [product] = await productRefsById(ctx.tx, [input.productId]);
     if (!product) throw notFound("inventory.product_not_found");
     // the lock FIRST, then what is available
-    const onHand = await lockLevel(ctx, product.id);
+    await lockLevel(ctx, product.id);
 
     const [existing] = await ctx.tx
       .select()
@@ -177,7 +185,9 @@ export const reserveStock = command({
     }
 
     const reserved = (await reservedQuantities(ctx.tx, [product.id], ctx.now)).get(product.id);
-    const available = onHand - (reserved?.held ?? 0) - (reserved?.ordered ?? 0);
+    // only sellable lots count (igs-pharma#164): not quarantined, not unknown, not near expiry
+    const sellable = (await sellableOnHand(ctx.tx, [product.id], ctx.now)).get(product.id) ?? 0;
+    const available = sellable - (reserved?.held ?? 0) - (reserved?.ordered ?? 0);
     if (available < input.quantity) {
       throw conflict("inventory.insufficient_stock", { available: Math.max(0, available) });
     }
@@ -410,17 +420,34 @@ export const consumeReservation = command({
     if (active.some((row) => row.kind !== "order")) {
       throw conflict("inventory.reservation_not_confirmed");
     }
-    const movements = await recordMovements(
-      ctx.tx,
-      ctx,
-      active.map((row) => ({
-        productId: row.productId,
-        delta: -row.quantity,
-        reason: "sale" as const,
-      })),
-    );
-    // paired by product (one active reservation per product and holder), never by position
-    const byProduct = new Map(movements.map((movement) => [movement.productId, movement.id]));
+    // igs-pharma#164: each line leaves the shelf from its sellable lots, earliest expiry first; a
+    // line whose sellable lots hold less is refused (never picked from a quarantined, unknown or
+    // near-expiry lot): `inventory.negative_stock` when the shelf itself holds less,
+    // `inventory.stock_not_sellable` when the rest is not sellable
+    const entries = [];
+    for (const row of active) {
+      const taken = await takeFefo(ctx.tx, row.productId, row.quantity, ctx.now);
+      if (!taken) {
+        const { onHand } = levelOf(await stockLevels(ctx.tx, [row.productId]), row.productId);
+        throw conflict(
+          onHand < row.quantity ? "inventory.negative_stock" : "inventory.stock_not_sellable",
+        );
+      }
+      for (const lot of taken) {
+        entries.push({
+          productId: row.productId,
+          lotId: lot.lotId,
+          delta: -lot.quantity,
+          reason: "sale" as const,
+        });
+      }
+    }
+    const movements = await recordMovements(ctx.tx, ctx, entries);
+    // the first movement of each product (one active reservation per product and holder)
+    const byProduct = new Map<string, string>();
+    for (const movement of movements) {
+      if (!byProduct.has(movement.productId)) byProduct.set(movement.productId, movement.id);
+    }
     await ctx.tx
       .update(reservations)
       .set({ status: "consumed", ...by(ctx) })

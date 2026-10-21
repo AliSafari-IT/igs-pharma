@@ -133,8 +133,14 @@ test("owner: upload, preview, confirm, then see on-hand and history", async ({ p
 
   await expect(page.getByRole("heading", { name: nameNl, level: 1 })).toBeVisible();
   await expect(page.getByTestId("on-hand")).toHaveText("12");
-  await expect(page.locator("tbody tr")).toHaveCount(1);
-  await expect(page.locator("tbody tr").first()).toContainText("Stock count (CSV)");
+  const movements = page.getByRole("region", { name: "Movements" }).locator("tbody tr");
+  await expect(movements).toHaveCount(1);
+  await expect(movements.first()).toContainText("Stock count (CSV)");
+  // igs-pharma#164: the count went into the product's untracked lot, which is sellable
+  const lots = page.getByRole("region", { name: "Lots" }).locator("tbody tr");
+  await expect(lots).toHaveCount(1);
+  await expect(lots.first()).toContainText("No lot");
+  await expect(lots.first()).toContainText("Sellable");
   await expect(page.getByTestId("reservations-empty")).toHaveText("Nothing is set aside");
   await expect(page.getByRole("region", { name: "Movements" }).getByRole("table")).toBeVisible();
   await expectAxeClean(page);
@@ -150,7 +156,20 @@ test("owner: upload, preview, confirm, then see on-hand and history", async ({ p
   await dialog.getByRole("button", { name: "Save change" }).click();
   await expect(page.getByText("On hand is now 10.")).toBeVisible();
   await expect(page.getByTestId("on-hand")).toHaveText("10");
-  await expect(page.locator("tbody tr").first()).toContainText("Broken boxes");
+  await expect(movements.first()).toContainText("Broken boxes");
+
+  // a receipt into a lot of its own (igs-pharma#164)
+  await page.getByRole("button", { name: "Receive stock" }).click();
+  const receive = page.getByRole("dialog", { name: "Receive stock" });
+  await receive.getByLabel("Quantity").fill("3");
+  await receive.getByLabel("Lot number (optional)").fill("E2E-1");
+  await receive.getByLabel("Expiry date (optional)").fill("2099-12-31");
+  await expectAxeClean(page);
+  await receive.getByRole("button", { name: "Receive" }).click();
+  await expect(page.getByText("The stock was received into its lot.")).toBeVisible();
+  await expect(page.getByTestId("on-hand")).toHaveText("13");
+  await expect(lots).toHaveCount(2);
+  await expect(page.getByRole("region", { name: "Lots" })).toContainText("E2E-1");
 
   const [audit] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM audit.events

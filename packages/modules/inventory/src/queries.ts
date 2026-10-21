@@ -19,7 +19,9 @@ import {
   type ReservationStatus,
   availabilityOf,
 } from "./domain";
-import { availabilityFor, levelOf, stockLevels } from "./ledger";
+import { addDays } from "./domain";
+import { availabilityFor, brusselsToday, expiryBufferDays, levelOf, stockLevels } from "./ledger";
+import { type LotView, isFlagged, lotsOf } from "./lots";
 import { reservations, stockMovements } from "./schema";
 
 /** Inventory queries for the back-office (igs-pharma#53). */
@@ -36,6 +38,10 @@ export interface StockListItem {
   readonly available: number;
   /** How many units the pharmacy is short for its orders (the shelf holds less than the orders reserved). */
   readonly short: number;
+  /** On hand in sellable lots (igs-pharma#164). */
+  readonly sellable: number;
+  /** Lots with stock that may not be sold: quarantined, unknown, near or past expiry. */
+  readonly flaggedLots: number;
 }
 
 export interface StockPage {
@@ -63,6 +69,10 @@ export const listStock = query({
     const ids = items.map((ref) => ref.id);
     const levels = await stockLevels(ctx.tx, ids);
     const availability = await availabilityFor(ctx.tx, ids, ctx.now);
+    const flagged = new Map<string, number>();
+    for (const lot of await lotsOf(ctx.tx, ids, ctx.now)) {
+      if (isFlagged(lot)) flagged.set(lot.productId, (flagged.get(lot.productId) ?? 0) + 1);
+    }
     return {
       items: items.map((ref) => {
         const a = availability.get(ref.id);
@@ -74,6 +84,8 @@ export const listStock = query({
           reserved: (a?.held ?? 0) + (a?.ordered ?? 0),
           available: a?.available ?? 0,
           short: a?.short ?? 0,
+          sellable: a?.sellable ?? 0,
+          flaggedLots: flagged.get(ref.id) ?? 0,
         };
       }),
       total,
@@ -85,6 +97,7 @@ export const listStock = query({
 
 export interface StockMovementView {
   readonly id: string;
+  readonly lotId: string;
   readonly delta: number;
   readonly reason: MovementReason;
   readonly note: string | null;
@@ -115,6 +128,12 @@ export interface ProductStock extends Availability {
   readonly reservations: readonly ReservationView[];
   /** The latest movements, newest first (at most `MOVEMENT_HISTORY_LIMIT`). */
   readonly movements: readonly StockMovementView[];
+  /** The product's lots, earliest expiry first (igs-pharma#164). */
+  readonly lots: readonly LotView[];
+  /** The shop-wide expiry buffer the lots' states are measured with. */
+  readonly expiryBufferDays: number;
+  /** Whether the product is a medicine (its stock is always in a real lot). */
+  readonly isMedicine: boolean;
 }
 
 export const MOVEMENT_HISTORY_LIMIT = 200;
@@ -132,6 +151,7 @@ export const getStock = query({
     const movements = await ctx.tx
       .select({
         id: stockMovements.id,
+        lotId: stockMovements.lotId,
         delta: stockMovements.delta,
         reason: stockMovements.reason,
         note: stockMovements.note,
@@ -174,7 +194,7 @@ export const getStock = query({
       cnk: ref.cnk,
       nameNl: ref.nameNl,
       lastMovementAt: levelOf(levels, ref.id).lastMovementAt,
-      ...(availability ?? availabilityOf(0, 0, 0)),
+      ...(availability ?? availabilityOf(0, 0, 0, 0)),
       // a hold the expiry job has not marked yet is already over: the page does not list it
       reservations: active
         .filter(
@@ -182,6 +202,9 @@ export const getStock = query({
         )
         .map((r) => ({ ...r, kind: r.kind as ReservationKind })),
       movements: movements.map((m) => ({ ...m, reason: m.reason as MovementReason })),
+      lots: await lotsOf(ctx.tx, [ref.id], ctx.now),
+      expiryBufferDays: await expiryBufferDays(ctx.tx),
+      isMedicine: ref.isMedicine,
     };
   },
 });
@@ -241,13 +264,15 @@ export interface StockSummary {
    * (`availabilityOf().short > 0`, the stock list's "Short by" badge, igs-pharma#112).
    */
   readonly short: number;
+  /** Lots with stock that may not be sold (quarantined, unknown, near or past expiry), igs-pharma#164. */
+  readonly flaggedLots: number;
 }
 
 /**
  * The dashboard's stock numbers (igs-pharma#115) in one statement instead of a scan of every page of
  * `listStock`. It counts over exactly the products `listStock` lists (every catalog product) with
- * exactly its definitions: on hand is the sum of the movements at the default location
- * (`stockLevels`), what is set aside is the active orders plus the holds with `now < expires_at`
+ * exactly its definitions: on hand is the stock in SELLABLE lots at the default location
+ * (igs-pharma#164, as `sellableOnHand`), what is set aside is the active orders plus the holds with `now < expires_at`
  * (`reservedQuantities`), and available is `max(0, on hand − held − ordered)` (`availabilityOf`).
  * A product without movements has 0 on hand, so it counts as out. `activeReservations` counts the
  * reservations `getStock` shows: active, and for a hold not yet lapsed. `short` counts the products
@@ -259,24 +284,38 @@ export const getStockSummary = query({
   permission: PERMISSIONS.inventory.stockRead,
   async handler({ ctx }): Promise<StockSummary> {
     const ids = await allProductIds(ctx.tx);
-    if (ids.length === 0) return { low: 0, out: 0, activeReservations: 0, short: 0 };
+    if (ids.length === 0) {
+      return { low: 0, out: 0, activeReservations: 0, short: 0, flaggedLots: 0 };
+    }
     const now = ctx.now.toISOString();
+    // sellable: not quarantined, not unknown, expiry (when set) after today + the buffer (#164)
+    const sellableAfter = addDays(brusselsToday(ctx.now), await expiryBufferDays(ctx.tx));
     const rows = Array.from(
       await ctx.tx.execute<{
         low: number;
         out: number;
         active_reservations: number;
         short: number;
+        flagged_lots: number;
       }>(sql`
         WITH listed AS (
           SELECT DISTINCT value::uuid AS product_id
           FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)
         ),
+        lot_state AS (
+          SELECT
+            l.product_id,
+            coalesce(ll.on_hand, 0) AS on_hand,
+            (l.quarantined_at IS NULL AND l.tracking <> 'unknown'
+              AND (l.expiry_date IS NULL OR l.expiry_date > ${sellableAfter}::date)) AS sellable
+          FROM inventory.lots l
+          LEFT JOIN inventory.lot_levels ll ON ll.lot_id = l.id
+          WHERE l.location_id = ${DEFAULT_LOCATION_ID}::uuid
+            AND l.product_id IN (SELECT product_id FROM listed)
+        ),
         on_hand AS (
-          SELECT product_id, coalesce(sum(delta), 0)::int AS on_hand
-          FROM inventory.stock_movements
-          WHERE location_id = ${DEFAULT_LOCATION_ID}::uuid
-            AND product_id IN (SELECT product_id FROM listed)
+          SELECT product_id, coalesce(sum(on_hand) FILTER (WHERE sellable), 0)::int AS on_hand
+          FROM lot_state
           GROUP BY product_id
         ),
         reserved AS (
@@ -308,7 +347,8 @@ export const getStockSummary = query({
           (count(*) FILTER (WHERE available BETWEEN 1 AND ${DEFAULT_LOW_STOCK}::int))::int AS low,
           (count(*) FILTER (WHERE available <= 0))::int AS "out",
           coalesce(sum(live), 0)::int AS active_reservations,
-          (count(*) FILTER (WHERE is_short))::int AS "short"
+          (count(*) FILTER (WHERE is_short))::int AS "short",
+          (SELECT count(*) FROM lot_state WHERE on_hand > 0 AND NOT sellable)::int AS flagged_lots
         FROM availability`),
     );
     const row = rows[0];
@@ -317,6 +357,7 @@ export const getStockSummary = query({
       out: Number(row?.out ?? 0),
       activeReservations: Number(row?.active_reservations ?? 0),
       short: Number(row?.short ?? 0),
+      flaggedLots: Number(row?.flagged_lots ?? 0),
     };
   },
 });

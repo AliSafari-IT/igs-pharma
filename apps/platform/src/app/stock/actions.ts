@@ -4,9 +4,15 @@ import { isDomainError } from "@igs/kernel";
 import {
   MAX_IMPORT_CHARS,
   adjustStock,
+  assignUnknownLot,
   importStock,
   prepareStockImport,
+  quarantineLot,
+  receiveStock,
+  releaseLot,
   releaseReservationByStaff,
+  returnStock,
+  setExpiryBuffer,
   stockImportKey,
 } from "@igs/module-inventory";
 import { revalidatePath } from "next/cache";
@@ -112,6 +118,7 @@ export async function adjust(_previous: AdjustState, form: FormData): Promise<Ad
   const productId = text(form, "productId");
   const deltaText = text(form, "delta").trim();
   const values = {
+    lotId: text(form, "lotId"),
     delta: deltaText,
     reason: text(form, "reason"),
     note: text(form, "note"),
@@ -120,6 +127,7 @@ export async function adjust(_previous: AdjustState, form: FormData): Promise<Ad
     await adjustStock(
       {
         productId,
+        ...(values.lotId ? { lotId: values.lotId } : {}),
         delta: /^[+-]?[0-9]+$/.test(deltaText) ? Number(deltaText) : Number.NaN,
         reason: values.reason,
         note: values.note,
@@ -165,4 +173,138 @@ export async function release(_previous: ReleaseState, form: FormData): Promise<
   }
   revalidatePath("/stock");
   redirect(`/stock/${encodeURIComponent(productId)}?released=1`);
+}
+
+// ── lots (igs-pharma#164) ────────────────────────────────────────────────────────────────────────
+
+/** A lot dialog or button on a product's stock page. */
+export interface LotActionState {
+  readonly error?: string;
+  readonly values?: Readonly<Record<string, string>>;
+}
+
+const wholeNumber = (value: string) => (/^[0-9]+$/.test(value.trim()) ? Number(value) : Number.NaN);
+const optional = (value: string) => (value.trim() ? value.trim() : undefined);
+
+/** Runs a lot command; on success back to the product's page with `done`, else the refusal. */
+async function lotAction(
+  form: FormData,
+  done: string,
+  run: (
+    actor: Awaited<ReturnType<typeof requireStaffActor>>,
+    origin: Awaited<ReturnType<typeof requestOrigin>>,
+  ) => Promise<unknown>,
+): Promise<LotActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const productId = text(form, "productId");
+  try {
+    await run(actor, await requestOrigin());
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return {
+      error: error.code,
+      values: Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)])),
+    };
+  }
+  revalidatePath("/stock");
+  redirect(`/stock/${encodeURIComponent(productId)}?done=${done}`);
+}
+
+/** Receive stock from the pharmacy into the web pool, into its lot. */
+export async function receive(_previous: LotActionState, form: FormData): Promise<LotActionState> {
+  return lotAction(form, "received", (actor, origin) => {
+    const lotNumber = optional(text(form, "lotNumber"));
+    const expiryDate = optional(text(form, "expiryDate"));
+    const note = optional(text(form, "note"));
+    return receiveStock(
+      {
+        productId: text(form, "productId"),
+        quantity: wholeNumber(text(form, "quantity")),
+        ...(lotNumber ? { lotNumber } : {}),
+        ...(expiryDate ? { expiryDate } : {}),
+        ...(note ? { note } : {}),
+      },
+      actor,
+      { origin },
+    );
+  });
+}
+
+/** Give stock of one lot back to the pharmacy. */
+export async function returnLot(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  return lotAction(form, "returned", (actor, origin) => {
+    const note = optional(text(form, "note"));
+    return returnStock(
+      {
+        lotId: text(form, "lotId"),
+        quantity: wholeNumber(text(form, "quantity")),
+        ...(note ? { note } : {}),
+      },
+      actor,
+      { origin },
+    );
+  });
+}
+
+/** Record the lot of stock from before lots. */
+export async function assignLot(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  return lotAction(form, "assigned", (actor, origin) => {
+    const expiryDate = optional(text(form, "expiryDate"));
+    return assignUnknownLot(
+      {
+        productId: text(form, "productId"),
+        quantity: wholeNumber(text(form, "quantity")),
+        lotNumber: text(form, "lotNumber").trim(),
+        ...(expiryDate ? { expiryDate } : {}),
+      },
+      actor,
+      { origin },
+    );
+  });
+}
+
+/** Take a lot out of sale (pharmacist). */
+export async function quarantine(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  return lotAction(form, "quarantined", (actor, origin) =>
+    quarantineLot({ lotId: text(form, "lotId"), reason: text(form, "reason") }, actor, { origin }),
+  );
+}
+
+/** Put a quarantined lot back on sale (pharmacist). */
+export async function releaseFromQuarantine(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  return lotAction(form, "released_lot", (actor, origin) =>
+    releaseLot({ lotId: text(form, "lotId") }, actor, { origin }),
+  );
+}
+
+/** The expiry buffer (titular), from the stock list. */
+export async function expiryBuffer(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  try {
+    await setExpiryBuffer({ days: wholeNumber(text(form, "days")) }, actor, {
+      origin: await requestOrigin(),
+    });
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code, values: { days: text(form, "days") } };
+  }
+  revalidatePath("/stock");
+  redirect("/stock?buffer=1");
 }

@@ -11,7 +11,10 @@ import {
   setProductStatusRegulated,
 } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
-import { adjustStock, registerAuditActions as registerInventoryAudit } from "@igs/module-inventory";
+import {
+  receiveStock,
+  registerAuditActions as registerInventoryAudit,
+} from "@igs/module-inventory";
 import { registerAuditActions as registerPricingAudit, setPrice } from "@igs/module-pricing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -106,7 +109,14 @@ async function product(medicine: boolean): Promise<string> {
     pharmacist,
   );
   await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
-  await adjustStock({ productId, delta: 10, reason: "adjustment", note: "seed" }, owner);
+  await receiveStock(
+    {
+      productId,
+      quantity: 10,
+      ...(medicine ? { lotNumber: "T-1", expiryDate: "2099-12-31" } : {}),
+    },
+    owner,
+  );
   await setPrice({ productId, amountCents: 1_000 }, owner);
   return productId;
 }

@@ -2,13 +2,14 @@ import { newId } from "@igs/db/ids";
 import { command, conflict, notFound, validationFailed } from "@igs/kernel";
 import { productRefsById } from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { INVENTORY_AUDIT } from "./audit";
 import { ADJUST_REASONS, IMPORT_PLAN_TTL_MS, MAX_IMPORT_CHARS } from "./domain";
 import { levelOf, lockStock, planImport, recordMovements, stockLevels } from "./ledger";
-import { importPlans } from "./schema";
+import { noLotOf } from "./lots";
+import { importPlans, lotLevels, lots } from "./schema";
 
 /**
  * Inventory commands (igs-pharma#53). Every one runs through the kernel: authorize → validate → one
@@ -108,16 +109,17 @@ export const importStock = command({
     ).length;
     if (changedRows > 0) throw conflict("inventory.import_stale", { changedRows });
     const changes = plan.rows.filter((row) => row.target !== row.expectedOnHand);
-    await recordMovements(
-      ctx.tx,
-      ctx,
-      changes.map((row) => ({
+    // a planned product has all its stock in its `no_lot` lot (`planImport` refuses the others)
+    const entries = [];
+    for (const row of changes) {
+      entries.push({
         productId: row.productId,
+        lotId: await noLotOf(ctx, row.productId),
         delta: row.target - row.expectedOnHand,
         reason: "import" as const,
-      })),
-      { importId: plan.id },
-    );
+      });
+    }
+    await recordMovements(ctx.tx, ctx, entries, { importId: plan.id });
     await ctx.audit.record({
       action: INVENTORY_AUDIT.stockImported,
       entityType: "stock_import",
@@ -129,13 +131,15 @@ export const importStock = command({
 });
 
 /**
- * Moves one product's stock by `delta` with a reason and a note. Refuses to take stock below zero
- * (`inventory.negative_stock`, with the current on-hand).
+ * Moves one lot's stock by `delta` with a reason and a note. Without `lotId`, a non-medicine's
+ * `no_lot` lot; a medicine always names its lot (`inventory.lot_required`). Refuses to take the lot
+ * below zero (`inventory.negative_stock`, with the lot's current on-hand).
  */
 export const adjustStock = command({
   name: "inventory.stock.adjust",
   input: z.object({
     productId: z.uuid(),
+    lotId: z.uuid().optional(),
     delta: z
       .number()
       .int()
@@ -145,16 +149,41 @@ export const adjustStock = command({
     reason: z.enum(ADJUST_REASONS),
     note: z.string().trim().min(1).max(200),
   }),
-  output: z.object({ movementId: z.uuid(), onHand: z.number().int() }),
+  output: z.object({
+    movementId: z.uuid(),
+    lotId: z.uuid(),
+    onHand: z.number().int(),
+    lotOnHand: z.number().int(),
+  }),
   permission: PERMISSIONS.inventory.stockManage,
   async handler({ input, ctx }) {
     const [product] = await productRefsById(ctx.tx, [input.productId]);
     if (!product) throw notFound("inventory.product_not_found");
     await lockStock(ctx.tx);
+    let lotId: string;
+    if (input.lotId) {
+      const [lot] = await ctx.tx
+        .select({ id: lots.id })
+        .from(lots)
+        .where(and(eq(lots.id, input.lotId), eq(lots.productId, product.id)));
+      if (!lot) throw notFound("inventory.lot_not_found");
+      lotId = lot.id;
+    } else if (product.isMedicine) {
+      throw validationFailed("inventory.lot_required", [{ path: "lotId", code: "required" }]);
+    } else {
+      lotId = await noLotOf(ctx, product.id);
+    }
+    const [level] = await ctx.tx
+      .select({ onHand: lotLevels.onHand })
+      .from(lotLevels)
+      .where(eq(lotLevels.lotId, lotId));
+    const lotOnHand = level?.onHand ?? 0;
+    if (lotOnHand + input.delta < 0) {
+      throw conflict("inventory.negative_stock", { onHand: lotOnHand });
+    }
     const { onHand } = levelOf(await stockLevels(ctx.tx, [product.id]), product.id);
-    if (onHand + input.delta < 0) throw conflict("inventory.negative_stock", { onHand });
     const [movement] = await recordMovements(ctx.tx, ctx, [
-      { productId: product.id, delta: input.delta, reason: input.reason, note: input.note },
+      { productId: product.id, lotId, delta: input.delta, reason: input.reason, note: input.note },
     ]);
     const movementId = movement?.id ?? "";
     await ctx.audit.record({
@@ -164,10 +193,16 @@ export const adjustStock = command({
       data: {
         movementId,
         productId: product.id,
+        lotId,
         delta: input.delta,
         reason: input.reason,
       },
     });
-    return { movementId, onHand: onHand + input.delta };
+    return {
+      movementId,
+      lotId,
+      onHand: onHand + input.delta,
+      lotOnHand: lotOnHand + input.delta,
+    };
   },
 });

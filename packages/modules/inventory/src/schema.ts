@@ -2,11 +2,13 @@ import { newId } from "@igs/db/ids";
 import { sql } from "drizzle-orm";
 import {
   check,
+  date,
   index,
   integer,
   jsonb,
   pgSchema,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -14,10 +16,15 @@ import {
 } from "drizzle-orm/pg-core";
 
 import {
+  EXPIRY_BUFFER_DEFAULT_DAYS,
+  EXPIRY_BUFFER_MAX_DAYS,
   HOLDER_REF_PATTERN,
   LOCATION_KINDS,
+  LOT_NUMBER_MAX,
+  LOT_TRACKING,
   MAX_QUANTITY,
   MOVEMENT_REASONS,
+  QUARANTINE_REASONS,
   RELEASE_REASONS,
   RESERVATION_KINDS,
   RESERVATION_STATUSES,
@@ -50,6 +57,96 @@ export const locations = inventory.table(
   () => [check("locations_kind_check", oneOf("kind", LOCATION_KINDS))],
 );
 
+/**
+ * A lot of one product at one location (igs-pharma#164, ADR 0011): every unit of stock belongs to
+ * one. `lot` has a lot number (and, for a medicine, an expiry date: the receipt command checks it);
+ * `no_lot` is a non-medicine received without one; `unknown` holds stock from before lots and is
+ * never sellable. Only the quarantine columns ever change (a trigger refuses the rest and DELETE).
+ */
+export const lots = inventory.table(
+  "lots",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    productId: uuid("product_id").notNull(),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id, { onDelete: "restrict" }),
+    tracking: text("tracking").notNull(),
+    lotNumber: text("lot_number"),
+    expiryDate: date("expiry_date", { mode: "string" }),
+    quarantinedAt: timestamp("quarantined_at", { withTimezone: true }),
+    quarantineReason: text("quarantine_reason"),
+    quarantinedByType: text("quarantined_by_type"),
+    quarantinedById: text("quarantined_by_id"),
+    createdByType: text("created_by_type").notNull(),
+    createdById: text("created_by_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("lots_tracking_check", oneOf("tracking", LOT_TRACKING)),
+    check(
+      "lots_lot_number_check",
+      sql`(${t.tracking} = 'lot') = (${t.lotNumber} IS NOT NULL) AND (${t.lotNumber} IS NULL OR char_length(${t.lotNumber}) BETWEEN 1 AND ${sql.raw(String(LOT_NUMBER_MAX))})`,
+    ),
+    check("lots_expiry_check", sql`${t.tracking} = 'lot' OR ${t.expiryDate} IS NULL`),
+    check(
+      "lots_quarantine_check",
+      sql`(${t.quarantinedAt} IS NULL) = (${t.quarantineReason} IS NULL) AND (${t.quarantinedAt} IS NULL) = (${t.quarantinedById} IS NULL) AND (${t.quarantinedAt} IS NULL) = (${t.quarantinedByType} IS NULL)`,
+    ),
+    check(
+      "lots_quarantine_reason_check",
+      sql`${t.quarantineReason} IS NULL OR ${oneOf("quarantine_reason", QUARANTINE_REASONS)}`,
+    ),
+    // one lot per number and expiry date; a lot without an expiry date counts as one value too
+    uniqueIndex("lots_lot_number_expiry_idx")
+      .on(t.productId, t.locationId, t.lotNumber, t.expiryDate)
+      .where(sql`${t.tracking} = 'lot' AND ${t.expiryDate} IS NOT NULL`),
+    uniqueIndex("lots_lot_number_no_expiry_idx")
+      .on(t.productId, t.locationId, t.lotNumber)
+      .where(sql`${t.tracking} = 'lot' AND ${t.expiryDate} IS NULL`),
+    uniqueIndex("lots_untracked_idx")
+      .on(t.productId, t.locationId, t.tracking)
+      .where(sql`${t.tracking} <> 'lot'`),
+    index("lots_product_location_idx").on(t.productId, t.locationId),
+  ],
+);
+
+/**
+ * On-hand per lot, maintained BY THE DATABASE from the movements (the same trigger as
+ * `stock_levels`); `on_hand >= 0` refuses a movement that would take a lot below zero.
+ */
+export const lotLevels = inventory.table(
+  "lot_levels",
+  {
+    lotId: uuid("lot_id")
+      .primaryKey()
+      .references(() => lots.id, { onDelete: "restrict" }),
+    onHand: integer("on_hand").notNull(),
+  },
+  (t) => [check("lot_levels_on_hand_check", sql`${t.onHand} >= 0`)],
+);
+
+/** The shop-wide inventory settings: one row (ADR 0011: the expiry buffer, set by the titular). */
+export const settings = inventory.table(
+  "settings",
+  {
+    id: smallint("id").primaryKey().default(1),
+    expiryBufferDays: integer("expiry_buffer_days").notNull().default(EXPIRY_BUFFER_DEFAULT_DAYS),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedByType: text("updated_by_type"),
+    updatedById: text("updated_by_id"),
+  },
+  (t) => [
+    check("settings_single_row_check", sql`${t.id} = 1`),
+    check(
+      "settings_expiry_buffer_check",
+      sql`${t.expiryBufferDays} BETWEEN 0 AND ${sql.raw(String(EXPIRY_BUFFER_MAX_DAYS))}`,
+    ),
+  ],
+);
+
 export const stockMovements = inventory.table(
   "stock_movements",
   {
@@ -60,6 +157,10 @@ export const stockMovements = inventory.table(
     locationId: uuid("location_id")
       .notNull()
       .references(() => locations.id, { onDelete: "restrict" }),
+    /** The lot the units moved in or out of (igs-pharma#164). */
+    lotId: uuid("lot_id")
+      .notNull()
+      .references(() => lots.id, { onDelete: "restrict" }),
     delta: integer("delta").notNull(),
     reason: text("reason").notNull(),
     /** Free text written by staff for an adjustment; never copied into the audit trail. */
@@ -75,6 +176,7 @@ export const stockMovements = inventory.table(
     check("stock_movements_reason_check", oneOf("reason", MOVEMENT_REASONS)),
     index("stock_movements_product_location_at_idx").on(t.productId, t.locationId, t.at),
     index("stock_movements_import_id_idx").on(t.importId),
+    index("stock_movements_lot_idx").on(t.lotId),
   ],
 );
 

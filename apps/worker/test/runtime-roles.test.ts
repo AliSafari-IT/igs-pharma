@@ -46,8 +46,11 @@ import {
   consumeReservation,
   getStock,
   getStockSummary,
+  quarantineLot,
+  receiveStock,
   registerAuditActions as registerInventoryAudit,
   registerInventoryJobs,
+  releaseLot,
   reserveStock,
   storefrontAvailability,
 } from "@igs/module-inventory";
@@ -219,7 +222,14 @@ describe("the application as igs_app", () => {
     await setProductCategories({ productId, categoryIds: [categoryId] }, owner);
     await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
     await setPrice({ productId, amountCents: 599, reason: "launch" }, owner);
-    await adjustStock({ productId, delta: 5, reason: "adjustment", note: "found" }, owner);
+    // a medicine's stock enters in a lot (igs-pharma#164): lots and lot levels as the runtime role
+    const { lotId } = await receiveStock(
+      { productId, quantity: 6, lotNumber: "RT-1", expiryDate: "2099-12-31" },
+      owner,
+    );
+    await adjustStock({ productId, lotId, delta: -1, reason: "adjustment", note: "broken" }, owner);
+    await quarantineLot({ lotId, reason: "quality" }, pharmacist);
+    await releaseLot({ lotId }, pharmacist);
     // reservations as the runtime role: the stock-level lock function, the lifecycle triggers, and a
     // consume writing its sale movement (igs-pharma#99)
     const holderRef = "order:00000000-0000-7000-8000-000000000001";

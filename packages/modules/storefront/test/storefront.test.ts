@@ -21,7 +21,11 @@ import {
   updateProductRegulated,
 } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
-import { adjustStock, registerAuditActions as registerInventoryAudit } from "@igs/module-inventory";
+import {
+  adjustStock,
+  receiveStock,
+  registerAuditActions as registerInventoryAudit,
+} from "@igs/module-inventory";
 import { registerAuditActions as registerPricingAudit, setPrice } from "@igs/module-pricing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -149,7 +153,14 @@ async function make(spec: Spec): Promise<Made> {
   if (cents !== null) await setPrice({ productId: id, amountCents: cents }, owner);
   const stock = spec.stock ?? 10;
   if (stock > 0) {
-    await adjustStock({ productId: id, delta: stock, reason: "adjustment", note: "test" }, owner);
+    await receiveStock(
+      {
+        productId: id,
+        quantity: stock,
+        ...(spec.medicine ? { lotNumber: "T-1", expiryDate: "2099-12-31" } : {}),
+      },
+      owner,
+    );
   }
   if (spec.createdAt) {
     await iso.sql`UPDATE catalog.products SET created_at = ${spec.createdAt.toISOString()}::timestamptz WHERE id = ${id}`;

@@ -87,10 +87,15 @@ beforeAll(async () => {
     INSERT INTO pricing.prices (id, product_id, channel, amount_cents, valid_from, created_by_type, created_by)
     SELECT gen_random_uuid(), p.id, 'web', 100 + (p.cnk::int % 90) * 25, now() - interval '1 day', 'system', 'budget'
     FROM catalog.products p WHERE p.cnk::int % 17 <> 0`;
+  // every unit of stock is in a lot (igs-pharma#164): one untracked lot per stocked product
   await iso.sql`
-    INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
-    SELECT gen_random_uuid(), p.id, '0192f000-0000-7000-8000-000000000001', (p.cnk::int % 13) + 1, 'adjustment', 'system', 'budget'
+    INSERT INTO inventory.lots (id, product_id, location_id, tracking, created_by_type, created_by_id)
+    SELECT gen_random_uuid(), p.id, '0192f000-0000-7000-8000-000000000001', 'no_lot', 'system', 'budget'
     FROM catalog.products p WHERE p.cnk::int % 5 <> 0`;
+  await iso.sql`
+    INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+    SELECT gen_random_uuid(), l.product_id, l.location_id, l.id, (p.cnk::int % 13) + 1, 'adjustment', 'system', 'budget'
+    FROM inventory.lots l JOIN catalog.products p ON p.id = l.product_id`;
   await iso.sql`ANALYZE`;
 }, 300_000);
 afterAll(async () => {

@@ -435,6 +435,27 @@
       "when": 1792595743711,
       "tag": "0061_orders_mails_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1792599460657,
+      "tag": "0062_inventory_lots",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1792599509118,
+      "tag": "0063_inventory_lots_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1792599537051,
+      "tag": "0064_rbac_seed_lots",
+      "breakpoints": true
     }
   ]
 }
