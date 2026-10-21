@@ -151,7 +151,7 @@ export const ROLES = {
   system_seed: {
     kind: "system",
     description:
-      "Synthetic seed CLI: loads fake catalogue, stock, price and privacy data (staging and development only)",
+      "Synthetic seed CLI: loads fake catalogue, stock, price, privacy and order data (staging and development only)",
   },
   system_maintenance: {
     kind: "system",
@@ -289,6 +289,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.privacy.consentRecord,
     PERMISSIONS.privacy.dsrRead,
     PERMISSIONS.privacy.dsrManage,
+    PERMISSIONS.orders.read,
+    PERMISSIONS.orders.manage,
+    PERMISSIONS.orders.reviewDecide,
   ],
   system_maintenance: [PERMISSIONS.privacy.retentionPurge],
   system_reservations: [PERMISSIONS.inventory.reservationManage],

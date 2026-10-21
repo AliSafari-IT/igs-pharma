@@ -76,7 +76,13 @@ describe("RBAC catalogue: database (seed migration) = code (T-016 Q1)", () => {
         .select({ role: rolePermissions.roleKey })
         .from(rolePermissions)
         .where(eq(rolePermissions.permissionKey, PERMISSIONS.orders.reviewDecide));
-      expect(deciders.map((r) => r.role).sort()).toEqual(["pharmacist", "pharmacist_titular"]);
+      // people: pharmacists only; the one system exception is the synthetic seed CLI, which reviews
+      // its demo orders (no person can hold a system role)
+      expect(deciders.map((r) => r.role).sort()).toEqual([
+        "pharmacist",
+        "pharmacist_titular",
+        "system_seed",
+      ]);
       const pharmacistManagers = await tx
         .select({ role: rolePermissions.roleKey })
         .from(rolePermissions)

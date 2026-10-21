@@ -208,7 +208,7 @@ describe("catalogue invariants (T-016)", () => {
 
   it("system-only permissions are held by system roles only, and system roles hold nothing else (36b)", () => {
     // the one exception: the synthetic seed CLI (igs-pharma#50, #53, #58, #59) writes products, demo
-    // stock, prices and demo privacy records through the same commands staff use (and reads what it wrote, to run twice safely),
+    // stock, prices, demo privacy records and demo orders through the same commands staff use (and reads what it wrote, to run twice safely),
     // nothing else; no user can hold a system role
     expect(ROLE_PERMISSIONS.system_seed).toEqual([
       "catalog.products.read",
@@ -222,6 +222,9 @@ describe("catalogue invariants (T-016)", () => {
       "privacy.consent.record",
       "privacy.dsr.read",
       "privacy.dsr.manage",
+      "orders.read",
+      "orders.order.manage",
+      "orders.review.decide",
     ]);
     // the storefront preview (igs-pharma#62) only reads: active products, prices, in/out of stock
     expect(ROLE_PERMISSIONS.system_storefront).toEqual([
@@ -260,9 +263,11 @@ describe("catalogue invariants (T-016)", () => {
   it("pharmacist-only permissions are held by pharmacist roles only (D-030)", () => {
     for (const permission of PHARMACIST_ONLY) {
       const holders = ROLE_KEYS.filter((r) => ROLE_PERMISSIONS[r].includes(permission));
-      // the synthetic seed CLI (a system role, dev and staging only) creates Rx products; no user role
+      // the synthetic seed CLI (a system role, dev and staging only) creates Rx products and decides
+      // the demo orders' reviews (recorded as the seed, never as a pharmacist); no user role
       const allowed =
-        permission === PERMISSIONS.catalog.productsRegulatedManage
+        permission === PERMISSIONS.catalog.productsRegulatedManage ||
+        permission === PERMISSIONS.orders.reviewDecide
           ? ["pharmacist", "pharmacist_titular", "system_seed"]
           : ["pharmacist", "pharmacist_titular"];
       expect(
