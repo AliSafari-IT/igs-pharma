@@ -310,6 +310,36 @@ describe("expiry and reconciliation", () => {
     expect((await holdsOf(checkoutId)).map((h) => h.status)).toEqual(["released"]);
   });
 
+  it("never expires an order whose provider payment is still running; it waits for the provider", async () => {
+    const { provider, made, set } = fakeProvider();
+    const { orderId, token, actor } = await placedOrder();
+    await startPayment(orderId, provider, urls);
+    const [id] = [...made.keys()];
+    kernel.clock.set(at(UNPAID_ORDER_HOURS * 60 * MINUTE + MINUTE));
+    expect((await expireUnpaidOrders({}, PAYMENTS_ACTOR)).expired).toBe(0);
+    expect(await orderStatus(token, orderId, actor)).toBe("pending_payment");
+    // the provider ends it unpaid: the order is cancelled, not left waiting
+    set(id as string, { status: "expired" });
+    await syncPayment(id as string, provider);
+    expect(await orderStatus(token, orderId, actor)).toBe("cancelled");
+  });
+
+  it("a payment that lands on a closed order leaves it closed and raises an alarm", async () => {
+    const { provider, made, set } = fakeProvider();
+    const { orderId, token, actor } = await placedOrder();
+    await startPayment(orderId, provider, urls);
+    const [id] = [...made.keys()];
+    // the race the expiry guard cannot see (closed between Mollie's create and our attach)
+    await iso.sql`UPDATE orders.orders SET status = 'expired', version = version + 1 WHERE id = ${orderId}`;
+    set(id as string, { status: "paid" });
+    const result = await syncPayment(id as string, provider);
+    expect(result).toMatchObject({ changed: true, paymentStatus: "paid", orderStatus: "expired" });
+    expect(await orderStatus(token, orderId, actor)).toBe("expired");
+    expect(kernel.errors).toContainEqual(
+      expect.objectContaining({ alarm: "orders.payments.paid_after_close", orderId }),
+    );
+  });
+
   it("re-reads a provider payment left quiet for ten minutes (a lost webhook)", async () => {
     const { provider, made, set } = fakeProvider();
     const { orderId, token, actor } = await placedOrder();

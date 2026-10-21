@@ -3,13 +3,14 @@ import {
   type Ctx,
   command,
   conflict,
+  getKernelRuntime,
   isDomainError,
   notFound,
   query,
 } from "@igs/kernel";
 import { confirmReservation, releaseReservation } from "@igs/module-inventory";
 import { PERMISSIONS } from "@igs/rbac";
-import { and, asc, desc, eq, inArray, lte } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, lte, notExists } from "drizzle-orm";
 import { z } from "zod";
 
 import { ORDERS_AUDIT } from "./audit";
@@ -385,7 +386,27 @@ export const expireUnpaidOrders = command({
     const due = await ctx.tx
       .select()
       .from(ordersTable)
-      .where(and(eq(ordersTable.status, "pending_payment"), lte(ordersTable.createdAt, before)))
+      .where(
+        and(
+          eq(ordersTable.status, "pending_payment"),
+          lte(ordersTable.createdAt, before),
+          // a payment still running at the provider decides itself: the shopper may be paying right
+          // now, and Mollie ends an unpaid payment on its own (the webhook or reconciliation then
+          // cancels the order). Expiring here could take money for an order that no longer exists.
+          notExists(
+            ctx.tx
+              .select({ id: payments.id })
+              .from(payments)
+              .where(
+                and(
+                  eq(payments.orderId, ordersTable.id),
+                  isNotNull(payments.providerPaymentId),
+                  inArray(payments.status, ["created", "open", "pending", "authorized"]),
+                ),
+              ),
+          ),
+        ),
+      )
       .orderBy(asc(ordersTable.createdAt))
       .limit(EXPIRY_BATCH)
       .for("update", { skipLocked: true });
@@ -457,7 +478,7 @@ export async function syncPayment(
   actor: Actor = PAYMENTS_ACTOR,
 ) {
   const fetched = await provider.getPayment(providerPaymentIdValue);
-  return recordPaymentStatus(
+  const result = await recordPaymentStatus(
     {
       providerPaymentId: fetched.id,
       status: fetched.status,
@@ -466,4 +487,20 @@ export async function syncPayment(
     },
     actor,
   );
+  if (result.changed && result.paymentStatus === "paid" && CLOSED.has(result.orderStatus)) {
+    // paid for an order that was already closed (a race with the expiry): it stays closed (a final
+    // state), so staff must refund. Ids only in the log.
+    getKernelRuntime().logger.error?.(
+      {
+        alarm: "orders.payments.paid_after_close",
+        orderId: result.orderId,
+        paymentId: result.paymentId,
+      },
+      "orders.payments.paid_after_close: a payment came in for a closed order; refund it",
+    );
+  }
+  return result;
 }
+
+/** Final order states a late payment cannot reopen. */
+const CLOSED = new Set(["expired", "cancelled"]);

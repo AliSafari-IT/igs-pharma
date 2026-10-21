@@ -16,6 +16,8 @@ export interface PaymentsSetup {
 
 let setup: PaymentsSetup | null | undefined;
 
+const schema = paymentsEnv.extend({ STOREFRONT_URL: authEnv.shape.STOREFRONT_URL });
+
 /**
  * Online payment (igs-pharma#116): the Mollie client and the URLs it needs, or `null` when payment
  * is not configured. Both `MOLLIE_API_KEY` and `STOREFRONT_URL` (where the shopper comes back to)
@@ -23,7 +25,18 @@ let setup: PaymentsSetup | null | undefined;
  */
 export function paymentsSetup(): PaymentsSetup | null {
   if (setup !== undefined) return setup;
-  const env = parseEnvFor(paymentsEnv.extend({ STOREFRONT_URL: authEnv.shape.STOREFRONT_URL }));
+  let env: ReturnType<typeof parseEnvFor<typeof schema>>;
+  try {
+    env = parseEnvFor(schema);
+  } catch (error) {
+    // a malformed key or URL turns payment off; it never takes the order pages down with it
+    logger.error(
+      { event: "storefront.payments_misconfigured", err: error },
+      "storefront.payments_misconfigured",
+    );
+    setup = null;
+    return setup;
+  }
   if (!env.MOLLIE_API_KEY || !env.STOREFRONT_URL) {
     if (env.MOLLIE_API_KEY) {
       logger.warn(
