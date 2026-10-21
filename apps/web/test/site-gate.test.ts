@@ -31,6 +31,7 @@ const OPEN = [
   "/api/health",
   "/api/health/live",
   "/api/csp-report",
+  "/api/webhooks/mollie",
   "/.well-known/asafarim-app.json",
 ];
 

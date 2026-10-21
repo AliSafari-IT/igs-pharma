@@ -23,6 +23,8 @@ export const ENV_SENSITIVITY = {
   IGS_PREVIEW_KEY: "sensitive",
   // outgoing mail (igs-pharma#114)
   SMTP_URL: "sensitive", // can carry the mail server password
+  MOLLIE_API_KEY: "sensitive", // can create payments and refunds
+  MOLLIE_WEBHOOK_BASE_URL: "not-sensitive",
   MAIL_FROM: "not-sensitive",
   // crypto
   ENCRYPTION_KEY: "sensitive",

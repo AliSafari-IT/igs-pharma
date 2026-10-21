@@ -386,3 +386,27 @@ mustFail(
   'import { createMailer } from "@igs/mail";\nconsole.log(createMailer);\n',
   "boundaries/element-types",
 );
+
+// --- @igs/payments (igs-pharma#116): Mollie only from the storefront's handlers and the worker ------
+mustPass(
+  "web app -> @igs/payments",
+  "apps/web/src/x.ts",
+  'import { createMollieClient } from "@igs/payments";\nconsole.log(createMollieClient);\n',
+);
+mustPass(
+  "worker app -> @igs/payments",
+  "apps/worker/src/x.ts",
+  'import { createMollieClient } from "@igs/payments";\nconsole.log(createMollieClient);\n',
+);
+mustFail(
+  "platform app -> @igs/payments",
+  "apps/platform/src/x.ts",
+  'import { createMollieClient } from "@igs/payments";\nconsole.log(createMollieClient);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "module -> @igs/payments (no external I/O from a command, D-019)",
+  "packages/modules/orders/src/x.ts",
+  'import { createMollieClient } from "@igs/payments";\nconsole.log(createMollieClient);\n',
+  "boundaries/element-types",
+);

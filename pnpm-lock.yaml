@@ -172,6 +172,9 @@ importers:
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@igs/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@igs/security-headers':
         specifier: workspace:*
         version: link:../../packages/security-headers
@@ -260,6 +263,9 @@ importers:
       '@igs/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@igs/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       drizzle-orm:
         specifier: 0.38.3
         version: 0.38.3(@types/react@19.2.18)(kysely@0.29.6)(pg@8.23.1)(postgres@3.4.5)(react@19.2.8)
@@ -930,6 +936,21 @@ importers:
       typescript:
         specifier: 5.7.2
         version: 5.7.2
+
+  packages/payments:
+    devDependencies:
+      '@igs/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 24.19.1
+        version: 24.19.1
+      typescript:
+        specifier: 5.7.2
+        version: 5.7.2
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@24.19.1)(lightningcss@1.33.0)
 
   packages/rbac:
     devDependencies:

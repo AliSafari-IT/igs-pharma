@@ -3,8 +3,17 @@ import {
   type QueueAdmin,
   assertQueuesExist,
   getKernelRuntime,
+  isDomainError,
 } from "@igs/kernel";
 import { sql } from "drizzle-orm";
+
+import {
+  PAYMENTS_ACTOR,
+  type PaymentProvider,
+  expireUnpaidOrders,
+  listUnsettledPayments,
+  syncPayment,
+} from "./payments";
 
 /**
  * Background job of the orders module (igs-pharma#116): the daily purge of expired carts and of
@@ -20,6 +29,16 @@ export const ORDERS_JOBS = {
     queue: "orders.carts.purge",
     deadLetterQueue: "orders.carts.purge.failed",
     cron: "27 4 * * *",
+  },
+  /**
+   * igs-pharma#116: every five minutes, re-read the provider payments still in progress after ten
+   * quiet minutes (a lost webhook) and expire the orders unpaid for 24 hours. A payment is started by
+   * the shopper's "Pay now", so a `created` payment is a normal resting state, not a crash to repair.
+   */
+  reconcilePayments: {
+    queue: "orders.payments.reconcile",
+    deadLetterQueue: "orders.payments.reconcile.failed",
+    cron: "*/5 * * * *",
   },
   timezone: "Europe/Brussels",
   /** Only thrown errors are retried (connection, lock timeout). */
@@ -64,32 +83,95 @@ export interface OrdersQueueAdmin extends QueueAdmin {
 export const ORDERS_QUEUES: readonly string[] = [
   ORDERS_JOBS.purgeCarts.deadLetterQueue,
   ORDERS_JOBS.purgeCarts.queue,
+  ORDERS_JOBS.reconcilePayments.deadLetterQueue,
+  ORDERS_JOBS.reconcilePayments.queue,
 ];
 
 /** Creates the queues. DDL on pg-boss's schema: runs in the migrate entry, never in the worker. Idempotent. */
 export async function ensureOrdersQueues(boss: OrdersQueueAdmin): Promise<void> {
-  const { purgeCarts, retryLimit, retryDelaySeconds } = ORDERS_JOBS;
-  await boss.createQueue(purgeCarts.deadLetterQueue);
-  await boss.createQueue(purgeCarts.queue, {
-    retryLimit,
-    retryDelay: retryDelaySeconds,
-    deadLetter: purgeCarts.deadLetterQueue,
-  });
+  const { purgeCarts, reconcilePayments, retryLimit, retryDelaySeconds } = ORDERS_JOBS;
+  for (const job of [purgeCarts, reconcilePayments]) {
+    await boss.createQueue(job.deadLetterQueue);
+    await boss.createQueue(job.queue, {
+      retryLimit,
+      retryDelay: retryDelaySeconds,
+      deadLetter: job.deadLetterQueue,
+    });
+  }
+}
+
+/** Quiet minutes before an in-progress provider payment is re-read; at most this many per run. */
+const UNSETTLED_QUIET_MINUTES = 10;
+const UNSETTLED_BATCH = 50;
+
+/**
+ * One reconciliation run: re-reads the unsettled provider payments (when a provider is configured)
+ * and expires the unpaid orders. A payment the provider no longer knows is logged and skipped; the
+ * counts go to the log.
+ */
+export async function runPaymentReconciliation(
+  provider: PaymentProvider | null,
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<{ synced: number; failed: number; expired: number }> {
+  let synced = 0;
+  let failed = 0;
+  if (provider) {
+    const ids = await listUnsettledPayments(
+      { quietMinutes: UNSETTLED_QUIET_MINUTES, limit: UNSETTLED_BATCH },
+      PAYMENTS_ACTOR,
+    );
+    for (const id of ids) {
+      try {
+        const { changed } = await syncPayment(id, provider);
+        if (changed) synced++;
+      } catch (error) {
+        // one payment must not stop the others; an alarm-worthy refusal is logged by code only
+        failed++;
+        runtime.logger.warn?.(
+          {
+            event: "orders.payments.sync_failed",
+            code: isDomainError(error) ? error.code : "error",
+          },
+          "orders.payments.sync_failed",
+        );
+      }
+    }
+  }
+  const { expired } = await expireUnpaidOrders({}, PAYMENTS_ACTOR);
+  runtime.logger.info?.({ synced, failed, expired }, "orders.payments.reconciled");
+  return { synced, failed, expired };
+}
+
+/** A reconciliation that failed all its retries: payments stay unread until the next run. */
+export function reportReconciliationFailed(runtime: KernelRuntime = getKernelRuntime()): void {
+  runtime.logger.warn?.(
+    { alarm: "orders.payments.reconcile_failed" },
+    "orders.payments.reconcile_failed: the payment reconciliation failed after all retries",
+  );
 }
 
 /**
  * Verifies the queues exist (a readable `kernel.queue_missing` when the migrate entry has not run),
- * schedules the daily run and registers the handlers. Safe to call on every boot.
+ * schedules the runs and registers the handlers. Safe to call on every boot. `provider`: the payment
+ * provider, `null` when none is configured (the reconciliation then only expires unpaid orders).
  */
 export async function registerOrdersJobs(
   boss: OrdersJobScheduler,
   runtime: KernelRuntime = getKernelRuntime(),
+  provider: PaymentProvider | null = null,
 ): Promise<void> {
-  const { purgeCarts, timezone } = ORDERS_JOBS;
+  const { purgeCarts, reconcilePayments, timezone } = ORDERS_JOBS;
   await assertQueuesExist(boss, ORDERS_QUEUES);
   await boss.schedule(purgeCarts.queue, purgeCarts.cron, undefined, { tz: timezone });
+  await boss.schedule(reconcilePayments.queue, reconcilePayments.cron, undefined, { tz: timezone });
   await boss.work(purgeCarts.queue, async () => {
     await runCartPurge(runtime);
   });
   await boss.work(purgeCarts.deadLetterQueue, async () => reportCartPurgeFailed(runtime));
+  await boss.work(reconcilePayments.queue, async () => {
+    await runPaymentReconciliation(provider, runtime);
+  });
+  await boss.work(reconcilePayments.deadLetterQueue, async () =>
+    reportReconciliationFailed(runtime),
+  );
 }

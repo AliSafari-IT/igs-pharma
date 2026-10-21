@@ -65,6 +65,7 @@ const entryPoint = (
         target: [
           ...infra.filter((name) => name !== "db" && name !== "kernel" && name !== "rbac"),
           "mail",
+          "payments",
           "app",
         ],
         allow: "**",
@@ -107,6 +108,9 @@ export default [
         { type: "storefront-module", pattern: "packages/modules/storefront" },
         // SMTP lives here and nowhere else (igs-pharma#114, D-019): only the worker app may import it
         { type: "mail", pattern: "packages/mail" },
+        // the Mollie client (igs-pharma#116, D-019): payment I/O from route handlers and the worker,
+        // never from a module (a command must not call out)
+        { type: "payments", pattern: "packages/payments" },
         // must come before the generic packages entries: packages/modules/<name>
         { type: "module", pattern: "packages/modules/*", capture: ["module"] },
         ...infra.map((name) => ({ type: name, pattern: `packages/${name}` })),
@@ -126,6 +130,16 @@ export default [
             },
             // the one app that sends mail (the mail package is NOT in `infra`; no other app imports it)
             { from: [["app", { app: "worker" }]], allow: ["mail"] },
+            // the apps that pay out to Mollie: the storefront (route handlers) and the worker
+            {
+              from: [
+                ["app", { app: "web" }],
+                ["app", { app: "worker" }],
+              ],
+              allow: ["payments"],
+            },
+            // a leaf: nothing in-repo
+            { from: "payments", allow: [] },
             // the read model: kernel + rbac + the modules it composes; no module imports it back
             {
               from: "storefront-module",
