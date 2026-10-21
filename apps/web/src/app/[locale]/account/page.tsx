@@ -1,5 +1,5 @@
 import { getOwnAccount } from "@igs/module-identity";
-import { Alert } from "@igs/ui";
+import { Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
 import { AccountShell } from "../../../components/account/account-shell";
@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props) {
   return accountMetadata((await params).locale, "navOverview");
 }
 
-/** My account (igs-pharma#115 PR C, D-044): who is signed in, and where orders will appear. */
+/** My account (igs-pharma#115 PR C, D-044): who is signed in, and the way to their orders. */
 export default async function AccountOverviewPage({ params }: Props) {
   const locale = accountLocale((await params).locale);
   const session = await requireCustomer(locale, "/account");
@@ -31,7 +31,13 @@ export default async function AccountOverviewPage({ params }: Props) {
         <h2 id="orders-heading" className="font-display text-xl font-medium">
           {t("ordersTitle")}
         </h2>
-        <Alert variant="info" title={t("ordersSoon")} data-testid="orders-soon" />
+        <Link
+          href={`/${locale}/account/orders`}
+          data-testid="orders-link"
+          className="inline-flex min-h-[44px] items-center self-start"
+        >
+          {t("ordersViewAll")}
+        </Link>
       </section>
     </AccountShell>
   );

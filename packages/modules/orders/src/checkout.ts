@@ -1,3 +1,4 @@
+import { sha256Hex } from "@igs/crypto";
 import { newId } from "@igs/db/ids";
 import {
   type Ctx,
@@ -15,7 +16,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { ORDERS_AUDIT } from "./audit";
-import { type Owner, cartToken, lockCart, ownerOf } from "./cart";
+import { type Owner, cartToken, lockCart, newCartToken, ownerOf } from "./cart";
 import {
   CHECKOUT_HOLD_MINUTES,
   MINUTE_MS,
@@ -242,6 +243,8 @@ const placedOutput = z.object({
   orderId: z.uuid(),
   reference: z.string(),
   paymentId: z.uuid(),
+  /** Opens the order's status page without the cart cookie; returned once, `null` on a replay. */
+  statusToken: z.string().nullable(),
 });
 
 /** The order (and its payment) already placed from `checkout`. */
@@ -259,7 +262,7 @@ async function placedFrom(ctx: Ctx, checkout: Checkout) {
         .limit(1)
     : [];
   if (!order || !payment) throw notFound("orders.order_not_found");
-  return { ...order, ...payment };
+  return { ...order, ...payment, statusToken: null };
 }
 
 /**
@@ -304,11 +307,13 @@ export const placeOrder = command({
     const orderId = newId();
     const paymentId = newId();
     const reference = await nextReference(ctx);
+    const statusToken = newCartToken();
     await ctx.tx.insert(ordersTable).values({
       id: orderId,
       reference,
       customerId: checkout.customerId,
       checkoutId: checkout.id,
+      statusTokenHash: sha256Hex(statusToken),
       locale: checkout.locale,
       status: "pending_payment",
       needsReview: checkout.needsReview,
@@ -352,7 +357,7 @@ export const placeOrder = command({
       .set({ status: "placed", updatedAt: ctx.now })
       .where(eq(checkouts.id, checkout.id));
     await audit(ctx, orderId, checkout.id, checkout.totalCents, false);
-    return { orderId, reference, paymentId };
+    return { orderId, reference, paymentId, statusToken };
   },
 });
 

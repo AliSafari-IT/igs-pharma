@@ -4,7 +4,7 @@ import { getOrder, startPayment } from "@igs/module-orders";
 import { logger } from "@igs/observability/logger";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { uuidOf } from "../../../../../lib/checkout-area";
+import { statusTokenOf, uuidOf } from "../../../../../lib/checkout-area";
 import { cartActor } from "../../../../../server/cart";
 import { paymentsSetup } from "../../../../../server/payments";
 import { localeOf } from "../../../../../server/storefront";
@@ -19,21 +19,27 @@ interface Context {
  * the first visit (an idempotency key makes a double click harmless) and the shopper is sent to
  * Mollie's page with a 303. Anything else lands back on the order page, which says where it stands.
  */
-export async function GET(_request: NextRequest, { params }: Context): Promise<NextResponse> {
+export async function GET(request: NextRequest, { params }: Context): Promise<NextResponse> {
   const { locale: rawLocale, id } = await params;
   const locale = localeOf(rawLocale);
   const orderId = uuidOf(id);
   if (!locale || !orderId || !getFeatureFlags().cart) {
     return new NextResponse(null, { status: 404 });
   }
-  const back = (reason?: string) =>
-    redirect(`/${locale}/orders/${orderId}${reason ? `?payment=${reason}` : ""}`);
+  const statusToken = statusTokenOf(request.nextUrl.searchParams.get("t"));
+  const back = (reason?: string) => {
+    const query = new URLSearchParams({
+      ...(reason ? { payment: reason } : {}),
+      ...(statusToken ? { t: statusToken } : {}),
+    }).toString();
+    return redirect(`/${locale}/orders/${orderId}${query ? `?${query}` : ""}`);
+  };
   const payments = paymentsSetup();
   if (!payments) return back();
 
   try {
     const { actor, token } = await cartActor();
-    await getOrder({ cartToken: token, orderId }, actor);
+    await getOrder({ cartToken: token, orderId, ...(statusToken ? { statusToken } : {}) }, actor);
   } catch (error) {
     if (isDomainError(error) && error.code === "orders.order_not_found") {
       return new NextResponse(null, { status: 404 });

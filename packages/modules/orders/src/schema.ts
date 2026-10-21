@@ -109,6 +109,8 @@ export const ordersTable = orders.table(
     customerId: uuid("customer_id"),
     /** The checkout it was placed from (one order per checkout); its holds are `checkout:<id>`. */
     checkoutId: uuid("checkout_id").notNull(),
+    /** SHA-256 of the order's status link token (`?t=`); the token itself is never stored. */
+    statusTokenHash: text("status_token_hash"),
     locale: text("locale").notNull(),
     status: text("status").notNull().default("pending_payment"),
     /** At least one line is a medicine: a pharmacist must approve before it is prepared. */

@@ -308,8 +308,11 @@ describe("placing the order", () => {
     });
     expect(JSON.stringify(events)).not.toContain("example.be");
 
-    // placing again (a double click) returns the same order
-    expect(await placeOrder({ cartToken: token, checkoutId, contact }, actor)).toEqual(placed);
+    // placing again (a double click) returns the same order, without a second status token
+    expect(await placeOrder({ cartToken: token, checkoutId, contact }, actor)).toEqual({
+      ...placed,
+      statusToken: null,
+    });
     const [orders] = await iso.sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM orders.orders WHERE checkout_id = ${checkoutId}`;
     expect(orders?.n).toBe(1);

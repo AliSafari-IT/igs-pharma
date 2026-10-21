@@ -36,8 +36,11 @@ export {
   type BasketLineView,
   type CheckoutView,
   type OrderView,
+  type OwnOrderListItem,
+  type OwnOrderPage,
   getCheckout,
   getOrder,
+  listOwnOrders,
 } from "./views";
 export { ORDERS_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {

@@ -165,7 +165,19 @@
     "overviewGreeting": "Bonjour {name}",
     "overviewSignedInAs": "Vous êtes connecté(e) avec {email}.",
     "ordersTitle": "Commandes",
-    "ordersSoon": "La commande en ligne ouvrira bientôt. Vos commandes apparaîtront ici.",
+    "navOrders": "Commandes",
+    "ordersViewAll": "Voir vos commandes",
+    "ordersIntro": "Vos commandes, les plus récentes d'abord.",
+    "ordersEmpty": "Vous n'avez pas encore de commande.",
+    "ordersUnavailable": "Vos commandes sont temporairement indisponibles. Réessayez plus tard.",
+    "ordersFreshBody": "Vos commandes sont des données personnelles. Reconnectez-vous pour les consulter.",
+    "ordersColReference": "Numéro de commande",
+    "ordersColDate": "Date",
+    "ordersColStatus": "Statut",
+    "ordersColTotal": "Total",
+    "ordersPages": "Pages",
+    "ordersPrevious": "Page précédente",
+    "ordersNext": "Page suivante",
     "profileTitle": "Vos données",
     "profileIntro": "Modifiez le nom que nous utilisons et la langue des e-mails que nous vous envoyons.",
     "languageLabel": "Langue de nos e-mails",
@@ -310,6 +322,8 @@
     "statusReadyForPickup": "Prête à être retirée",
     "statusCollected": "Retirée",
     "statusCancelled": "Annulée",
-    "statusExpired": "Expirée"
+    "statusExpired": "Expirée",
+    "statusLinkTitle": "Conservez cette page",
+    "statusLinkBody": "Le lien de cette page vous permet de suivre votre commande, même sans compte ou sur un autre appareil. Ne le partagez avec personne."
   }
 }

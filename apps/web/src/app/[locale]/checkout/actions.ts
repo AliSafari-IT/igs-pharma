@@ -40,15 +40,19 @@ export async function placeOrderAction(_previous: PlaceState, form: FormData): P
 
   const { actor, token } = await cartActor();
   let orderId: string | null = null;
+  let statusToken: string | null = null;
   let failure: PlaceFailure = "failed";
   try {
-    ({ orderId } = await placeOrder({ cartToken: token, checkoutId, contact: values }, actor, {
-      origin: await requestOrigin(),
-    }));
+    ({ orderId, statusToken } = await placeOrder(
+      { cartToken: token, checkoutId, contact: values },
+      actor,
+      { origin: await requestOrigin() },
+    ));
   } catch (error) {
     if (!isDomainError(error)) throw error;
     failure = placeFailureOf(error.code);
   }
   if (!orderId) return { values, errors: {}, failure };
-  redirect(`/${locale}/orders/${orderId}`);
+  // the status link: the order page, openable later without the cart cookie
+  redirect(`/${locale}/orders/${orderId}${statusToken ? `?t=${statusToken}` : ""}`);
 }
