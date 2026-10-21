@@ -59,20 +59,29 @@ async function staffMember(name: string, role: string): Promise<string> {
   return token;
 }
 
-/** A paid guest order holding one medicine, waiting for the pharmacist. */
+const LOCATION = "0192f000-0000-7000-8000-000000000001";
+/** A UUIDv7-shaped id, as the checkout writes them (the inventory holder reference needs one). */
+const uuidv7 = () => `0192f000-0000-7000-8000-${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+
+/**
+ * A paid guest order holding one medicine, waiting for the pharmacist: its stock set aside the way
+ * a payment leaves it, an order reservation allocated to a lot (igs-pharma#165).
+ */
 async function paidMedicineOrder(): Promise<void> {
   orderId = randomUUID();
+  const checkoutId = uuidv7();
+  const productId = randomUUID();
   reference = `IGS-2026-${String(randomInt(900_000, 999_999))}`;
   await sql.begin(async (tx) => {
     await tx`
       INSERT INTO orders.orders (id, checkout_id, reference, locale, needs_review, total_cents, vat_cents,
         created_by_type, created_by_id, updated_by_type, updated_by_id)
-      VALUES (${orderId}, ${randomUUID()}, ${reference}, 'nl', true, 1250, 71,
+      VALUES (${orderId}, ${checkoutId}, ${reference}, 'nl', true, 1250, 71,
         'anonymous', 'guest', 'anonymous', 'guest')`;
     await tx`
       INSERT INTO orders.order_lines (id, order_id, product_id, cnk, name, is_medicine, vat_class,
         quantity, unit_price_cents, line_total_cents, vat_cents)
-      VALUES (${randomUUID()}, ${orderId}, ${randomUUID()}, '9990001', 'Paracetamol 500 mg', true, 'BE_6',
+      VALUES (${randomUUID()}, ${orderId}, ${productId}, '9990001', 'Paracetamol 500 mg', true, 'BE_6',
         1, 1250, 1250, 71)`;
     await tx`
       INSERT INTO orders.order_contacts (order_id, name, email, phone)
@@ -80,6 +89,26 @@ async function paidMedicineOrder(): Promise<void> {
     await tx`
       INSERT INTO orders.payments (id, order_id, provider, amount_cents, status)
       VALUES (${randomUUID()}, ${orderId}, 'mollie', 1250, 'paid')`;
+    const [lot] = await tx<{ id: string }[]>`
+      INSERT INTO inventory.lots (id, product_id, location_id, tracking, lot_number, expiry_date,
+        created_by_type, created_by_id)
+      VALUES (gen_random_uuid(), ${productId}, ${LOCATION}, 'lot', 'E2E-ORD', '2099-12-31', 'system', 'e2e')
+      RETURNING id`;
+    const lotId = (lot as { id: string }).id;
+    await tx`
+      INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+      VALUES (gen_random_uuid(), ${productId}, ${LOCATION}, ${lotId}, 5, 'receipt', 'system', 'e2e')`;
+    const [reservation] = await tx<{ id: string }[]>`
+      INSERT INTO inventory.reservations (id, product_id, location_id, quantity, kind, holder_ref, status,
+        created_by_type, created_by_id, updated_by_type, updated_by_id)
+      VALUES (gen_random_uuid(), ${productId}, ${LOCATION}, 1, 'order', ${`checkout:${checkoutId}`},
+        'active', 'system', 'checkout', 'system', 'checkout')
+      RETURNING id`;
+    await tx`
+      INSERT INTO inventory.reservation_allocations (id, reservation_id, product_id, lot_id, quantity,
+        created_by_type, created_by_id)
+      VALUES (gen_random_uuid(), ${(reservation as { id: string }).id}, ${productId}, ${lotId}, 1,
+        'system', 'checkout')`;
   });
   await sql`
     UPDATE orders.orders SET status = 'in_review', version = version + 1,
@@ -137,6 +166,11 @@ test("the pharmacist approves; the assistant prepares and marks it ready", async
   await page.goto(`${PLATFORM}/orders/${orderId}`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Start preparing" }).click();
   await expect(page.getByText("The order is now “Preparing”.")).toBeVisible();
+  // what to pick: the lot and its expiry (igs-pharma#165)
+  const lots = page.getByTestId("lots-to-pick");
+  await expect(lots).toContainText("E2E-ORD");
+  await expect(lots).toContainText("Paracetamol 500 mg");
+  await expect(page.getByTestId("allocation-short")).toHaveCount(0);
   await page.getByRole("button", { name: "Mark ready for pickup" }).click();
   await expect(page.getByText("The order is now “Ready for pickup”.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark collected" })).toBeVisible();

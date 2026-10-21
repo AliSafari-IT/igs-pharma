@@ -7,13 +7,15 @@ import {
   storefrontVisibleIds,
 } from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { fefoCompare } from "./allocations";
 import {
   type Availability,
   DEFAULT_LOCATION_ID,
   HOLDER_REF_PATTERN,
+  type LotTracking,
   type MovementReason,
   type ReservationKind,
   type ReservationStatus,
@@ -22,7 +24,7 @@ import {
 import { addDays } from "./domain";
 import { availabilityFor, brusselsToday, expiryBufferDays, levelOf, stockLevels } from "./ledger";
 import { type LotView, isFlagged, lotsOf } from "./lots";
-import { reservations, stockMovements } from "./schema";
+import { lots, reservationAllocations, reservations, stockMovements } from "./schema";
 
 /** Inventory queries for the back-office (igs-pharma#53). */
 
@@ -266,6 +268,11 @@ export interface StockSummary {
   readonly short: number;
   /** Lots with stock that may not be sold (quarantined, unknown, near or past expiry), igs-pharma#164. */
   readonly flaggedLots: number;
+  /**
+   * Order lines not allocated in full to sellable lots (igs-pharma#165): they cannot be packed until
+   * stock comes in or a lot is released.
+   */
+  readonly unallocatedOrders: number;
 }
 
 /**
@@ -285,7 +292,14 @@ export const getStockSummary = query({
   async handler({ ctx }): Promise<StockSummary> {
     const ids = await allProductIds(ctx.tx);
     if (ids.length === 0) {
-      return { low: 0, out: 0, activeReservations: 0, short: 0, flaggedLots: 0 };
+      return {
+        low: 0,
+        out: 0,
+        activeReservations: 0,
+        short: 0,
+        flaggedLots: 0,
+        unallocatedOrders: 0,
+      };
     }
     const now = ctx.now.toISOString();
     // sellable: not quarantined, not unknown, expiry (when set) after today + the buffer (#164)
@@ -297,6 +311,7 @@ export const getStockSummary = query({
         active_reservations: number;
         short: number;
         flagged_lots: number;
+        unallocated_orders: number;
       }>(sql`
         WITH listed AS (
           SELECT DISTINCT value::uuid AS product_id
@@ -348,7 +363,15 @@ export const getStockSummary = query({
           (count(*) FILTER (WHERE available <= 0))::int AS "out",
           coalesce(sum(live), 0)::int AS active_reservations,
           (count(*) FILTER (WHERE is_short))::int AS "short",
-          (SELECT count(*) FROM lot_state WHERE on_hand > 0 AND NOT sellable)::int AS flagged_lots
+          (SELECT count(*) FROM lot_state WHERE on_hand > 0 AND NOT sellable)::int AS flagged_lots,
+          (SELECT count(*) FROM inventory.reservations r
+            WHERE r.status = 'active' AND r.kind = 'order'
+              AND r.location_id = ${DEFAULT_LOCATION_ID}::uuid
+              AND r.product_id IN (SELECT product_id FROM listed)
+              AND r.quantity > (
+                SELECT coalesce(sum(a.quantity), 0) FROM inventory.reservation_allocations a
+                WHERE a.reservation_id = r.id AND a.status = 'active'
+              ))::int AS unallocated_orders
         FROM availability`),
     );
     const row = rows[0];
@@ -358,6 +381,7 @@ export const getStockSummary = query({
       activeReservations: Number(row?.active_reservations ?? 0),
       short: Number(row?.short ?? 0),
       flaggedLots: Number(row?.flagged_lots ?? 0),
+      unallocatedOrders: Number(row?.unallocated_orders ?? 0),
     };
   },
 });
@@ -421,5 +445,90 @@ export const listHolderReservations = query({
       kind: row.kind as ReservationKind,
       status: row.status as ReservationStatus,
     }));
+  },
+});
+
+/** One lot an order line is picked from (igs-pharma#165). */
+export interface AllocatedLot {
+  readonly lotId: string;
+  readonly tracking: LotTracking;
+  readonly lotNumber: string | null;
+  /** `YYYY-MM-DD`, `null` without one. */
+  readonly expiryDate: string | null;
+  readonly quantity: number;
+}
+
+/** An active order line of a holder and the lots it is allocated to, in FEFO order. */
+export interface HolderAllocation {
+  readonly reservationId: string;
+  readonly productId: string;
+  readonly quantity: number;
+  /** Less than `quantity` when sellable stock does not cover the line: it cannot be packed. */
+  readonly allocated: number;
+  readonly lots: readonly AllocatedLot[];
+}
+
+/**
+ * The active orders of one holder with their allocated lots: what staff pick (lot number and
+ * expiry), and whether a line is short of sellable stock.
+ */
+export const listHolderAllocations = query({
+  name: "inventory.reservation.list_allocations",
+  input: z.object({ holderRef: z.string().regex(HOLDER_REF_PATTERN) }),
+  permission: PERMISSIONS.inventory.stockRead,
+  async handler({ input, ctx }): Promise<readonly HolderAllocation[]> {
+    const orders = await ctx.tx
+      .select({
+        reservationId: reservations.id,
+        productId: reservations.productId,
+        quantity: reservations.quantity,
+      })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.holderRef, input.holderRef),
+          eq(reservations.kind, "order"),
+          eq(reservations.status, "active"),
+        ),
+      )
+      .orderBy(asc(reservations.productId));
+    if (orders.length === 0) return [];
+    const rows = await ctx.tx
+      .select({
+        reservationId: reservationAllocations.reservationId,
+        lotId: lots.id,
+        tracking: lots.tracking,
+        lotNumber: lots.lotNumber,
+        expiryDate: lots.expiryDate,
+        quantity: reservationAllocations.quantity,
+      })
+      .from(reservationAllocations)
+      .innerJoin(lots, eq(lots.id, reservationAllocations.lotId))
+      .where(
+        and(
+          inArray(
+            reservationAllocations.reservationId,
+            orders.map((order) => order.reservationId),
+          ),
+          eq(reservationAllocations.status, "active"),
+        ),
+      );
+    return orders.map((order) => {
+      const mine = rows
+        .filter((row) => row.reservationId === order.reservationId)
+        .map((row) => ({
+          lotId: row.lotId,
+          tracking: row.tracking as LotTracking,
+          lotNumber: row.lotNumber,
+          expiryDate: row.expiryDate,
+          quantity: row.quantity,
+        }))
+        .sort(fefoCompare);
+      return {
+        ...order,
+        allocated: mine.reduce((sum, lot) => sum + lot.quantity, 0),
+        lots: mine,
+      };
+    });
   },
 });

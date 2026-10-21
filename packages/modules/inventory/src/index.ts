@@ -2,6 +2,10 @@ export * as inventorySchema from "./schema";
 export {
   ADJUST_REASONS,
   type AdjustReason,
+  ALLOCATION_CAUSES,
+  ALLOCATION_STATUSES,
+  type AllocationCause,
+  type AllocationStatus,
   type Availability,
   DEFAULT_LOCATION_ID,
   EXPIRY_BATCH,
@@ -49,9 +53,11 @@ export {
   setExpiryBuffer,
 } from "./lots";
 export {
+  checkAllocation,
   confirmReservation,
   consumeReservation,
   expireReservations,
+  reallocateOrders,
   releaseReservation,
   releaseReservationByStaff,
   reserveStock,
@@ -70,6 +76,9 @@ export {
   DEFAULT_LOW_STOCK,
   type HolderReservation,
   listHolderReservations,
+  type AllocatedLot,
+  type HolderAllocation,
+  listHolderAllocations,
   availabilityStatus,
   getAvailability,
   getStock,
@@ -77,8 +86,12 @@ export {
   listStock,
   storefrontAvailability,
 } from "./queries";
+export { type AllocationResult, fefoCompare, planFefo } from "./allocations";
 export { INVENTORY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {
+  ALLOCATION_CHECK_ACTOR,
+  reportAllocationCheckFailed,
+  runAllocationCheck,
   IMPORT_PLAN_GRACE_HOURS,
   INVENTORY_JOBS,
   RESERVATION_EXPIRY_ACTOR,

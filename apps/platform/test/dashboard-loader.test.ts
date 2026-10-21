@@ -54,6 +54,7 @@ describe("loadDashboard", () => {
       activeReservations: 7,
       short: 1,
       flaggedLots: 3,
+      unallocatedOrders: 4,
     });
     const owner = actor("owner");
     const dashboard = await loadDashboard(owner);
@@ -61,7 +62,7 @@ describe("loadDashboard", () => {
     expect(fakes.getStockSummary).toHaveBeenCalledWith({}, owner);
     expect(dashboard.stock).toEqual({
       state: "ok",
-      data: { low: 2, out: 5, short: 1, flaggedLots: 3 },
+      data: { low: 2, out: 5, short: 1, flaggedLots: 3, unallocatedOrders: 4 },
     });
     expect(dashboard.reservations).toEqual({ state: "ok", data: { active: 7 } });
   });

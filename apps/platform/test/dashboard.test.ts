@@ -61,7 +61,7 @@ describe("needsAttention", () => {
   it("lists the non-zero counts, most pressing first, each linked to its page", () => {
     const { items, incomplete } = needsAttention({
       products: ok({ awaitingApproval: 2 }),
-      stock: ok({ out: 3, short: 4, flaggedLots: 0 }),
+      stock: ok({ out: 3, short: 4, flaggedLots: 0, unallocatedOrders: 0 }),
       requests: ok({ overdue: 5 }),
     });
     expect(items).toEqual([
@@ -81,7 +81,7 @@ describe("needsAttention", () => {
     expect(
       needsAttention({
         orders: ok({ stockShort: 2, overdue: 0 }),
-        stock: ok({ out: 1, short: 0, flaggedLots: 0 }),
+        stock: ok({ out: 1, short: 0, flaggedLots: 0, unallocatedOrders: 0 }),
       }).items,
     ).toEqual([
       {
@@ -103,10 +103,9 @@ describe("needsAttention", () => {
 
   it("lists the lots that can't be sold after the products short for orders (#164)", () => {
     expect(
-      needsAttention({ stock: ok({ out: 0, short: 1, flaggedLots: 2 }) }).items.map((item) => [
-        item.id,
-        item.text,
-      ]),
+      needsAttention({
+        stock: ok({ out: 0, short: 1, flaggedLots: 2, unallocatedOrders: 0 }),
+      }).items.map((item) => [item.id, item.text]),
     ).toEqual([
       ["short", "1 product is short for orders"],
       [
@@ -116,10 +115,31 @@ describe("needsAttention", () => {
     ]);
   });
 
+  it("lists order lines without enough sellable lots after the paid orders waiting (#165)", () => {
+    expect(
+      needsAttention({
+        orders: ok({ stockShort: 1, overdue: 0 }),
+        stock: ok({ out: 0, short: 1, flaggedLots: 0, unallocatedOrders: 2 }),
+      }).items.map((item) => [item.id, item.text, item.href]),
+    ).toEqual([
+      [
+        "stock_short_orders",
+        "1 paid order is waiting for stock",
+        "/orders?status=paid_stock_short",
+      ],
+      ["unallocated_orders", "2 order lines can't be packed: not enough sellable lots", "/orders"],
+      ["short", "1 product is short for orders", "/stock"],
+    ]);
+    expect(
+      needsAttention({ stock: ok({ out: 0, short: 0, flaggedLots: 0, unallocatedOrders: 1 }) })
+        .items[0]?.text,
+    ).toBe("1 order line can't be packed: not enough sellable lots");
+  });
+
   it("says one in the singular", () => {
     const { items } = needsAttention({
       products: ok({ awaitingApproval: 1 }),
-      stock: ok({ out: 1, short: 1, flaggedLots: 0 }),
+      stock: ok({ out: 1, short: 1, flaggedLots: 0, unallocatedOrders: 0 }),
       requests: ok({ overdue: 1 }),
     });
     expect(items.map((item) => item.text)).toEqual([
@@ -133,14 +153,14 @@ describe("needsAttention", () => {
   it("leaves out zero counts, and is empty when nothing is due", () => {
     expect(
       needsAttention({
-        stock: ok({ out: 2, short: 0, flaggedLots: 0 }),
+        stock: ok({ out: 2, short: 0, flaggedLots: 0, unallocatedOrders: 0 }),
         requests: ok({ overdue: 0 }),
       }).items.map((item) => item.id),
     ).toEqual(["out"]);
     expect(
       needsAttention({
         products: ok({ awaitingApproval: 0 }),
-        stock: ok({ out: 0, short: 0, flaggedLots: 0 }),
+        stock: ok({ out: 0, short: 0, flaggedLots: 0, unallocatedOrders: 0 }),
         requests: ok({ overdue: 0 }),
       }),
     ).toEqual({ items: [], incomplete: false });

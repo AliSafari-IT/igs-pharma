@@ -456,6 +456,20 @@
       "when": 1792599537051,
       "tag": "0064_rbac_seed_lots",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1792611424976,
+      "tag": "0065_inventory_allocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1792611449192,
+      "tag": "0066_inventory_allocations_grants",
+      "breakpoints": true
     }
   ]
 }

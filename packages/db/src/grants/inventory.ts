@@ -63,5 +63,14 @@ export const inventory: SchemaGrants = {
       note: "trigger function: a lot keeps its identity",
       since: 63,
     }),
+    table("inventory.reservation_allocations", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "which lots an order reservation is picked from (igs-pharma#165); a trigger enforces the lifecycle and refuses DELETE",
+      since: 66,
+    }),
+    fn("inventory.allocation_guard()", {
+      note: "trigger function: the allocation lifecycle",
+      since: 66,
+    }),
   ],
 };

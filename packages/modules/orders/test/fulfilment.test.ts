@@ -12,8 +12,11 @@ import {
 } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
 import {
+  listHolderAllocations,
+  quarantineLot,
   receiveStock,
   registerAuditActions as registerInventoryAudit,
+  releaseLot,
 } from "@igs/module-inventory";
 import { registerAuditActions as registerPricingAudit, setPrice } from "@igs/module-pricing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -286,6 +289,32 @@ describe("fulfilment", () => {
     expect(
       await codeOf(advanceOrder({ orderId, to: "preparing", expectedVersion: version }, support)),
     ).toBe("kernel.forbidden");
+  });
+
+  it("is not packed while its lots are not sellable, and is once they are again (#165)", async () => {
+    const { orderId, checkoutId } = await paidOrder(false);
+    const holderRef = `checkout:${checkoutId}`;
+    const [line] = await listHolderAllocations({ holderRef }, owner);
+    expect(line).toMatchObject({ quantity: 2, allocated: 2 });
+    const lotId = line?.lots[0]?.lotId as string;
+    let { version } = await advanceOrder(
+      { orderId, to: "preparing", expectedVersion: await versionOf(orderId) },
+      assistant,
+    );
+    await quarantineLot({ lotId, reason: "quality" }, pharmacist);
+    expect(
+      await codeOf(
+        advanceOrder({ orderId, to: "ready_for_pickup", expectedVersion: version }, assistant),
+      ),
+    ).toBe("inventory.allocation_short");
+    expect((await getOrderForStaff({ orderId }, owner)).status).toBe("preparing");
+
+    await releaseLot({ lotId }, pharmacist);
+    ({ version } = await advanceOrder(
+      { orderId, to: "ready_for_pickup", expectedVersion: version },
+      assistant,
+    ));
+    expect((await getOrderForStaff({ orderId }, owner)).status).toBe("ready_for_pickup");
   });
 
   it("a medicine order waits for the pharmacist before it is prepared", async () => {

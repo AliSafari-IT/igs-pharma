@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ADJUST_REASONS, QUARANTINE_REASONS, RELEASE_REASONS } from "./domain";
+import { ADJUST_REASONS, ALLOCATION_CAUSES, QUARANTINE_REASONS, RELEASE_REASONS } from "./domain";
 
 /** Audit actions recorded by the inventory commands (`<domain>.<noun>.<verb>`). */
 export const INVENTORY_AUDIT = {
@@ -18,6 +18,9 @@ export const INVENTORY_AUDIT = {
   lotQuarantined: "inventory.lot.quarantined",
   lotReleased: "inventory.lot.released",
   expiryBufferSet: "inventory.settings.expiry_buffer_set",
+  allocationAllocated: "inventory.allocation.allocated",
+  allocationSuperseded: "inventory.allocation.superseded",
+  allocationShort: "inventory.allocation.short",
 } as const;
 
 const stockImportPrepared = z.object({
@@ -69,6 +72,23 @@ const reservationEvent = z.object({
 const reservationReleased = reservationEvent.extend({ reason: z.enum(RELEASE_REASONS) });
 const reservationConsumed = reservationEvent.extend({ movementId: z.uuid() });
 
+/** igs-pharma#165: one entry per lot share of an order, with ids, the quantity and the cause. */
+const allocationEvent = z.object({
+  allocationId: z.uuid(),
+  reservationId: z.uuid(),
+  productId: z.uuid(),
+  lotId: z.uuid(),
+  quantity: z.number().int().min(1),
+  cause: z.enum(ALLOCATION_CAUSES),
+});
+const allocationShort = z.object({
+  reservationId: z.uuid(),
+  productId: z.uuid(),
+  quantity: z.number().int().min(1),
+  allocated: z.number().int().min(0),
+  cause: z.enum(ALLOCATION_CAUSES),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -92,4 +112,7 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(INVENTORY_AUDIT.lotQuarantined, lotQuarantine);
   register(INVENTORY_AUDIT.lotReleased, lotQuarantine);
   register(INVENTORY_AUDIT.expiryBufferSet, expiryBufferSet);
+  register(INVENTORY_AUDIT.allocationAllocated, allocationEvent);
+  register(INVENTORY_AUDIT.allocationSuperseded, allocationEvent);
+  register(INVENTORY_AUDIT.allocationShort, allocationShort);
 }

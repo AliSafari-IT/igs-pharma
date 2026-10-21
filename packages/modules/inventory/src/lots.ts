@@ -12,6 +12,7 @@ import { PERMISSIONS } from "@igs/rbac";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { productsWithOrders, reconcileAllocations } from "./allocations";
 import { INVENTORY_AUDIT } from "./audit";
 import {
   DEFAULT_LOCATION_ID,
@@ -109,28 +110,6 @@ export async function lotsOf(
 /** A lot that needs staff: stock in it that may not be sold (quarantined, `unknown`, near or past expiry). */
 export const isFlagged = (lot: Pick<LotView, "onHand" | "sellable">): boolean =>
   lot.onHand > 0 && !lot.sellable;
-
-/**
- * Takes `quantity` of a product from its sellable lots, earliest expiry first (FEFO). `null` when
- * the sellable lots hold less. The caller holds the stock lock.
- */
-export async function takeFefo(
-  tx: Tx,
-  productId: string,
-  quantity: number,
-  now: Date,
-): Promise<readonly { readonly lotId: string; readonly quantity: number }[] | null> {
-  const taken: { lotId: string; quantity: number }[] = [];
-  let left = quantity;
-  for (const lot of await lotsOf(tx, [productId], now)) {
-    if (left === 0) break;
-    if (!lot.sellable || lot.onHand <= 0) continue;
-    const take = Math.min(lot.onHand, left);
-    taken.push({ lotId: lot.lotId, quantity: take });
-    left -= take;
-  }
-  return left === 0 ? taken : null;
-}
 
 /** The product's untracked lot of `tracking` (`no_lot` or `unknown`), created when asked and missing. */
 async function untrackedLot(
@@ -298,6 +277,8 @@ export const receiveStock = command({
       entityId: product.id,
       data: { movementId, productId: product.id, lotId, quantity: input.quantity },
     });
+    // an order short of sellable stock may be filled now (igs-pharma#165)
+    await reconcileAllocations(ctx, [product.id]);
     return { movementId, lotId, lotOnHand: await lotOnHand(ctx.tx, lotId) };
   },
 });
@@ -327,6 +308,8 @@ export const returnStock = command({
       entityId: lot.productId,
       data: { movementId, productId: lot.productId, lotId: lot.id, quantity: input.quantity },
     });
+    // orders allocated to what left the lot are allocated again (igs-pharma#165)
+    await reconcileAllocations(ctx, [lot.productId]);
     return { movementId, lotOnHand: await lotOnHand(ctx.tx, lot.id) };
   },
 });
@@ -363,6 +346,7 @@ export const assignUnknownLot = command({
       entityId: product.id,
       data: { productId: product.id, fromLotId: unknownId, lotId, quantity: input.quantity },
     });
+    await reconcileAllocations(ctx, [product.id]);
     return { lotId, unknownOnHand: await lotOnHand(ctx.tx, unknownId) };
   },
 });
@@ -395,6 +379,8 @@ export const quarantineLot = command({
       entityId: lot.productId,
       data: { productId: lot.productId, lotId: lot.id, reason: input.reason },
     });
+    // the orders allocated to it are allocated again from sellable lots (igs-pharma#165)
+    await reconcileAllocations(ctx, [lot.productId]);
     return { lotId: lot.id };
   },
 });
@@ -428,6 +414,7 @@ export const releaseLot = command({
         reason: lot.quarantineReason ?? "other",
       },
     });
+    await reconcileAllocations(ctx, [lot.productId]);
     return { lotId: lot.id };
   },
 });
@@ -459,6 +446,8 @@ export const setExpiryBuffer = command({
       entityId: "1",
       data: { from, to: input.days },
     });
+    // a longer buffer may take allocated lots out of sale (igs-pharma#165)
+    await reconcileAllocations(ctx, await productsWithOrders(ctx.tx));
     return { days: input.days };
   },
 });
