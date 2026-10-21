@@ -10,7 +10,10 @@ import {
   requestMail,
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
-import { registerAuditActions as registerOrdersAuditActions } from "@igs/module-orders";
+import {
+  OrderMailRequested,
+  registerAuditActions as registerOrdersAuditActions,
+} from "@igs/module-orders";
 import { configureStorefront } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
 
@@ -65,6 +68,8 @@ export function ensureAuthConfigured(): void {
   // identity mails leave through the outbox (D-019): the callbacks below only store the link and
   // publish `identity.mail.requested`; the worker sends (PR 2)
   registerEvents(MailRequested);
+  // a recorded payment asks for the customer's order mail (igs-pharma#157); the worker sends it
+  registerEvents(OrderMailRequested);
   configureCustomerAuth({
     requestMail: async (input) => {
       await ensureRbacCatalogue();

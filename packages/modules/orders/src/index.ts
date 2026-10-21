@@ -10,6 +10,8 @@ export {
   MAX_PER_ORDER_OTHER,
   ORDER_CURRENCY,
   ORDER_LOCALES,
+  ORDER_MAIL_KINDS,
+  type OrderMailKind,
   ORDER_REFERENCE_PATTERN,
   ORDER_STATUSES,
   ORDER_TRANSITIONS,
@@ -105,3 +107,14 @@ export {
   recordRefundStatus,
   requestRefund,
 } from "./refunds";
+export {
+  OrderMailRequested,
+  type OrderMailDelivery,
+  type OrderMailJob,
+  type OrderMailJobScheduler,
+  type OrderMailSender,
+  type OrderMailToSend,
+  deliverOrderMail,
+  handleOrderMailJobs,
+  registerOrderMailJobs,
+} from "./mails";

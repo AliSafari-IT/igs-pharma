@@ -12,6 +12,7 @@ import {
   canTransition,
   holderOf,
 } from "./domain";
+import { requestOrderMail } from "./mails";
 import { recordRefund } from "./refunds";
 import { orderReviews, ordersTable } from "./schema";
 
@@ -122,6 +123,9 @@ export const advanceOrder = command({
       await ctx.run(consumeReservation, { holderRef: holderOf(order.checkoutId) });
     }
     const version = await moveOrder(ctx, order, input.to);
+    if (input.to === "ready_for_pickup") {
+      await requestOrderMail(ctx, { orderId: order.id, kind: "ready_for_pickup" });
+    }
     await ctx.audit.record({
       action: ORDERS_AUDIT.orderAdvanced,
       entityType: "order",

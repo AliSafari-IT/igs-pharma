@@ -24,6 +24,7 @@ import {
   type PaymentStatus,
   holderOf,
 } from "./domain";
+import { requestOrderMail } from "./mails";
 import { carts, checkouts, orderLines, ordersTable, payments } from "./schema";
 
 /**
@@ -353,6 +354,13 @@ export const recordPaymentStatus = command({
           updatedAt: ctx.now,
         })
         .where(eq(ordersTable.id, order.id));
+      // what the customer is told: received (now checked by the pharmacy), or a stock problem;
+      // never approved or ready (#157)
+      if (orderStatus === "in_review" || orderStatus === "ready_to_prepare") {
+        await requestOrderMail(ctx, { orderId: order.id, kind: "order_received" });
+      } else if (orderStatus === "paid_stock_short") {
+        await requestOrderMail(ctx, { orderId: order.id, kind: "stock_short" });
+      }
     }
     await ctx.audit.record({
       action: ORDERS_AUDIT.paymentStatusRecorded,

@@ -174,3 +174,29 @@ export const REFUNDABLE_ORDER_STATUSES = [
   "cancelled",
   "expired",
 ] as const satisfies readonly OrderStatus[];
+
+// ── customer mails ───────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The order mails (igs-pharma#157), each tied to one state: `order_received` (paid, now checked by
+ * the pharmacy: in review or ready to prepare), `stock_short` (paid, stock short),
+ * `ready_for_pickup`, `refund_initiated` (a refund recorded) and `refund_completed` (refunded).
+ */
+export const ORDER_MAIL_KINDS = [
+  "order_received",
+  "stock_short",
+  "ready_for_pickup",
+  "refund_initiated",
+  "refund_completed",
+] as const;
+export type OrderMailKind = (typeof ORDER_MAIL_KINDS)[number];
+
+/** The kinds about one refund (they carry its id); the others are about the order. */
+export const REFUND_MAIL_KINDS = [
+  "refund_initiated",
+  "refund_completed",
+] as const satisfies readonly OrderMailKind[];
+
+/** `pending` until the worker sent it (`sent`) or found nothing to send (`skipped`). */
+export const ORDER_MAIL_STATUSES = ["pending", "sent", "skipped"] as const;
+export type OrderMailStatus = (typeof ORDER_MAIL_STATUSES)[number];

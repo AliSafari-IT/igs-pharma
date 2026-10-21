@@ -1,5 +1,6 @@
 import { createTransport } from "nodemailer";
 
+import { type OrderMailData, type OrderMailTemplateName, renderOrderMail } from "./order-templates";
 import { type MailData, type MailTemplateName, type RenderedMail, renderMail } from "./templates";
 
 export {
@@ -12,6 +13,14 @@ export {
   isMailLocale,
   renderMail,
 } from "./templates";
+export {
+  ORDER_MAIL_TEMPLATES,
+  type OrderMailData,
+  type OrderMailTemplateName,
+  formatAmount,
+  isOrderMailTemplate,
+  renderOrderMail,
+} from "./order-templates";
 
 /**
  * Account mail over SMTP (igs-pharma#114, D-044). THE only place that talks to a mail server, and
@@ -37,8 +46,17 @@ export interface MailTransport {
   }): Promise<unknown>;
 }
 
+/** An order mail (igs-pharma#157). */
+export interface SendOrderMailInput {
+  readonly to: string;
+  readonly locale: string;
+  readonly template: OrderMailTemplateName;
+  readonly data: OrderMailData;
+}
+
 export interface Mailer {
   send(input: SendMailInput): Promise<void>;
+  sendOrder(input: SendOrderMailInput): Promise<void>;
 }
 
 export interface MailerOptions {
@@ -55,12 +73,14 @@ const ADDRESS = /^[^\s<>,;"\\]+@[^\s<>,;"\\]+$/;
 
 export function createMailer(options: MailerOptions): Mailer {
   const transport: MailTransport = options.transport ?? createTransport(options.smtpUrl);
+  const deliver = async (to: string, { subject, text, html }: RenderedMail) => {
+    if (!ADDRESS.test(to)) throw new Error("mail.address_invalid");
+    await transport.sendMail({ from: options.from, to, subject, text, html });
+  };
   return {
-    async send({ to, locale, template, data }) {
-      if (!ADDRESS.test(to)) throw new Error("mail.address_invalid");
-      const { subject, text, html }: RenderedMail = renderMail(template, locale, data);
-      await transport.sendMail({ from: options.from, to, subject, text, html });
-    },
+    send: ({ to, locale, template, data }) => deliver(to, renderMail(template, locale, data)),
+    sendOrder: ({ to, locale, template, data }) =>
+      deliver(to, renderOrderMail(template, locale, data)),
   };
 }
 

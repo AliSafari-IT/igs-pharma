@@ -10,6 +10,7 @@ import {
 } from "@igs/module-identity";
 import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
 import {
+  OrderMailRequested,
   RefundRequested,
   registerAuditActions as registerOrdersAuditActions,
 } from "@igs/module-orders";
@@ -61,6 +62,8 @@ export function ensureAuthConfigured(): void {
   configureKernel({ audit: createAuditPort({ hmacKey: env.AUDIT_HMAC_KEY }) });
   // a refund request (igs-pharma#156) leaves through the outbox; the worker asks Mollie (D-019)
   registerEvents(RefundRequested);
+  // customer mails about an order (igs-pharma#157): the worker sends them
+  registerEvents(OrderMailRequested);
   configureAuth({
     onSecurityEvent: async (event) => {
       try {

@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
-import { type Actor, isDomainError } from "@igs/kernel";
+import { type Actor, isDomainError, registerEvents } from "@igs/kernel";
 import { type KernelTestHandles, actors, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
@@ -20,6 +20,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   CHECKOUT_HOLD_MINUTES,
+  OrderMailRequested,
   PAYMENTS_ACTOR,
   type PaymentProvider,
   type ProviderPaymentView,
@@ -49,6 +50,7 @@ beforeAll(async () => {
   registerInventoryAudit(registerAuditAction);
   registerPricingAudit(registerAuditAction);
   registerAuditActions(registerAuditAction);
+  registerEvents(OrderMailRequested);
 });
 afterAll(async () => {
   await iso?.drop();

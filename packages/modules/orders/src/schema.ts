@@ -17,6 +17,8 @@ import {
   CHECKOUT_STATUSES,
   ORDER_CURRENCY,
   ORDER_LOCALES,
+  ORDER_MAIL_KINDS,
+  ORDER_MAIL_STATUSES,
   ORDER_REFERENCE_PATTERN,
   ORDER_STATUSES,
   ORDER_VAT_CLASSES,
@@ -430,5 +432,43 @@ export const refunds = orders.table(
       .where(sql`${t.status} IN ('requested', 'pending', 'refunded')`),
     index("refunds_order_idx").on(t.orderId),
     index("refunds_status_updated_idx").on(t.status, t.updatedAt),
+  ],
+);
+
+/**
+ * A customer mail about an order (igs-pharma#157): written with the state change it reports and
+ * sent by the worker. One per order and kind (per refund and kind for the refund mails), so a
+ * repeated event never mails twice. Ids only: the address is read from the contact at send time.
+ * A trigger refuses a mail whose order or refund is not in the state the mail reports.
+ */
+export const orderMails = orders.table(
+  "order_mails",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "restrict" }),
+    kind: text("kind").notNull(),
+    refundId: uuid("refund_id").references(() => refunds.id, { onDelete: "restrict" }),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("order_mails_kind_check", oneOf("kind", ORDER_MAIL_KINDS)),
+    check("order_mails_status_check", oneOf("status", ORDER_MAIL_STATUSES)),
+    check(
+      "order_mails_refund_check",
+      sql`(${t.kind} IN ('refund_initiated', 'refund_completed')) = (${t.refundId} IS NOT NULL)`,
+    ),
+    uniqueIndex("order_mails_order_kind_idx")
+      .on(t.orderId, t.kind)
+      .where(sql`${t.refundId} IS NULL`),
+    uniqueIndex("order_mails_refund_kind_idx")
+      .on(t.refundId, t.kind)
+      .where(sql`${t.refundId} IS NOT NULL`),
+    index("order_mails_status_created_idx").on(t.status, t.createdAt),
   ],
 );
