@@ -58,6 +58,10 @@ export const PERMISSIONS = {
      * (staff release a reservation with `inventory.stock.manage`).
      */
     reservationManage: "inventory.reservation.manage",
+    /** Pharmacist-only (igs-pharma#164): quarantine a lot (never sellable) and release it. */
+    lotsQuarantine: "inventory.lots.quarantine",
+    /** Titular-only (igs-pharma#164): the shop-wide expiry buffer (how close to expiry a lot stops selling). */
+    settingsManage: "inventory.settings.manage",
   },
   pricing: {
     /** Back-office: a product's web price, its VAT part, scheduled changes and history (igs-pharma#59). */
@@ -186,6 +190,8 @@ export const PHARMACIST_ONLY: readonly Permission[] = [
   PERMISSIONS.orders.reviewDecide,
   PERMISSIONS.pharmacy.pharmacistsManage,
   PERMISSIONS.catalog.productsRegulatedManage,
+  PERMISSIONS.inventory.lotsQuarantine,
+  PERMISSIONS.inventory.settingsManage,
 ];
 
 /** Roles that only a holder of `pharmacy.pharmacists.manage` may grant or revoke (Q7). */
@@ -239,6 +245,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.catalog.productsRegulatedManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
+    PERMISSIONS.inventory.lotsQuarantine,
+    PERMISSIONS.inventory.settingsManage,
     PERMISSIONS.pharmacy.pharmacistsManage,
   ],
   // asafarim-docs:ventures/igs-pharma/04-product/pharmacy-platform-backoffice.md: the inventory screens belong to pharmacists and assistants
@@ -252,6 +260,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.catalog.productsRegulatedManage,
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
+    PERMISSIONS.inventory.lotsQuarantine,
   ],
   pharmacy_assistant: [
     PERMISSIONS.orders.read,

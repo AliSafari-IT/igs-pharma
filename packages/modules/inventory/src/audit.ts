@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ADJUST_REASONS, RELEASE_REASONS } from "./domain";
+import { ADJUST_REASONS, QUARANTINE_REASONS, RELEASE_REASONS } from "./domain";
 
 /** Audit actions recorded by the inventory commands (`<domain>.<noun>.<verb>`). */
 export const INVENTORY_AUDIT = {
@@ -12,6 +12,12 @@ export const INVENTORY_AUDIT = {
   reservationReleased: "inventory.reservation.released",
   reservationConsumed: "inventory.reservation.consumed",
   reservationExpired: "inventory.reservation.expired",
+  stockReceived: "inventory.stock.received",
+  stockReturned: "inventory.stock.returned",
+  lotAssigned: "inventory.lot.assigned",
+  lotQuarantined: "inventory.lot.quarantined",
+  lotReleased: "inventory.lot.released",
+  expiryBufferSet: "inventory.settings.expiry_buffer_set",
 } as const;
 
 const stockImportPrepared = z.object({
@@ -26,8 +32,32 @@ const stockImported = z.object({
 const stockAdjusted = z.object({
   movementId: z.uuid(),
   productId: z.uuid(),
+  lotId: z.uuid(),
   delta: z.number().int(),
   reason: z.enum(ADJUST_REASONS),
+});
+
+/** igs-pharma#164: ids and quantities; never the staff note, the lot number or the expiry date. */
+const stockLotMovement = z.object({
+  movementId: z.uuid(),
+  productId: z.uuid(),
+  lotId: z.uuid(),
+  quantity: z.number().int().min(1),
+});
+const lotAssigned = z.object({
+  productId: z.uuid(),
+  fromLotId: z.uuid(),
+  lotId: z.uuid(),
+  quantity: z.number().int().min(1),
+});
+const lotQuarantine = z.object({
+  productId: z.uuid(),
+  lotId: z.uuid(),
+  reason: z.enum(QUARANTINE_REASONS),
+});
+const expiryBufferSet = z.object({
+  from: z.number().int().min(0),
+  to: z.number().int().min(0),
 });
 
 /** Ids and a quantity only (D-028): never the holder reference, which is the holder's business. */
@@ -56,4 +86,10 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(INVENTORY_AUDIT.reservationReleased, reservationReleased);
   register(INVENTORY_AUDIT.reservationConsumed, reservationConsumed);
   register(INVENTORY_AUDIT.reservationExpired, reservationEvent);
+  register(INVENTORY_AUDIT.stockReceived, stockLotMovement);
+  register(INVENTORY_AUDIT.stockReturned, stockLotMovement);
+  register(INVENTORY_AUDIT.lotAssigned, lotAssigned);
+  register(INVENTORY_AUDIT.lotQuarantined, lotQuarantine);
+  register(INVENTORY_AUDIT.lotReleased, lotQuarantine);
+  register(INVENTORY_AUDIT.expiryBufferSet, expiryBufferSet);
 }

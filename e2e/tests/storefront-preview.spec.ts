@@ -78,8 +78,16 @@ test.beforeAll(async () => {
       VALUES (gen_random_uuid(), ${id}, 'web', 599, now() - interval '1 hour', 'system', 'e2e')`;
   }
   await sql`
-    INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
-    VALUES (gen_random_uuid(), ${productIds[0] as string}, ${(location as { id: string }).id}, 12, 'adjustment', 'system', 'e2e')`;
+    WITH lot AS (
+      INSERT INTO inventory.lots (id, product_id, location_id, tracking, created_by_type, created_by_id)
+      VALUES (gen_random_uuid(), ${productIds[0] as string}, ${(location as { id: string }).id}::uuid, 'no_lot', 'system', 'e2e')
+      ON CONFLICT DO NOTHING RETURNING id
+    )
+    INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+    VALUES (gen_random_uuid(), ${productIds[0] as string}, ${(location as { id: string }).id}::uuid,
+      coalesce((SELECT id FROM lot), (SELECT id FROM inventory.lots
+        WHERE product_id = ${productIds[0] as string} AND location_id = ${(location as { id: string }).id}::uuid AND tracking = 'no_lot')),
+      12, 'adjustment', 'system', 'e2e')`;
 });
 
 test.afterAll(async () => {

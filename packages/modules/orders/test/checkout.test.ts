@@ -15,7 +15,7 @@ import {
 } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
 import {
-  adjustStock,
+  receiveStock,
   registerAuditActions as registerInventoryAudit,
   reserveStock,
 } from "@igs/module-inventory";
@@ -89,7 +89,14 @@ async function product(
   await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
   const stock = options.stock ?? 10;
   if (stock > 0) {
-    await adjustStock({ productId, delta: stock, reason: "adjustment", note: "seed" }, owner);
+    await receiveStock(
+      {
+        productId,
+        quantity: stock,
+        ...(medicine ? { lotNumber: "T-1", expiryDate: "2099-12-31" } : {}),
+      },
+      owner,
+    );
   }
   if (options.priceCents !== null) {
     await setPrice({ productId, amountCents: options.priceCents ?? 1_000 }, owner);

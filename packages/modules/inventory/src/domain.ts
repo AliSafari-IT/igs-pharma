@@ -13,7 +13,14 @@ export type LocationKind = (typeof LOCATION_KINDS)[number];
  * Why stock moved: a CSV count, a counted change (breakage, loss…), fixing an earlier mistake, or a
  * sale picked for an order (`sale`, written when a reservation is consumed, igs-pharma#99).
  */
-export const MOVEMENT_REASONS = ["import", "adjustment", "correction", "sale"] as const;
+export const MOVEMENT_REASONS = [
+  "import",
+  "adjustment",
+  "correction",
+  "sale",
+  "receipt",
+  "return",
+] as const;
 export type MovementReason = (typeof MOVEMENT_REASONS)[number];
 
 /** The reasons staff pick in the Adjust dialog (`import` belongs to the CSV import). */
@@ -145,26 +152,83 @@ export const HOLDER_REF_PATTERN =
 /** What is on the shelf, what is set aside, what is left to sell, and by how much it is short. */
 export interface Availability {
   readonly onHand: number;
+  /** On hand in lots that may be sold (ADR 0011): not quarantined, not `unknown`, not near expiry. */
+  readonly sellable: number;
   /** Quantity in live holds (not yet past `expires_at`). */
   readonly held: number;
   /** Quantity in active orders. */
   readonly ordered: number;
-  /** `onHand − held − ordered`, never below 0: what a new hold may take. */
+  /** `sellable − held − ordered`, never below 0: what a new hold may take. */
   readonly available: number;
   /**
-   * How many units the pharmacy is SHORT for its orders: the shelf holds fewer than the orders
-   * reserved (a count or an adjustment lowered it). 0 when it is not short.
+   * How many units the pharmacy is SHORT for its orders: the sellable stock is less than the orders
+   * reserved (a count, an adjustment, a quarantine or the expiry buffer lowered it). 0 when not short.
    */
   readonly short: number;
 }
 
-/** The numbers above from the three sums. Pure. */
-export function availabilityOf(onHand: number, held: number, ordered: number): Availability {
+/** The numbers above from the sums. `sellable` defaults to all of on-hand. Pure. */
+export function availabilityOf(
+  onHand: number,
+  held: number,
+  ordered: number,
+  sellable: number = onHand,
+): Availability {
   return {
     onHand,
+    sellable,
     held,
     ordered,
-    available: Math.max(0, onHand - held - ordered),
-    short: Math.max(0, ordered - onHand),
+    available: Math.max(0, sellable - held - ordered),
+    short: Math.max(0, ordered - sellable),
   };
+}
+
+// ── lots (igs-pharma#164, ADR 0011) ──────────────────────────────────────────────────────────────
+
+/**
+ * How a lot is identified: `lot` (a lot number, and for a medicine an expiry date), `no_lot` (a
+ * non-medicine received without one: a kind, never a lot-number string) or `unknown` (stock from
+ * before lots existed whose lot was never recorded: never sellable).
+ */
+export const LOT_TRACKING = ["lot", "no_lot", "unknown"] as const;
+export type LotTracking = (typeof LOT_TRACKING)[number];
+
+/** Why a lot is quarantined (not sellable until a pharmacist releases it). */
+export const QUARANTINE_REASONS = ["quality", "recall", "damaged", "other"] as const;
+export type QuarantineReason = (typeof QUARANTINE_REASONS)[number];
+
+/** A lot number as printed on the pack. */
+export const LOT_NUMBER_MAX = 40;
+export const LOT_NUMBER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9./ -]{0,39}$/;
+
+/** A lot stops selling this many days before its expiry date unless the titular changes it. */
+export const EXPIRY_BUFFER_DEFAULT_DAYS = 30;
+export const EXPIRY_BUFFER_MAX_DAYS = 365;
+
+/** Where a lot stands against its expiry date: only `sellable` may be sold. */
+export const EXPIRY_STATES = ["sellable", "within_expiry_buffer", "expired"] as const;
+export type ExpiryState = (typeof EXPIRY_STATES)[number];
+
+/** `YYYY-MM-DD` plus `days`, as a calendar date (no time zone involved). */
+export function addDays(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const at = new Date(Date.UTC(y ?? 0, (m ?? 1) - 1, (d ?? 1) + days));
+  return at.toISOString().slice(0, 10);
+}
+
+/**
+ * A lot's expiry state on `today` (a Brussels calendar date, `YYYY-MM-DD`): expired on and after its
+ * expiry date; within the buffer while `expiry_date <= today + bufferDays`; sellable after that. A
+ * lot without an expiry date (`no_lot`) is always `sellable` by date.
+ */
+export function expiryStateOf(
+  expiryDate: string | null,
+  today: string,
+  bufferDays: number,
+): ExpiryState {
+  if (expiryDate === null) return "sellable";
+  if (expiryDate <= today) return "expired";
+  if (expiryDate <= addDays(today, bufferDays)) return "within_expiry_buffer";
+  return "sellable";
 }

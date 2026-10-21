@@ -44,5 +44,24 @@ export const inventory: SchemaGrants = {
       note: "SECURITY DEFINER trigger function (no EXECUTE for anyone: a trigger needs none)",
       since: 29,
     }),
+    table("inventory.lots", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "lots of the web pool (igs-pharma#164); a trigger lets only the quarantine columns change and refuses DELETE",
+      since: 63,
+    }),
+    table("inventory.lot_levels", "mutable", {
+      app: ["SELECT"],
+      note: "on-hand per lot, derived from the ledger by the definer trigger only",
+      since: 63,
+    }),
+    table("inventory.settings", "mutable", {
+      app: ["SELECT", "UPDATE"],
+      note: "the single settings row (expiry buffer); a trigger refuses DELETE",
+      since: 63,
+    }),
+    fn("inventory.lot_guard()", {
+      note: "trigger function: a lot keeps its identity",
+      since: 63,
+    }),
   ],
 };

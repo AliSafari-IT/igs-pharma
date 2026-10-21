@@ -71,7 +71,10 @@ export async function loadDashboard(actor: ResolvedActor): Promise<Dashboard> {
     ...(products ? { products } : {}),
     ...(stockSummary
       ? {
-          stock: mapTile(stockSummary, ({ low, out, short }): StockAlerts => ({ low, out, short })),
+          stock: mapTile(
+            stockSummary,
+            ({ low, out, short, flaggedLots }): StockAlerts => ({ low, out, short, flaggedLots }),
+          ),
           reservations: mapTile(
             stockSummary,
             ({ activeReservations }): ReservationCounts => ({ active: activeReservations }),

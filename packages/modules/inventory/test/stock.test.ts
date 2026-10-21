@@ -23,6 +23,7 @@ import {
   importStock,
   listStock,
   prepareStockImport,
+  receiveStock,
   registerAuditActions,
   stockImportKey,
 } from "../src";
@@ -59,15 +60,18 @@ const editor = staff("content_editor");
 
 let nextCnk = 9_800_100;
 
-/** A catalog product with Dutch content; returns its id and CNK. */
+/**
+ * A catalog product with Dutch content; returns its id and CNK. Not a medicine: its stock sits in
+ * its `no_lot` lot, so these tests exercise the ledger itself (lots: lots.test.ts).
+ */
 async function newProduct(): Promise<{ id: string; cnk: string }> {
   const cnk = String(nextCnk++);
   const { productId } = await createProductRegulated(
     {
       cnk,
-      productType: "otc_medicine",
-      legalStatus: "otc",
-      vatClass: "BE_6",
+      productType: "medical_device",
+      legalStatus: "general_sale",
+      vatClass: "BE_21",
       content: [{ locale: "nl", name: `Demo ${cnk}` }],
     },
     pharmacist,
@@ -105,6 +109,10 @@ async function storefrontProduct(
   await setProductStatusRegulated({ productId, status: "active" }, pharmacist);
   return productId;
 }
+
+/** Stock received into a lot of a medicine (a medicine's stock is always in a real lot, #164). */
+const receiveLot = (productId: string, quantity: number) =>
+  receiveStock({ productId, quantity, lotNumber: "TEST-1", expiryDate: "2099-12-31" }, owner);
 
 /** The two-step import of a file: preview (a new plan) then confirm that plan. */
 async function importCsv(csv: string, actor: Actor = owner) {
@@ -380,8 +388,10 @@ describe("inventory.stock.adjust", () => {
     });
     const raw = iso.sql.begin(async (tx) => {
       await tx`
-        INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
-        VALUES (${randomUUID()}, ${a.id}, ${DEFAULT_LOCATION_ID}, -5, 'adjustment', 'system', 'test')`;
+        INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+        VALUES (${randomUUID()}, ${a.id}, ${DEFAULT_LOCATION_ID},
+          (SELECT id FROM inventory.lots WHERE product_id = ${a.id} AND tracking = 'no_lot'),
+          -5, 'adjustment', 'system', 'test')`;
       locked();
       await held;
     });
@@ -420,7 +430,7 @@ describe("inventory.stock.adjust", () => {
 
   it("audits identifiers and the delta, never the note", async () => {
     const a = await newProduct();
-    const { movementId } = await adjustStock(
+    const { movementId, lotId } = await adjustStock(
       { productId: a.id, delta: 5, reason: "correction", note: "Private remark" },
       assistant,
     );
@@ -430,7 +440,7 @@ describe("inventory.stock.adjust", () => {
     expect(events).toEqual([
       {
         action: "inventory.stock.adjusted",
-        data: { movementId, productId: a.id, delta: 5, reason: "correction" },
+        data: { movementId, productId: a.id, lotId, delta: 5, reason: "correction" },
       },
     ]);
   });
@@ -488,13 +498,10 @@ describe("inventory.availability.get (storefront)", () => {
     const stocked = { id: await storefrontProduct() };
     const sold = { id: await storefrontProduct("pharmacy_only") };
     const never = { id: await storefrontProduct() };
+    await receiveLot(stocked.id, 7);
+    const { lotId } = await receiveLot(sold.id, 2);
     await adjustStock(
-      { productId: stocked.id, delta: 7, reason: "adjustment", note: "found" },
-      owner,
-    );
-    await adjustStock({ productId: sold.id, delta: 2, reason: "adjustment", note: "found" }, owner);
-    await adjustStock(
-      { productId: sold.id, delta: -2, reason: "adjustment", note: "sold out" },
+      { productId: sold.id, lotId, delta: -2, reason: "adjustment", note: "sold out" },
       owner,
     );
 
@@ -515,9 +522,8 @@ describe("inventory.availability.get (storefront)", () => {
     const rx = await storefrontProduct("rx");
     const rxType = await storefrontProduct("otc", "rx_medicine");
     const draft = (await newProduct()).id;
-    for (const id of [rx, rxType, draft]) {
-      await adjustStock({ productId: id, delta: 3, reason: "adjustment", note: "found" }, owner);
-    }
+    for (const id of [rx, rxType]) await receiveLot(id, 3);
+    await adjustStock({ productId: draft, delta: 3, reason: "adjustment", note: "found" }, owner);
     const ids = [rx, rxType, draft, randomUUID(), visible];
     expect(await getAvailability({ productIds: ids }, storefront)).toEqual([
       { productId: visible, inStock: false },

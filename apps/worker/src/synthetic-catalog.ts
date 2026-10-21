@@ -22,7 +22,7 @@ import {
   setProductCategories,
   setProductStatusRegulated,
 } from "@igs/module-catalog";
-import { importStock, listStock, prepareStockImport } from "@igs/module-inventory";
+import { listStock, receiveStock } from "@igs/module-inventory";
 
 /** The seed CLI's system actor: `system_seed` is a system role no user can hold. */
 export const SEED_ACTOR = { type: "system", id: "seed-catalog", roles: ["system_seed"] } as const;
@@ -536,14 +536,17 @@ export interface StockSeedResult {
 }
 
 /**
- * Gives the seed products their demo stock, through one CSV import (`inventory.stock.import`, so it
- * is audited like a pharmacist's upload). Only a seed product whose stock never moved is stocked:
+ * Gives the seed products their demo stock as receipts into the web pool (`inventory.stock.receive`,
+ * audited like staff's): a medicine into a demo lot, another product into its `no_lot` lot
+ * (igs-pharma#164). Only a seed product whose stock never moved is stocked:
  * running it again, or after staff counted or adjusted stock, changes nothing. A product on a seed
  * CNK that is not the seed's (another Dutch name) is never touched.
  */
 export async function seedSyntheticStock(actor: Actor = SEED_ACTOR): Promise<StockSeedResult> {
-  const lines: string[] = [];
+  let stocked = 0;
   let skipped = 0;
+  // a demo medicine's stock is in a demo lot that expires in about 18 months (igs-pharma#164)
+  const expiryDate = new Date(Date.now() + 540 * 86_400_000).toISOString().slice(0, 10);
   for (const [index, seed] of PRODUCTS.entries()) {
     const cnk = cnkFor(index);
     const [item] = (await listStock({ q: cnk, pageSize: 1 }, actor)).items;
@@ -551,15 +554,18 @@ export async function seedSyntheticStock(actor: Actor = SEED_ACTOR): Promise<Sto
       skipped++;
       continue;
     }
-    lines.push(`${cnk};${demoStockFor(index)}`);
+    const medicine = seed.type === "otc_medicine" || seed.type === "rx_medicine";
+    await receiveStock(
+      {
+        productId: item.productId,
+        quantity: demoStockFor(index),
+        ...(medicine ? { lotNumber: `DEMO-${cnk}`, expiryDate } : {}),
+      },
+      actor,
+    );
+    stocked++;
   }
-  if (lines.length === 0) return { stocked: 0, skipped };
-  const { planId } = await prepareStockImport(
-    { csv: `cnk;quantity\n${lines.join("\n")}\n` },
-    actor,
-  );
-  await importStock({ planId }, actor);
-  return { stocked: lines.length, skipped };
+  return { stocked, skipped };
 }
 
 export interface CategorySeedResult {

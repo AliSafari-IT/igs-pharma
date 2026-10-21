@@ -33,8 +33,16 @@ afterAll(async () => {
 /** A raw ledger insert, exactly what a careless writer would run: no lock, no module function. */
 const rawMove = (sql: postgres.Sql | postgres.TransactionSql, productId: string, delta: number) =>
   sql`
-    INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
-    VALUES (${randomUUID()}, ${productId}, ${DEFAULT_LOCATION_ID}, ${delta}, 'adjustment', 'system', 'test')`;
+    WITH made AS (
+      INSERT INTO inventory.lots (id, product_id, location_id, tracking, created_by_type, created_by_id)
+      VALUES (${randomUUID()}, ${productId}, ${DEFAULT_LOCATION_ID}, 'no_lot', 'system', 'test')
+      ON CONFLICT DO NOTHING RETURNING id
+    )
+    INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+    VALUES (${randomUUID()}, ${productId}, ${DEFAULT_LOCATION_ID},
+      coalesce((SELECT id FROM made), (SELECT id FROM inventory.lots
+        WHERE product_id = ${productId} AND location_id = ${DEFAULT_LOCATION_ID} AND tracking = 'no_lot')),
+      ${delta}, 'adjustment', 'system', 'test')`;
 
 const failure = async (promise: PromiseLike<unknown>) => {
   try {

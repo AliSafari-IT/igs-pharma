@@ -61,7 +61,7 @@ describe("needsAttention", () => {
   it("lists the non-zero counts, most pressing first, each linked to its page", () => {
     const { items, incomplete } = needsAttention({
       products: ok({ awaitingApproval: 2 }),
-      stock: ok({ out: 3, short: 4 }),
+      stock: ok({ out: 3, short: 4, flaggedLots: 0 }),
       requests: ok({ overdue: 5 }),
     });
     expect(items).toEqual([
@@ -81,7 +81,7 @@ describe("needsAttention", () => {
     expect(
       needsAttention({
         orders: ok({ stockShort: 2, overdue: 0 }),
-        stock: ok({ out: 1, short: 0 }),
+        stock: ok({ out: 1, short: 0, flaggedLots: 0 }),
       }).items,
     ).toEqual([
       {
@@ -101,10 +101,25 @@ describe("needsAttention", () => {
     expect(needsAttention({ orders: failed }).incomplete).toBe(true);
   });
 
+  it("lists the lots that can't be sold after the products short for orders (#164)", () => {
+    expect(
+      needsAttention({ stock: ok({ out: 0, short: 1, flaggedLots: 2 }) }).items.map((item) => [
+        item.id,
+        item.text,
+      ]),
+    ).toEqual([
+      ["short", "1 product is short for orders"],
+      [
+        "flagged_lots",
+        "2 lots can't be sold (too close to expiry, expired, quarantined or lot not recorded)",
+      ],
+    ]);
+  });
+
   it("says one in the singular", () => {
     const { items } = needsAttention({
       products: ok({ awaitingApproval: 1 }),
-      stock: ok({ out: 1, short: 1 }),
+      stock: ok({ out: 1, short: 1, flaggedLots: 0 }),
       requests: ok({ overdue: 1 }),
     });
     expect(items.map((item) => item.text)).toEqual([
@@ -117,14 +132,15 @@ describe("needsAttention", () => {
 
   it("leaves out zero counts, and is empty when nothing is due", () => {
     expect(
-      needsAttention({ stock: ok({ out: 2, short: 0 }), requests: ok({ overdue: 0 }) }).items.map(
-        (item) => item.id,
-      ),
+      needsAttention({
+        stock: ok({ out: 2, short: 0, flaggedLots: 0 }),
+        requests: ok({ overdue: 0 }),
+      }).items.map((item) => item.id),
     ).toEqual(["out"]);
     expect(
       needsAttention({
         products: ok({ awaitingApproval: 0 }),
-        stock: ok({ out: 0, short: 0 }),
+        stock: ok({ out: 0, short: 0, flaggedLots: 0 }),
         requests: ok({ overdue: 0 }),
       }),
     ).toEqual({ items: [], incomplete: false });

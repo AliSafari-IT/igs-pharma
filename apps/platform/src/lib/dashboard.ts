@@ -34,6 +34,8 @@ export interface StockAlerts {
   readonly out: number;
   /** Products whose active orders exceed what is on the shelf (igs-pharma#112). */
   readonly short: number;
+  /** Lots with stock that can't be sold: quarantined, near or past expiry, lot not recorded (#164). */
+  readonly flaggedLots: number;
 }
 
 /** The active reservations tile, from the same summary. */
@@ -49,19 +51,19 @@ export interface AttentionSources {
     | TileResult<{ readonly stockShort: number; readonly overdue: number }>
     | undefined;
   readonly products?: TileResult<{ readonly awaitingApproval: number }> | undefined;
-  readonly stock?: TileResult<Pick<StockAlerts, "out" | "short">> | undefined;
+  readonly stock?: TileResult<Pick<StockAlerts, "out" | "short" | "flaggedLots">> | undefined;
   readonly requests?: TileResult<{ readonly overdue: number }> | undefined;
 }
 
 /** One line of the panel: a plain sentence that links to the page where it is dealt with. */
 export interface AttentionItem {
-  readonly id: "stock_short_orders" | "short" | "overdue" | "out" | "awaiting";
+  readonly id: "stock_short_orders" | "short" | "flagged_lots" | "overdue" | "out" | "awaiting";
   readonly text: string;
   readonly href: string;
 }
 
 export interface Attention {
-  /** At most five lines, most pressing first; only non-zero counts. */
+  /** At most six lines, most pressing first; only non-zero counts. */
   readonly items: readonly AttentionItem[];
   /** A source tile failed to load, so the list may be missing something. */
   readonly incomplete: boolean;
@@ -72,7 +74,7 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 /**
  * The dashboard's "Needs attention" list (igs-pharma#112 V1 item 1), from the tiles already loaded:
  * no query and no permission of its own. Order: paid orders short of stock (#158), products short
- * for their orders, overdue data
+ * for their orders, lots that can't be sold (#164), overdue data
  * requests, products out of stock, medicines awaiting a pharmacist's approval. A tile the member
  * may not see, or one in its error state, adds nothing (an error marks the list incomplete).
  */
@@ -97,6 +99,13 @@ export function needsAttention(sources: AttentionSources): Attention {
     items.push({
       id: "short",
       text: `${count(stock.short, "product is", "products are")} short for orders`,
+      href: "/stock",
+    });
+  }
+  if (stock && stock.flaggedLots > 0) {
+    items.push({
+      id: "flagged_lots",
+      text: `${count(stock.flaggedLots, "lot", "lots")} can't be sold (too close to expiry, expired, quarantined or lot not recorded)`,
       href: "/stock",
     });
   }

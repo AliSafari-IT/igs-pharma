@@ -75,9 +75,9 @@ async function product(draft = false): Promise<string> {
   const { productId } = await createProductRegulated(
     {
       cnk,
-      productType: "otc_medicine",
-      legalStatus: "otc",
-      vatClass: "BE_6",
+      productType: "medical_device",
+      legalStatus: "general_sale",
+      vatClass: "BE_21",
       approveContent: true,
       content: [
         { locale: "nl", name: `Demo ${cnk}` },
@@ -117,6 +117,7 @@ async function countedFromTheList() {
   let out = 0;
   let activeReservations = 0;
   let short = 0;
+  let flaggedLots = 0;
   for (let page = 1; ; page += 1) {
     const result = await listStock({ page, pageSize: 100 }, pharmacist);
     for (const item of result.items) {
@@ -124,13 +125,14 @@ async function countedFromTheList() {
       if (status === "out") out += 1;
       if (status === "low") low += 1;
       if (item.short > 0) short += 1;
+      flaggedLots += item.flaggedLots;
       const stock = await getStock({ productId: item.productId }, pharmacist);
       activeReservations += stock.reservations.length;
       expect(stock.short).toBe(item.short);
     }
     if (page * result.pageSize >= result.total) break;
   }
-  return { low, out, activeReservations, short };
+  return { low, out, activeReservations, short, flaggedLots };
 }
 
 describe("inventory.stock.summary", () => {
@@ -140,6 +142,7 @@ describe("inventory.stock.summary", () => {
       out: 0,
       activeReservations: 0,
       short: 0,
+      flaggedLots: 0,
     });
   });
 
@@ -176,7 +179,7 @@ describe("inventory.stock.summary", () => {
     await stocked(1); // low
 
     const summary = await getStockSummary({}, pharmacist);
-    expect(summary).toEqual({ low: 4, out: 3, activeReservations: 3, short: 0 });
+    expect(summary).toEqual({ low: 4, out: 3, activeReservations: 3, short: 0, flaggedLots: 0 });
     expect(await countedFromTheList()).toEqual(summary);
   });
 
@@ -220,6 +223,7 @@ describe("inventory.stock.summary", () => {
       out: before.out + 2,
       activeReservations: before.activeReservations + 2,
       short: before.short + 1,
+      flaggedLots: before.flaggedLots,
     });
     expect(await countedFromTheList()).toEqual(summary);
   });

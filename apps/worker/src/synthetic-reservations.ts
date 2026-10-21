@@ -70,6 +70,8 @@ export async function seedSyntheticReservations(
       await adjustStock(
         {
           productId: item.id,
+          // the product's one lot from the stock seed (a medicine always names its lot, #164)
+          ...(stock.lots[0] ? { lotId: stock.lots[0].lotId } : {}),
           delta: -SHORT_MISSING,
           reason: "adjustment",
           note: "Demo: five fewer on the shelf than the orders set aside",

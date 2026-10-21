@@ -9,13 +9,18 @@ import { ADJUST_REASON_OPTIONS, REASON_LABELS, stockErrorMessage } from "./stock
 interface Props {
   readonly productId: string;
   readonly onHand: number;
+  /** The product's lots to choose from (igs-pharma#164), labelled. */
+  readonly lots: readonly { readonly lotId: string; readonly label: string }[];
+  /** A medicine always names its lot; another product may use its untracked stock. */
+  readonly isMedicine: boolean;
 }
 
 /**
- * The Adjust dialog on a product's stock page (igs-pharma#53): a signed change, a reason and a note,
- * all required. The ledger refuses a change that would take stock below zero.
+ * The Adjust dialog on a product's stock page (igs-pharma#53): the lot (igs-pharma#164), a signed
+ * change, a reason and a note, all required. The ledger refuses a change that would take the lot
+ * below zero.
  */
-export function AdjustDialog({ productId, onHand }: Props) {
+export function AdjustDialog({ productId, onHand, lots, isMedicine }: Props) {
   const [state, action, pending] = useActionState(adjust, {} as AdjustState);
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
@@ -52,6 +57,25 @@ export function AdjustDialog({ productId, onHand }: Props) {
                   : null}
               </Alert>
             ) : null}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${id}-lot`} required>
+                Lot
+              </Label>
+              <Select
+                id={`${id}-lot`}
+                name="lotId"
+                required
+                defaultValue={value("lotId", isMedicine ? (lots[0]?.lotId ?? "") : "")}
+                key={`lot-${value("lotId")}`}
+              >
+                {isMedicine ? null : <option value="">No lot</option>}
+                {lots.map((lot) => (
+                  <option key={lot.lotId} value={lot.lotId}>
+                    {lot.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <TextField
               label="Change"
               name="delta"

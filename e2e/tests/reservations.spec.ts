@@ -63,8 +63,16 @@ async function product(name: string, onHand: number) {
     INSERT INTO catalog.product_content (product_id, locale, name, source)
     VALUES (${id}, 'nl', ${name}, 'manual')`;
   await sql`
-    INSERT INTO inventory.stock_movements (id, product_id, location_id, delta, reason, actor_type, actor_id)
-    VALUES (gen_random_uuid(), ${id}, ${LOCATION}, ${onHand}, 'import', 'system', 'e2e')`;
+    WITH lot AS (
+      INSERT INTO inventory.lots (id, product_id, location_id, tracking, created_by_type, created_by_id)
+      VALUES (gen_random_uuid(), ${id}, ${LOCATION}::uuid, 'no_lot', 'system', 'e2e')
+      ON CONFLICT DO NOTHING RETURNING id
+    )
+    INSERT INTO inventory.stock_movements (id, product_id, location_id, lot_id, delta, reason, actor_type, actor_id)
+    VALUES (gen_random_uuid(), ${id}, ${LOCATION}::uuid,
+      coalesce((SELECT id FROM lot), (SELECT id FROM inventory.lots
+        WHERE product_id = ${id} AND location_id = ${LOCATION}::uuid AND tracking = 'no_lot')),
+      ${onHand}, 'import', 'system', 'e2e')`;
   return { id, cnk, name };
 }
 
@@ -209,7 +217,12 @@ test("a reservation that ended meanwhile is explained, not released twice", asyn
   await sql`
     UPDATE inventory.reservations SET status = 'released', release_reason = 'order_cancelled'
     WHERE id = ${id}`;
-  await page.locator("tbody tr").first().getByRole("button", { name: "Release" }).click();
+  await page
+    .getByRole("region", { name: "Set aside" })
+    .locator("tbody tr")
+    .first()
+    .getByRole("button", { name: "Release" })
+    .click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Release" }).click();
   await expect(dialog.getByText("This reservation has already ended")).toBeVisible();

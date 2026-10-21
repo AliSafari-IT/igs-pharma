@@ -1,9 +1,13 @@
 import type {
   AdjustReason,
+  ExpiryState,
+  LotTracking,
   MovementReason,
+  QuarantineReason,
   ReleaseReason,
   ReservationKind,
 } from "@igs/module-inventory";
+import type { BadgeVariant } from "@igs/ui";
 
 /**
  * The English text staff see for inventory values and error codes (D-006: the kernel carries no
@@ -14,7 +18,52 @@ export const REASON_LABELS: Record<MovementReason, string> = {
   adjustment: "Adjustment",
   correction: "Correction",
   sale: "Sale (picked for an order)",
+  receipt: "Received into the web stock",
+  return: "Returned to the pharmacy",
 };
+
+/** A lot as staff read it (igs-pharma#164): its number, or what it is when it has none. */
+export function lotLabel(lot: { tracking: LotTracking; lotNumber: string | null }): string {
+  if (lot.tracking === "lot") return lot.lotNumber ?? "";
+  return lot.tracking === "no_lot" ? "No lot" : "Lot not recorded";
+}
+
+/** Where a lot stands: one label, the most pressing reason it can't be sold first. */
+export function lotState(lot: {
+  tracking: LotTracking;
+  expiryState: ExpiryState;
+  quarantine: { reason: QuarantineReason } | null;
+}): { label: string; variant: BadgeVariant } {
+  if (lot.quarantine) {
+    return { label: `Quarantined: ${QUARANTINE_LABELS[lot.quarantine.reason]}`, variant: "error" };
+  }
+  if (lot.tracking === "unknown") return { label: "Record its lot", variant: "error" };
+  if (lot.expiryState === "expired") return { label: "Expired", variant: "error" };
+  if (lot.expiryState === "within_expiry_buffer") {
+    return { label: "Too close to expiry", variant: "amber" };
+  }
+  return { label: "Sellable", variant: "success" };
+}
+
+/** Why a lot is quarantined. A type-only copy of `QUARANTINE_REASONS` for client components. */
+export const QUARANTINE_REASON_OPTIONS = [
+  "quality",
+  "recall",
+  "damaged",
+  "other",
+] as const satisfies readonly QuarantineReason[];
+
+export const QUARANTINE_LABELS: Record<QuarantineReason, string> = {
+  quality: "quality",
+  recall: "recall",
+  damaged: "damaged",
+  other: "other",
+};
+
+const day = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "UTC" });
+
+/** `2027-03-31` as "31 Mar 2027" (a calendar date: no time zone shift). */
+export const formatDate = (value: string): string => day.format(new Date(`${value}T00:00:00Z`));
 
 /** What a reservation is, in the pharmacy's words (igs-pharma#99). */
 export const KIND_LABELS: Record<ReservationKind, string> = {
@@ -68,6 +117,8 @@ const ROW_ERRORS: Record<string, string> = {
   "inventory.row_malformed": "Write the line as CNK;quantity.",
   "inventory.import_empty": "The file has no stock lines.",
   "inventory.too_many_rows": "The file has more than 5,000 lines. Split it into smaller files.",
+  "inventory.import_needs_lot":
+    "This product's stock is kept per lot (a medicine, or stock already in lots). Receive it with its lot instead.",
 };
 
 export const rowErrorMessage = (code: string): string =>
@@ -93,6 +144,14 @@ const ERRORS: Record<string, string> = {
   "inventory.import_plan_expired":
     "This preview is more than an hour old, so nothing was imported. Upload the file again.",
   "inventory.import_plan_not_found": "This preview can't be found. Upload the file again.",
+  "inventory.lot_required":
+    "Fill in the lot number and the expiry date: a medicine's stock is always kept per lot.",
+  "inventory.expiry_in_past": "This lot has expired already: expired stock can't be received.",
+  "inventory.lot_not_found": "This lot no longer exists. Reload the page.",
+  "inventory.lot_quarantined": "This lot is already in quarantine.",
+  "inventory.lot_not_quarantined": "This lot is not in quarantine.",
+  "inventory.stock_not_sellable":
+    "The stock left for this order can't be sold (quarantined, too close to expiry, or its lot not recorded).",
   "kernel.idempotency_in_progress": "This file is being imported right now. Reload in a moment.",
   "kernel.forbidden": "You don't have permission to work with stock.",
   "kernel.mfa_required": "Confirm your 2-step login first.",
