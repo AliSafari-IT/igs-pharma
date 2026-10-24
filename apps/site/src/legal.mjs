@@ -381,7 +381,7 @@ export const deletion = {
       [
         "In de app",
         [
-          "Open Mijn lijstje en tik op “Lijst leegmaken”. Uw instellingen zet u terug in Instellingen.",
+          "Open Mijn lijstje en tik op “Lijstje leegmaken”. Taal, thema en tekstgrootte kan u elk apart wijzigen in Instellingen.",
         ],
       ],
       [
@@ -391,7 +391,7 @@ export const deletion = {
             ordered: [
               "Open de Instellingen van uw telefoon.",
               "Ga naar Apps en kies IGS-Pharma.",
-              "Tik op Opslag en dan op Gegevens wissen. Of verwijder de app.",
+              "Tik op Opslag en dan op Opslag wissen. Of verwijder de app.",
             ],
           },
           "Dan zijn uw lijstje en uw instellingen (taal, thema, tekstgrootte) weg.",
@@ -413,7 +413,7 @@ export const deletion = {
       [
         "Dans l'app",
         [
-          "Ouvrez Ma liste et touchez « Vider la liste ». Vos réglages se remettent à zéro dans Réglages.",
+          "Ouvrez Ma liste et touchez « Vider la liste ». La langue, le thème et la taille du texte se changent chacun dans Réglages.",
         ],
       ],
       [
@@ -423,7 +423,7 @@ export const deletion = {
             ordered: [
               "Ouvrez les Paramètres de votre téléphone.",
               "Allez dans Applications et choisissez IGS-Pharma.",
-              "Touchez Stockage, puis Effacer les données. Ou désinstallez l'app.",
+              "Touchez Stockage, puis Vider le stockage. Ou désinstallez l'app.",
             ],
           },
           "Votre liste et vos réglages (langue, thème, taille du texte) sont alors effacés.",
@@ -445,7 +445,7 @@ export const deletion = {
       [
         "In der App",
         [
-          "Öffnen Sie Meine Liste und tippen Sie auf „Liste leeren“. Ihre Einstellungen setzen Sie unter Einstellungen zurück.",
+          "Öffnen Sie Meine Liste und tippen Sie auf „Liste leeren“. Sprache, Design und Schriftgröße ändern Sie jeweils unter Einstellungen.",
         ],
       ],
       [
@@ -455,7 +455,7 @@ export const deletion = {
             ordered: [
               "Öffnen Sie die Einstellungen Ihres Telefons.",
               "Gehen Sie zu Apps und wählen Sie IGS-Pharma.",
-              "Tippen Sie auf Speicher und dann auf Daten löschen. Oder deinstallieren Sie die App.",
+              "Tippen Sie auf Speicher und dann auf Speicherinhalt löschen. Oder deinstallieren Sie die App.",
             ],
           },
           "Dann sind Ihre Liste und Ihre Einstellungen (Sprache, Design, Schriftgröße) gelöscht.",
@@ -474,7 +474,7 @@ export const deletion = {
     title: "Delete your data",
     lead: "The IGS-Pharma app has no account. Everything it keeps is on your phone. Here's how to remove it.",
     sections: [
-      ["In the app", ["Open My list and tap “Clear list”. Reset your settings in Settings."]],
+      ["In the app", ["Open My list and tap “Clear the list”. Language, theme and text size can each be changed in Settings."]],
       [
         "Everything at once",
         [
@@ -482,7 +482,7 @@ export const deletion = {
             ordered: [
               "Open your phone's Settings.",
               "Go to Apps and choose IGS-Pharma.",
-              "Tap Storage, then Clear data. Or uninstall the app.",
+              "Tap Storage, then Clear storage. Or uninstall the app.",
             ],
           },
           "Your list and your settings (language, theme, text size) are then gone.",
