@@ -57,7 +57,7 @@ export function ProductRow({
   footer?: React.ReactNode;
 }) {
   return (
-    <Card label={name} onPress={() => router.push(`/product/${cnk}`)}>
+    <Card onPress={() => router.push(`/product/${cnk}`)}>
       <AppText bold>{name}</AppText>
       {brandName && (
         <AppText variant="small" muted>

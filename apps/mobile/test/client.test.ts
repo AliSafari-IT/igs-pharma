@@ -34,6 +34,27 @@ describe("getJson", () => {
     });
   });
 
+  it("times out a body that never finishes", async () => {
+    vi.useFakeTimers();
+    try {
+      const stalled = (_url: string, init?: RequestInit) =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () =>
+            new Promise((_resolve, reject) =>
+              init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))),
+            ),
+        } as Response);
+      const answer = getJson("/pharmacy", {}, stalled);
+      const check = expect(answer).rejects.toEqual(new ApiError("offline"));
+      await vi.advanceTimersByTimeAsync(15_000);
+      await check;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("turns a closed storefront into 'closed'", async () => {
     await expect(
       getJson("/products", {}, async () => json(503, { error: "coming_soon" })),

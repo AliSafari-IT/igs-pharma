@@ -1,5 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ListItem } from "../api/types";
 import { useSettings } from "../settings/SettingsContext";
 import {
@@ -29,21 +37,35 @@ export function ListProvider({ children }: { children: ReactNode }) {
   const { locale } = useSettings();
   const [saved, setSaved] = useState<readonly SavedProduct[]>([]);
 
+  // false until the stored list is read; a change made before that wins over the stored copy
+  const [hydrated, setHydrated] = useState(false);
+  const changedEarly = useRef(false);
+  const writing = useRef<Promise<void>>(Promise.resolve());
+
   useEffect(() => {
     AsyncStorage.getItem(STORED_AS)
-      // a product saved in the first moment, before the read finished, is not thrown away
-      .then((raw) => setSaved((current) => (current.length > 0 ? current : parseSaved(raw))))
-      .catch(() => {});
+      .then((raw) => {
+        if (!changedEarly.current) setSaved(parseSaved(raw));
+      })
+      .catch(() => {})
+      .finally(() => setHydrated(true));
   }, []);
+
+  // writes run one after the other, so an older list never lands after a newer one
+  useEffect(() => {
+    if (!hydrated) return;
+    const json = JSON.stringify(saved);
+    writing.current = writing.current
+      .then(() => AsyncStorage.setItem(STORED_AS, json))
+      .catch(() => {});
+  }, [hydrated, saved]);
 
   // the actions never change with the list itself, so a screen can depend on them in an effect
   const actions = useMemo(() => {
-    const change = (next: (list: readonly SavedProduct[]) => SavedProduct[]) =>
-      setSaved((current) => {
-        const list = next(current);
-        AsyncStorage.setItem(STORED_AS, JSON.stringify(list)).catch(() => {});
-        return list;
-      });
+    const change = (next: (list: readonly SavedProduct[]) => SavedProduct[]) => {
+      changedEarly.current = true;
+      setSaved(next);
+    };
     return {
       add: (item: ListItem) => change((list) => addSaved(list, toSaved(item, locale, new Date()))),
       refresh: (item: ListItem) =>

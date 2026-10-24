@@ -27,7 +27,7 @@ export default function HomeScreen() {
       <SearchBox value={query} onChange={setQuery} onSubmit={search} />
 
       {saved.length > 0 && (
-        <Card label={t("tabList")} onPress={() => router.navigate("/list")}>
+        <Card onPress={() => router.navigate("/list")}>
           <AppText bold>{t("tabList")}</AppText>
           <AppText muted>
             {saved.length === 1

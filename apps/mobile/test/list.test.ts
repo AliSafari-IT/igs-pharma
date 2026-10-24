@@ -48,5 +48,10 @@ describe("My list", () => {
     expect(parseSaved("not json")).toEqual([]);
     expect(parseSaved(null)).toEqual([]);
     expect(parseSaved('{"cnk":"1000001"}')).toEqual([]);
+    // a status or price the screens cannot show is dropped, not rendered half
+    expect(parseSaved(JSON.stringify([{ ...good, status: "soon" }]))).toEqual([]);
+    expect(
+      parseSaved(JSON.stringify([{ ...good, price: { amountCents: 995, vatClass: "standard" } }])),
+    ).toEqual([]);
   });
 });

@@ -46,23 +46,27 @@ export async function getJson<T>(
   const url = `${STOREFRONT_URL}/api/mobile/v1${path}${query ? `?${query}` : ""}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  // the timer covers the body too: a server that sends headers and then stalls still times out
   let response: Response;
-  try {
-    response = await fetchImpl(url, {
-      headers: { accept: "application/json" },
-      signal: controller.signal,
-    });
-  } catch {
-    throw new ApiError("offline");
-  } finally {
-    clearTimeout(timer);
-  }
   let body: unknown;
   try {
-    body = await response.json();
-  } catch {
-    // an HTML page (a proxy, a captive portal, an old storefront without this API)
-    throw new ApiError(response.ok ? "unavailable" : errorKind(response.status, undefined));
+    try {
+      response = await fetchImpl(url, {
+        headers: { accept: "application/json" },
+        signal: controller.signal,
+      });
+    } catch {
+      throw new ApiError("offline");
+    }
+    try {
+      body = await response.json();
+    } catch {
+      if (controller.signal.aborted) throw new ApiError("offline");
+      // an HTML page (a proxy, a captive portal, an old storefront without this API)
+      throw new ApiError(response.ok ? "unavailable" : errorKind(response.status, undefined));
+    }
+  } finally {
+    clearTimeout(timer);
   }
   if (!response.ok) {
     throw new ApiError(errorKind(response.status, (body as { error?: unknown } | null)?.error));

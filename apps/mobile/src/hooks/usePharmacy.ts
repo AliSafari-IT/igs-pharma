@@ -16,7 +16,14 @@ export function usePharmacy(): Pharmacy | null {
     let current = true;
     AsyncStorage.getItem(STORED_AS)
       .then((raw) => {
-        if (current && raw) setPharmacy((fresh) => fresh ?? (JSON.parse(raw) as Pharmacy));
+        if (!current || !raw) return;
+        let stored: Pharmacy;
+        try {
+          stored = JSON.parse(raw) as Pharmacy;
+        } catch {
+          return; // a broken copy is ignored; the next answer from the storefront replaces it
+        }
+        setPharmacy((fresh) => fresh ?? stored);
       })
       .catch(() => {});
     api.pharmacy().then(

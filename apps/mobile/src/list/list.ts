@@ -54,6 +54,8 @@ const isSaved = (entry: unknown): entry is SavedProduct => {
     /^\d{7}$/.test(value.cnk) &&
     typeof value.name === "string" &&
     typeof (value.price as Partial<Price> | undefined)?.amountCents === "number" &&
+    typeof (value.price as Partial<Price> | undefined)?.vatRateBp === "number" &&
+    (value.status === "available" || value.status === "low" || value.status === "out") &&
     typeof value.seenAt === "string"
   );
 };
