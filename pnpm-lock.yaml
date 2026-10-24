@@ -131,6 +131,8 @@ importers:
         specifier: 2.1.8
         version: 2.1.8(@types/node@24.19.1)(lightningcss@1.33.0)
 
+  apps/site: {}
+
   apps/web:
     dependencies:
       '@igs/auth':

@@ -99,6 +99,7 @@ apps/web/        # Storefront (Next.js App Router, port 3000)
 apps/platform/   # Back-office (Next.js App Router, port 3001)
 apps/worker/     # Background jobs (Node.js, pg-boss)
 apps/mobile/     # Android app (Expo SDK 58, Expo Router); own install, NOT in the root workspace
+apps/site/       # Landing page igs.asafarim.site: static HTML (Node built-ins only), image published by site-image.yml, served by asafarim-os
 packages/
   tsconfig/      # Shared TypeScript configs (base/nextjs/node)
   config/        # Typed env vars (Zod) + feature flags
