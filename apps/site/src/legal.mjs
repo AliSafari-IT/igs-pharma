@@ -474,7 +474,12 @@ export const deletion = {
     title: "Delete your data",
     lead: "The IGS-Pharma app has no account. Everything it keeps is on your phone. Here's how to remove it.",
     sections: [
-      ["In the app", ["Open My list and tap “Clear the list”. Language, theme and text size can each be changed in Settings."]],
+      [
+        "In the app",
+        [
+          "Open My list and tap “Clear the list”. Language, theme and text size can each be changed in Settings.",
+        ],
+      ],
       [
         "Everything at once",
         [
