@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { Pharmacy } from "../api/types";
 
-const STORAGE_KEY = "igs.pharmacy.v1";
+const STORED_AS = "igs.pharmacy.v1";
 
 /**
  * The pharmacy's public details: the last copy on the phone at once, then a fresh one from the
@@ -14,7 +14,7 @@ export function usePharmacy(): Pharmacy | null {
   const [pharmacy, setPharmacy] = useState<Pharmacy | null>(null);
   useEffect(() => {
     let current = true;
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(STORED_AS)
       .then((raw) => {
         if (current && raw) setPharmacy((fresh) => fresh ?? (JSON.parse(raw) as Pharmacy));
       })
@@ -23,7 +23,7 @@ export function usePharmacy(): Pharmacy | null {
       (fresh) => {
         if (!current) return;
         setPharmacy(fresh);
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(fresh)).catch(() => {});
+        AsyncStorage.setItem(STORED_AS, JSON.stringify(fresh)).catch(() => {});
       },
       () => {
         // closed or offline: keep the copy on the phone

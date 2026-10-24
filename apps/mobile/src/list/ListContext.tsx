@@ -11,7 +11,7 @@ import {
   toSaved,
 } from "./list";
 
-const STORAGE_KEY = "igs.list.v1";
+const STORED_AS = "igs.list.v1";
 
 interface ListValue {
   saved: readonly SavedProduct[];
@@ -30,7 +30,7 @@ export function ListProvider({ children }: { children: ReactNode }) {
   const [saved, setSaved] = useState<readonly SavedProduct[]>([]);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(STORED_AS)
       // a product saved in the first moment, before the read finished, is not thrown away
       .then((raw) => setSaved((current) => (current.length > 0 ? current : parseSaved(raw))))
       .catch(() => {});
@@ -41,7 +41,7 @@ export function ListProvider({ children }: { children: ReactNode }) {
     const change = (next: (list: readonly SavedProduct[]) => SavedProduct[]) =>
       setSaved((current) => {
         const list = next(current);
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(list)).catch(() => {});
+        AsyncStorage.setItem(STORED_AS, JSON.stringify(list)).catch(() => {});
         return list;
       });
     return {

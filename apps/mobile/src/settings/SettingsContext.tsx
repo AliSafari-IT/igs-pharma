@@ -5,7 +5,7 @@ import { useColorScheme } from "react-native";
 import type { Locale } from "../api/types";
 import { type Translate, pickLocale, translator } from "../i18n";
 import { type Palette, palettes } from "../theme/tokens";
-import { DEFAULTS, STORAGE_KEY, type Settings, parseSettings } from "./parse";
+import { DEFAULTS, STORED_AS, type Settings, parseSettings } from "./parse";
 
 export type { Settings, ThemePreference } from "./parse";
 
@@ -27,7 +27,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(STORED_AS)
       .then((raw) => setSettings(parseSettings(raw)))
       .catch(() => {
         // unreadable settings are not worth an error screen: keep the defaults
@@ -45,7 +45,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       update: (patch) =>
         setSettings((current) => {
           const next = { ...current, ...patch };
-          AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
+          AsyncStorage.setItem(STORED_AS, JSON.stringify(next)).catch(() => {});
           return next;
         }),
       locale,

@@ -11,7 +11,7 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = { theme: "system", language: "system", largeText: false };
-export const STORAGE_KEY = "igs.settings.v1";
+export const STORED_AS = "igs.settings.v1";
 
 /** Stored settings, keeping only values this version knows (an older or newer app may differ). */
 export function parseSettings(raw: string | null): Settings {
