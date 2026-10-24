@@ -13,3 +13,5 @@
 !.env.example
 *.log
 docs
+# The Android app is built by EAS, never in these images
+apps/mobile

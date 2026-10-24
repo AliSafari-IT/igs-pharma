@@ -1,0 +1,2 @@
+# False positive: a storage slot name ("igs.pharmacy.v1"), renamed in the next commit (igs-pharma#170)
+15df2864b752f24da997eb682638b67da4671678:apps/mobile/src/hooks/usePharmacy.ts:generic-api-key:6
