@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "IGS-Pharma",
+    "slug": "igs-pharma",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#8DC3B3",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.asafarim.igspharma",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.READ_CONTACTS",
+        "android.permission.CAMERA"
+      ]
+    },
+    "scheme": "igspharma",
+    "plugins": ["expo-router", "expo-localization"],
+    "extra": {
+      "router": {}
+    }
+  }
+}

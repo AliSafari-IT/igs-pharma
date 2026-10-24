@@ -112,6 +112,31 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run test
 
+  # ── 4b. Android app (apps/mobile: its own install, outside the root workspace) ────────────────
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: apps/mobile/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      # Metro bundles every screen for Android: catches what tsc cannot (a missing module, a bad import)
+      - run: pnpm exec expo export --platform android --output-dir "$RUNNER_TEMP/mobile-export"
+
   # ── 5. Build ──────────────────────────────────────────────────────────────────
   build:
     needs: [lint, typecheck, test]

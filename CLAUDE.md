@@ -29,6 +29,21 @@ pnpm --filter=@igs/worker run dev
 docker compose up -d
 ```
 
+### Android app (`apps/mobile`)
+
+Phase 1 is read-only: browse, search, product info, My list (on the phone), pharmacy contact; ordering
+opens the website (`asafarim-docs:ventures/igs-pharma/09-mobile/`). It reads `/api/mobile/v1/*`
+in `apps/web` (versioned, never changes shape; the app copies the types in `src/api/types.ts`).
+
+```bash
+cd apps/mobile && pnpm install     # its own lockfile, node-linker=hoisted (Expo)
+pnpm start                         # Expo dev server; EXPO_PUBLIC_STOREFRONT_URL=http://10.0.2.2:3000 for a local storefront
+pnpm typecheck && pnpm test        # CI job "mobile" also runs `expo export --platform android`
+npx expo install <pkg>             # add native deps with SDK-compatible versions
+```
+
+EAS builds upload the local folder: `git pull` before `eas build`.
+
 ### Type checking & linting
 
 ```bash
@@ -83,6 +98,7 @@ docker build -f infra/docker/worker.Dockerfile .
 apps/web/        # Storefront (Next.js App Router, port 3000)
 apps/platform/   # Back-office (Next.js App Router, port 3001)
 apps/worker/     # Background jobs (Node.js, pg-boss)
+apps/mobile/     # Android app (Expo SDK 58, Expo Router); own install, NOT in the root workspace
 packages/
   tsconfig/      # Shared TypeScript configs (base/nextjs/node)
   config/        # Typed env vars (Zod) + feature flags
