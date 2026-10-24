@@ -43,6 +43,9 @@ const NOT_APP_CONFIG: readonly string[] = [
   "NEXT_RUNTIME",
   "PORT",
   "HOSTNAME",
+  // the Android app's storefront address, baked into each EAS build (apps/mobile/eas.json); the
+  // app is not a server and never reads env.ts
+  "EXPO_PUBLIC_STOREFRONT_URL",
 ];
 
 /** The names `process.env.X` / `process.env["X"]` read in a source text. */
