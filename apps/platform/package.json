@@ -26,7 +26,7 @@
     "@igs/rbac": "workspace:*",
     "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",
-    "next": "16.0.11",
+    "next": "16.4.3",
     "pino": "9.5.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"

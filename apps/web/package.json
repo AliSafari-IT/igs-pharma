@@ -27,7 +27,7 @@
     "@igs/payments": "workspace:*",
     "@igs/security-headers": "workspace:*",
     "@igs/ui": "workspace:*",
-    "next": "16.0.11",
+    "next": "16.4.3",
     "next-intl": "4.14.9",
     "pino": "9.5.0",
     "react": "19.2.8",
