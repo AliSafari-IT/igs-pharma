@@ -12,10 +12,30 @@ export const STOREFRONT_URL = (
 export const productWebUrl = (locale: Locale, cnk: string) =>
   `${STOREFRONT_URL}/${locale}/p/${cnk}`;
 
+/**
+ * The app's own privacy and cookie pages live on the landing page, which stays open while the
+ * storefront is gated (Play needs a reachable privacy URL). The shop's terms stay on the storefront.
+ */
+export const LANDING_URL = "https://igs.asafarim.site";
+const LANDING_PATHS: Record<"privacy" | "cookies", Record<Locale, string>> = {
+  privacy: {
+    nl: "/privacy/",
+    fr: "/fr/confidentialite/",
+    de: "/de/datenschutz/",
+    en: "/en/privacy/",
+  },
+  cookies: { nl: "/cookies/", fr: "/fr/cookies/", de: "/de/cookies/", en: "/en/cookies/" },
+};
+
 export const LEGAL_DOCS = ["terms", "privacy", "cookies"] as const;
 export type LegalDoc = (typeof LEGAL_DOCS)[number];
 export const legalUrl = (locale: Locale, doc: LegalDoc) =>
-  `${STOREFRONT_URL}/${locale}/legal/${doc}`;
+  doc === "terms"
+    ? `${STOREFRONT_URL}/${locale}/legal/terms`
+    : `${LANDING_URL}${LANDING_PATHS[doc][locale]}`;
+
+/** Questions about personal data. */
+export const PRIVACY_EMAIL = "privacy@igs-pharma.be";
 
 /** Belgian numbers every pharmacy app should offer (nothing here depends on the pharmacy). */
 export const EMERGENCY = {

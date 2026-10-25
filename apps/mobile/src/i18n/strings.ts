@@ -113,6 +113,7 @@ const nl = {
   cookies: "Cookies",
   contact: "Contact",
   opensBrowser: "Opent de website",
+  privacyEmailHint: "Mail over uw gegevens",
 } as const;
 
 export type StringKey = keyof typeof nl;
@@ -230,6 +231,7 @@ const fr: Strings = {
   cookies: "Cookies",
   contact: "Contact",
   opensBrowser: "Ouvre le site web",
+  privacyEmailHint: "Écrire au sujet de vos données",
 };
 
 const de: Strings = {
@@ -345,6 +347,7 @@ const de: Strings = {
   cookies: "Cookies",
   contact: "Kontakt",
   opensBrowser: "Öffnet die Website",
+  privacyEmailHint: "Schreiben Sie uns zu Ihren Daten",
 };
 
 const en: Strings = {
@@ -456,6 +459,7 @@ const en: Strings = {
   cookies: "Cookies",
   contact: "Contact",
   opensBrowser: "Opens the website",
+  privacyEmailHint: "Email us about your data",
 };
 
 export const STRINGS = { nl, fr, de, en } as const satisfies Record<string, Strings>;
