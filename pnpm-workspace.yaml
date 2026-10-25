@@ -1,5 +1,8 @@
 packages:
   - "apps/*"
+  # The Android app has its own lockfile and install (Expo needs a hoisted node_modules); it
+  # never enters the web/worker images or the turbo graph (asafarim-docs:ventures/igs-pharma/09-mobile).
+  - "!apps/mobile"
   - "packages/*"
   - "packages/modules/*"
   - "e2e"

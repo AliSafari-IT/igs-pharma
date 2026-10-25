@@ -34,6 +34,9 @@ const gateEnv = appEnv.extend(siteGateEnv.shape);
 /** The internal route of the "coming soon" page (`src/app/coming-soon`); reachable only by rewrite. */
 export const COMING_SOON_PATH = "/coming-soon";
 
+/** The read-only routes of the Android app (`src/app/api/mobile`); closed like the rest by the gate. */
+export const MOBILE_API_PREFIX = "/api/mobile/";
+
 /** The entry and the exit of the storefront preview pass (igs-pharma#62). */
 export const PREVIEW_PATH = "/preview";
 export const PREVIEW_END_PATH = "/preview/end";
@@ -127,6 +130,9 @@ export default function proxy(request: NextRequest) {
     // configured this path is just another closed URL (no hint that a preview exists, #91)
     response = NextResponse.redirect(new URL("/", request.url));
     response.cookies.set({ name: PREVIEW_COOKIE, value: "", ...PREVIEW_COOKIE_OPTIONS, maxAge: 0 });
+  } else if (gated && !passesGate(pathname, preview) && pathname.startsWith(MOBILE_API_PREFIX)) {
+    // the Android app reads JSON: it gets a code it can show as "opens soon", and still no data
+    response = NextResponse.json({ error: "coming_soon" }, { status: 503 });
   } else if (gated && !passesGate(pathname, preview)) {
     // every other URL renders the static page in place (no redirect: nothing to follow or index)
     response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });

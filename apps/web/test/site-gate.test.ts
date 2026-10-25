@@ -82,6 +82,26 @@ describe("SITE_GATE=coming-soon", () => {
     expect(rewrittenTo(call("/api/healthz"))).toBe(`${BASE}${COMING_SOON_PATH}`);
   });
 
+  it("answers the Android app's API with a JSON 503 'coming_soon', no data, noindex and uncached", async () => {
+    vi.stubEnv("SITE_GATE", "coming-soon");
+    for (const path of [
+      "/api/mobile/v1/products",
+      "/api/mobile/v1/products/1234567",
+      "/api/mobile/v1/categories",
+      "/api/mobile/v1/pharmacy",
+    ]) {
+      const res = call(path);
+      expect(rewrittenTo(res), path).toBeNull();
+      expect(res.headers.get("x-middleware-next"), path).toBeNull();
+      expect(res.status, path).toBe(503);
+      expect(await res.json(), path).toEqual({ error: "coming_soon" });
+      expect(res.headers.get("x-robots-tag"), path).toBe("noindex, nofollow");
+      expect(res.headers.get("cache-control"), path).toBe("no-store");
+    }
+    // only the prefix with its slash: a look-alike gets the page like any other closed URL
+    expect(rewrittenTo(call("/api/mobilex"))).toBe(`${BASE}${COMING_SOON_PATH}`);
+  });
+
   it("keeps health, the OS manifest and CSP reports reachable, still noindex", () => {
     vi.stubEnv("SITE_GATE", "coming-soon");
     for (const path of OPEN) {
@@ -116,6 +136,7 @@ describe("SITE_GATE=off", () => {
     // /coming-soon is not a storefront page: it gets a locale like any other unknown path
     expect(call("/coming-soon").headers.get("location")).toBe(`${BASE}/nl/coming-soon`);
     expect(call("/api/health/live").headers.get("x-middleware-next")).toBe("1");
+    expect(call("/api/mobile/v1/products").headers.get("x-middleware-next")).toBe("1");
     expect(robots().rules).toEqual({ userAgent: "*", allow: "/" });
   });
 });
