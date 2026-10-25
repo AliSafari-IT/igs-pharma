@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { AppText, Button, Card, Row, Screen, open, styles } from "../components/ui";
-import { LEGAL_DOCS, STOREFRONT_URL, legalUrl } from "../config";
+import { LEGAL_DOCS, PRIVACY_EMAIL, STOREFRONT_URL, legalUrl } from "../config";
 import { intlLocale, isStandIn } from "../format";
 import { usePharmacy } from "../hooks/usePharmacy";
 import { useSettings } from "../settings/SettingsContext";
@@ -44,6 +44,12 @@ export default function AboutScreen() {
             />
           ))}
         </View>
+        <Button
+          kind="secondary"
+          label={PRIVACY_EMAIL}
+          accessibilityHint={t("privacyEmailHint")}
+          onPress={() => open(`mailto:${PRIVACY_EMAIL}`)}
+        />
       </Card>
       <Card>
         <AppText variant="title">{t("contact")}</AppText>
