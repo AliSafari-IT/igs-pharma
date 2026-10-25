@@ -18,6 +18,7 @@ export {
   type RegulatedField,
   isMedicine,
   isValidCnk,
+  normalizeGtin,
   legalStatusFits,
   missingForActivation,
 } from "./domain";
@@ -83,6 +84,7 @@ export {
   productVisibilityFacts,
   searchStorefrontCandidates,
   storefrontCategoryIndex,
+  storefrontProductByGtin,
   storefrontTopCategories,
 } from "./listing";
 export { SEARCH_FOLD_FROM, SEARCH_FOLD_TO, foldSearch, searchTerms } from "./domain";

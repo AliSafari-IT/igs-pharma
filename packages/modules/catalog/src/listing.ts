@@ -10,6 +10,7 @@ import {
   type VatClass,
   escapeLikeTerm,
   foldSearch,
+  normalizeGtin,
   searchTerms,
 } from "./domain";
 import { brands, categories, productCategories, productContent, products } from "./schema";
@@ -424,4 +425,22 @@ export async function productVisibilityFacts(
     isMedicine: product.isMedicine,
     approved: { nl: approved("nl"), fr: approved("fr") },
   };
+}
+
+/**
+ * The storefront-visible product whose GTIN is `gtin` (any length `normalizeGtin` accepts), as its
+ * id and CNK; `null` when the code is not a GTIN, unknown, or the product is hidden. For the app's
+ * barcode scan (mobile 1.1).
+ */
+export async function storefrontProductByGtin(
+  tx: Tx,
+  gtin: string,
+): Promise<{ readonly id: string; readonly cnk: string } | null> {
+  const normalized = normalizeGtin(gtin);
+  if (normalized === null) return null;
+  const [row] = await tx
+    .select({ id: products.id, cnk: products.cnk })
+    .from(products)
+    .where(and(eq(products.gtin, normalized), storefrontVisible()));
+  return row ?? null;
 }

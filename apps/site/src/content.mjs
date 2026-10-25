@@ -4,7 +4,7 @@
 // that is not open yet, and says so. Keep it that way (KB 7 april 1995, medicine advertising).
 
 export const CONTACT_EMAIL = "privacy@igs-pharma.be";
-export const POLICY_UPDATED = "2026-10-24";
+export const POLICY_UPDATED = "2026-10-25";
 /** The order the language switch lists them in. */
 export const LANGS = ["nl", "fr", "de", "en"];
 

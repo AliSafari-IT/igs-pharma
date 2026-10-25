@@ -19,6 +19,7 @@ function ThemedStack() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: t("appName") }} />
         <Stack.Screen name="product/[cnk]" options={{ title: "" }} />
         <Stack.Screen name="category/[slug]" options={{ title: t("categories") }} />
+        <Stack.Screen name="scan" options={{ title: t("scanTitle") }} />
         <Stack.Screen name="settings" options={{ title: t("settings") }} />
         <Stack.Screen name="about" options={{ title: t("about") }} />
       </Stack>

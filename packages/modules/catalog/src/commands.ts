@@ -18,6 +18,7 @@ import {
   isValidCnk,
   legalStatusFits,
   missingForActivation,
+  normalizeGtin,
 } from "./domain";
 import { brands, productContent, products } from "./schema";
 
@@ -62,6 +63,8 @@ const contentInput = z.object({
 const productFields = {
   /** Checked in the handler, so a wrong one fails with `catalog.cnk_invalid`. */
   cnk: z.string().trim().max(32),
+  /** Optional; checked in the handler (`catalog.gtin_invalid`) and stored as 14 digits. */
+  gtin: nullableText(32),
   productType: z.enum(PRODUCT_TYPES),
   legalStatus: z.enum(LEGAL_STATUSES),
   vatClass: z.enum(VAT_CLASSES),
@@ -99,6 +102,25 @@ function requireValidCnk(cnk: string): void {
     throw validationFailed("catalog.cnk_invalid", [{ path: "cnk", code: "cnk_invalid" }]);
 }
 
+/** The input's GTIN as 14 digits, `null` when empty, or `catalog.gtin_invalid`. */
+function gtinOf(input: ProductFields): string | null {
+  if (input.gtin === null) return null;
+  const gtin = normalizeGtin(input.gtin);
+  if (gtin === null)
+    throw validationFailed("catalog.gtin_invalid", [{ path: "gtin", code: "gtin_invalid" }]);
+  return gtin;
+}
+
+/** `catalog.gtin_taken` when another product (not `productId`) already has `gtin`. */
+async function requireFreeGtin(ctx: Ctx, gtin: string | null, productId?: string): Promise<void> {
+  if (gtin === null) return;
+  const [taken] = await ctx.tx
+    .select({ id: products.id })
+    .from(products)
+    .where(eq(products.gtin, gtin));
+  if (taken && taken.id !== productId) throw conflict("catalog.gtin_taken");
+}
+
 async function requireBrand(ctx: Ctx, brandId: string | null): Promise<void> {
   if (brandId === null) return;
   const [brand] = await ctx.tx.select({ id: brands.id }).from(brands).where(eq(brands.id, brandId));
@@ -107,9 +129,12 @@ async function requireBrand(ctx: Ctx, brandId: string | null): Promise<void> {
 
 /** The unique constraint on `catalog.products.cnk` (migration 0013). */
 const CNK_UNIQUE = "products_cnk_unique";
+/** The unique constraint on `catalog.products.gtin`. */
+const GTIN_UNIQUE = "products_gtin_unique";
 
-const coreValues = (input: ProductFields) => ({
+const coreValues = (input: ProductFields, gtin: string | null) => ({
   cnk: input.cnk,
+  gtin,
   productType: input.productType,
   legalStatus: input.legalStatus,
   vatClass: input.vatClass,
@@ -215,12 +240,23 @@ async function insertProduct(
   approval: Approval,
 ): Promise<{ productId: string; version: number }> {
   requireValidCnk(input.cnk);
+  const gtin = gtinOf(input);
   await requireBrand(ctx, input.brandId);
-  const [product] = await ctx.tx
-    .insert(products)
-    .values({ ...coreValues(input), status: "draft" })
-    .onConflictDoNothing({ target: products.cnk })
-    .returning({ id: products.id });
+  await requireFreeGtin(ctx, gtin);
+  let product: { id: string } | undefined;
+  try {
+    // a savepoint: a lost race for the GTIN is a typed conflict, not the unique index's raw error
+    [product] = await ctx.tx.transaction((sp) =>
+      sp
+        .insert(products)
+        .values({ ...coreValues(input, gtin), status: "draft" })
+        .onConflictDoNothing({ target: products.cnk })
+        .returning({ id: products.id }),
+    );
+  } catch (error) {
+    if (isUniqueViolation(error, GTIN_UNIQUE)) throw conflict("catalog.gtin_taken");
+    throw error;
+  }
   if (!product) throw conflict("catalog.cnk_taken");
   await saveContent(ctx, product.id, input.content, approval);
   await ctx.audit.record({
@@ -272,6 +308,7 @@ async function applyUpdate(
   family: Family,
 ) {
   requireValidCnk(input.cnk);
+  const gtin = gtinOf(input);
   const [current] = await ctx.tx
     .select({
       id: products.id,
@@ -312,6 +349,7 @@ async function applyUpdate(
       .where(eq(products.cnk, input.cnk));
     if (taken) throw conflict("catalog.cnk_taken");
   }
+  await requireFreeGtin(ctx, gtin, input.productId);
   const version = current.version + 1;
   try {
     // a savepoint: a lost race for the CNK (the SELECT above is not a lock) is a typed conflict,
@@ -319,11 +357,12 @@ async function applyUpdate(
     await ctx.tx.transaction((sp) =>
       sp
         .update(products)
-        .set({ ...coreValues(input), version, updatedAt: ctx.now })
+        .set({ ...coreValues(input, gtin), version, updatedAt: ctx.now })
         .where(eq(products.id, input.productId)),
     );
   } catch (error) {
     if (isUniqueViolation(error, CNK_UNIQUE)) throw conflict("catalog.cnk_taken");
+    if (isUniqueViolation(error, GTIN_UNIQUE)) throw conflict("catalog.gtin_taken");
     throw error;
   }
   // only a pharmacist approves medicine text (D-034), and only when they say so (`approveContent`)

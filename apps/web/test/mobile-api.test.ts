@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listStorefrontProducts = vi.fn();
 const getStorefrontProduct = vi.fn();
 const listStorefrontCategories = vi.fn();
+const findStorefrontProductByGtin = vi.fn();
 const logger = { error: vi.fn() };
 vi.mock("@igs/module-storefront", () => ({
   listStorefrontProducts,
   getStorefrontProduct,
   listStorefrontCategories,
+  findStorefrontProductByGtin,
 }));
 vi.mock("@igs/observability/logger", () => ({ logger }));
 // the real @igs/kernel pulls in server-only code; its error type is all these routes use
@@ -45,7 +47,12 @@ const LISTING = {
 };
 
 beforeEach(() => {
-  for (const fn of [listStorefrontProducts, getStorefrontProduct, listStorefrontCategories]) {
+  for (const fn of [
+    listStorefrontProducts,
+    getStorefrontProduct,
+    listStorefrontCategories,
+    findStorefrontProductByGtin,
+  ]) {
     fn.mockReset();
   }
   logger.error.mockReset();
@@ -138,6 +145,35 @@ describe("GET /api/mobile/v1/products/{cnk}", () => {
       new DomainError("NotFound", "catalog.product_not_found"),
     );
     const res = await GET(req("/products/7654321"), ctx("7654321"));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
+  });
+});
+
+describe("GET /api/mobile/v1/gtin/{gtin}", () => {
+  const ctx = (gtin: string) => ({ params: Promise.resolve({ gtin }) });
+
+  it("returns the CNK of the scanned pack", async () => {
+    findStorefrontProductByGtin.mockResolvedValue({ cnk: "1234567" });
+    const { GET } = await import("../src/app/api/mobile/v1/gtin/[gtin]/route");
+    const res = await GET(req("/gtin/5410013111006"), ctx("5410013111006"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ cnk: "1234567" });
+    expect(findStorefrontProductByGtin).toHaveBeenCalledWith(
+      { gtin: "5410013111006" },
+      expect.objectContaining({ roles: ["system_storefront"] }),
+    );
+  });
+
+  it("answers 404 for a code that is not a GTIN without asking the database, and for an unknown one", async () => {
+    const { GET } = await import("../src/app/api/mobile/v1/gtin/[gtin]/route");
+    expect((await GET(req("/gtin/12ab"), ctx("12ab"))).status).toBe(404);
+    expect((await GET(req("/gtin/1234567"), ctx("1234567"))).status).toBe(404);
+    expect(findStorefrontProductByGtin).not.toHaveBeenCalled();
+    findStorefrontProductByGtin.mockRejectedValue(
+      new DomainError("NotFound", "catalog.product_not_found"),
+    );
+    const res = await GET(req("/gtin/5410013111006"), ctx("5410013111006"));
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "not_found" });
   });

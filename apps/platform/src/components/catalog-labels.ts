@@ -60,6 +60,9 @@ export const LOCALE_LABELS: Record<ContentLocale, string> = {
 const ERRORS: Record<string, string> = {
   "catalog.cnk_invalid": "A CNK is exactly 7 digits.",
   "catalog.cnk_taken": "Another product already has this CNK.",
+  "catalog.gtin_invalid":
+    "That barcode number is not valid. Type the 8, 12, 13 or 14 digits under the barcode.",
+  "catalog.gtin_taken": "Another product already has this barcode number.",
   "catalog.cnk_locked":
     "The CNK of an active product can't be changed. Archive the product, correct the CNK, then activate it again.",
   "catalog.stale_version":

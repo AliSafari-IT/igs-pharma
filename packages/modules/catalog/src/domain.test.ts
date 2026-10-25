@@ -9,6 +9,7 @@ import {
   isValidCnk,
   legalStatusFits,
   missingForActivation,
+  normalizeGtin,
   subtreeHeight,
   wouldCycle,
 } from "./domain";
@@ -22,6 +23,25 @@ describe("isValidCnk", () => {
     "rejects %j",
     (cnk) => {
       expect(isValidCnk(cnk)).toBe(false);
+    },
+  );
+});
+
+describe("normalizeGtin", () => {
+  it.each([
+    ["5410013111009", "05410013111009"], // EAN-13
+    ["05410013111009", "05410013111009"], // GTIN-14 from a DataMatrix
+    ["96385074", "00000096385074"], // EAN-8
+    ["036000291452", "00036000291452"], // UPC-A
+    [" 5410013111009 ", "05410013111009"],
+  ])("accepts %j as %s", (value, gtin) => {
+    expect(normalizeGtin(value)).toBe(gtin);
+  });
+
+  it.each(["", "5410013111006", "1234567", "541001311100", "541001311100a", "123456789012345"])(
+    "rejects %j",
+    (value) => {
+      expect(normalizeGtin(value)).toBeNull();
     },
   );
 });

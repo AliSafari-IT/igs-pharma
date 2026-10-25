@@ -25,6 +25,7 @@ export default function HomeScreen() {
       <AppText variant="big">{t("homeTitle")}</AppText>
       <AppText muted>{t("homeIntro")}</AppText>
       <SearchBox value={query} onChange={setQuery} onSubmit={search} />
+      <Button kind="secondary" label={t("scanButton")} onPress={() => router.push("/scan")} />
 
       {saved.length > 0 && (
         <Card onPress={() => router.navigate("/list")}>

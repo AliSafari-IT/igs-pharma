@@ -123,6 +123,8 @@ export interface ProductContentView {
 export interface ProductView {
   readonly id: string;
   readonly cnk: string;
+  /** The pack's GTIN as 14 digits, `null` when not entered. */
+  readonly gtin: string | null;
   readonly productType: ProductType;
   readonly legalStatus: LegalStatus;
   readonly status: ProductStatus;

@@ -34,7 +34,7 @@ export const privacy = {
         [
           {
             list: [
-              "<strong>Zoekwoorden en productcodes.</strong> Wat u typt in het zoekvak, en de CNK-code of categorie van wat u opent. Zo kan de webshop de juiste producten, prijzen en beschikbaarheid terugsturen.",
+              "<strong>Zoekwoorden en productcodes.</strong> Wat u typt in het zoekvak, de CNK-code of categorie van wat u opent, en het nummer van de barcode die u scant. Zo kan de webshop de juiste producten, prijzen en beschikbaarheid terugsturen.",
               "<strong>Uw taal.</strong> Zodat u de productinformatie in uw taal krijgt.",
             ],
           },
@@ -61,7 +61,8 @@ export const privacy = {
             list: [
               "Uw naam, e-mailadres, telefoonnummer of een account.",
               "Uw voorschriften, diagnoses of andere gezondheidsgegevens.",
-              "Uw locatie, contacten, foto's, camera of microfoon. “Route” opent uw kaarten-app met het adres van de apotheek; de app leest uw locatie niet.",
+              "Uw locatie, contacten, foto's of microfoon. “Route” opent uw kaarten-app met het adres van de apotheek; de app leest uw locatie niet.",
+              "Beelden van de camera. De camera werkt alleen op het scherm “Scannen”, nadat u hem toestaat, om de barcode van een verpakking te lezen. Dat gebeurt op uw telefoon; er wordt geen foto bewaard of verstuurd.",
               "Een advertentie-id. Er zijn geen advertenties.",
               "Gegevens voor tracking of analytics, van ons of van andere bedrijven.",
             ],
@@ -124,7 +125,7 @@ export const privacy = {
         [
           {
             list: [
-              "<strong>Mots recherchés et codes produit.</strong> Ce que vous tapez dans la recherche, et le code CNK ou la catégorie de ce que vous ouvrez. La boutique peut ainsi renvoyer les bons produits, prix et disponibilités.",
+              "<strong>Mots recherchés et codes produit.</strong> Ce que vous tapez dans la recherche, le code CNK ou la catégorie de ce que vous ouvrez, et le numéro du code-barres que vous scannez. La boutique peut ainsi renvoyer les bons produits, prix et disponibilités.",
               "<strong>Votre langue.</strong> Pour recevoir l'information produit dans votre langue.",
             ],
           },
@@ -151,7 +152,8 @@ export const privacy = {
             list: [
               "Votre nom, adresse e-mail, numéro de téléphone ou un compte.",
               "Vos ordonnances, diagnostics ou autres données de santé.",
-              "Votre position, vos contacts, photos, appareil photo ou micro. « Itinéraire » ouvre votre app de cartes avec l'adresse de la pharmacie ; l'app ne lit pas votre position.",
+              "Votre position, vos contacts, photos ou micro. « Itinéraire » ouvre votre app de cartes avec l'adresse de la pharmacie ; l'app ne lit pas votre position.",
+              "Les images de la caméra. La caméra ne fonctionne que sur l'écran « Scanner », après votre accord, pour lire le code-barres d'un emballage. Cela se passe sur votre téléphone ; aucune photo n'est gardée ni envoyée.",
               "Un identifiant publicitaire. Il n'y a pas de publicité.",
               "Des données de pistage ou d'analytics, de notre part ou d'autres entreprises.",
             ],
@@ -214,7 +216,7 @@ export const privacy = {
         [
           {
             list: [
-              "<strong>Suchwörter und Produktcodes.</strong> Was Sie in die Suche eingeben, und den CNK-Code oder die Kategorie dessen, was Sie öffnen. So kann der Webshop die richtigen Produkte, Preise und Verfügbarkeiten zurücksenden.",
+              "<strong>Suchwörter und Produktcodes.</strong> Was Sie in die Suche eingeben, den CNK-Code oder die Kategorie dessen, was Sie öffnen, und die Nummer des Barcodes, den Sie scannen. So kann der Webshop die richtigen Produkte, Preise und Verfügbarkeiten zurücksenden.",
               "<strong>Ihre Sprache.</strong> Damit Sie die Produktinformation in Ihrer Sprache bekommen.",
             ],
           },
@@ -241,7 +243,8 @@ export const privacy = {
             list: [
               "Ihren Namen, Ihre E-Mail-Adresse, Telefonnummer oder ein Konto.",
               "Ihre Rezepte, Diagnosen oder andere Gesundheitsdaten.",
-              "Ihren Standort, Kontakte, Fotos, Kamera oder Mikrofon. „Route“ öffnet Ihre Karten-App mit der Adresse der Apotheke; die App liest Ihren Standort nicht.",
+              "Ihren Standort, Kontakte, Fotos oder Mikrofon. „Route“ öffnet Ihre Karten-App mit der Adresse der Apotheke; die App liest Ihren Standort nicht.",
+              "Kamerabilder. Die Kamera läuft nur auf dem Bildschirm „Scannen“, nachdem Sie sie erlaubt haben, um den Barcode einer Packung zu lesen. Das geschieht auf Ihrem Telefon; es wird kein Foto gespeichert oder gesendet.",
               "Eine Werbe-ID. Es gibt keine Werbung.",
               "Daten für Tracking oder Analytics, von uns oder anderen Firmen.",
             ],
@@ -304,7 +307,7 @@ export const privacy = {
         [
           {
             list: [
-              "<strong>Search words and product codes.</strong> What you type in the search box, and the CNK code or category of what you open. That lets the webshop send back the right products, prices and availability.",
+              "<strong>Search words and product codes.</strong> What you type in the search box, the CNK code or category of what you open, and the number of a barcode you scan. That lets the webshop send back the right products, prices and availability.",
               "<strong>Your language.</strong> So you get the product information in your language.",
             ],
           },
@@ -331,7 +334,8 @@ export const privacy = {
             list: [
               "Your name, email address, phone number or an account.",
               "Your prescriptions, diagnoses or any other health data.",
-              "Your location, contacts, photos, camera or microphone. “Directions” opens your maps app with the pharmacy's address; the app doesn't read your location.",
+              "Your location, contacts, photos or microphone. “Directions” opens your maps app with the pharmacy's address; the app doesn't read your location.",
+              "Camera images. The camera only runs on the “Scan” screen, after you allow it, to read a pack's barcode. That happens on your phone; no photo is kept or sent.",
               "An advertising id. There are no ads.",
               "Data for tracking or analytics, by us or by other companies.",
             ],

@@ -61,6 +61,7 @@ function productInput(form: FormData) {
   const ageMin = text(form, "ageMin").trim();
   return {
     cnk: text(form, "cnk"),
+    gtin: text(form, "gtin"),
     productType: text(form, "productType"),
     legalStatus: text(form, "legalStatus"),
     vatClass: text(form, "vatClass"),
@@ -91,6 +92,9 @@ function refused(
   }
   if (error.code === "catalog.cnk_invalid" || error.code === "catalog.cnk_taken") {
     fields["cnk"] = error.code;
+  }
+  if (error.code === "catalog.gtin_invalid" || error.code === "catalog.gtin_taken") {
+    fields["gtin"] = error.code;
   }
   const values: Record<string, string> = {};
   for (const [key, value] of form.entries()) if (typeof value === "string") values[key] = value;

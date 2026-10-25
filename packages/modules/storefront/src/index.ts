@@ -7,6 +7,7 @@ export {
   configureStorefront,
 } from "./config";
 export {
+  findStorefrontProductByGtin,
   getStorefrontProduct,
   listStorefrontCategories,
   listStorefrontProducts,

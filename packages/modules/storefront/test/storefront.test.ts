@@ -32,6 +32,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   type ListInput,
   configureStorefront,
+  findStorefrontProductByGtin,
   getStorefrontProduct,
   listStorefrontCategories,
   listStorefrontProducts,
@@ -709,6 +710,29 @@ describe("the product page and the category tree", () => {
       [`cnt-a-${tag}`, 2, 2],
       [`cnt-b-${tag}`, 2, 1],
     ]);
+  });
+});
+
+describe("the barcode lookup (mobile 1.1)", () => {
+  it("finds the CNK by GTIN in any length, and hides what the shop hides", async () => {
+    const tag = marker();
+    const shown = await make({ name: `${tag} zichtbaar` });
+    const draft = await make({ name: `${tag} concept`, status: "draft" });
+    const unpriced = await make({ name: `${tag} zonder prijs`, cents: null });
+    await iso.sql`UPDATE catalog.products SET gtin = '05412345000013' WHERE id = ${shown.id}`;
+    await iso.sql`UPDATE catalog.products SET gtin = '05412345000020' WHERE id = ${draft.id}`;
+    await iso.sql`UPDATE catalog.products SET gtin = '05412345000037' WHERE id = ${unpriced.id}`;
+    for (const gtin of ["5412345000013", "05412345000013"]) {
+      expect(await findStorefrontProductByGtin({ gtin }, storefront)).toEqual({ cnk: shown.cnk });
+    }
+    for (const gtin of ["5412345000020", "5412345000037", "96385074", "5412345000014"]) {
+      expect(await codeOf(findStorefrontProductByGtin({ gtin }, storefront))).toBe(
+        "catalog.product_not_found",
+      );
+    }
+    expect(await codeOf(findStorefrontProductByGtin({ gtin: "12ab" }, storefront))).toBe(
+      "kernel.validation_failed",
+    );
   });
 });
 
