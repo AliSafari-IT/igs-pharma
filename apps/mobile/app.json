@@ -26,7 +26,14 @@
     "scheme": "igspharma",
     "plugins": ["expo-router", "expo-localization"],
     "extra": {
-      "router": {}
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "ba2aac55-e8fb-4103-9018-a309a662a453"
+      }
     }
   }
 }
