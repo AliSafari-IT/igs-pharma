@@ -24,9 +24,20 @@
       ]
     },
     "scheme": "igspharma",
-    "plugins": ["expo-router", "expo-localization"],
+    "plugins": [
+      "expo-router",
+      "expo-localization"
+    ],
     "extra": {
-      "router": {}
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "buildDate": "2026-10-25",
+      "eas": {
+        "projectId": "ba2aac55-e8fb-4103-9018-a309a662a453"
+      }
     }
   }
 }
