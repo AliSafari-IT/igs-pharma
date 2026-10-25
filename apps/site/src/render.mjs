@@ -68,7 +68,63 @@ function langSwitch(t, lang, page, cls = "langs") {
   return `<nav class="${cls}" aria-label="${esc(t.langLabel)}">${items}</nav>`;
 }
 
-function layout({ t, lang, page, title, description, body, nav = true }) {
+/** Open Graph locale for each page language. */
+const OG_LOCALE = { nl: "nl_BE", fr: "fr_BE", de: "de_BE", en: "en_US" };
+
+/**
+ * Structured data (schema.org JSON-LD) for the home pages: who publishes the site, the site, and the app.
+ * A JSON data block, not a script: the CSP's script-src does not apply to it and browsers never run it.
+ */
+function structuredData(t, lang) {
+  const url = `${SITE_URL}${routes.home[lang]}`;
+  const graph = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://asafarim.site/#org",
+        name: "ASafariM",
+        url: "https://asafarim.site/",
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url}#website`,
+        url,
+        name: "IGS-Pharma",
+        description: t.meta.description,
+        inLanguage: t.lang,
+        publisher: { "@id": "https://asafarim.site/#org" },
+      },
+      {
+        "@type": "MobileApplication",
+        "@id": `${SITE_URL}/#app`,
+        name: "IGS-Pharma",
+        url: `${url}#app`,
+        image: `${SITE_URL}/og.png`,
+        operatingSystem: "Android",
+        applicationCategory: "HealthApplication",
+        inLanguage: LANGS.map((code) => languages[code].lang),
+        isAccessibleForFree: true,
+        offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+        publisher: { "@id": "https://asafarim.site/#org" },
+      },
+    ],
+  };
+  // "<" escaped so no text in the data can close the element.
+  return `<script type="application/ld+json">${JSON.stringify(graph).replaceAll("<", "\\u003c")}</script>\n`;
+}
+
+function layout({
+  t,
+  lang,
+  page,
+  title,
+  description,
+  body,
+  nav = true,
+  noindex = false,
+  jsonLd = "",
+}) {
   const home = routes.home[lang];
   const path = routes[page][lang];
   const anchors = nav
@@ -94,10 +150,21 @@ function layout({ t, lang, page, title, description, body, nav = true }) {
 <link rel="canonical" href="${SITE_URL}${path}">
 ${alternates}
 <link rel="alternate" hreflang="x-default" href="${SITE_URL}${routes[page].nl}">
+${noindex ? '<meta name="robots" content="noindex">\n' : ""}<meta property="og:type" content="website">
+<meta property="og:site_name" content="IGS-Pharma">
+<meta property="og:url" content="${SITE_URL}${path}">
+<meta property="og:locale" content="${OG_LOCALE[lang]}">
+${LANGS.filter((code) => code !== lang)
+  .map((code) => `<meta property="og:locale:alternate" content="${OG_LOCALE[code]}">`)
+  .join("\n")}
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:image" content="${SITE_URL}/og.png">
-<meta name="theme-color" content="#222222">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${esc(t.meta.title)}">
+<meta name="twitter:card" content="summary_large_image">
+${jsonLd}<meta name="theme-color" content="#222222">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/styles.css">
 <script src="/theme.js"></script>
@@ -265,6 +332,7 @@ function home(t, lang) {
     title: t.meta.title,
     description: t.meta.description,
     body,
+    jsonLd: structuredData(t, lang),
   });
 }
 
@@ -330,6 +398,7 @@ function notFound(t) {
     description: t.notFound.text,
     body,
     nav: false,
+    noindex: true,
   });
 }
 
