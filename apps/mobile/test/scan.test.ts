@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasGs1CheckDigit, readScannedCode } from "../src/scan/code";
+import { expandUpcE, hasGs1CheckDigit, readScannedCode } from "../src/scan/code";
 
 describe("readScannedCode", () => {
   it("reads EAN-13, EAN-8, UPC-A and GTIN-14 barcodes as a GTIN", () => {
@@ -39,5 +39,19 @@ describe("hasGs1CheckDigit", () => {
   it("checks the GS1 mod-10 digit", () => {
     expect(hasGs1CheckDigit("5412345000013")).toBe(true);
     expect(hasGs1CheckDigit("5412345000014")).toBe(false);
+  });
+});
+
+describe("UPC-E", () => {
+  it("expands each zero-suppression form to its GTIN-12 before the lookup", () => {
+    expect(readScannedCode("01234558", "upc_e")).toEqual({ kind: "gtin", gtin: "012345000058" });
+    expect(expandUpcE("04252614")).toBe("042100005264"); // last digit 2: x1 x2 x6 0000 x3 x4 x5
+    expect(expandUpcE("01234531")).toBe("012300000451"); // last digit 3
+    expect(expandUpcE("01234543")).toBe("012340000053"); // last digit 4
+  });
+
+  it("refuses a UPC-E with a wrong check digit or number system", () => {
+    expect(readScannedCode("01234559", "upc_e")).toBeNull();
+    expect(expandUpcE("21234558")).toBeNull();
   });
 });

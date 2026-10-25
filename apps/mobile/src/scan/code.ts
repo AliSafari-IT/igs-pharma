@@ -24,8 +24,36 @@ export function hasGs1CheckDigit(digits: string): boolean {
 const isGtin = (digits: string) =>
   GTIN_LENGTHS.includes(digits.length) && /^[0-9]+$/.test(digits) && hasGs1CheckDigit(digits);
 
-/** The scanner's text → a CNK or a GTIN to look up, or `null` when it is no product code. */
-export function readScannedCode(data: string): ScannedCode | null {
+/**
+ * A UPC-E barcode (8 digits: number system, 6 digits, check digit) as the GTIN-12 it stands for, or
+ * `null` when it is not one. UPC-E zero-suppresses a UPC-A, so it must be expanded before the
+ * lookup: `01234558` is `012345000058`, not the GTIN-8 `01234558`.
+ */
+export function expandUpcE(code: string): string | null {
+  if (!/^[01][0-9]{7}$/.test(code)) return null;
+  const [ns, x1, x2, x3, x4, x5, x6, check] = [...code];
+  const last = Number(x6);
+  const body =
+    last <= 2
+      ? `${x1}${x2}${x6}0000${x3}${x4}${x5}`
+      : last === 3
+        ? `${x1}${x2}${x3}00000${x4}${x5}`
+        : last === 4
+          ? `${x1}${x2}${x3}${x4}00000${x5}`
+          : `${x1}${x2}${x3}${x4}${x5}0000${x6}`;
+  const upcA = `${ns}${body}${check}`;
+  return hasGs1CheckDigit(upcA) ? upcA : null;
+}
+
+/**
+ * The scanner's text → a CNK or a GTIN to look up, or `null` when it is no product code. `type` is
+ * the barcode type the camera reported (`upc_e` needs expanding; the others are read as they are).
+ */
+export function readScannedCode(data: string, type?: string): ScannedCode | null {
+  if (type === "upc_e") {
+    const gtin = expandUpcE(data.trim());
+    return gtin ? { kind: "gtin", gtin } : null;
+  }
   let text = data.trim();
   // a symbology identifier some scanners put in front (]d2 DataMatrix, ]C1 GS1-128, ]e0 …)
   text = text.replace(/^\][A-Za-z][0-9]/, "");

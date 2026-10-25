@@ -107,7 +107,7 @@ const nl = {
   storefront: "Webshop",
   privacyTitle: "Privacy en voorwaarden",
   privacyBody:
-    "De app werkt zonder account. Uw lijstje en instellingen blijven op uw toestel. De app stuurt alleen uw zoekwoorden en de bekeken producten naar de webshop, zonder iets dat u identificeert. De camera dient alleen om een barcode te lezen: er worden geen foto’s bewaard of verstuurd.",
+    "De app werkt zonder account. Uw lijstje en instellingen blijven op uw toestel. De app stuurt alleen uw zoekwoorden, de bekeken producten en de nummers van gescande barcodes naar de webshop, zonder iets dat u identificeert. De camera dient alleen om een barcode te lezen: er worden geen foto’s bewaard of verstuurd.",
   terms: "Algemene voorwaarden",
   privacy: "Privacy",
   cookies: "Cookies",
@@ -245,7 +245,7 @@ const fr: Strings = {
   storefront: "Boutique en ligne",
   privacyTitle: "Vie privée et conditions",
   privacyBody:
-    "L’app fonctionne sans compte. Votre liste et vos réglages restent sur votre appareil. L’app n’envoie à la boutique que vos mots de recherche et les produits consultés, sans rien qui vous identifie. La caméra sert uniquement à lire un code-barres : aucune photo n’est gardée ni envoyée.",
+    "L’app fonctionne sans compte. Votre liste et vos réglages restent sur votre appareil. L’app n’envoie à la boutique que vos mots de recherche, les produits consultés et les numéros des codes-barres scannés, sans rien qui vous identifie. La caméra sert uniquement à lire un code-barres : aucune photo n’est gardée ni envoyée.",
   terms: "Conditions générales",
   privacy: "Vie privée",
   cookies: "Cookies",
@@ -381,7 +381,7 @@ const de: Strings = {
   storefront: "Webshop",
   privacyTitle: "Datenschutz und Bedingungen",
   privacyBody:
-    "Die App funktioniert ohne Konto. Ihre Liste und Einstellungen bleiben auf Ihrem Gerät. Die App sendet nur Ihre Suchwörter und die angesehenen Produkte an den Webshop, ohne etwas, das Sie identifiziert. Die Kamera dient nur zum Lesen eines Barcodes: Es werden keine Fotos gespeichert oder gesendet.",
+    "Die App funktioniert ohne Konto. Ihre Liste und Einstellungen bleiben auf Ihrem Gerät. Die App sendet nur Ihre Suchwörter, die angesehenen Produkte und die Nummern gescannter Barcodes an den Webshop, ohne etwas, das Sie identifiziert. Die Kamera dient nur zum Lesen eines Barcodes: Es werden keine Fotos gespeichert oder gesendet.",
   terms: "AGB",
   privacy: "Datenschutz",
   cookies: "Cookies",
@@ -513,7 +513,7 @@ const en: Strings = {
   storefront: "Webshop",
   privacyTitle: "Privacy and terms",
   privacyBody:
-    "The app works without an account. Your list and settings stay on your phone. The app only sends your search words and the products you view to the webshop, with nothing that identifies you. The camera is only used to read a barcode: no photos are kept or sent.",
+    "The app works without an account. Your list and settings stay on your phone. The app only sends your search words, the products you view and the numbers of barcodes you scan to the webshop, with nothing that identifies you. The camera is only used to read a barcode: no photos are kept or sent.",
   terms: "Terms and conditions",
   privacy: "Privacy",
   cookies: "Cookies",

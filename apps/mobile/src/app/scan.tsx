@@ -44,10 +44,10 @@ export default function ScanScreen() {
     setState({ step: "scanning" });
   }, []);
 
-  const onScanned = useCallback(async ({ data }: BarcodeScanningResult) => {
+  const onScanned = useCallback(async ({ data, type }: BarcodeScanningResult) => {
     if (busy.current) return;
     busy.current = true;
-    const code = readScannedCode(data);
+    const code = readScannedCode(data, type);
     if (!code) {
       setState({ step: "not_product" });
       return;
