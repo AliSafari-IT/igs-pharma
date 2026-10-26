@@ -1,6 +1,7 @@
 packages:
   - "."
+# Expo/React Native tooling expects a flat node_modules. Since pnpm 11 this setting is read only
+# from here (.npmrc is auth/registry only).
+nodeLinker: hoisted
 allowBuilds:
   esbuild: true
-onlyBuiltDependencies:
-  - esbuild

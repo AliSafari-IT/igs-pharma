@@ -36,7 +36,7 @@ opens the website (`asafarim-docs:ventures/igs-pharma/09-mobile/`). It reads `/a
 in `apps/web` (versioned, never changes shape; the app copies the types in `src/api/types.ts`).
 
 ```bash
-cd apps/mobile && pnpm install     # its own lockfile, node-linker=hoisted (Expo)
+cd apps/mobile && pnpm install     # its own workspace + lockfile, nodeLinker: hoisted (Expo)
 pnpm start                         # Expo dev server; EXPO_PUBLIC_STOREFRONT_URL=http://10.0.2.2:3000 for a local storefront
 pnpm typecheck && pnpm test        # CI job "mobile" also runs `expo export --platform android`
 npx expo install <pkg>             # add native deps with SDK-compatible versions

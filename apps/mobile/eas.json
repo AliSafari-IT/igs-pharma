@@ -5,11 +5,13 @@
   },
   "build": {
     "preview": {
+      "pnpm": "12.15.0",
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": { "EXPO_PUBLIC_STOREFRONT_URL": "https://igs-pharma.be" }
     },
     "production": {
+      "pnpm": "12.15.0",
       "android": { "buildType": "app-bundle" },
       "autoIncrement": true,
       "env": { "EXPO_PUBLIC_STOREFRONT_URL": "https://igs-pharma.be" }

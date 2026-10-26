@@ -6,3 +6,19 @@ packages:
   - "packages/*"
   - "packages/modules/*"
   - "e2e"
+# pnpm 11+ no longer reads the `pnpm` field in package.json: build-script and override settings live here.
+# allowBuilds: true runs a dependency's install script, false skips it; an unlisted one fails the install.
+allowBuilds:
+  "@biomejs/biome": true
+  esbuild: true
+  sharp: true
+  "@parcel/watcher": false
+  "@swc/core": false
+  # Optional native speed-ups (testcontainers -> ssh2 -> cpu-features; OTel -> protobufjs); pnpm 10
+  # never ran them either, and both packages work without.
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
+overrides:
+  "@tailwindcss/node": 4.0.0
+  "@tailwindcss/oxide": 4.0.0
