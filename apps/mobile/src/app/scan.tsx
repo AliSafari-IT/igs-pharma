@@ -4,7 +4,7 @@ import {
   CameraView,
   useCameraPermissions,
 } from "expo-camera";
-import { router, useIsFocused } from "expo-router";
+import { router, useFocusEffect, useIsFocused } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { type ApiErrorKind, api, isApiError } from "../api/client";
@@ -38,11 +38,23 @@ export default function ScanScreen() {
   const [torch, setTorch] = useState(false);
   // the camera reports the same code many times a second: handle one at a time
   const busy = useRef(false);
+  // bumped when the screen loses focus: a lookup that answers after Back must not navigate
+  const generation = useRef(0);
 
   const again = useCallback(() => {
     busy.current = false;
     setState({ step: "scanning" });
   }, []);
+
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        generation.current += 1;
+        again();
+      },
+      [again],
+    ),
+  );
 
   const onScanned = useCallback(async ({ data, type }: BarcodeScanningResult) => {
     if (busy.current) return;
@@ -57,10 +69,12 @@ export default function ScanScreen() {
       return;
     }
     setState({ step: "looking" });
+    const started = generation.current;
     try {
       const cnk = await api.cnkForGtin(code.gtin);
-      router.replace(`/product/${cnk}`);
+      if (generation.current === started) router.replace(`/product/${cnk}`);
     } catch (error) {
+      if (generation.current !== started) return;
       const kind = isApiError(error) ? error.kind : "unavailable";
       setState(kind === "not_found" ? { step: "unknown" } : { step: "error", kind });
     }
@@ -143,7 +157,12 @@ export default function ScanScreen() {
           </View>
         </Card>
       )}
-      {state.step === "error" && <Problem kind={state.kind} onRetry={again} />}
+      {state.step === "error" && (
+        <>
+          <Problem kind={state.kind} onRetry={again} />
+          {searchInstead}
+        </>
+      )}
     </Screen>
   );
 }
