@@ -25,6 +25,8 @@ const CONTENT_FIELD_LABELS: Record<(typeof CONTENT_FIELDS)[number], string> = {
 const FIELD_ERRORS: Record<string, string> = {
   "catalog.cnk_invalid": "Enter exactly 7 digits.",
   "catalog.cnk_taken": "Another product already has this CNK.",
+  "catalog.gtin_invalid": "Type the 8, 12, 13 or 14 digits under the barcode.",
+  "catalog.gtin_taken": "Another product already has this barcode number.",
   too_small: "Fill this in.",
   too_big: "This is too long.",
   invalid_value: "Pick one of the options.",
@@ -160,6 +162,16 @@ export function ProductForm({
           maxLength={7}
           defaultValue={value("cnk", product?.cnk)}
           error={fieldError(errors["cnk"])}
+        />
+        <TextField
+          label="Barcode (GTIN / EAN)"
+          name="gtin"
+          inputMode="numeric"
+          autoComplete="off"
+          hint="Optional. The digits under the pack's barcode; the app's scan finds the product by it"
+          maxLength={14}
+          defaultValue={value("gtin", product?.gtin)}
+          error={fieldError(errors["gtin"])}
         />
         {select(
           "brandId",

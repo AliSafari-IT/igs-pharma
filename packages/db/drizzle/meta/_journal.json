@@ -484,6 +484,13 @@
       "when": 1792617737299,
       "tag": "0068_inventory_reconciliations_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1792968919770,
+      "tag": "0069_catalog_products_gtin",
+      "breakpoints": true
     }
   ]
 }

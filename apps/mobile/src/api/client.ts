@@ -93,6 +93,9 @@ export const api = {
       sort,
       page,
     }),
+  /** The CNK of the pack whose barcode is `gtin` (1.1); `not_found` when the shop does not have it. */
+  cnkForGtin: (gtin: string) =>
+    getJson<{ cnk: string }>(`/gtin/${encodeURIComponent(gtin)}`).then((body) => body.cnk),
   product: (cnk: string, locale: Locale) =>
     getJson<Product>(`/products/${encodeURIComponent(cnk)}`, { locale }),
   categories: (locale: Locale) =>

@@ -107,13 +107,33 @@ const nl = {
   storefront: "Webshop",
   privacyTitle: "Privacy en voorwaarden",
   privacyBody:
-    "De app werkt zonder account. Uw lijstje en instellingen blijven op uw toestel. De app stuurt alleen uw zoekwoorden en de bekeken producten naar de webshop, zonder iets dat u identificeert.",
+    "De app werkt zonder account. Uw lijstje en instellingen blijven op uw toestel. De app stuurt alleen uw zoekwoorden, de bekeken producten en de nummers van gescande barcodes naar de webshop, zonder iets dat u identificeert. De camera dient alleen om een barcode te lezen: er worden geen foto’s bewaard of verstuurd.",
   terms: "Algemene voorwaarden",
   privacy: "Privacy",
   cookies: "Cookies",
   contact: "Contact",
   opensBrowser: "Opent de website",
   privacyEmailHint: "Mail over uw gegevens",
+  scanButton: "Scan een verpakking",
+  scanTitle: "Scannen",
+  scanIntro: "Richt de camera op de barcode of de vierkante code op de verpakking.",
+  scanPermissionTitle: "De camera is nodig om te scannen",
+  scanPermissionBody:
+    "De app gebruikt de camera alleen om de barcode te lezen. Er worden geen foto’s bewaard of verstuurd.",
+  scanAllow: "Camera toestaan",
+  scanOpenSettings: "Open de instellingen",
+  scanDenied:
+    "U hebt de camera geweigerd. Sta hem toe in de instellingen van uw toestel, of zoek op naam of CNK.",
+  scanLooking: "Product zoeken…",
+  scanUnknownTitle: "Deze verpakking kennen we (nog) niet",
+  scanUnknownBody:
+    "Het product staat niet in onze webshop, of de barcode is nog niet ingevoerd. Zoek op naam of op de CNK-code.",
+  scanNotProduct:
+    "Dit is geen barcode van een product. Probeer de barcode of de vierkante code op de verpakking.",
+  scanAgain: "Opnieuw scannen",
+  scanSearchInstead: "Zoek op naam of CNK",
+  scanTorchOn: "Lamp aan",
+  scanTorchOff: "Lamp uit",
 } as const;
 
 export type StringKey = keyof typeof nl;
@@ -225,13 +245,33 @@ const fr: Strings = {
   storefront: "Boutique en ligne",
   privacyTitle: "Vie privée et conditions",
   privacyBody:
-    "L’app fonctionne sans compte. Votre liste et vos réglages restent sur votre appareil. L’app n’envoie à la boutique que vos mots de recherche et les produits consultés, sans rien qui vous identifie.",
+    "L’app fonctionne sans compte. Votre liste et vos réglages restent sur votre appareil. L’app n’envoie à la boutique que vos mots de recherche, les produits consultés et les numéros des codes-barres scannés, sans rien qui vous identifie. La caméra sert uniquement à lire un code-barres : aucune photo n’est gardée ni envoyée.",
   terms: "Conditions générales",
   privacy: "Vie privée",
   cookies: "Cookies",
   contact: "Contact",
   opensBrowser: "Ouvre le site web",
   privacyEmailHint: "Écrire au sujet de vos données",
+  scanButton: "Scanner un emballage",
+  scanTitle: "Scanner",
+  scanIntro: "Visez le code-barres ou le code carré sur l’emballage.",
+  scanPermissionTitle: "La caméra est nécessaire pour scanner",
+  scanPermissionBody:
+    "L’app utilise la caméra uniquement pour lire le code-barres. Aucune photo n’est gardée ni envoyée.",
+  scanAllow: "Autoriser la caméra",
+  scanOpenSettings: "Ouvrir les réglages",
+  scanDenied:
+    "Vous avez refusé la caméra. Autorisez-la dans les réglages de votre appareil, ou cherchez par nom ou CNK.",
+  scanLooking: "Recherche du produit…",
+  scanUnknownTitle: "Nous ne connaissons pas (encore) cet emballage",
+  scanUnknownBody:
+    "Le produit n’est pas dans notre boutique, ou son code-barres n’a pas encore été saisi. Cherchez par nom ou par code CNK.",
+  scanNotProduct:
+    "Ce n’est pas le code-barres d’un produit. Essayez le code-barres ou le code carré sur l’emballage.",
+  scanAgain: "Scanner à nouveau",
+  scanSearchInstead: "Chercher par nom ou CNK",
+  scanTorchOn: "Allumer la lampe",
+  scanTorchOff: "Éteindre la lampe",
 };
 
 const de: Strings = {
@@ -341,13 +381,33 @@ const de: Strings = {
   storefront: "Webshop",
   privacyTitle: "Datenschutz und Bedingungen",
   privacyBody:
-    "Die App funktioniert ohne Konto. Ihre Liste und Einstellungen bleiben auf Ihrem Gerät. Die App sendet nur Ihre Suchwörter und die angesehenen Produkte an den Webshop, ohne etwas, das Sie identifiziert.",
+    "Die App funktioniert ohne Konto. Ihre Liste und Einstellungen bleiben auf Ihrem Gerät. Die App sendet nur Ihre Suchwörter, die angesehenen Produkte und die Nummern gescannter Barcodes an den Webshop, ohne etwas, das Sie identifiziert. Die Kamera dient nur zum Lesen eines Barcodes: Es werden keine Fotos gespeichert oder gesendet.",
   terms: "AGB",
   privacy: "Datenschutz",
   cookies: "Cookies",
   contact: "Kontakt",
   opensBrowser: "Öffnet die Website",
   privacyEmailHint: "Schreiben Sie uns zu Ihren Daten",
+  scanButton: "Packung scannen",
+  scanTitle: "Scannen",
+  scanIntro: "Richten Sie die Kamera auf den Barcode oder den quadratischen Code auf der Packung.",
+  scanPermissionTitle: "Zum Scannen wird die Kamera benötigt",
+  scanPermissionBody:
+    "Die App nutzt die Kamera nur, um den Barcode zu lesen. Es werden keine Fotos gespeichert oder gesendet.",
+  scanAllow: "Kamera erlauben",
+  scanOpenSettings: "Einstellungen öffnen",
+  scanDenied:
+    "Sie haben die Kamera abgelehnt. Erlauben Sie sie in den Einstellungen Ihres Geräts, oder suchen Sie nach Name oder CNK.",
+  scanLooking: "Produkt wird gesucht…",
+  scanUnknownTitle: "Diese Packung kennen wir (noch) nicht",
+  scanUnknownBody:
+    "Das Produkt ist nicht in unserem Webshop, oder sein Barcode wurde noch nicht eingetragen. Suchen Sie nach Name oder CNK-Code.",
+  scanNotProduct:
+    "Das ist kein Produkt-Barcode. Versuchen Sie den Barcode oder den quadratischen Code auf der Packung.",
+  scanAgain: "Erneut scannen",
+  scanSearchInstead: "Nach Name oder CNK suchen",
+  scanTorchOn: "Licht an",
+  scanTorchOff: "Licht aus",
 };
 
 const en: Strings = {
@@ -453,13 +513,32 @@ const en: Strings = {
   storefront: "Webshop",
   privacyTitle: "Privacy and terms",
   privacyBody:
-    "The app works without an account. Your list and settings stay on your phone. The app only sends your search words and the products you view to the webshop, with nothing that identifies you.",
+    "The app works without an account. Your list and settings stay on your phone. The app only sends your search words, the products you view and the numbers of barcodes you scan to the webshop, with nothing that identifies you. The camera is only used to read a barcode: no photos are kept or sent.",
   terms: "Terms and conditions",
   privacy: "Privacy",
   cookies: "Cookies",
   contact: "Contact",
   opensBrowser: "Opens the website",
   privacyEmailHint: "Email us about your data",
+  scanButton: "Scan a pack",
+  scanTitle: "Scan",
+  scanIntro: "Point the camera at the barcode or the square code on the pack.",
+  scanPermissionTitle: "Scanning needs the camera",
+  scanPermissionBody:
+    "The app only uses the camera to read the barcode. No photos are kept or sent.",
+  scanAllow: "Allow the camera",
+  scanOpenSettings: "Open settings",
+  scanDenied:
+    "You turned the camera down. Allow it in your phone's settings, or search by name or CNK.",
+  scanLooking: "Looking up the product…",
+  scanUnknownTitle: "We don't know this pack (yet)",
+  scanUnknownBody:
+    "The product is not in our webshop, or its barcode has not been entered yet. Search by name or by CNK code.",
+  scanNotProduct: "This is not a product barcode. Try the barcode or the square code on the pack.",
+  scanAgain: "Scan again",
+  scanSearchInstead: "Search by name or CNK",
+  scanTorchOn: "Light on",
+  scanTorchOff: "Light off",
 };
 
 export const STRINGS = { nl, fr, de, en } as const satisfies Record<string, Strings>;

@@ -50,6 +50,14 @@ const owner = staff("owner");
 let nextCnk = 9_900_100;
 const cnk = () => String(nextCnk++);
 
+/** A valid EAN-13 (GS1 check digit), different on every call. */
+let nextGtin = 541_234_500_100;
+const gtin = () => {
+  const body = String(nextGtin++);
+  const sum = [...body].reverse().reduce((t, d, i) => t + Number(d) * (i % 2 === 0 ? 3 : 1), 0);
+  return body + String((10 - (sum % 10)) % 10);
+};
+
 const nl = { locale: "nl", name: "Demo Hoestsiroop" } as const;
 const fr = { locale: "fr", name: "Démo Sirop contre la toux" } as const;
 
@@ -224,6 +232,60 @@ describe("catalog.product.update", () => {
         updateProduct({ productId: randomUUID(), expectedVersion: 1, ...product() }, editor),
       ),
     ).toBe("catalog.product_not_found");
+  });
+});
+
+describe("product GTIN (mobile 1.1 barcode scan)", () => {
+  const storedGtin = async (id: string) =>
+    (
+      await iso.sql<{ gtin: string | null }[]>`SELECT gtin FROM catalog.products WHERE id = ${id}`
+    )[0]?.gtin;
+
+  it("stores an EAN-13 as 14 digits, returns it on the product and clears it when left empty", async () => {
+    const code = gtin();
+    const input = product({ gtin: code });
+    const { productId } = await createProduct(input, editor);
+    expect(await storedGtin(productId)).toBe(`0${code}`);
+    expect((await getProduct({ productId }, editor)).gtin).toBe(`0${code}`);
+    await updateProduct(
+      { productId, expectedVersion: await pv(productId), ...input, gtin: "" },
+      editor,
+    );
+    expect(await storedGtin(productId)).toBeNull();
+  });
+
+  it("rejects a code with a wrong check digit or length with catalog.gtin_invalid", async () => {
+    for (const bad of ["5410013111006", "1234567", "abc"]) {
+      expect(await codeOf(createProduct(product({ gtin: bad }), editor))).toBe(
+        "catalog.gtin_invalid",
+      );
+    }
+  });
+
+  it("rejects a GTIN another product has with catalog.gtin_taken, on create and on update", async () => {
+    const code = gtin();
+    await createProduct(product({ gtin: code }), editor);
+    // the same pack written as a GTIN-14 is the same GTIN
+    expect(await codeOf(createProduct(product({ gtin: `0${code}` }), editor))).toBe(
+      "catalog.gtin_taken",
+    );
+    const other = product();
+    const { productId } = await createProduct(other, editor);
+    expect(
+      await codeOf(
+        updateProduct(
+          { productId, expectedVersion: await pv(productId), ...other, gtin: code },
+          editor,
+        ),
+      ),
+    ).toBe("catalog.gtin_taken");
+    // saving a product with its own GTIN is not a conflict
+    const own = product({ gtin: gtin() });
+    const created = await createProduct(own, editor);
+    await updateProduct(
+      { productId: created.productId, expectedVersion: await pv(created.productId), ...own },
+      editor,
+    );
   });
 });
 

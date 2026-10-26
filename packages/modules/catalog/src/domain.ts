@@ -98,6 +98,31 @@ export const REQUIRED_LOCALES: readonly ContentLocale[] = ["nl", "fr"];
 export const CNK_PATTERN = /^[0-9]{7}$/;
 export const isValidCnk = (value: string): boolean => CNK_PATTERN.test(value);
 
+/**
+ * A GTIN (the number under a pack's barcode and in its 2D code; Belgian packs no longer need to
+ * print the CNK): GTIN-8, -12, -13 or -14 with a valid GS1 check digit. Stored as 14 digits,
+ * zero-padded on the left, so an EAN-13 and the GTIN-14 in a DataMatrix compare equal.
+ */
+export const GTIN_LENGTHS = [8, 12, 13, 14] as const;
+
+/** Whether the last digit of `digits` is its GS1 check digit (mod 10, weights 3/1 from the right). */
+function hasGs1CheckDigit(digits: string): boolean {
+  let sum = 0;
+  for (let i = digits.length - 2, weight = 3; i >= 0; i--, weight = 4 - weight) {
+    sum += Number(digits[i]) * weight;
+  }
+  return (10 - (sum % 10)) % 10 === Number(digits[digits.length - 1]);
+}
+
+/** `value` as a 14-digit GTIN, or `null` when it is not a valid GTIN-8, -12, -13 or -14. */
+export function normalizeGtin(value: string): string | null {
+  const digits = value.trim();
+  if (!/^[0-9]+$/.test(digits)) return null;
+  if (!(GTIN_LENGTHS as readonly number[]).includes(digits.length)) return null;
+  if (!hasGs1CheckDigit(digits)) return null;
+  return digits.padStart(14, "0");
+}
+
 /** The required locales that `locales` lacks, in `REQUIRED_LOCALES` order (empty when complete). */
 export function missingForActivation(locales: Iterable<string>): ContentLocale[] {
   const present = new Set(locales);

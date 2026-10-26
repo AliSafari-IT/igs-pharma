@@ -5,6 +5,7 @@ import {
   productVisibilityFacts,
   searchStorefrontCandidates,
   storefrontCategoryIndex,
+  storefrontProductByGtin,
   storefrontTopCategories,
 } from "@igs/module-catalog";
 import { storefrontAvailability } from "@igs/module-inventory";
@@ -18,8 +19,10 @@ import {
   type StorefrontCategoryNode,
   type StorefrontListing,
   type StorefrontPriceView,
+  type StorefrontProductCode,
   type StorefrontProductView,
   type VisibilityReason,
+  byGtinInputSchema,
   categoriesInputSchema,
   getInputSchema,
   listInputSchema,
@@ -112,6 +115,23 @@ export const getStorefrontProduct = query({
       breadcrumb: [...detail.breadcrumb],
       categories: [...detail.categories],
     };
+  },
+});
+
+/**
+ * The CNK of the product whose pack carries `gtin` (the app's barcode scan, mobile 1.1). Same rule as
+ * `getStorefrontProduct`: hidden or unpriced is indistinguishable from unknown.
+ */
+export const findStorefrontProductByGtin = query({
+  name: "storefront.product.by_gtin",
+  input: byGtinInputSchema,
+  permission: PERMISSIONS.catalog.storefrontRead,
+  async handler({ input, ctx }): Promise<StorefrontProductCode> {
+    const found = await storefrontProductByGtin(ctx.tx, input.gtin);
+    if (!found) throw notFound("catalog.product_not_found");
+    const cards = await storefrontPriceCards(ctx.tx, [found.id], ctx.now);
+    if (!cards.has(found.id)) throw notFound("catalog.product_not_found");
+    return { cnk: found.cnk };
   },
 });
 

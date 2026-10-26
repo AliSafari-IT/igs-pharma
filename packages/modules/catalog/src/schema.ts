@@ -63,6 +63,11 @@ export const products = catalog.table(
     id: id(),
     /** Belgian national product code: exactly 7 digits (also checked in the domain). */
     cnk: text("cnk").notNull().unique(),
+    /**
+     * The pack's GTIN as 14 digits (`normalizeGtin`), for the app's barcode scan (mobile 1.1).
+     * Optional: Belgian packs carry a GTIN, not the CNK, in their barcodes.
+     */
+    gtin: text("gtin").unique(),
     productType: text("product_type").notNull(),
     legalStatus: text("legal_status").notNull(),
     status: text("status").notNull().default("draft"),
@@ -79,6 +84,7 @@ export const products = catalog.table(
   (t) => [
     check("products_version_check", sql`${t.version} >= 1`),
     check("products_cnk_check", sql`${t.cnk} ~ '^[0-9]{7}$'`),
+    check("products_gtin_check", sql`${t.gtin} IS NULL OR ${t.gtin} ~ '^[0-9]{14}$'`),
     check("products_product_type_check", oneOf("product_type", PRODUCT_TYPES)),
     check("products_legal_status_check", oneOf("legal_status", LEGAL_STATUSES)),
     check("products_status_check", oneOf("status", PRODUCT_STATUSES)),

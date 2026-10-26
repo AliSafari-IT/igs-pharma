@@ -115,6 +115,14 @@ export const getInputSchema = z.object({
   locale: localeSchema,
 });
 
+/**
+ * `storefront.product.by_gtin` input and output (mobile 1.1, the app's barcode scan): the GTIN read
+ * from a pack (8 to 14 digits; the check digit is verified) → the CNK of the visible, priced product.
+ */
+export const byGtinInputSchema = z.object({ gtin: z.string().regex(/^[0-9]{8,14}$/) });
+export const byGtinOutputSchema = z.object({ cnk: z.string().regex(/^[0-9]{7}$/) });
+export type StorefrontProductCode = z.infer<typeof byGtinOutputSchema>;
+
 export const productSchema = itemSchema.extend({
   description: z.string().nullable(),
   warnings: z.string().nullable(),

@@ -41,6 +41,7 @@ export default function SearchScreen() {
   return (
     <Screen>
       <SearchBox value={input} onChange={setInput} onSubmit={submit} />
+      <Button kind="secondary" label={t("scanButton")} onPress={() => router.push("/scan")} />
       {!ready ? (
         <AppText muted>{q.length > 0 ? t("searchTooShort") : t("searchPrompt")}</AppText>
       ) : (
