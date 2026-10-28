@@ -10,6 +10,7 @@ import {
   createProductRegulated,
   registerAuditActions as registerCatalogAudit,
   setProductStatusRegulated,
+  updateProductRegulated,
 } from "@igs/module-catalog";
 import { loadRbacCatalogue } from "@igs/module-identity";
 import {
@@ -156,6 +157,32 @@ const versionOf = async (orderId: string) => (await getOrderForStaff({ orderId }
 const stopSelling = (productId: string) =>
   setProductStatusRegulated({ productId, status: "archived" }, pharmacist);
 
+/** The product (an OTC medicine from `product(true)`) is saved again with other fields. */
+async function saveMedicine(
+  productId: string,
+  change: { readonly prescriptionOnly?: boolean; readonly nlName?: string },
+) {
+  const [row] = await iso.sql<{ cnk: string; version: number }[]>`
+    SELECT cnk, version FROM catalog.products WHERE id = ${productId}`;
+  if (!row) throw new Error("no product");
+  await updateProductRegulated(
+    {
+      productId,
+      expectedVersion: row.version,
+      cnk: row.cnk,
+      gtin: null,
+      productType: change.prescriptionOnly ? "rx_medicine" : "otc_medicine",
+      legalStatus: change.prescriptionOnly ? "rx" : "otc",
+      vatClass: "BE_6",
+      content: [
+        { locale: "nl", name: change.nlName ?? `Product ${row.cnk}` },
+        { locale: "fr", name: `Produit ${row.cnk}` },
+      ],
+    },
+    pharmacist,
+  );
+}
+
 /** Places a guest order for 2 units and returns how to pay it, without paying yet. */
 async function placedOrder(medicine: boolean) {
   const productId = await product(medicine);
@@ -194,6 +221,43 @@ describe("placing the order", () => {
       SELECT count(*)::int AS n FROM orders.orders WHERE checkout_id = ${checkoutId}`;
     expect(orders?.n).toBe(0);
   });
+});
+
+describe("the other ways a product stops being sellable", () => {
+  for (const [how, change] of [
+    ["turned prescription-only", { prescriptionOnly: true }],
+    ["its text changed and not approved again", { nlName: "Nieuwe naam" }],
+  ] as const) {
+    it(`${how}: refused at placing the order and sent to the pharmacist once paid`, async () => {
+      const productId = await product(true);
+      const token = newCartToken();
+      const guest = actors.anonymous();
+      await setCartLine({ cartToken: token, productId, quantity: 1 }, guest);
+      const { checkoutId } = await startCheckout({ cartToken: token, locale: "nl" }, guest);
+      await saveMedicine(productId, change);
+      expect(await codeOf(placeOrder({ cartToken: token, checkoutId, contact }, guest))).toBe(
+        "orders.checkout_unavailable",
+      );
+
+      const placed = await placedOrder(true);
+      await saveMedicine(placed.productId, change);
+      await placed.pay();
+      const view = await getOrderForStaff({ orderId: placed.orderId }, owner);
+      expect(view).toMatchObject({ status: "in_review", notSellable: [placed.productId] });
+      expect(
+        await codeOf(
+          decideReview(
+            {
+              orderId: placed.orderId,
+              decision: "approved",
+              expectedVersion: await versionOf(placed.orderId),
+            },
+            pharmacist,
+          ),
+        ),
+      ).toBe("orders.line_not_sellable");
+    });
+  }
 });
 
 describe("paid after the product stopped being sellable", () => {
@@ -300,6 +364,24 @@ describe("in fulfilment", () => {
     expect(
       await codeOf(
         cancelNotSellableOrder({ orderId, expectedVersion: await versionOf(orderId) }, owner),
+      ),
+    ).toBe("orders.order_not_cancellable");
+
+    const collected = await paidOrder(false);
+    for (const to of ["preparing", "ready_for_pickup", "collected"] as const) {
+      await advanceOrder(
+        { orderId: collected.orderId, to, expectedVersion: await versionOf(collected.orderId) },
+        owner,
+      );
+    }
+    await stopSelling(collected.productId);
+    expect((await getOrderForStaff({ orderId: collected.orderId }, owner)).notSellable).toEqual([]);
+    expect(
+      await codeOf(
+        cancelNotSellableOrder(
+          { orderId: collected.orderId, expectedVersion: await versionOf(collected.orderId) },
+          owner,
+        ),
       ),
     ).toBe("orders.order_not_cancellable");
   });

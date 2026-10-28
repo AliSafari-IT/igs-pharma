@@ -26,7 +26,11 @@ interface OrderRef {
 }
 
 /** Approve or reject an order in pharmacist review; the note is optional and staff-only. */
-export function ReviewForm({ orderId, version }: OrderRef) {
+export function ReviewForm({
+  orderId,
+  version,
+  blocked = false,
+}: OrderRef & { readonly blocked?: boolean }) {
   const [state, action, pending] = useActionState(decide, {} as OrderActionState);
   const id = useId();
   return (
@@ -44,7 +48,13 @@ export function ReviewForm({ orderId, version }: OrderRef) {
           <Textarea id={`${id}-note`} name="note" maxLength={500} rows={3} />
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button type="submit" name="decision" value="approved" loading={pending}>
+          <Button
+            type="submit"
+            name="decision"
+            value="approved"
+            loading={pending}
+            disabled={blocked}
+          >
             Approve
           </Button>
           <Button

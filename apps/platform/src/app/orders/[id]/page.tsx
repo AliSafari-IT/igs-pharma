@@ -44,6 +44,13 @@ const PICKING_STATUSES: ReadonlySet<string> = new Set([
   "ready_for_pickup",
 ]);
 
+/** Where staff cancel an order whose product stopped being sellable (as `cancelNotSellableOrder`). */
+const NOT_SELLABLE_CANCELLABLE: ReadonlySet<string> = new Set([
+  "ready_to_prepare",
+  "preparing",
+  "ready_for_pickup",
+]);
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
@@ -99,9 +106,10 @@ export default async function OrderPage({ params, searchParams }: Props) {
   // the eligibility recheck: a product that stopped being sellable stops every step but the refusal
   const notSellable = new Set(order.notSellable);
   const blocked = notSellable.size > 0;
+  const cancellableNotSellable = NOT_SELLABLE_CANCELLABLE.has(order.status);
   const canCancelNotSellable =
     blocked &&
-    order.status !== "in_review" &&
+    cancellableNotSellable &&
     hasPermission(actor.roles, PERMISSIONS.orders.refundRequest) &&
     (!order.needsReview || hasPermission(actor.roles, PERMISSIONS.orders.reviewDecide));
   const step = nextStep(order.status);
@@ -172,11 +180,13 @@ export default async function OrderPage({ params, searchParams }: Props) {
               approved). The order can&apos;t be approved, prepared or handed over.{" "}
               {order.status === "in_review"
                 ? "The pharmacist rejects it, which refunds it."
-                : canCancelNotSellable
-                  ? "Cancel and refund it below."
-                  : order.needsReview
-                    ? "It holds a medicine: a pharmacist cancels and refunds it."
-                    : "An owner or a pharmacist cancels and refunds it."}
+                : !cancellableNotSellable
+                  ? "Once it is paid and its stock reserved, it goes to the pharmacist, who rejects it."
+                  : canCancelNotSellable
+                    ? "Cancel and refund it below."
+                    : order.needsReview
+                      ? "It holds a medicine: a pharmacist cancels and refunds it."
+                      : "An owner or a pharmacist cancels and refunds it."}
             </Alert>
           ) : null}
 
@@ -187,7 +197,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
                   ? "A product of this order is no longer sellable: reject it, which refunds it."
                   : "This order holds a medicine. Approve it before it is prepared."}
               </p>
-              <ReviewForm orderId={order.orderId} version={order.version} />
+              <ReviewForm orderId={order.orderId} version={order.version} blocked={blocked} />
             </Section>
           ) : null}
           {canRefund ? (
