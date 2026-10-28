@@ -35,15 +35,21 @@ function files(dir: string): string[] {
   );
 }
 
+/** A Server Action module, whatever its file name: it starts with the directive. */
+const isServerActions = (path: string) =>
+  /\.tsx?$/.test(path) && readFileSync(join(APP, path), "utf8").startsWith('"use server";');
+
 const entries = files(APP)
   .map((path) => relative(APP, path).split("\\").join("/"))
-  .filter((path) => /(^|\/)(page\.tsx|route\.ts|actions\.ts)$/.test(path));
+  .filter((path) => /(^|\/)(page\.tsx|route\.ts)$/.test(path) || isServerActions(path));
 
 /** The exported async functions of a Server Action file, each with its body. */
 function exportedActions(source: string): { name: string; body: string }[] {
   const chunks = source.split(/\n(?=export |async function |function |const |interface |type )/);
   return chunks.flatMap((chunk) => {
-    const name = /^export async function (\w+)/.exec(chunk)?.[1];
+    // `export async function name` or `export const name = async (…) =>`
+    const match = /^export (?:async function (\w+)|const (\w+) = async\b)/.exec(chunk);
+    const name = match?.[1] ?? match?.[2];
     return name ? [{ name, body: chunk }] : [];
   });
 }
@@ -67,7 +73,7 @@ describe("every back-office page, route and Server Action needs a staff session"
   for (const entry of entries.filter((e) => !(e in OPEN))) {
     const source = readFileSync(join(APP, entry), "utf8");
 
-    if (entry.endsWith("actions.ts")) {
+    if (isServerActions(entry)) {
       it(`${entry}: every action asks for a staff session`, () => {
         expect(source.startsWith('"use server";')).toBe(true);
         const helpers = guardedHelpers(source);

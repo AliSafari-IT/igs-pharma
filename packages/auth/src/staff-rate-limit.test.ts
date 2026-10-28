@@ -39,14 +39,18 @@ const STOREFRONT = "http://localhost:3000";
 
 let iso: IsolatedDatabase;
 let staffAuth: Auth;
+/** The runner's own values, restored after the suite (it forces the ones `getAuth()` must use). */
+const ENV_KEYS = ["DATABASE_URL", "AUTH_SECRET", "AUTH_URL"] as const;
+const savedEnv = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
 
 beforeAll(async () => {
   iso = await createIsolatedDatabase();
   testDb.current = iso.db;
   await loadRbacCatalogue(iso.db);
-  process.env.DATABASE_URL ??= "postgres://unused@localhost:5432/unused";
-  process.env.AUTH_SECRET ??= SECRET;
-  process.env.AUTH_URL ??= PLATFORM;
+  // the lazy instance must verify the cookies this suite's instances sign: same secret, same origin
+  process.env.DATABASE_URL = "postgres://unused@localhost:5432/unused";
+  process.env.AUTH_SECRET = SECRET;
+  process.env.AUTH_URL = PLATFORM;
   configureAuth({ onSecurityEvent: async () => {} });
   // no `rateLimit` option: the default, as `getAuth()` builds it
   staffAuth = createStaffAuth({
@@ -58,6 +62,10 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await iso?.drop();
+  for (const [key, value] of savedEnv) {
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
+    else process.env[key] = value;
+  }
 });
 
 /** One request to the staff instance, as the edge forwards it (`forwardedFor` = the header value). */
