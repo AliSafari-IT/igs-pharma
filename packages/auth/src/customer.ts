@@ -7,6 +7,8 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 
+import { CLIENT_IP_FROM_EDGE } from "./rate-limits";
+
 /** Webshop customers' session (D-044): 7 days, extended at most once a day. */
 export const CUSTOMER_SESSION_MAX_S = 7 * 24 * 60 * 60;
 export const CUSTOMER_SESSION_REFRESH_S = 24 * 60 * 60;
@@ -64,12 +66,8 @@ export function createCustomerAuth({ db, secret, baseURL, requestMail }: Custome
       // `igs-c.*`, Secure + HttpOnly + SameSite=Lax + path=/ and no Domain (host-only). Better Auth
       // puts `__Secure-` in front over HTTPS; a `__Host-` name is not possible through its API.
       cookiePrefix: CUSTOMER_COOKIE_PREFIX,
-      // The rate limiter counts per client, so it must read the client's address. The edge (Caddy)
-      // sets `X-Forwarded-For` to ONE address. Better Auth trusts a single-value header only: a chain
-      // (a client-supplied prefix, an unexpected extra hop) resolves to no address and shares one
-      // bucket per path (fails closed: slower for everyone, never a bypass by spoofing). Without
-      // this setting the default is the same header; naming it keeps the dependency visible.
-      ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
+      // the client's address for the per-client rate limits: one `X-Forwarded-For` value from the edge
+      ipAddress: CLIENT_IP_FROM_EDGE,
     },
     emailAndPassword: {
       enabled: true,

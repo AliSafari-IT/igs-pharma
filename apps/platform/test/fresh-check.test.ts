@@ -40,6 +40,8 @@ beforeAll(async () => {
     secret: "test-secret-test-secret-test-secret-0123",
     baseURL: BASE_URL,
     onSecurityEvent: async (_event: SecurityEvent) => {},
+    // these flows sign in many times from one address; the limits: staff-rate-limit.test.ts
+    rateLimit: false,
   });
 });
 afterAll(async () => {

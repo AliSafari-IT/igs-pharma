@@ -51,6 +51,7 @@ import { z } from "zod";
  *   are written. `onSecurityEvent` is the composition root's (dependency inversion: `@igs/auth`
  *   never imports `@igs/module-audit`).
  * - `/enrolment/redeem`: consumes a bootstrap enrolment token (single use) and starts a session.
+ *   Its rate limit is the staff instance's (`STAFF_RATE_LIMIT_RULES`).
  */
 
 /**
@@ -129,6 +130,7 @@ export const MFA_ERROR_CODES = {
   TOTP_NOT_ENABLED: "TOTP_NOT_ENABLED",
   ENROLMENT_LINK_INVALID: "ENROLMENT_LINK_INVALID",
   USER_VERIFICATION_REQUIRED: "USER_VERIFICATION_REQUIRED",
+  STAFF_ONLY: "STAFF_ONLY",
 } as const;
 
 /**
@@ -278,6 +280,15 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
           handler: createAuthMiddleware(async (ctx) => {
             const prior = await requestSession(ctx);
             if (!prior) return;
+            // D-044: staff sessions only. Both instances share the session table and AUTH_SECRET, so
+            // a customer's storefront cookie, renamed, would otherwise be a session here; refused on
+            // every endpoint but the browser's own session check (`resolveSession` refuses it there)
+            if (
+              !BACKGROUND_PATHS.has(ctx.path ?? "") &&
+              (await userKind(db, prior.user.id)) !== "staff"
+            ) {
+              throw fail("UNAUTHORIZED", MFA_ERROR_CODES.STAFF_ONLY);
+            }
             await enforceSessionLimits(db, {
               userId: prior.user.id,
               sessionId: prior.session.id,
@@ -404,7 +415,6 @@ export function igsMfa(options: { db: Db; onSecurityEvent: OnSecurityEvent }): B
         },
       ],
     },
-    rateLimit: [{ pathMatcher: (path) => path === "/enrolment/redeem", window: 60, max: 5 }],
   } satisfies BetterAuthPlugin;
 }
 
