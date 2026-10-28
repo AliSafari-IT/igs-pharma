@@ -7,6 +7,7 @@ import { useActionState, useId } from "react";
 import {
   type OrderActionState,
   advance,
+  cancelNotSellable,
   cancelStockShort,
   decide,
   reReserve,
@@ -149,10 +150,26 @@ export function ReReserveForm({ orderId, version }: OrderRef) {
 
 /** A stock-short order that cannot be filled: cancel it and refund the full amount. */
 export function CancelStockShortForm({ orderId, version }: OrderRef) {
-  const [state, action, pending] = useActionState(cancelStockShort, {} as OrderActionState);
+  return <CancelForm orderId={orderId} version={version} kind="stock-short" />;
+}
+
+/** An order with a product that is no longer sellable: cancel it and refund the full amount. */
+export function CancelNotSellableForm({ orderId, version }: OrderRef) {
+  return <CancelForm orderId={orderId} version={version} kind="not-sellable" />;
+}
+
+function CancelForm({
+  orderId,
+  version,
+  kind,
+}: OrderRef & { readonly kind: "stock-short" | "not-sellable" }) {
+  const [state, action, pending] = useActionState(
+    kind === "stock-short" ? cancelStockShort : cancelNotSellable,
+    {} as OrderActionState,
+  );
   const id = useId();
   return (
-    <form action={action} data-testid="cancel-stock-short-form">
+    <form action={action} data-testid={`cancel-${kind}-form`}>
       <Stack gap={3}>
         <input type="hidden" name="orderId" value={orderId} />
         <input type="hidden" name="expectedVersion" value={version} />

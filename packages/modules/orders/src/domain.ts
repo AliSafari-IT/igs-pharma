@@ -156,10 +156,14 @@ export const ACTIVE_REFUND_STATUSES = [
   "refunded",
 ] as const satisfies readonly RefundStatus[];
 
-/** Why an order is refunded. `pharmacist_rejected` is set by the review itself. */
+/**
+ * Why an order is refunded. `pharmacist_rejected` is set by the review itself, `not_sellable` by
+ * `cancelNotSellableOrder` (a product stopped being sellable).
+ */
 export const REFUND_REASONS = [
   "pharmacist_rejected",
   "stock_short",
+  "not_sellable",
   "paid_after_close",
   "customer_request",
   "other",

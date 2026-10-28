@@ -19,6 +19,7 @@ import {
   canTransition,
   holderOf,
 } from "./domain";
+import { assertOrderSellable, notSellableLinesOf, paidOrderStatus } from "./eligibility";
 import { requestOrderMail } from "./mails";
 import { recordRefund } from "./refunds";
 import { orderLines, orderReviews, ordersTable } from "./schema";
@@ -83,6 +84,8 @@ export const decideReview = command({
       reviewerId: ctx.actor.id,
       decidedAt: ctx.now,
     });
+    // the eligibility recheck: a pharmacist cannot approve a product that stopped being sellable
+    if (input.decision === "approved") await assertOrderSellable(ctx, order.id);
     let to: OrderStatus = "ready_to_prepare";
     if (input.decision === "rejected") {
       await ctx.run(releaseReservation, {
@@ -126,6 +129,8 @@ export const advanceOrder = command({
     if (!canTransition(from, input.to, { needsReview: order.needsReview })) {
       throw conflict("orders.invalid_transition", { from, to: input.to });
     }
+    // the eligibility recheck before every step that moves the goods (prepare, pack, hand over)
+    await assertOrderSellable(ctx, order.id);
     if (input.to === "ready_for_pickup") {
       // packed only from sellable lots allocated in full (igs-pharma#165): else
       // `inventory.allocation_short`, and the order stays in preparation
@@ -193,7 +198,7 @@ export const reReserveOrder = command({
       }
     }
     await ctx.run(confirmReservation, { holderRef, items });
-    const to: OrderStatus = order.needsReview ? "in_review" : "ready_to_prepare";
+    const to: OrderStatus = await paidOrderStatus(ctx, order);
     const version = await moveOrder(ctx, order, to);
     await requestOrderMail(ctx, { orderId: order.id, kind: "order_received" });
     await ctx.audit.record({
@@ -246,6 +251,70 @@ export const cancelStockShortOrder = command({
       entityType: "order",
       entityId: order.id,
       data: { orderId: order.id, from: "paid_stock_short", reason: "stock_short", refundId },
+    });
+    return { orderId: order.id, status: "cancelled", version };
+  },
+});
+
+// ── a product stopped being sellable (the eligibility recheck, milestone 5.1) ───────────────────
+
+/** Where an order can be when a product of it turns out not to be sellable any more. */
+const NOT_SELLABLE_CANCELLABLE = [
+  "ready_to_prepare",
+  "preparing",
+  "ready_for_pickup",
+] as const satisfies readonly OrderStatus[];
+
+/**
+ * A product of the order stopped being sellable after the pharmacist approved it or after it was paid
+ * (`orders.line_not_sellable` stops every fulfilment step): gives back the stock it holds, cancels it
+ * and records the full refund (reason `not_sellable`), which also tells the customer. An order in
+ * review is refused by the pharmacist instead. Same refund rules as a stock-short order.
+ * - `orders.order_not_cancellable`: the order is not waiting to be prepared, in preparation or ready;
+ * - `orders.order_sellable`: every product is still sellable, nothing to cancel here.
+ */
+export const cancelNotSellableOrder = command({
+  name: "orders.order.cancel_not_sellable",
+  input: z.object({
+    orderId: z.uuid(),
+    expectedVersion,
+    /** Staff-only, kept on the refund; not audited. */
+    note: z.string().trim().min(1).max(REFUND_NOTE_MAX).optional(),
+  }),
+  output: result,
+  permission: PERMISSIONS.orders.refundRequest,
+  audit: "none",
+  async handler({ input, ctx }) {
+    const order = await lockOrder(ctx, input.orderId, input.expectedVersion);
+    const from = order.status as OrderStatus;
+    if (!(NOT_SELLABLE_CANCELLABLE as readonly OrderStatus[]).includes(from)) {
+      throw conflict("orders.order_not_cancellable", { status: from });
+    }
+    if ((await notSellableLinesOf(ctx.tx, order.id)).length === 0) {
+      throw conflict("orders.order_sellable");
+    }
+    if (order.needsReview && !ctx.can(PERMISSIONS.orders.reviewDecide)) {
+      throw forbidden("orders.refund_needs_pharmacist");
+    }
+    await ctx.run(releaseReservation, {
+      holderRef: holderOf(order.checkoutId),
+      reason: "order_cancelled",
+    });
+    const version = await moveOrder(ctx, order, "cancelled");
+    const refundId = await recordRefund(
+      ctx,
+      { ...order, status: "cancelled" },
+      {
+        reason: "not_sellable",
+        note: input.note,
+        approvedById: order.needsReview ? ctx.actor.id : null,
+      },
+    );
+    await ctx.audit.record({
+      action: ORDERS_AUDIT.orderCancelled,
+      entityType: "order",
+      entityId: order.id,
+      data: { orderId: order.id, from, reason: "not_sellable", refundId },
     });
     return { orderId: order.id, status: "cancelled", version };
   },

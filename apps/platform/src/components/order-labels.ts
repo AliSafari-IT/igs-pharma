@@ -82,6 +82,7 @@ export const REFUND_STATUS_BADGE: Record<RefundStatus, BadgeVariant> = {
 export const REFUND_REASON_LABELS: Record<RefundReason, string> = {
   pharmacist_rejected: "Pharmacist rejected the order",
   stock_short: "Stock short",
+  not_sellable: "A product is no longer sellable",
   paid_after_close: "Paid after the order closed",
   customer_request: "Customer request",
   other: "Other",
@@ -131,6 +132,11 @@ const ERRORS: Record<string, string> = {
     "Part of the stock for this order can't be sold (quarantined, too close to expiry, or its lot not recorded). It can't be packed until sellable stock comes in.",
   "inventory.allocation_short":
     "There aren't enough sellable lots for this order: it can't be packed until stock comes in or a lot is released.",
+  "orders.line_not_sellable":
+    "A product of this order is no longer sellable (made inactive, prescription-only, or its text no longer approved). It can't be approved, prepared or handed over: cancel and refund the order.",
+  "orders.order_sellable":
+    "Every product of this order is still sellable: there is nothing to cancel here.",
+  "orders.order_not_cancellable": "This order can't be cancelled from where it is now.",
   "orders.order_not_stock_short": "This order is no longer waiting for stock.",
   "orders.stock_still_short":
     "There still isn't enough stock for every product of this order. Nothing was reserved.",
