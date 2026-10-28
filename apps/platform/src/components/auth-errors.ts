@@ -18,6 +18,7 @@ const MESSAGES: Record<string, string> = {
     "Your device didn't confirm it's you (PIN, fingerprint or face). Try again.",
   ENROLMENT_LINK_INVALID: "This link is invalid, used or expired. Ask the owner for a new one.",
   TOO_MANY_REQUESTS: "Too many attempts. Wait a minute and try again.",
+  STAFF_ONLY: "This is the staff back-office. Sign in with your staff passkey.",
 };
 
 const FALLBACK = "That didn't work. Try again.";

@@ -35,12 +35,19 @@ import {
   igsMfa,
   requireUserVerification,
 } from "./mfa-plugin";
+import { CLIENT_IP_FROM_EDGE, STAFF_RATE_LIMIT_RULES } from "./rate-limits";
 
 export interface AuthDeps {
   readonly db: Db;
   readonly secret: string;
   readonly baseURL: string;
   readonly onSecurityEvent: OnSecurityEvent;
+  /**
+   * Per-IP rate limiting ({@link STAFF_RATE_LIMIT_RULES}). On unless set to `false`, in every
+   * environment (Better Auth's own default is production only): only tests that replay a flow many
+   * times from one address turn it off.
+   */
+  readonly rateLimit?: boolean;
 }
 
 /**
@@ -48,7 +55,13 @@ export interface AuthDeps {
  * apps use `getAuth()`. It refuses customer accounts: customers sign in on the storefront's own
  * instance (`createCustomerAuth`, D-044).
  */
-export function createStaffAuth({ db, secret, baseURL, onSecurityEvent }: AuthDeps) {
+export function createStaffAuth({
+  db,
+  secret,
+  baseURL,
+  onSecurityEvent,
+  rateLimit = true,
+}: AuthDeps) {
   return betterAuth({
     appName: "IGS-Pharma",
     database: drizzleAdapter(db, {
@@ -65,6 +78,8 @@ export function createStaffAuth({ db, secret, baseURL, onSecurityEvent }: AuthDe
       // so tests exercise the same protection as production (e.g. login CSRF on /enrolment/redeem)
       disableOriginCheck: false,
       disableCSRFCheck: false,
+      // the client's address for the per-IP limits below: one `X-Forwarded-For` value from the edge
+      ipAddress: CLIENT_IP_FROM_EDGE,
     },
     emailAndPassword: {
       enabled: true,
@@ -99,9 +114,10 @@ export function createStaffAuth({ db, secret, baseURL, onSecurityEvent }: AuthDe
       },
     },
     rateLimit: {
-      // 36b: Better Auth counts TOTP failures only on the sign-in path; this caps the
-      // "verify on an existing session" path too (per IP, in memory, production only by default)
-      customRules: { "/two-factor/verify-totp": { window: 60, max: 5 } },
+      enabled: rateLimit,
+      // in memory, per process: the platform runs as one container (see STAFF_RATE_LIMIT_RULES)
+      storage: "memory",
+      customRules: STAFF_RATE_LIMIT_RULES,
     },
     databaseHooks: {
       session: {
@@ -199,6 +215,7 @@ export type User = Session["user"];
 
 export type { ResolvedActor, RoleGrant } from "@igs/module-identity";
 export { MFA_ERROR_CODES, type OnSecurityEvent, type SecurityEvent } from "./mfa-plugin";
+export { STAFF_RATE_LIMIT_RULES } from "./rate-limits";
 
 /** What the edge learns about a request's session: the actor, or why a staff session just ended. */
 export type SessionResolution =
@@ -221,7 +238,8 @@ export function sessionTokenFromCookies(cookie: string | null): string | null {
  * the staff session limits (#95: 8 hours after sign-in, 30 minutes without activity), then loads
  * the user's status, kind and role grants from the database. `null` when there is no valid session
  * or the user is not `active`; `{ ended }` when a staff session has just run out (it is deleted
- * here, so nothing can revive it) so the sign-in page can say why.
+ * here, so nothing can revive it) so the sign-in page can say why. Only a `staff` user is an actor
+ * here: any other kind (a customer's session presented to the platform) is `null`.
  *
  * `interactive` says whether the request is something the person did (a navigation, a form or
  * Server Action): only then does it restart the idle clock. Background requests (the browser's own
@@ -256,7 +274,9 @@ export async function resolveSession(
     ...(options.locationId === undefined ? {} : { locationId: options.locationId }),
     sessionId: session.session.id,
   });
-  return actor ? { actor } : null;
+  // D-044: the back-office serves staff only. A customer's session row is valid for this instance
+  // too (same table, same AUTH_SECRET: a renamed storefront cookie verifies), so the kind decides
+  return actor?.kind === "staff" ? { actor } : null;
 }
 
 /** `resolveSession` for callers that only need the actor (an ended session is "no actor"). */
