@@ -1,0 +1,2 @@
+ALTER TABLE "orders"."refunds" DROP CONSTRAINT "refunds_reason_check";--> statement-breakpoint
+ALTER TABLE "orders"."refunds" ADD CONSTRAINT "refunds_reason_check" CHECK (reason IN ('pharmacist_rejected', 'stock_short', 'not_sellable', 'paid_after_close', 'customer_request', 'other'));

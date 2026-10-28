@@ -24,6 +24,7 @@ import {
   type PaymentStatus,
   holderOf,
 } from "./domain";
+import { paidOrderStatus } from "./eligibility";
 import { requestOrderMail } from "./mails";
 import { carts, checkouts, orderLines, ordersTable, payments } from "./schema";
 
@@ -260,7 +261,7 @@ async function settleOrder(
       return "paid_stock_short";
     }
     await clearCartOf(ctx, order.checkoutId);
-    return order.needsReview ? "in_review" : "ready_to_prepare";
+    return paidOrderStatus(ctx, order);
   }
   // failed, canceled, expired: the stock goes back; the cart stays for another try
   await ctx.run(releaseReservation, { holderRef, reason: "checkout_cancelled" });

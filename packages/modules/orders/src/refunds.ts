@@ -33,10 +33,10 @@ export const RefundRequested = defineEvent(
   z.object({ refundId: z.uuid(), orderId: z.uuid() }),
 );
 
-/** Reasons staff choose; `pharmacist_rejected` comes with the review. */
+/** Reasons staff choose; `pharmacist_rejected` comes with the review, `not_sellable` with its cancel. */
 export const STAFF_REFUND_REASONS = REFUND_REASONS.filter(
-  (reason) => reason !== "pharmacist_rejected",
-) as Exclude<RefundReason, "pharmacist_rejected">[];
+  (reason) => reason !== "pharmacist_rejected" && reason !== "not_sellable",
+) as Exclude<RefundReason, "pharmacist_rejected" | "not_sellable">[];
 
 type Order = typeof ordersTable.$inferSelect;
 

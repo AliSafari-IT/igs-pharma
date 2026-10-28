@@ -11,6 +11,7 @@ import {
   STOCK_SHORT_DEADLINE_HOURS,
   holderOf,
 } from "./domain";
+import { notSellableLinesOf } from "./eligibility";
 import { type RefundView, refundsOf } from "./refunds";
 import {
   orderContacts,
@@ -205,6 +206,11 @@ export interface StaffOrderView {
     readonly phone: string;
   } | null;
   readonly lines: readonly BasketLineView[];
+  /**
+   * The products of an open order that are not sellable now (the eligibility recheck): the order can't
+   * be approved, prepared or handed over, only cancelled and refunded. Empty for a closed order.
+   */
+  readonly notSellable: readonly string[];
   readonly paymentStatus: PaymentStatus | null;
   readonly refundDue: boolean;
   /** Newest first. */
@@ -224,6 +230,9 @@ export interface StaffOrderView {
     readonly at: Date;
   }[];
 }
+
+/** End states: nothing more happens to their goods. */
+const CLOSED_STATUSES: readonly OrderStatus[] = ["collected", "cancelled", "expired"];
 
 export const getOrderForStaff = query({
   name: "orders.order.get_staff",
@@ -306,6 +315,9 @@ export const getOrderForStaff = query({
       createdAt: order.createdAt,
       contact: contact ?? null,
       lines,
+      notSellable: CLOSED_STATUSES.includes(order.status as OrderStatus)
+        ? []
+        : await notSellableLinesOf(ctx.tx, order.id),
       paymentStatus: order.paymentStatus as PaymentStatus | null,
       refundDue: isRefundDue(order.status, order.paymentStatus, order.refunding),
       refunds: await refundsOf(ctx, order.id),

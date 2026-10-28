@@ -5,7 +5,12 @@ import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 import type { ReactNode } from "react";
 
 import { LotsToPick } from "../../../components/lots-to-pick";
-import { RefundForm, ReviewForm, StepForm } from "../../../components/order-actions";
+import {
+  CancelNotSellableForm,
+  RefundForm,
+  ReviewForm,
+  StepForm,
+} from "../../../components/order-actions";
 import {
   ORDER_STATUS_BADGE,
   ORDER_STATUS_LABELS,
@@ -34,6 +39,13 @@ interface Props {
 /** While its stock is set aside for it: the order is picked from its allocated lots (igs-pharma#165). */
 const PICKING_STATUSES: ReadonlySet<string> = new Set([
   "in_review",
+  "ready_to_prepare",
+  "preparing",
+  "ready_for_pickup",
+]);
+
+/** Where staff cancel an order whose product stopped being sellable (as `cancelNotSellableOrder`). */
+const NOT_SELLABLE_CANCELLABLE: ReadonlySet<string> = new Set([
   "ready_to_prepare",
   "preparing",
   "ready_for_pickup",
@@ -91,8 +103,18 @@ export default async function OrderPage({ params, searchParams }: Props) {
     order.refundDue &&
     hasPermission(actor.roles, PERMISSIONS.orders.refundRequest) &&
     (!order.needsReview || hasPermission(actor.roles, PERMISSIONS.orders.reviewDecide));
+  // the eligibility recheck: a product that stopped being sellable stops every step but the refusal
+  const notSellable = new Set(order.notSellable);
+  const blocked = notSellable.size > 0;
+  const cancellableNotSellable = NOT_SELLABLE_CANCELLABLE.has(order.status);
+  const canCancelNotSellable =
+    blocked &&
+    cancellableNotSellable &&
+    hasPermission(actor.roles, PERMISSIONS.orders.refundRequest) &&
+    (!order.needsReview || hasPermission(actor.roles, PERMISSIONS.orders.reviewDecide));
   const step = nextStep(order.status);
-  const canStep = step !== null && hasPermission(actor.roles, PERMISSIONS.orders.manage);
+  const canStep =
+    !blocked && step !== null && hasPermission(actor.roles, PERMISSIONS.orders.manage);
   const who = (actorType: string, actorId: string) =>
     actorType === "user"
       ? actorId === actor.id
@@ -147,11 +169,35 @@ export default async function OrderPage({ params, searchParams }: Props) {
             </Alert>
           ) : null}
           {order.status === "paid_stock_short" ? <StockShort order={order} actor={actor} /> : null}
+          {blocked ? (
+            <Alert
+              variant="error"
+              title="A product is no longer sellable"
+              data-testid="not-sellable"
+            >
+              {notSellable.size === 1 ? "One product" : `${notSellable.size} products`} of this
+              order can no longer be sold (made inactive, prescription-only, or its text no longer
+              approved). The order can&apos;t be approved, prepared or handed over.{" "}
+              {order.status === "in_review"
+                ? "The pharmacist rejects it, which refunds it."
+                : !cancellableNotSellable
+                  ? "Once it is paid and its stock reserved, it goes to the pharmacist, who rejects it."
+                  : canCancelNotSellable
+                    ? "Cancel and refund it below."
+                    : order.needsReview
+                      ? "It holds a medicine: a pharmacist cancels and refunds it."
+                      : "An owner or a pharmacist cancels and refunds it."}
+            </Alert>
+          ) : null}
 
           {canDecide ? (
             <Section title="Pharmacist review">
-              <p>This order holds a medicine. Approve it before it is prepared.</p>
-              <ReviewForm orderId={order.orderId} version={order.version} />
+              <p>
+                {blocked
+                  ? "A product of this order is no longer sellable: reject it, which refunds it."
+                  : "This order holds a medicine. Approve it before it is prepared."}
+              </p>
+              <ReviewForm orderId={order.orderId} version={order.version} blocked={blocked} />
             </Section>
           ) : null}
           {canRefund ? (
@@ -160,13 +206,23 @@ export default async function OrderPage({ params, searchParams }: Props) {
               <RefundForm orderId={order.orderId} />
             </Section>
           ) : null}
+          {canCancelNotSellable ? (
+            <Section title="Cancel and refund">
+              <p>
+                The stock goes back and the full amount goes back to the customer through Mollie.
+              </p>
+              <CancelNotSellableForm orderId={order.orderId} version={order.version} />
+            </Section>
+          ) : null}
           {canStep && step ? (
             <Section title="Next step">
               <StepForm orderId={order.orderId} version={order.version} to={step} />
             </Section>
           ) : null}
 
-          {PICKING_STATUSES.has(order.status) ? <LotsToPick order={order} actor={actor} /> : null}
+          {PICKING_STATUSES.has(order.status) && !blocked ? (
+            <LotsToPick order={order} actor={actor} />
+          ) : null}
 
           <Section title="Products">
             <table className="w-full border-collapse text-left">
@@ -198,6 +254,12 @@ export default async function OrderPage({ params, searchParams }: Props) {
                         <>
                           {" "}
                           <Badge variant="neutral">Medicine</Badge>
+                        </>
+                      ) : null}
+                      {notSellable.has(line.productId) ? (
+                        <>
+                          {" "}
+                          <Badge variant="error">No longer sellable</Badge>
                         </>
                       ) : null}
                     </td>

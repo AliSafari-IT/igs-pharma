@@ -70,8 +70,20 @@ const uuidv7 = () => `0192f000-0000-7000-8000-${randomUUID().replaceAll("-", "")
 async function paidMedicineOrder(): Promise<void> {
   orderId = randomUUID();
   const checkoutId = uuidv7();
-  const productId = randomUUID();
   reference = `IGS-2026-${String(randomInt(900_000, 999_999))}`;
+  // a sellable medicine: active, with its nl and fr text approved by a pharmacist (the eligibility
+  // recheck asks the catalogue again before the approval and every fulfilment step)
+  const cnk = `98${String(randomInt(0, 100_000)).padStart(5, "0")}`;
+  const [product] = await sql<{ id: string }[]>`
+    INSERT INTO catalog.products (id, cnk, product_type, legal_status, vat_class, status)
+    VALUES (gen_random_uuid(), ${cnk}, 'otc_medicine', 'otc', 'BE_6', 'draft')
+    RETURNING id`;
+  const productId = (product as { id: string }).id;
+  await sql`
+    INSERT INTO catalog.product_content (product_id, locale, name, source, approved_by, approved_at)
+    VALUES (${productId}, 'nl', 'Paracetamol 500 mg', 'manual', ${userIds[0] as string}, now()),
+      (${productId}, 'fr', 'Paracétamol 500 mg', 'manual', ${userIds[0] as string}, now())`;
+  await sql`UPDATE catalog.products SET status = 'active' WHERE id = ${productId}`;
   await sql.begin(async (tx) => {
     await tx`
       INSERT INTO orders.orders (id, checkout_id, reference, locale, needs_review, total_cents, vat_cents,
@@ -81,7 +93,7 @@ async function paidMedicineOrder(): Promise<void> {
     await tx`
       INSERT INTO orders.order_lines (id, order_id, product_id, cnk, name, is_medicine, vat_class,
         quantity, unit_price_cents, line_total_cents, vat_cents)
-      VALUES (${randomUUID()}, ${orderId}, ${productId}, '9990001', 'Paracetamol 500 mg', true, 'BE_6',
+      VALUES (${randomUUID()}, ${orderId}, ${productId}, ${cnk}, 'Paracetamol 500 mg', true, 'BE_6',
         1, 1250, 1250, 71)`;
     await tx`
       INSERT INTO orders.order_contacts (order_id, name, email, phone)

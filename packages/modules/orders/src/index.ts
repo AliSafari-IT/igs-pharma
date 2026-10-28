@@ -88,6 +88,7 @@ export {
   FULFILMENT_STEPS,
   type FulfilmentStep,
   advanceOrder,
+  cancelNotSellableOrder,
   cancelStockShortOrder,
   decideReview,
   reReserveOrder,

@@ -3,6 +3,7 @@
 import { isDomainError } from "@igs/kernel";
 import {
   advanceOrder,
+  cancelNotSellableOrder,
   cancelStockShortOrder,
   decideReview,
   reReserveOrder,
@@ -130,6 +131,29 @@ export async function cancelStockShort(
   const note = text(form, "note").trim();
   try {
     await cancelStockShortOrder(
+      { orderId, expectedVersion: versionOf(form), ...(note ? { note } : {}) },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/orders");
+  redirect(`/orders/${encodeURIComponent(orderId)}?done=cancelled`);
+}
+
+/** An order with a product that is no longer sellable: cancel it and refund it. */
+export async function cancelNotSellable(
+  _previous: OrderActionState,
+  form: FormData,
+): Promise<OrderActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const orderId = text(form, "orderId");
+  const note = text(form, "note").trim();
+  try {
+    await cancelNotSellableOrder(
       { orderId, expectedVersion: versionOf(form), ...(note ? { note } : {}) },
       actor,
       { origin: await requestOrigin() },

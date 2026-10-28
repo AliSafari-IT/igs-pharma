@@ -25,6 +25,7 @@ import {
   holderOf,
   maxPerOrder,
 } from "./domain";
+import { notSellableIds } from "./eligibility";
 import {
   cartLines,
   checkoutLines,
@@ -272,7 +273,9 @@ async function placedFrom(ctx: Ctx, checkout: Checkout) {
  * stock stays held by the checkout until the payment is confirmed.
  * - `orders.checkout_not_found`: no such checkout for this actor (another shopper's looks the same);
  * - `orders.checkout_expired`: the holds lapsed, start the checkout again;
- * - `orders.checkout_cancelled`: a newer checkout replaced it.
+ * - `orders.checkout_cancelled`: a newer checkout replaced it;
+ * - `orders.checkout_unavailable` (`products`): a product stopped being sellable since the checkout
+ *   started (the eligibility recheck); start the checkout again without it.
  * Placing an already placed checkout again returns the same order (a double click, a retry).
  */
 export const placeOrder = command({
@@ -304,6 +307,14 @@ export const placeOrder = command({
       .from(checkoutLines)
       .where(eq(checkoutLines.checkoutId, checkout.id))
       .orderBy(asc(checkoutLines.position));
+    // the eligibility recheck: a product may have stopped being sellable since the checkout started
+    const unavailable = await notSellableIds(
+      ctx.tx,
+      lines.map((line) => line.productId),
+    );
+    if (unavailable.length > 0) {
+      throw conflict("orders.checkout_unavailable", { products: unavailable.join(",") });
+    }
     const orderId = newId();
     const paymentId = newId();
     const reference = await nextReference(ctx);
