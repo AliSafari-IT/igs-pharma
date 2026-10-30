@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PHARMACY_IDENTITY, identityValues, isStandIn } from "./pharmacy";
+import { PHARMACY_IDENTITY, type PharmacyIdentity, identityValues, isStandIn } from "./pharmacy";
 
 describe("the pharmacy identity", () => {
   it("is marked as placeholder exactly while some value is still a bracketed stand-in", () => {
@@ -18,8 +18,25 @@ describe("the pharmacy identity", () => {
     const values = identityValues(PHARMACY_IDENTITY);
     expect(values).toContain(PHARMACY_IDENTITY.vatNumber);
     // a real-looking identity with only the VAT number left as a stand-in still counts as a placeholder
-    const almost = { ...PHARMACY_IDENTITY, vatNumber: "[VAT number]" };
-    expect(identityValues(almost).some(isStandIn)).toBe(true);
+    const real: PharmacyIdentity = {
+      isPlaceholder: false,
+      name: "IGS-Pharma",
+      address: {
+        street: "Rue Example 1",
+        postalCode: "1000",
+        city: "Brussels",
+        country: "Belgium",
+      },
+      phone: "+32 2 000 00 00",
+      email: "info@example.be",
+      pharmacistTitular: "A. Pharmacist",
+      authorisationNumber: "123456",
+      vatNumber: "BE 0123.456.789",
+      openingHours: "Mon-Fri 9:00-18:00",
+    };
+    expect(identityValues(real).filter(isStandIn)).toEqual([]);
+    const almost = { ...real, vatNumber: "[VAT number]" };
+    expect(identityValues(almost).filter(isStandIn)).toEqual(["[VAT number]"]);
   });
 
   it("recognises a stand-in by its brackets only", () => {

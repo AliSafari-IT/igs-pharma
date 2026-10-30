@@ -1,5 +1,6 @@
 // The Android app's read-only API (asafarim-docs ventures/igs-pharma/09-mobile): the storefront
 // queries as JSON, the same actor, and stable error codes with no message, stack or input.
+import { PHARMACY_IDENTITY } from "@igs/config";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -213,5 +214,8 @@ describe("GET /api/mobile/v1/pharmacy", () => {
       ].sort(),
     );
     expect(Object.keys(body.address).sort()).toEqual(["city", "country", "postalCode", "street"]);
+    // and each field carries its own value
+    const { vatNumber: _offV1, ...v1 } = PHARMACY_IDENTITY;
+    expect(body).toEqual(v1);
   });
 });
