@@ -14,6 +14,14 @@ describe("the pharmacy identity", () => {
     expect(isStandIn(PHARMACY_IDENTITY.address.country)).toBe(false);
   });
 
+  it("guards every value, the VAT number included (milestone 5.1, C11)", () => {
+    const values = identityValues(PHARMACY_IDENTITY);
+    expect(values).toContain(PHARMACY_IDENTITY.vatNumber);
+    // a real-looking identity with only the VAT number left as a stand-in still counts as a placeholder
+    const almost = { ...PHARMACY_IDENTITY, vatNumber: "[VAT number]" };
+    expect(identityValues(almost).some(isStandIn)).toBe(true);
+  });
+
   it("recognises a stand-in by its brackets only", () => {
     expect(isStandIn("[city]")).toBe(true);
     expect(isStandIn(" [city] ")).toBe(true);

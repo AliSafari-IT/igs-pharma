@@ -196,4 +196,22 @@ describe("GET /api/mobile/v1/pharmacy", () => {
     expect(body).toMatchObject({ name: "IGS-Pharma", isPlaceholder: expect.any(Boolean) });
     expect(body.address).toHaveProperty("city");
   });
+
+  it("keeps v1's exact fields: nothing added to the identity reaches it (the VAT number, milestone 5.1)", async () => {
+    const { GET } = await import("../src/app/api/mobile/v1/pharmacy/route");
+    const body = await GET().json();
+    expect(Object.keys(body).sort()).toEqual(
+      [
+        "address",
+        "authorisationNumber",
+        "email",
+        "isPlaceholder",
+        "name",
+        "openingHours",
+        "pharmacistTitular",
+        "phone",
+      ].sort(),
+    );
+    expect(Object.keys(body.address).sort()).toEqual(["city", "country", "postalCode", "street"]);
+  });
 });

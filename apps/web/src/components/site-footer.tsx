@@ -48,6 +48,8 @@ export async function SiteFooter({ locale }: { readonly locale: ContentLocale })
             <dd>{identity.pharmacistTitular}</dd>
             <dt className="text-[var(--color-text-subtle)]">{t("authorisationNumber")}</dt>
             <dd>{identity.authorisationNumber}</dd>
+            <dt className="text-[var(--color-text-subtle)]">{t("vatNumber")}</dt>
+            <dd data-testid="identity-vat">{identity.vatNumber}</dd>
             <dt className="text-[var(--color-text-subtle)]">{t("openingHours")}</dt>
             <dd>{identity.openingHours}</dd>
           </dl>

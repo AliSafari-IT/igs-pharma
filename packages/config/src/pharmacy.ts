@@ -24,6 +24,8 @@ export interface PharmacyIdentity {
   readonly pharmacistTitular: string;
   /** The pharmacy's authorisation number from the competent authority. */
   readonly authorisationNumber: string;
+  /** The VAT number of the company that runs the pharmacy (milestone 5.1, C11), for example "BE 0123.456.789". */
+  readonly vatNumber: string;
   /** Opening hours, one line. */
   readonly openingHours: string;
 }
@@ -41,6 +43,7 @@ export const PHARMACY_IDENTITY: PharmacyIdentity = {
   email: "[e-mail address]",
   pharmacistTitular: "[name of the pharmacist-titular]",
   authorisationNumber: "[authorisation number]",
+  vatNumber: "[VAT number]",
   openingHours: "[opening hours]",
 };
 
@@ -59,6 +62,7 @@ export function identityValues(identity: PharmacyIdentity): string[] {
     identity.email,
     identity.pharmacistTitular,
     identity.authorisationNumber,
+    identity.vatNumber,
     identity.openingHours,
   ];
 }

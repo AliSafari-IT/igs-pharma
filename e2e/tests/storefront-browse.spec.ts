@@ -111,6 +111,8 @@ test("home: the shell, the category grid, the products, the identity footer", as
   // the identity comes from one config with stand-ins, and says so
   await expect(footer.getByTestId("identity-placeholder")).toHaveText(/nog te vervangen/);
   await expect(footer.getByTestId("identity")).toContainText("[authorisation number]");
+  // the VAT number (milestone 5.1, C11), a marked stand-in until the real one arrives
+  await expect(footer.getByTestId("identity-vat")).toHaveText("[VAT number]");
   // the EU logo is behind a flag that is off
   await expect(page.getByTestId("eu-logo")).toHaveCount(0);
   await expectAxeClean(page);

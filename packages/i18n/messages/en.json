@@ -62,6 +62,7 @@
     "email": "Email",
     "pharmacistTitular": "Pharmacist-titular",
     "authorisationNumber": "Authorisation number",
+    "vatNumber": "VAT number",
     "openingHours": "Opening hours",
     "placeholderNote": "Placeholder details, to be replaced.",
     "legal": "Legal information",
