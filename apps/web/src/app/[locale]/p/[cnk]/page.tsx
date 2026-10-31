@@ -89,6 +89,12 @@ export default async function ProductPage({ params }: Props) {
                 <PriceLine locale={locale} price={product.price} />
                 <StockBadge locale={locale} status={product.status} />
               </div>
+              {getFeatureFlags().cart ? (
+                // milestone 5.2: what getting it costs, before the cart (pickup only until 5.3)
+                <p data-testid="pickup-cost" className="text-sm text-[var(--color-text-subtle)]">
+                  {t("pickupFree")}
+                </p>
+              ) : null}
               {product.isMedicine ? (
                 // "ask your pharmacist" (#112): amber as background and border only, never as text
                 <div

@@ -1,3 +1,4 @@
+import { getFeatureFlags } from "@igs/config/feature-flags";
 import type { ContentLocale } from "@igs/module-catalog";
 import { listStorefrontProducts } from "@igs/module-storefront";
 import type { StorefrontListing } from "@igs/module-storefront";
@@ -9,6 +10,7 @@ import { Suspense } from "react";
 
 import { CategoryGrid } from "../../components/category-grid";
 import { HomeSkeleton } from "../../components/home-skeleton";
+import { HowItWorks } from "../../components/how-it-works";
 import { PharmacyPanel } from "../../components/pharmacy-panel";
 import { ProductGrid } from "../../components/product-grid";
 import { StorefrontFrame } from "../../components/storefront-frame";
@@ -21,7 +23,8 @@ const FEATURED = 6;
 
 /**
  * The storefront home (igs-pharma#62, #104, #112): what the shop is (a calm hero band), where the
- * pharmacy is, the categories as a grid and the latest products. The copy is factual: no claims
+ * pharmacy is, the categories as a grid, the latest products, and "How it works" while the cart is on
+ * (milestone 5.2). The copy is factual: no claims
  * about quality or health (medicine advertising rules).
  *
  * Loading (design-system §10.8): the only status decision, the locale check, runs before anything
@@ -103,6 +106,7 @@ async function HomeSections({ locale }: { readonly locale: ContentLocale }) {
           <ProductGrid locale={locale} items={listing.items} />
         )}
       </section>
+      {getFeatureFlags().cart ? <HowItWorks locale={locale} /> : null}
     </>
   );
 }

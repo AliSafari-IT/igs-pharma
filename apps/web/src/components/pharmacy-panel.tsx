@@ -3,12 +3,17 @@ import type { ContentLocale } from "@igs/module-catalog";
 import { Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
+/** The Belgian on-duty pharmacy line (pharmacie de garde / apotheek van wacht). */
+export const ON_DUTY_DISPLAY = "0903 99 000";
+const ON_DUTY_TEL = "090399000";
+
 /**
  * "Find your pharmacy" on the storefront home (igs-pharma#112, V2 item 2): where the pharmacy is,
  * when it is open and how to reach it, from the same typed config as the footer
  * (`PHARMACY_IDENTITY`), so the two can never disagree. While the config still holds stand-ins the
  * panel says so, like the footer. The full details (pharmacist-titular, authorisation number) stay
- * in the footer, which the panel links to.
+ * in the footer, which the panel links to. Below them (milestone 5.2), who to call outside opening
+ * hours: the on-duty pharmacy line and 112.
  */
 export async function PharmacyPanel({ locale }: { readonly locale: ContentLocale }) {
   const t = await getTranslations({ locale, namespace: "storefront" });
@@ -45,6 +50,23 @@ export async function PharmacyPanel({ locale }: { readonly locale: ContentLocale
           {t("placeholderNote")}
         </p>
       ) : null}
+      {/* milestone 5.2: who to call when the pharmacy is closed; national numbers, not stand-ins */}
+      <div
+        className="mt-4 border-t border-[var(--color-border)] pt-3"
+        data-testid="pharmacy-on-duty"
+      >
+        <h3 className="font-semibold">{t("onDutyHeading")}</h3>
+        <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1 text-sm">
+          <dt className="text-[var(--color-text-subtle)]">{t("onDutyPharmacy")}</dt>
+          <dd>
+            <Link href={`tel:${ON_DUTY_TEL}`}>{ON_DUTY_DISPLAY}</Link>
+          </dd>
+          <dt className="text-[var(--color-text-subtle)]">{t("onDutyEmergency")}</dt>
+          <dd>
+            <Link href="tel:112">112</Link>
+          </dd>
+        </dl>
+      </div>
       <p className="mt-3">
         <Link href="#footer-about">{t("pharmacyDetailsLink")}</Link>
       </p>
