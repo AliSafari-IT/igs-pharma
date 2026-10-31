@@ -100,6 +100,15 @@ test("home: the shell, the category grid, the products, the identity footer", as
   await expect(panel.getByRole("heading", { level: 2, name: "Vind uw apotheek" })).toBeVisible();
   await expect(panel).toContainText("[opening hours]");
   await expect(panel.getByTestId("pharmacy-panel-placeholder")).toHaveText(/nog te vervangen/);
+  // outside opening hours (milestone 5.2): the national on-duty line and 112, both callable
+  const onDuty = panel.getByTestId("pharmacy-on-duty");
+  await expect(onDuty.getByRole("link", { name: "0903 99 000" })).toHaveAttribute(
+    "href",
+    "tel:090399000",
+  );
+  await expect(onDuty.getByRole("link", { name: "112" })).toHaveAttribute("href", "tel:112");
+  // "How it works" promises ordering: it waits for the cart, which the smoke build keeps off
+  await expect(page.getByTestId("how-it-works")).toHaveCount(0);
   await expect(panel.getByRole("link", { name: "Alle gegevens van de apotheek" })).toHaveAttribute(
     "href",
     "#footer-about",
@@ -156,6 +165,8 @@ test("home → category → product, with breadcrumbs and a visible, disabled or
   await page.getByRole("link", { name: productName(PAGE_SIZE + EXTRA) }).click();
   await expect(page).toHaveURL(new RegExp(`/nl/p/${productCnk(PAGE_SIZE + EXTRA)}$`));
   await expect(page.getByRole("button", { name: "In winkelwagen" })).toBeDisabled();
+  // no pickup price while ordering is off (milestone 5.2: it shows with the cart)
+  await expect(page.getByTestId("pickup-cost")).toHaveCount(0);
   // the product page's image area takes the ROOT category's art; an e2e slug has none of its own
   const productArt = page.getByTestId("product-illustration");
   await expect(productArt).toHaveCount(1);
