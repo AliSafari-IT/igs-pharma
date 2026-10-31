@@ -106,6 +106,15 @@ export const PERMISSIONS = {
     selfRead: "account.self.read",
     selfUpdate: "account.self.update",
   },
+  /**
+   * Early access to the gated storefront (igs-pharma#199): before launch, approved customers see the
+   * shop. Staff decide requests with `earlyAccessManage` (owner only); a customer asks for, reads and
+   * uses their OWN access with `earlyAccessSelf` (it acts on `actor.id`, no user id in its input).
+   */
+  storefront: {
+    earlyAccessManage: "storefront.early_access.manage",
+    earlyAccessSelf: "storefront.early_access.self.request",
+  },
   staff: {
     invite: "staff.invite",
     /** Grant/revoke non-pharmacist roles; suspend, reactivate and delete users. */
@@ -246,6 +255,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.privacy.dsrManage,
     PERMISSIONS.staff.invite,
     PERMISSIONS.staff.manage,
+    PERMISSIONS.storefront.earlyAccessManage,
   ],
   pharmacist_titular: [
     PERMISSIONS.orders.read,
@@ -302,6 +312,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.account.selfUpdate,
     PERMISSIONS.privacy.selfConsentManage,
     PERMISSIONS.privacy.selfDsrCreate,
+    PERMISSIONS.storefront.earlyAccessSelf,
   ],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
   system_auth: [PERMISSIONS.identity.securityEventsRecord, PERMISSIONS.identity.mailRequest],

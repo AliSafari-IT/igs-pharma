@@ -18,7 +18,7 @@ describe("renderMail", () => {
         const mail = renderMail(template, locale, { name: "An", url: URL_TEXT });
         expect(mail.subject, `${template}/${locale}`).not.toBe("");
         expect(mail.text).toContain("IGS-Pharma");
-        if (template !== "account_exists") {
+        if (template !== "account_exists" && template !== "early_access_staff_notice") {
           expect(mail.text).toContain(URL_TEXT);
           expect(mail.html).toContain("&amp;callbackURL=%2F"); // escaped inside the attribute
         } else {
@@ -26,6 +26,36 @@ describe("renderMail", () => {
         }
       }
     }
+  });
+
+  it("early access: the link is optional, the approval states its end or 'until launch' (#199)", () => {
+    const until = new Date("2026-12-01T10:00:00Z");
+    for (const locale of MAIL_LOCALES) {
+      const mail = renderMail("early_access_approved", locale, { name: "An", validUntil: until });
+      expect(mail.text, locale).toMatch(/2026/);
+      expect(mail.text).not.toContain("http");
+    }
+    expect(
+      renderMail("early_access_approved", "en", { name: "An", validUntil: until }).text,
+    ).toContain("until 1 December 2026");
+    expect(
+      renderMail("early_access_approved", "nl", { name: "An", validUntil: until }).text,
+    ).toContain("tot 1 december 2026");
+    expect(renderMail("early_access_approved", "en", { name: "An" }).text).toContain(
+      "until the webshop opens to everyone",
+    );
+    // no template of the flow needs a link; the staff notice never carries one
+    for (const template of [
+      "early_access_received",
+      "early_access_rejected",
+      "early_access_revoked",
+      "early_access_staff_notice",
+    ] as const) {
+      expect(() => renderMail(template, "fr", { name: "" })).not.toThrow();
+    }
+    expect(
+      renderMail("early_access_staff_notice", "en", { name: "", url: URL_TEXT }).text,
+    ).not.toContain("http");
   });
 
   it("speaks the person's language and falls back to Dutch for an unknown one", () => {

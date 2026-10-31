@@ -7,6 +7,7 @@ import {
 } from "@igs/kernel";
 import { eq, lt } from "drizzle-orm";
 
+import { purgeEndedEarlyAccess } from "./early-access";
 import { MailRequested } from "./mail";
 import { type MailTemplate, mailTokens, users } from "./schema";
 
@@ -31,6 +32,12 @@ export const IDENTITY_JOBS = {
     deadLetterQueue: "identity.mail.purge.failed",
     cron: "7 0-1,3-23 * * *",
   },
+  /** igs-pharma#199: ended early-access requests past their 12 months, once a day. */
+  purgeEarlyAccess: {
+    queue: "identity.early_access.purge",
+    deadLetterQueue: "identity.early_access.purge.failed",
+    cron: "37 4 * * *",
+  },
   timezone: "Europe/Brussels",
   /** Only thrown errors are retried (connection, lock timeout). */
   retryLimit: 2,
@@ -44,7 +51,23 @@ export interface MailToSend {
   readonly locale: string;
   readonly template: MailTemplate;
   readonly url: string | undefined;
+  /** The end date the mail states (an early-access approval); `undefined` = none. */
+  readonly validUntil: Date | undefined;
 }
+
+/** Where the mails that go to staff, not to the person, are sent (igs-pharma#199). */
+export interface MailRouting {
+  /**
+   * The addresses of the staff notice of a new early-access request (`EARLY_ACCESS_NOTIFY_TO`). Empty:
+   * the notice is skipped (and an alarm logged), never sent to the requester.
+   */
+  readonly staffRecipients: readonly string[];
+}
+
+const NO_ROUTING: MailRouting = { staffRecipients: [] };
+
+/** Staff mails are in English, like the back-office, and greet nobody by name. */
+const STAFF_LOCALE = "en";
 
 export type MailSender = (mail: MailToSend) => Promise<void>;
 
@@ -59,12 +82,14 @@ export async function deliverMail(
   tokenRef: string,
   send: MailSender,
   runtime: KernelRuntime = getKernelRuntime(),
+  routing: MailRouting = NO_ROUTING,
 ): Promise<MailDelivery> {
   const row = await runtime.db.transaction(async (tx) => {
     const [found] = await tx
       .select({
         template: mailTokens.template,
         url: mailTokens.url,
+        validUntil: mailTokens.validUntil,
         expiresAt: mailTokens.expiresAt,
         email: users.email,
         name: users.name,
@@ -77,19 +102,44 @@ export async function deliverMail(
     return found;
   });
   if (!row) return "skipped";
+  if (row.template === "early_access_staff_notice" && routing.staffRecipients.length === 0) {
+    await runtime.db.transaction(async (tx) => {
+      await tx.delete(mailTokens).where(eq(mailTokens.id, tokenRef));
+    });
+    runtime.logger.warn?.(
+      { alarm: "identity.mail.staff_recipients_missing" },
+      "identity.mail.staff_recipients_missing: set EARLY_ACCESS_NOTIFY_TO; a staff notice was dropped",
+    );
+    return "skipped";
+  }
   if (row.expiresAt <= runtime.now() || row.status !== "active") {
     await runtime.db.transaction(async (tx) => {
       await tx.delete(mailTokens).where(eq(mailTokens.id, tokenRef));
     });
     return "skipped";
   }
-  await send({
-    to: row.email,
-    name: row.name,
-    locale: row.locale,
-    template: row.template,
-    url: row.url ?? undefined,
-  });
+  if (row.template === "early_access_staff_notice") {
+    // one mail per address, so no recipient sees the others; a failure retries them all
+    for (const to of routing.staffRecipients) {
+      await send({
+        to,
+        name: "",
+        locale: STAFF_LOCALE,
+        template: row.template,
+        url: undefined,
+        validUntil: undefined,
+      });
+    }
+  } else {
+    await send({
+      to: row.email,
+      name: row.name,
+      locale: row.locale,
+      template: row.template,
+      url: row.url ?? undefined,
+      validUntil: row.validUntil ?? undefined,
+    });
+  }
   await runtime.db.transaction(async (tx) => {
     await tx.delete(mailTokens).where(eq(mailTokens.id, tokenRef));
   });
@@ -109,6 +159,7 @@ export async function handleMailJobs(
   jobs: readonly MailJob[],
   send: MailSender,
   runtime: KernelRuntime = getKernelRuntime(),
+  routing: MailRouting = NO_ROUTING,
 ): Promise<void> {
   for (const job of jobs) {
     const envelope = job.data as Partial<OutboxEnvelope> | null;
@@ -120,7 +171,7 @@ export async function handleMailJobs(
       );
       continue;
     }
-    const outcome = await deliverMail(payload.data.tokenRef, send, runtime);
+    const outcome = await deliverMail(payload.data.tokenRef, send, runtime, routing);
     runtime.logger.info?.(
       { eventId: envelope?.eventId, template: payload.data.template, outcome },
       "identity.mail.handled",
@@ -148,6 +199,23 @@ export function reportMailPurgeFailed(runtime: KernelRuntime = getKernelRuntime(
   );
 }
 
+/** Deletes the early-access requests past their retention (igs-pharma#199). Returns how many. */
+export async function runEarlyAccessPurge(
+  runtime: KernelRuntime = getKernelRuntime(),
+): Promise<number> {
+  const purged = await runtime.db.transaction((tx) => purgeEndedEarlyAccess(tx, runtime.now()));
+  runtime.logger.info?.({ purged }, "identity.early_access.purged");
+  return purged;
+}
+
+/** The early-access purge failed all its retries: ended requests stay past their retention. */
+export function reportEarlyAccessPurgeFailed(runtime: KernelRuntime = getKernelRuntime()): void {
+  runtime.logger.warn?.(
+    { alarm: "identity.early_access.purge_failed" },
+    "identity.early_access.purge_failed: the early-access retention purge failed after all retries",
+  );
+}
+
 /** The slice of pg-boss that `registerIdentityJobs` uses (structural: the module need not import pg-boss). */
 export interface IdentityJobScheduler {
   getQueue(name: string): Promise<unknown>;
@@ -168,17 +236,21 @@ export interface IdentityQueueAdmin extends QueueAdmin {
 export const IDENTITY_QUEUES: readonly string[] = [
   IDENTITY_JOBS.purgeMail.deadLetterQueue,
   IDENTITY_JOBS.purgeMail.queue,
+  IDENTITY_JOBS.purgeEarlyAccess.deadLetterQueue,
+  IDENTITY_JOBS.purgeEarlyAccess.queue,
 ];
 
 /** Creates the queues. DDL on pg-boss's schema: runs in the migrate entry, never in the worker. Idempotent. */
 export async function ensureIdentityQueues(boss: IdentityQueueAdmin): Promise<void> {
-  const { purgeMail, retryLimit, retryDelaySeconds } = IDENTITY_JOBS;
-  await boss.createQueue(purgeMail.deadLetterQueue);
-  await boss.createQueue(purgeMail.queue, {
-    retryLimit,
-    retryDelay: retryDelaySeconds,
-    deadLetter: purgeMail.deadLetterQueue,
-  });
+  const { purgeMail, purgeEarlyAccess, retryLimit, retryDelaySeconds } = IDENTITY_JOBS;
+  for (const job of [purgeMail, purgeEarlyAccess]) {
+    await boss.createQueue(job.deadLetterQueue);
+    await boss.createQueue(job.queue, {
+      retryLimit,
+      retryDelay: retryDelaySeconds,
+      deadLetter: job.deadLetterQueue,
+    });
+  }
 }
 
 /**
@@ -189,13 +261,23 @@ export async function registerIdentityJobs(
   boss: IdentityJobScheduler,
   send: MailSender,
   runtime: KernelRuntime = getKernelRuntime(),
+  routing: MailRouting = NO_ROUTING,
 ): Promise<void> {
-  const { purgeMail, timezone } = IDENTITY_JOBS;
+  const { purgeMail, purgeEarlyAccess, timezone } = IDENTITY_JOBS;
   await assertQueuesExist(boss, [...IDENTITY_QUEUES, MailRequested.topic]);
   await boss.schedule(purgeMail.queue, purgeMail.cron, undefined, { tz: timezone });
-  await boss.work(MailRequested.topic, (jobs: MailJob[]) => handleMailJobs(jobs, send, runtime));
+  await boss.schedule(purgeEarlyAccess.queue, purgeEarlyAccess.cron, undefined, { tz: timezone });
+  await boss.work(MailRequested.topic, (jobs: MailJob[]) =>
+    handleMailJobs(jobs, send, runtime, routing),
+  );
   await boss.work(purgeMail.queue, async () => {
     await runMailPurge(runtime);
   });
   await boss.work(purgeMail.deadLetterQueue, async () => reportMailPurgeFailed(runtime));
+  await boss.work(purgeEarlyAccess.queue, async () => {
+    await runEarlyAccessPurge(runtime);
+  });
+  await boss.work(purgeEarlyAccess.deadLetterQueue, async () =>
+    reportEarlyAccessPurgeFailed(runtime),
+  );
 }

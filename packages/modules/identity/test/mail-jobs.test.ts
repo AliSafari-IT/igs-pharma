@@ -232,8 +232,23 @@ describe("registerIdentityJobs", () => {
         tz: "Europe/Brussels",
       },
     );
+    // igs-pharma#199: the early-access retention purge, daily outside the DST hour
+    expect(boss.schedule).toHaveBeenCalledWith(
+      "identity.early_access.purge",
+      "37 4 * * *",
+      undefined,
+      {
+        tz: "Europe/Brussels",
+      },
+    );
     expect([...worked.keys()].sort()).toEqual(
-      [MailRequested.topic, "identity.mail.purge", "identity.mail.purge.failed"].sort(),
+      [
+        MailRequested.topic,
+        "identity.mail.purge",
+        "identity.mail.purge.failed",
+        "identity.early_access.purge",
+        "identity.early_access.purge.failed",
+      ].sort(),
     );
   });
 

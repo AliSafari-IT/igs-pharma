@@ -9,6 +9,7 @@ import {
   cspReportingEnabled,
   deployStageEnv,
   isStaging,
+  mailEnv,
   migrateDsn,
   parseEnv,
   parseEnvFor,
@@ -234,6 +235,28 @@ describe("DEPLOY_STAGE (#197)", () => {
 
   it("refuses anything else", () => {
     expect(() => staging({ DEPLOY_STAGE: "Staging" })).toThrow(/DEPLOY_STAGE/);
+  });
+});
+
+describe("EARLY_ACCESS_NOTIFY_TO (#199)", () => {
+  it("is a list of addresses; unset or blank is none", () => {
+    expect(mailEnv.parse({}).EARLY_ACCESS_NOTIFY_TO).toBeUndefined();
+    expect(mailEnv.parse({ EARLY_ACCESS_NOTIFY_TO: " " }).EARLY_ACCESS_NOTIFY_TO).toBeUndefined();
+    expect(
+      mailEnv.parse({ EARLY_ACCESS_NOTIFY_TO: "a@example.be, b@example.be," })
+        .EARLY_ACCESS_NOTIFY_TO,
+    ).toEqual(["a@example.be", "b@example.be"]);
+  });
+
+  it("refuses something that is not an address, and more than 10", () => {
+    expect(mailEnv.safeParse({ EARLY_ACCESS_NOTIFY_TO: "owner" }).success).toBe(false);
+    expect(mailEnv.safeParse({ EARLY_ACCESS_NOTIFY_TO: "a@b.be <evil@x.be>" }).success).toBe(false);
+    const eleven = Array.from({ length: 11 }, (_, i) => `p${i}@example.be`).join(",");
+    expect(mailEnv.safeParse({ EARLY_ACCESS_NOTIFY_TO: eleven }).success).toBe(false);
+  });
+
+  it("is part of the worker's settings", () => {
+    expect(Object.keys(workerEnv.shape)).toContain("EARLY_ACCESS_NOTIFY_TO");
   });
 });
 

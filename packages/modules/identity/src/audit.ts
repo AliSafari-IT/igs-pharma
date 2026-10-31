@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MAIL_TEMPLATES } from "./schema";
+
 /** Audit actions recorded by the identity commands (`<domain>.<noun>.<verb>`). */
 export const IDENTITY_AUDIT = {
   roleGranted: "identity.role.granted",
@@ -15,6 +17,12 @@ export const IDENTITY_AUDIT = {
   backupCodesRegenerated: "identity.mfa.backup_codes_regenerated",
   mailRequested: "identity.mail.requested",
   profileUpdated: "identity.profile.updated",
+  earlyAccessRequested: "identity.early_access.requested",
+  earlyAccessApproved: "identity.early_access.approved",
+  earlyAccessRejected: "identity.early_access.rejected",
+  earlyAccessRevoked: "identity.early_access.revoked",
+  earlyAccessPassIssued: "identity.early_access.pass_issued",
+  earlyAccessPassRefused: "identity.early_access.pass_refused",
 } as const;
 
 const roleChange = z.object({
@@ -26,13 +34,32 @@ const userChange = z.object({ userId: z.uuid() });
 const mfaChange = z.object({ userId: z.uuid(), method: z.enum(["passkey", "totp"]) });
 const mailRequest = z.object({
   userId: z.uuid(),
-  template: z.enum(["verify_email", "reset_password", "account_exists"]),
+  template: z.enum(MAIL_TEMPLATES),
 });
 const profileUpdated = z.object({
   userId: z.uuid(),
   nameChanged: z.boolean(),
   localeChanged: z.boolean(),
 });
+// early access (igs-pharma#199): identifiers and flags only, never the note or a reason (D-028)
+const earlyAccessRequested = z.object({
+  requestId: z.uuid(),
+  userId: z.uuid(),
+  updated: z.boolean(),
+  hasNote: z.boolean(),
+});
+const earlyAccessApproved = z.object({
+  requestId: z.uuid(),
+  userId: z.uuid(),
+  duration: z.enum(["7d", "30d", "90d", "until_launch"]),
+  extended: z.boolean(),
+});
+const earlyAccessEnded = z.object({
+  requestId: z.uuid(),
+  userId: z.uuid(),
+  hasReason: z.boolean(),
+});
+const earlyAccessPass = z.object({ userId: z.uuid() });
 const bootstrapped = z.object({ userId: z.uuid(), roleKey: z.string() });
 
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
@@ -61,4 +88,10 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(IDENTITY_AUDIT.backupCodesRegenerated, userChange);
   register(IDENTITY_AUDIT.mailRequested, mailRequest);
   register(IDENTITY_AUDIT.profileUpdated, profileUpdated);
+  register(IDENTITY_AUDIT.earlyAccessRequested, earlyAccessRequested);
+  register(IDENTITY_AUDIT.earlyAccessApproved, earlyAccessApproved);
+  register(IDENTITY_AUDIT.earlyAccessRejected, earlyAccessEnded);
+  register(IDENTITY_AUDIT.earlyAccessRevoked, earlyAccessEnded);
+  register(IDENTITY_AUDIT.earlyAccessPassIssued, earlyAccessPass);
+  register(IDENTITY_AUDIT.earlyAccessPassRefused, earlyAccessPass);
 }

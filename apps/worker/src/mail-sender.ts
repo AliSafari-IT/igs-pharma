@@ -21,7 +21,7 @@ export function createMailSender(settings: MailSettings, mailer?: Mailer): MailS
       to: mail.to,
       locale: mail.locale,
       template: mail.template,
-      data: { name: mail.name, url: mail.url },
+      data: { name: mail.name, url: mail.url, validUntil: mail.validUntil },
     });
   };
 }

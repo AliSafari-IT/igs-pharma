@@ -34,6 +34,26 @@ export {
   suspendUser,
 } from "./commands";
 export { MailRequested, requestMail } from "./mail";
+export {
+  DEFAULT_EARLY_ACCESS_DURATION,
+  EARLY_ACCESS_DURATIONS,
+  EARLY_ACCESS_PASS_TTL_MS,
+  EARLY_ACCESS_REASK_DAYS,
+  EARLY_ACCESS_RETENTION_MS,
+  type EarlyAccessDuration,
+  type EarlyAccessList,
+  type EarlyAccessListItem,
+  type OwnEarlyAccess,
+  approveEarlyAccess,
+  canAskForEarlyAccess,
+  earlyAccessState,
+  getOwnEarlyAccess,
+  issueEarlyAccessPass,
+  listEarlyAccessRequests,
+  rejectEarlyAccess,
+  requestEarlyAccess,
+  revokeEarlyAccess,
+} from "./early-access";
 export { type OwnAccount, getOwnAccount, updateOwnProfile } from "./self";
 export {
   IDENTITY_JOBS,
@@ -43,15 +63,24 @@ export {
   type MailDelivery,
   type MailJob,
   type MailSender,
+  type MailRouting,
   type MailToSend,
   deliverMail,
   ensureIdentityQueues,
   handleMailJobs,
   registerIdentityJobs,
+  reportEarlyAccessPurgeFailed,
   reportMailPurgeFailed,
+  runEarlyAccessPurge,
   runMailPurge,
 } from "./mail-jobs";
-export { MAIL_TEMPLATES, type MailTemplate } from "./schema";
+export {
+  EARLY_ACCESS_STATUSES,
+  EARLY_ACCESS_TEXT_MAX,
+  type EarlyAccessStatus,
+  MAIL_TEMPLATES,
+  type MailTemplate,
+} from "./schema";
 export { IDENTITY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {
   ENROLMENT_TTL_MS,

@@ -63,7 +63,7 @@ const sensitiveOutput = z.object({ ok: z.literal(true) });
  * and callers run it AFTER the checks that need no proof, so a refused attempt changes nothing and
  * its idempotency key stays unused for the retry.
  */
-function requireFreshMfa(ctx: Ctx): void {
+export function requireFreshMfa(ctx: Ctx): void {
   if (ctx.actor.type !== "user") throw forbidden("kernel.forbidden");
   const checkedAt = ctx.actor.passkeyCheckedAt;
   if (!checkedAt || ctx.now.getTime() - checkedAt.getTime() >= FRESH_MFA_MS) {
