@@ -12,7 +12,8 @@ export type LocationKind = (typeof LOCATION_KINDS)[number];
 /**
  * Why stock moved: a CSV count (`import`, retired by igs-pharma#166; a `reconciliation` of counted
  * lots replaces it), a counted change (breakage, loss…), fixing an earlier mistake, or a
- * sale picked for an order (`sale`, written when a reservation is consumed, igs-pharma#99).
+ * sale picked for an order (`sale`, written when a reservation is consumed, igs-pharma#99), or recalled
+ * stock destroyed or sent back (`disposal`, igs-pharma#189).
  */
 export const MOVEMENT_REASONS = [
   "import",
@@ -22,6 +23,7 @@ export const MOVEMENT_REASONS = [
   "sale",
   "receipt",
   "return",
+  "disposal",
 ] as const;
 export type MovementReason = (typeof MOVEMENT_REASONS)[number];
 
@@ -266,6 +268,10 @@ export type RecallScope = (typeof RECALL_SCOPES)[number];
 export const RECALL_NOTE_MAX = 500;
 /** The most lots one recall may name. */
 export const RECALL_LOTS_MAX = 100;
+
+/** How recalled stock left the pharmacy (igs-pharma#189): destroyed, or sent back up the chain. */
+export const DISPOSAL_METHODS = ["destroyed", "returned_to_supplier"] as const;
+export type DisposalMethod = (typeof DISPOSAL_METHODS)[number];
 
 /** A lot number as printed on the pack. */
 export const LOT_NUMBER_MAX = 40;

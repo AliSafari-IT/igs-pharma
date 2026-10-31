@@ -7,8 +7,9 @@ import postgres from "postgres";
 import { smokeDatabaseUrl, smokeEnv } from "../smoke-env";
 
 /**
- * igs-pharma#187 (REQ-SAF-01): a pharmacist starts a recall from a product's stock page, sees the
- * product stop selling and its lot in quarantine, then ends the recall; an owner can't start one.
+ * igs-pharma#187, #189 (REQ-SAF-01): a pharmacist starts a recall from a product's stock page, sees the
+ * product stop selling and its lot in quarantine, records the disposal of the recalled stock, then
+ * ends the recall; an owner can't start one.
  * Needs SMOKE_DATABASE_URL (a migrated database).
  */
 test.skip(!smokeDatabaseUrl, "set SMOKE_DATABASE_URL to a migrated database to run");
@@ -129,6 +130,21 @@ test("pharmacist: start a recall, see the product stop selling, then end it", as
   await expect(row).toContainText("Active: not selling");
   await expectAxeClean(page);
   await row.getByRole("link", { name: nameNl }).click();
+
+  // no order holds this product: nothing to tell anyone (igs-pharma#189)
+  await expect(page.getByTestId("affected-empty")).toBeVisible();
+  await expect(page.getByTestId("recall-notify-open")).toHaveCount(0);
+
+  // the recalled stock is destroyed: it leaves the lot, and the record stays on the recall
+  await page.getByTestId("dispose-open").click();
+  const dispose = page.getByRole("dialog", { name: /Record the disposal/ });
+  await dispose.getByLabel("Quantity").fill("4");
+  await dispose.getByLabel("What happened to it").selectOption("destroyed");
+  await dispose.getByRole("button", { name: "Record" }).click();
+  await expect(page.getByText("The disposal was recorded")).toBeVisible();
+  await expect(page.getByTestId("recall-disposals")).toContainText("4 of");
+  await expect(page.getByTestId("dispose-open")).toHaveCount(0);
+  await expectAxeClean(page);
 
   await page.getByTestId("recall-end-open").click();
   await page

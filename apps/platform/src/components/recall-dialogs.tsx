@@ -1,11 +1,22 @@
 "use client";
 
-import { Label, Select, Textarea } from "@igs/ui";
+import { Label, Select, TextField, Textarea } from "@igs/ui";
 import { useId, useState } from "react";
 
-import { endRecallAction, startRecallAction } from "../app/recalls/actions";
+import {
+  disposeAction,
+  endRecallAction,
+  notifyRecallAction,
+  startRecallAction,
+} from "../app/recalls/actions";
 import { LotDialog } from "./lot-dialogs";
-import { RECALL_NOTE_LIMIT, RECALL_SOURCE_LABELS, RECALL_SOURCE_OPTIONS } from "./stock-labels";
+import {
+  DISPOSAL_METHOD_LABELS,
+  DISPOSAL_METHOD_OPTIONS,
+  RECALL_NOTE_LIMIT,
+  RECALL_SOURCE_LABELS,
+  RECALL_SOURCE_OPTIONS,
+} from "./stock-labels";
 
 /** The recall dialogs (igs-pharma#187): start one on a product, end one. Pharmacists only. */
 
@@ -123,13 +134,111 @@ export function EndRecallDialog({ recallId }: { readonly recallId: string }) {
       action={endRecallAction}
       open="End the recall"
       title="End the recall"
-      intro="The product may sell again. Its recalled lots stay in quarantine: release or dispose of them separately."
+      intro="The product may sell again. Its recalled lots stay in quarantine: release or dispose of them separately. It can only end once every affected order is closed and every customer who collected one was told."
       submit="End the recall"
       hidden={{ recallId }}
       testId="recall-end-open"
       variant="secondary"
     >
       {() => null}
+    </LotDialog>
+  );
+}
+
+/**
+ * Sends the recall notice (igs-pharma#189): one mail per affected, paid order that has none yet. The
+ * mail names the order, never the product, and asks the customer to contact the pharmacy.
+ */
+export function NotifyRecallDialog({
+  recallId,
+  due,
+}: {
+  readonly recallId: string;
+  readonly due: number;
+}) {
+  return (
+    <LotDialog
+      action={notifyRecallAction}
+      open="Send the notice"
+      title="Send the recall notice"
+      intro={`${due} customer${due === 1 ? "" : "s"} will get an e-mail about their order. It names the order, not the product, and asks them to contact the pharmacy and stop using the product.`}
+      submit="Send the notice"
+      hidden={{ recallId }}
+      testId="recall-notify-open"
+      variant="primary"
+    >
+      {() => null}
+    </LotDialog>
+  );
+}
+
+/** Records recalled stock of one lot as destroyed or returned (pharmacist, igs-pharma#189). */
+export function DisposeDialog({
+  recallId,
+  lotId,
+  lotName,
+  onHand,
+}: {
+  readonly recallId: string;
+  readonly lotId: string;
+  readonly lotName: string;
+  readonly onHand: number;
+}) {
+  const id = useId();
+  return (
+    <LotDialog
+      action={disposeAction}
+      open="Record disposal"
+      title={`Record the disposal of ${lotName}`}
+      intro={`${onHand} on hand in this lot. The units leave the stock.`}
+      submit="Record"
+      hidden={{ recallId, lotId }}
+      testId="dispose-open"
+      variant="ghost"
+    >
+      {(value) => (
+        <>
+          <TextField
+            label="Quantity"
+            name="quantity"
+            inputMode="numeric"
+            autoComplete="off"
+            required
+            defaultValue={value("quantity", String(onHand))}
+            key={`quantity-${value("quantity")}`}
+          />
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${id}-method`} required>
+              What happened to it
+            </Label>
+            <Select
+              id={`${id}-method`}
+              name="method"
+              required
+              defaultValue={value("method", "destroyed")}
+              key={`method-${value("method")}`}
+            >
+              {DISPOSAL_METHOD_OPTIONS.map((method) => (
+                <option key={method} value={method}>
+                  {DISPOSAL_METHOD_LABELS[method]}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`${id}-note`}>Note (optional)</Label>
+            <Textarea
+              id={`${id}-note`}
+              name="note"
+              maxLength={200}
+              rows={2}
+              placeholder="For example: the wholesaler's return reference"
+              defaultValue={value("note")}
+              key={`note-${value("note")}`}
+            />
+          </div>
+        </>
+      )}
     </LotDialog>
   );
 }

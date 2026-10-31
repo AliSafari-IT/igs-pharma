@@ -184,7 +184,8 @@ export const REFUNDABLE_ORDER_STATUSES = [
 /**
  * The order mails (igs-pharma#157), each tied to one state: `order_received` (paid, now checked by
  * the pharmacy: in review or ready to prepare), `stock_short` (paid, stock short),
- * `ready_for_pickup`, `refund_initiated` (a refund recorded) and `refund_completed` (refunded).
+ * `ready_for_pickup`, `refund_initiated` (a refund recorded), `refund_completed` (refunded) and
+ * `recall_notice` (a paid order a recall affects, igs-pharma#189; it names the order, never the product).
  */
 export const ORDER_MAIL_KINDS = [
   "order_received",
@@ -192,6 +193,7 @@ export const ORDER_MAIL_KINDS = [
   "ready_for_pickup",
   "refund_initiated",
   "refund_completed",
+  "recall_notice",
 ] as const;
 export type OrderMailKind = (typeof ORDER_MAIL_KINDS)[number];
 

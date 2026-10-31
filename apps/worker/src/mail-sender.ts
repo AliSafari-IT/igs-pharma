@@ -33,6 +33,7 @@ const ORDER_TEMPLATE: Record<OrderMailKind, OrderMailTemplateName> = {
   ready_for_pickup: "order_ready_for_pickup",
   refund_initiated: "order_refund_initiated",
   refund_completed: "order_refund_completed",
+  recall_notice: "order_recall_notice",
 };
 
 /** The worker's order mail sender (igs-pharma#157); built lazily like the account one. */

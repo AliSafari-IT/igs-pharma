@@ -8,10 +8,14 @@ import {
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
 } from "@igs/module-identity";
-import { registerAuditActions as registerInventoryAuditActions } from "@igs/module-inventory";
+import {
+  configureRecallEndGuard,
+  registerAuditActions as registerInventoryAuditActions,
+} from "@igs/module-inventory";
 import {
   OrderMailRequested,
   RefundRequested,
+  recallEndGuard,
   registerAuditActions as registerOrdersAuditActions,
 } from "@igs/module-orders";
 import { registerAuditActions as registerPricingAuditActions } from "@igs/module-pricing";
@@ -64,6 +68,8 @@ export function ensureAuthConfigured(): void {
   registerEvents(RefundRequested);
   // customer mails about an order (igs-pharma#157): the worker sends them
   registerEvents(OrderMailRequested);
+  // a recall ends only once its affected orders are closed and told (igs-pharma#189)
+  configureRecallEndGuard(recallEndGuard);
   configureAuth({
     onSecurityEvent: async (event) => {
       try {

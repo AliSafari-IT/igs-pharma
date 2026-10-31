@@ -13,6 +13,7 @@ export const ORDER_MAIL_TEMPLATES = [
   "order_ready_for_pickup",
   "order_refund_initiated",
   "order_refund_completed",
+  "order_recall_notice",
 ] as const;
 export type OrderMailTemplateName = (typeof ORDER_MAIL_TEMPLATES)[number];
 
@@ -50,6 +51,42 @@ const SIGN_OFF: Record<MailLocale, string> = {
 };
 
 const COPY: Record<OrderMailTemplateName, Record<MailLocale, Copy>> = {
+  // igs-pharma#189: a recall. Interim wording until counsel confirms what a recall notice may say: it
+  // names the order, never the product, and asks the customer to contact the pharmacy.
+  order_recall_notice: {
+    nl: {
+      subject: (ref) => `Belangrijke informatie over uw bestelling ${ref}`,
+      lines: (ref) => [
+        `We hebben belangrijke informatie over een product uit uw bestelling ${ref}.`,
+        "Neem zo snel mogelijk contact op met de apotheek: we leggen u uit wat u moet doen.",
+        "Gebruik het product niet verder tot u met ons gesproken hebt.",
+      ],
+    },
+    fr: {
+      subject: (ref) => `Information importante sur votre commande ${ref}`,
+      lines: (ref) => [
+        `Nous avons une information importante au sujet d'un produit de votre commande ${ref}.`,
+        "Contactez la pharmacie dès que possible : nous vous expliquerons ce qu'il faut faire.",
+        "N'utilisez plus le produit avant de nous avoir parlé.",
+      ],
+    },
+    de: {
+      subject: (ref) => `Wichtige Information zu Ihrer Bestellung ${ref}`,
+      lines: (ref) => [
+        `Wir haben eine wichtige Information zu einem Produkt aus Ihrer Bestellung ${ref}.`,
+        "Bitte wenden Sie sich so bald wie möglich an die Apotheke: Wir erklären Ihnen, was zu tun ist.",
+        "Verwenden Sie das Produkt nicht weiter, bevor Sie mit uns gesprochen haben.",
+      ],
+    },
+    en: {
+      subject: (ref) => `Important information about your order ${ref}`,
+      lines: (ref) => [
+        `We have important information about a product in your order ${ref}.`,
+        "Please contact the pharmacy as soon as possible: we will explain what to do.",
+        "Do not use the product any further until you have spoken to us.",
+      ],
+    },
+  },
   order_received: {
     nl: {
       subject: (ref) => `We hebben uw bestelling ${ref} ontvangen`,

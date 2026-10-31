@@ -1,11 +1,18 @@
 import { isDomainError } from "@igs/kernel";
 import { type RecallView, getRecall } from "@igs/module-inventory";
+import { type RecallAffectedOrder, listRecallAffectedOrders } from "@igs/module-orders";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 
+import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS } from "../../../components/order-labels";
 import { PageHeader } from "../../../components/page-header";
-import { EndRecallDialog } from "../../../components/recall-dialogs";
 import {
+  DisposeDialog,
+  EndRecallDialog,
+  NotifyRecallDialog,
+} from "../../../components/recall-dialogs";
+import {
+  DISPOSAL_METHOD_LABELS,
   RECALL_SCOPE_LABELS,
   RECALL_SOURCE_LABELS,
   formatDate,
@@ -21,7 +28,7 @@ export const metadata = { title: "Recall · IGS-Pharma Platform" };
 
 interface Props {
   readonly params: Promise<{ recallId: string }>;
-  readonly searchParams: Promise<{ done?: string | string[] }>;
+  readonly searchParams: Promise<{ done?: string | string[]; n?: string | string[] }>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,6 +37,15 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
 const DONE: Record<string, string> = {
   started: "The recall started: its lots are in quarantine and the product has stopped selling.",
   ended: "The recall ended: the product may sell again. Its lots stay in quarantine.",
+  disposed: "The disposal was recorded: those units have left the stock.",
+};
+
+/** How far the notice to an order's customer got (igs-pharma#189). */
+const NOTICE_LABELS: Record<RecallAffectedOrder["notice"], string> = {
+  none: "Not sent",
+  pending: "Sending",
+  sent: "Sent",
+  skipped: "Not sent (no usable address)",
 };
 
 /** One recall (igs-pharma#187): what it covers, who called it, its lots as they stand now. */
@@ -37,7 +53,12 @@ export default async function RecallPage({ params, searchParams }: Props) {
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
   const { recallId } = await params;
-  const doneText = DONE[first((await searchParams).done) ?? ""];
+  const query = await searchParams;
+  const done = first(query.done) ?? "";
+  const doneText =
+    done === "notified"
+      ? `The notice is on its way to ${Number(first(query.n) ?? 0)} customer(s).`
+      : DONE[done];
 
   let recall: RecallView | null = null;
   let error: string | null = null;
@@ -65,8 +86,14 @@ export default async function RecallPage({ params, searchParams }: Props) {
       </Container>
     );
   }
-  const canEnd =
-    recall.endedAt === null && hasPermission(actor.roles, PERMISSIONS.inventory.recallsManage);
+  const canRecall = hasPermission(actor.roles, PERMISSIONS.inventory.recallsManage);
+  const canEnd = recall.endedAt === null && canRecall;
+  const canSeeOrders = hasPermission(actor.roles, PERMISSIONS.orders.read);
+  const affected = canSeeOrders
+    ? await listRecallAffectedOrders({ recallId: recall.recallId }, actor)
+    : [];
+  const due = affected.filter((order) => order.paid && order.notice === "none").length;
+  const lotNames = new Map(recall.lots.map((lot) => [lot.lotId, lotLabel(lot)]));
   const who = (id: string | null) => (id === actor.id ? "you" : "a pharmacist");
 
   return (
@@ -146,8 +173,11 @@ export default async function RecallPage({ params, searchParams }: Props) {
                       <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
                         On hand
                       </th>
-                      <th scope="col" className="py-2 font-semibold">
+                      <th scope="col" className="py-2 pr-4 font-semibold">
                         State
+                      </th>
+                      <th scope="col" className="py-2 font-semibold">
+                        <span className="sr-only">Actions</span>
                       </th>
                     </tr>
                   </thead>
@@ -163,8 +193,18 @@ export default async function RecallPage({ params, searchParams }: Props) {
                             {lot.expiryDate ? formatDate(lot.expiryDate) : "—"}
                           </td>
                           <td className="py-2 pr-4 text-right tabular-nums">{lot.onHand}</td>
-                          <td className="py-2">
+                          <td className="py-2 pr-4">
                             <Badge variant={state.variant}>{state.label}</Badge>
+                          </td>
+                          <td className="py-2">
+                            {canRecall && lot.onHand > 0 ? (
+                              <DisposeDialog
+                                recallId={recall.recallId}
+                                lotId={lot.lotId}
+                                lotName={lotLabel(lot)}
+                                onHand={lot.onHand}
+                              />
+                            ) : null}
                           </td>
                         </tr>
                       );
@@ -174,6 +214,96 @@ export default async function RecallPage({ params, searchParams }: Props) {
               </div>
             )}
           </section>
+
+          {recall.disposals.length > 0 ? (
+            <section aria-labelledby="disposals-title" className="flex flex-col gap-3">
+              <h2 id="disposals-title" className="font-display text-2xl font-semibold">
+                Disposals
+              </h2>
+              <ul className="flex flex-col gap-1" data-testid="recall-disposals">
+                {recall.disposals.map((d) => (
+                  <li key={d.disposalId}>
+                    {formatMoment(d.recordedAt)}: {d.quantity} of{" "}
+                    <code>{lotNames.get(d.lotId) ?? "a lot"}</code>,{" "}
+                    {DISPOSAL_METHOD_LABELS[d.method].toLowerCase()}
+                    {d.note ? ` (${d.note})` : ""}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {canSeeOrders ? (
+            <section aria-labelledby="affected-title" className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="affected-title" className="font-display text-2xl font-semibold">
+                  Affected orders
+                </h2>
+                {canRecall && due > 0 ? (
+                  <NotifyRecallDialog recallId={recall.recallId} due={due} />
+                ) : null}
+              </div>
+              <p className="text-[var(--color-text-subtle)]">
+                {recall.scope === "all_lots"
+                  ? "Every order that holds this product."
+                  : "The orders picked, or to be picked, from the recalled lots."}{" "}
+                The recall ends only once none is open and every customer who collected one was
+                told.
+              </p>
+              {affected.length === 0 ? (
+                <p data-testid="affected-empty">No order is affected.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left" data-testid="affected-orders">
+                    <caption className="sr-only">Orders this recall affects, oldest first</caption>
+                    <thead>
+                      <tr className="border-b border-[var(--color-border-strong)]">
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Order
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Status
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-semibold">
+                          Customer
+                        </th>
+                        <th scope="col" className="py-2 font-semibold">
+                          Notice
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {affected.map((order) => (
+                        <tr key={order.orderId} className="border-b border-[var(--color-border)]">
+                          <td className="py-2 pr-4">
+                            <Link href={`/orders/${order.orderId}`}>
+                              <code>{order.reference}</code>
+                            </Link>
+                          </td>
+                          <td className="py-2 pr-4">
+                            <Badge variant={ORDER_STATUS_BADGE[order.status]}>
+                              {ORDER_STATUS_LABELS[order.status]}
+                            </Badge>
+                          </td>
+                          <td className="py-2 pr-4">
+                            {order.contactName ?? "—"}
+                            {order.contactEmail ? (
+                              <span className="block text-sm text-[var(--color-text-subtle)]">
+                                {order.contactEmail}
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="py-2">
+                            {order.paid ? NOTICE_LABELS[order.notice] : "Not paid: no notice"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          ) : null}
         </Stack>
       </main>
     </Container>

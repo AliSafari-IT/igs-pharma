@@ -1,7 +1,8 @@
 "use server";
 
 import { isDomainError } from "@igs/kernel";
-import { endRecall, startRecall } from "@igs/module-inventory";
+import { endRecall, recordRecallDisposal, startRecall } from "@igs/module-inventory";
+import { requestRecallNotices } from "@igs/module-orders";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -69,4 +70,58 @@ export async function endRecallAction(
   revalidatePath("/stock");
   revalidatePath("/recalls");
   redirect(`/recalls/${encodeURIComponent(recallId)}?done=ended`);
+}
+
+/** Sends the recall notice to every affected, paid order that has none yet (igs-pharma#189). */
+export async function notifyRecallAction(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const recallId = text(form, "recallId");
+  let requested: number;
+  try {
+    ({ requested } = await requestRecallNotices({ recallId }, actor, {
+      origin: await requestOrigin(),
+    }));
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code, values: valuesOf(form) };
+  }
+  revalidatePath(`/recalls/${recallId}`);
+  redirect(`/recalls/${encodeURIComponent(recallId)}?done=notified&n=${requested}`);
+}
+
+/** Records recalled stock of one lot as destroyed or returned (igs-pharma#189). */
+export async function disposeAction(
+  _previous: LotActionState,
+  form: FormData,
+): Promise<LotActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const recallId = text(form, "recallId");
+  const quantity = /^[0-9]+$/.test(text(form, "quantity").trim())
+    ? Number(text(form, "quantity"))
+    : Number.NaN;
+  const note = text(form, "note").trim();
+  try {
+    await recordRecallDisposal(
+      {
+        recallId,
+        lotId: text(form, "lotId"),
+        quantity,
+        method: text(form, "method"),
+        ...(note ? { note } : {}),
+      },
+      actor,
+      { origin: await requestOrigin() },
+    );
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code, values: valuesOf(form) };
+  }
+  revalidatePath("/stock");
+  revalidatePath(`/recalls/${recallId}`);
+  redirect(`/recalls/${encodeURIComponent(recallId)}?done=disposed`);
 }

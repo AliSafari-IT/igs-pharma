@@ -17,6 +17,7 @@ import {
 
 import {
   ALLOCATION_STATUSES,
+  DISPOSAL_METHODS,
   EXPIRY_BUFFER_DEFAULT_DAYS,
   EXPIRY_BUFFER_MAX_DAYS,
   HOLDER_REF_PATTERN,
@@ -475,5 +476,45 @@ export const recallLots = inventory.table(
   (t) => [
     primaryKey({ columns: [t.recallId, t.lotId] }),
     index("recall_lots_lot_id_idx").on(t.lotId),
+  ],
+);
+
+/**
+ * What happened to a recall's stock (igs-pharma#189, REQ-SAF-01): `quantity` units of one of its lots
+ * destroyed or returned to the supplier, booked as a `disposal` movement (`movement_id`). Written once,
+ * by a pharmacist; the note is staff text, never audited.
+ */
+export const recallDisposals = inventory.table(
+  "recall_disposals",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    recallId: uuid("recall_id")
+      .notNull()
+      .references(() => recalls.id, { onDelete: "restrict" }),
+    lotId: uuid("lot_id")
+      .notNull()
+      .references(() => lots.id, { onDelete: "restrict" }),
+    /** The `disposal` movement. No foreign key: the append-only ledger guards itself (a key would turn its own refusals into key errors). */
+    movementId: uuid("movement_id").notNull().unique(),
+    quantity: integer("quantity").notNull(),
+    method: text("method").notNull(),
+    note: text("note"),
+    recordedByType: text("recorded_by_type").notNull(),
+    recordedById: text("recorded_by_id").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    check(
+      "recall_disposals_quantity_check",
+      sql`${t.quantity} > 0 AND ${t.quantity} <= ${sql.raw(String(MAX_QUANTITY))}`,
+    ),
+    check("recall_disposals_method_check", oneOf("method", DISPOSAL_METHODS)),
+    check(
+      "recall_disposals_note_check",
+      sql`${t.note} IS NULL OR char_length(${t.note}) BETWEEN 1 AND 200`,
+    ),
+    index("recall_disposals_recall_id_idx").on(t.recallId),
   ],
 );

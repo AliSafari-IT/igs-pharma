@@ -71,8 +71,24 @@ describe("recalls (igs-pharma#187)", () => {
       "inventory.recall_not_found",
       "inventory.recall_ended",
       "inventory.recall_lots_missing",
+      "inventory.lot_not_in_recall",
+      "inventory.recall_end_guard_missing",
+      "orders.recall_orders_open",
+      "orders.recall_notices_missing",
     ]) {
       expect(stockErrorMessage(code), code).not.toBe(stockErrorMessage("inventory.unknown_code"));
     }
+  });
+});
+
+describe("recall disposals (igs-pharma#189)", () => {
+  it("copies the module's disposal methods and labels each, and the new movement reason", async () => {
+    const labels = await import("../src/components/stock-labels");
+    const inventory = await import("@igs/module-inventory");
+    expect([...labels.DISPOSAL_METHOD_OPTIONS]).toEqual([...inventory.DISPOSAL_METHODS]);
+    expect(Object.keys(labels.DISPOSAL_METHOD_LABELS).sort()).toEqual(
+      [...inventory.DISPOSAL_METHODS].sort(),
+    );
+    expect(labels.REASON_LABELS.disposal).toBe("Recalled stock disposed of");
   });
 });
