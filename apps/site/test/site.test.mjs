@@ -109,6 +109,9 @@ test("all languages tell the same story", () => {
     assert.equal(t.plan.steps.length, nl.plan.steps.length, lang);
     assert.equal(t.faq.items.length, nl.faq.items.length, lang);
     assert.equal(t.hero.chips.length, nl.hero.chips.length, lang);
+    assert.equal(t.site.items.length, nl.site.items.length, lang);
+    assert.equal(t.maker.items.length, nl.maker.items.length, lang);
+    assert.equal(t.maker.stack.length, nl.maker.stack.length, lang);
     assert.equal(t.app.screen.results.length, nl.app.screen.results.length, lang);
     assert.equal(t.app.screen.categories.length, nl.app.screen.categories.length, lang);
   }
@@ -186,8 +189,18 @@ test("search and share metadata: Open Graph, JSON-LD on the home pages, 404 not 
     assert.equal(html.match(/og:locale:alternate/g)?.length, LANGS.length - 1);
     const [, json] = html.match(/<script type="application\/ld\+json">([^<]*)<\/script>/) ?? [];
     assert.ok(json, `${lang}: no JSON-LD`);
-    const types = JSON.parse(json)["@graph"].map((n) => n["@type"]);
-    assert.deepEqual(types, ["Organization", "WebSite", "MobileApplication"]);
+    const graph = JSON.parse(json)["@graph"];
+    assert.deepEqual(
+      graph.map((n) => n["@type"]),
+      ["Organization", "Person", "WebSite", "MobileApplication"],
+    );
+    // the maker is described once, and what he made points back at him
+    const person = graph.find((n) => n["@type"] === "Person");
+    assert.equal(person.url, "https://asafarim.com/");
+    assert.match(person.jobTitle, /full-stack, AI-powered app developer/i);
+    for (const type of ["WebSite", "MobileApplication"]) {
+      assert.deepEqual(graph.find((n) => n["@type"] === type).creator, { "@id": person["@id"] });
+    }
     assert.doesNotMatch(html, /name="robots"/);
   }
   assert.match(read(join(dist, "404.html")), /<meta name="robots" content="noindex">/);
@@ -195,4 +208,36 @@ test("search and share metadata: Open Graph, JSON-LD on the home pages, 404 not 
   for (const byLang of Object.values(routes))
     for (const path of Object.values(byLang))
       assert.ok(sitemap.includes(`<loc>https://igs.asafarim.site${path}</loc>`), path);
+});
+
+test("the website and its maker are on every home page, honestly: not open yet, nothing ordered here", () => {
+  for (const lang of LANGS) {
+    const t = languages[lang];
+    const html = read(fileFor(routes.home[lang]));
+    const section = (id) =>
+      (html.match(new RegExp(`<section id="${id}"[\\s\\S]*?</section>`)) ?? [""])[0];
+    // the website: a section of its own, reached from the menu and the first button, all of its points
+    const site = section("site");
+    assert.ok(site.includes(esc(t.site.title)), `${lang}: the website section`);
+    assert.equal((site.match(/<li class="feature">/g) ?? []).length, t.site.items.length, lang);
+    assert.ok(site.includes(esc(t.hero.note)), `${lang}: "not open yet" in the website section`);
+    assert.match(html, new RegExp(`<a href="${routes.home[lang]}#site">`), `${lang}: menu link`);
+    assert.match(html, /<a class="btn" href="#site">/, `${lang}: first button`);
+    // the maker: who built it, the tools, and the way to asafarim.com
+    const maker = section("maker");
+    assert.ok(maker.includes(esc(t.maker.title)), `${lang}: the maker section`);
+    assert.match(maker, /full-stack|Full-Stack|full stack/i, `${lang}: says what he does`);
+    assert.equal((maker.match(/<li class="offer /g) ?? []).length, t.maker.items.length, lang);
+    for (const tool of t.maker.stack) assert.ok(maker.includes(esc(tool)), `${lang}: ${tool}`);
+    assert.match(
+      maker,
+      /<a class="btn" href="https:\/\/asafarim\.com\/" rel="noopener">/,
+      `${lang}: link`,
+    );
+    assert.match(html, /<a href="https:\/\/asafarim\.com\/" rel="noopener">asafarim\.com<\/a>/);
+    // the product makes no AI claim: the AI is how it is built, said about the maker and the work
+    assert.doesNotMatch(site, /\bAI\b|\bKI\b|\bIA\b/, `${lang}: no AI claim about the pharmacy`);
+    // no price offered outside the phone drawing, in the new sections either
+    assert.doesNotMatch(site + maker, /€\s?\d|\d,\d\d\s?€/, `${lang}: a price`);
+  }
 });
