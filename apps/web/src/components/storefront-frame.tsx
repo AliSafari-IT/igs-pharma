@@ -2,9 +2,9 @@ import { getFeatureFlags } from "@igs/config";
 import { locales } from "@igs/i18n";
 import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
-import { Container, Link } from "@igs/ui";
+import { Container, Link, THEME_COOKIE, ThemeToggle, themeFromCookie } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 
 import type { ContentLocale } from "@igs/module-catalog";
@@ -44,6 +44,7 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
   const t = await getTranslations({ locale, namespace: "storefront" });
   const requestHeaders = await headers();
   const preview = requestHeaders.get(PREVIEW_HEADER) === "1";
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
   const signedIn = hasCustomerSessionCookie(requestHeaders.get("cookie"));
   const { customerAccounts, cart } = getFeatureFlags();
   const tAccount = customerAccounts
@@ -134,6 +135,10 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
                 ))}
               </ul>
             </nav>
+            <ThemeToggle
+              initial={theme}
+              labels={{ toDark: t("themeToDark"), toLight: t("themeToLight") }}
+            />
           </div>
         </Container>
         <Container className="pb-3">

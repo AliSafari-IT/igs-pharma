@@ -6,11 +6,13 @@
 
 /** Every `--color-*` token in tokens.css. A test keeps this list equal to the file. */
 export const COLOR_TOKENS = [
+  "page",
   "primary",
   "primary-hover",
   "primary-active",
   "primary-subtle",
   "primary-muted",
+  "on-primary",
   "secondary",
   "accent",
   "accent-subtle",
@@ -30,6 +32,7 @@ export const COLOR_TOKENS = [
   "error",
   "error-text",
   "error-subtle",
+  "on-error",
   "warning",
   "warning-text",
   "info",
@@ -44,7 +47,10 @@ export type ColorToken = (typeof COLOR_TOKENS)[number];
  */
 export const NEVER_TEXT = ["secondary", "accent", "warning", "success", "border"] as const;
 
-/** `white` is Tailwind's `text-white`, used on filled backgrounds. */
+/**
+ * `white` is Tailwind's `text-white`. Filled backgrounds use `on-primary` / `on-error` instead
+ * (igs-pharma#191): white on the light-blue dark-theme primary would fail.
+ */
 export type TextFg = Exclude<ColorToken, (typeof NEVER_TEXT)[number]> | "white";
 
 /** Borders, focus rings and other UI parts that must reach 3:1 (the decorative border never does). */
@@ -61,8 +67,8 @@ export const MIN_RATIO: Record<ContrastPair["use"], number> = {
   ui: 3,
 };
 
-/** The surfaces a transparent component may sit on (the page and card backgrounds). */
-export const SURFACES = ["bg", "surface"] as const satisfies readonly ColorToken[];
+/** The surfaces a transparent component may sit on: the page, and the card backgrounds. */
+export const SURFACES = ["page", "bg", "surface"] as const satisfies readonly ColorToken[];
 
 /** The same foreground on every surface in `SURFACES`. */
 export function onSurfaces(fg: TextFg, use: "text" | "large-text"): ContrastPair[];

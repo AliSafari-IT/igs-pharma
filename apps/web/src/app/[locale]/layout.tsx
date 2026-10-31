@@ -1,6 +1,8 @@
+import { THEME_COOKIE, themeFromCookie } from "@igs/ui";
 import { fontDisplay, fontSans } from "@igs/ui/fonts";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 // Tailwind + @igs/ui tokens + global base styles (one entry, T-015)
@@ -22,10 +24,16 @@ export default async function RootLayout({
 }) {
   const { locale } = await params;
   const messages = await getMessages();
+  // the visitor's light/dark choice (igs-pharma#191); without one the system setting decides
+  const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
-    <html lang={locale} className={`${fontSans.variable} ${fontDisplay.variable}`}>
-      <body className="bg-[var(--color-bg)] text-[var(--color-text)] font-sans antialiased">
+    <html
+      lang={locale}
+      className={`${fontSans.variable} ${fontDisplay.variable}`}
+      {...(theme ? { "data-theme": theme } : {})}
+    >
+      <body className="bg-[var(--color-page)] text-[var(--color-text)] font-sans antialiased">
         <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
       </body>
     </html>

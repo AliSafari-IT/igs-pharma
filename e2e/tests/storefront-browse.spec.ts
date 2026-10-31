@@ -191,6 +191,30 @@ test("a category with more than a page paginates, and the language switch keeps 
   await expect(page.getByRole("navigation", { name: "Fil d'Ariane" })).toBeVisible();
 });
 
+test("light and dark: the toggle switches at once and the server remembers it (#191)", async ({
+  page,
+  context,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  test.skip(!sql, "set SMOKE_DATABASE_URL to a migrated database to run");
+  await page.goto(`${WEB}/nl`, { waitUntil: "networkidle" });
+  const html = page.locator("html");
+  await expect(html).not.toHaveAttribute("data-theme", /./);
+  const toggle = page.getByTestId("theme-toggle");
+  await expect(toggle).toHaveAttribute("aria-label", "Donker thema gebruiken");
+  await toggle.click();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  const cookie = (await context.cookies()).find((c) => c.name === "igs_theme");
+  expect(cookie?.value).toBe("dark");
+  // the next page comes from the server already dark, and is still accessible
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await expect(toggle).toHaveAttribute("aria-label", "Licht thema gebruiken");
+  await expectAxeClean(page);
+  await toggle.click();
+  await expect(html).toHaveAttribute("data-theme", "light");
+});
+
 test("an unknown page is a localized 404 inside the shell", async ({ page }) => {
   for (const [locale, title, home] of [
     ["nl", "Pagina niet gevonden", "Terug naar de startpagina"],

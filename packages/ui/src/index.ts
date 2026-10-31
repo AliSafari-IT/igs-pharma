@@ -25,3 +25,12 @@ export { Price, type PriceProps, formatPrice } from "./components/price";
 export { VisuallyHidden } from "./components/visually-hidden";
 export type { ColorToken, ContrastPair, TextFg, UiFg } from "./contrast";
 export { cn } from "./utils";
+export { ThemeToggle, type ThemeToggleProps } from "./components/theme-toggle";
+export {
+  THEMES,
+  THEME_COOKIE,
+  THEME_COOKIE_MAX_AGE,
+  type ThemeChoice,
+  themeCookie,
+  themeFromCookie,
+} from "./theme";

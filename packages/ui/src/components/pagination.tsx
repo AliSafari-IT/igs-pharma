@@ -75,7 +75,10 @@ export function Pagination({ page, pages, hrefFor, labels, className, ...props }
                 <span
                   aria-current="page"
                   aria-label={labels.page(entry)}
-                  className={cn(item, "bg-[var(--color-primary)] font-semibold text-white")}
+                  className={cn(
+                    item,
+                    "bg-[var(--color-primary)] font-semibold text-[var(--color-on-primary)]",
+                  )}
                 >
                   {entry}
                 </span>

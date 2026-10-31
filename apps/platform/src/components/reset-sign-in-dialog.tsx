@@ -57,7 +57,7 @@ export function ResetSignInDialog({ userId, name }: Props) {
       <dialog
         ref={dialog}
         aria-labelledby={`${id}-title`}
-        className="m-auto w-full max-w-lg rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg)] p-6 text-[var(--color-text)] shadow-lg backdrop:bg-[var(--color-text)]/40"
+        className="m-auto w-full max-w-lg rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg)] p-6 text-[var(--color-text)] shadow-lg backdrop:bg-black/50"
       >
         <Stack gap={4}>
           <h2 id={`${id}-title`} className="font-display text-2xl font-semibold">

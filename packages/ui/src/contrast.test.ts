@@ -16,27 +16,40 @@ import { linkContrast, linkVariants } from "./components/link";
 import { priceContrast } from "./components/price";
 import { COLOR_TOKENS, type ContrastPair, MIN_RATIO, NEVER_TEXT } from "./contrast";
 
-/** tokens.css is the single source of colour values: parse its @theme block. */
-function readTokens(): Map<string, string> {
-  const css = readFileSync(new URL("./styles/tokens.css", import.meta.url), "utf8");
-  const theme = /@theme\s*\{([\s\S]*?)\n\}/.exec(css)?.[1];
-  if (!theme) throw new Error("tokens.css: no @theme block");
+/** tokens.css is the single source of colour values: its @theme block (light) and dark blocks. */
+const CSS = readFileSync(new URL("./styles/tokens.css", import.meta.url), "utf8");
+
+function colours(block: string, where: string): Map<string, string> {
   const tokens = new Map<string, string>();
-  for (const match of theme.matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)) {
+  for (const match of block.matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)) {
     const [, name, value] = match as unknown as [string, string, string];
     if (!/^#[0-9a-f]{6}$/i.test(value.trim())) {
-      throw new Error(`tokens.css: --color-${name} is not #rrggbb (${value}); the test needs hex`);
+      throw new Error(
+        `tokens.css ${where}: --color-${name} is not #rrggbb (${value}); the test needs hex`,
+      );
     }
     tokens.set(name, value.trim().toLowerCase());
   }
   return tokens;
 }
 
-const tokens = readTokens();
-const hex = (name: string) => {
+function block(pattern: RegExp, where: string): string {
+  const found = pattern.exec(CSS)?.[1];
+  if (!found) throw new Error(`tokens.css: no ${where} block`);
+  return found;
+}
+
+const THEMES = {
+  light: colours(block(/@theme\s*\{([\s\S]*?)\n\}/, "@theme"), "@theme"),
+  dark: colours(block(/\n:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/, "dark"), "dark"),
+} as const;
+type Theme = keyof typeof THEMES;
+const tokens = THEMES.light;
+
+const hexIn = (theme: Theme, name: string) => {
   if (name === "white") return "#ffffff";
-  const value = tokens.get(name);
-  if (!value) throw new Error(`unknown colour token ${name}`);
+  const value = THEMES[theme].get(name);
+  if (!value) throw new Error(`unknown colour token ${name} (${theme})`);
   return value;
 };
 
@@ -46,10 +59,11 @@ function luminance(color: string): number {
   const [r, g, b] = channels.map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
   return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
 }
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(hex(a)), luminance(hex(b))].sort((x, y) => y - x);
+function contrastIn(theme: Theme, a: string, b: string): number {
+  const [hi, lo] = [luminance(hexIn(theme, a)), luminance(hexIn(theme, b))].sort((x, y) => y - x);
   return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
 }
+const contrast = (a: string, b: string) => contrastIn("light", a, b);
 
 /** Every component's manifest, with the class string the variant actually renders. */
 const MANIFESTS: Array<{ name: string; classes: string; pairs: ContrastPair[] }> = [
@@ -92,8 +106,20 @@ const MANIFESTS: Array<{ name: string; classes: string; pairs: ContrastPair[] }>
 ];
 
 describe("tokens.css ↔ contrast types", () => {
-  it("COLOR_TOKENS lists exactly the --color-* tokens in tokens.css", () => {
+  it("COLOR_TOKENS lists exactly the --color-* tokens in tokens.css, in both themes", () => {
     expect([...COLOR_TOKENS].sort()).toEqual([...tokens.keys()].sort());
+    expect([...COLOR_TOKENS].sort()).toEqual([...THEMES.dark.keys()].sort());
+  });
+
+  it("the system-dark block carries exactly the dark values (igs-pharma#191)", () => {
+    const media = colours(
+      block(
+        /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{([\s\S]*?)\n {2}\}/,
+        "media",
+      ),
+      "media",
+    );
+    expect([...media.entries()]).toEqual([...THEMES.dark.entries()]);
   });
 
   it("a never-text token can't be declared as text (compile time)", () => {
@@ -109,12 +135,17 @@ describe("tokens.css ↔ contrast types", () => {
   });
 });
 
-describe("WCAG AA for every variant pair", () => {
-  const cases = MANIFESTS.flatMap(({ name, pairs }) =>
-    pairs.map((pair) => [`${name}: ${pair.fg} on ${pair.bg} (${pair.use})`, pair] as const),
+describe("WCAG AA for every variant pair, in both themes", () => {
+  const cases = (["light", "dark"] as const).flatMap((theme) =>
+    MANIFESTS.flatMap(({ name, pairs }) =>
+      pairs.map(
+        (pair) =>
+          [`${theme} ${name}: ${pair.fg} on ${pair.bg} (${pair.use})`, theme, pair] as const,
+      ),
+    ),
   );
-  it.each(cases)("%s", (_, pair) => {
-    const ratio = contrast(pair.fg, pair.bg);
+  it.each(cases)("%s", (_, theme, pair) => {
+    const ratio = contrastIn(theme, pair.fg, pair.bg);
     expect(ratio, `${ratio.toFixed(2)} < ${MIN_RATIO[pair.use]}`).toBeGreaterThanOrEqual(
       MIN_RATIO[pair.use],
     );
@@ -128,7 +159,8 @@ describe("manifests match the classes (they can't lie)", () => {
       else expect(classes).toContain(`var(--color-${fg})`);
       // a transparent component sits on the page or a card: those backgrounds aren't its classes
       const onSurface =
-        (bg === "bg" || bg === "surface") && !classes.includes(`var(--color-${bg})`);
+        (bg === "page" || bg === "bg" || bg === "surface") &&
+        !classes.includes(`var(--color-${bg})`);
       if (!onSurface) expect(classes).toContain(`var(--color-${bg})`);
     }
   });

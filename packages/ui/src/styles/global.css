@@ -8,10 +8,14 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  color-scheme: light dark;
 }
 
 body {
   margin: 0;
+  /* the page behind the cards, and the text, in either theme (igs-pharma#191) */
+  background: var(--color-page);
+  color: var(--color-text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
