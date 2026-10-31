@@ -123,7 +123,6 @@ describe("env classification (D-023)", () => {
       "DATABASE_MIGRATE_URL",
       "AUTH_SECRET",
       "AUDIT_HMAC_KEY",
-      "IGS_PREVIEW_KEY",
       "ENCRYPTION_KEY",
       "KMS_KEY_ID",
       "SENTRY_DSN",

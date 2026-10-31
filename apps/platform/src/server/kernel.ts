@@ -4,6 +4,7 @@ import { configureKernel, isDomainError, registerEvents } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
 import {
+  MailRequested,
   applySecurityEvent,
   ensureRbacCatalogue,
   registerAuditActions as registerIdentityAuditActions,
@@ -68,6 +69,10 @@ export function ensureAuthConfigured(): void {
   registerEvents(RefundRequested);
   // customer mails about an order (igs-pharma#157): the worker sends them
   registerEvents(OrderMailRequested);
+  // an early-access decision tells the person by mail (igs-pharma#199): approve, reject and revoke
+  // queue it through the outbox, and fail with `kernel.event_not_registered` if this app does not
+  // know the event
+  registerEvents(MailRequested);
   // a recall ends only once its affected orders are closed and told (igs-pharma#189)
   configureRecallEndGuard(recallEndGuard);
   configureAuth({
