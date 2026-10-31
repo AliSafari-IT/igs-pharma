@@ -5,6 +5,7 @@ import {
   appEnv,
   cspEnv,
   cspReportingEnabled,
+  getFeatureFlags,
   parseEnvFor,
   previewSecrets,
   siteGateEnabled,
@@ -14,11 +15,16 @@ import { routing } from "@igs/i18n/routing";
 import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "@igs/security-headers";
 
 import {
-  PREVIEW_COOKIE,
-  PREVIEW_COOKIE_OPTIONS,
-  PREVIEW_HEADER,
-  verifyPreviewCookie,
-} from "./preview";
+  EARLY_ACCESS_HEADER,
+  GATE_HEADER,
+  PASS_COOKIE,
+  PASS_PATH,
+  RETURN_HEADER,
+  passSecret,
+  sessionCookieValue,
+  verifyPass,
+} from "./early-access";
+import { PREVIEW_COOKIE, PREVIEW_HEADER, verifyPreviewCookie } from "./preview";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -61,11 +67,30 @@ function isOpenPath(pathname: string): boolean {
 
 /**
  * The one place that decides whether a request gets past the closed storefront: the few open paths,
- * or a request holding a valid preview cookie (igs-pharma#62). `preview` is only ever true after the
- * cookie's signature and expiry were checked.
+ * or a request holding a valid preview cookie (igs-pharma#62) or early-access pass (igs-pharma#199).
+ * `passed` is only ever true after the cookie's signature and expiry were checked.
  */
-function passesGate(pathname: string, preview: boolean): boolean {
-  return preview || isOpenPath(pathname);
+function passesGate(pathname: string, passed: boolean): boolean {
+  return passed || isOpenPath(pathname);
+}
+
+const LOCALE_PREFIX = `(?:/(?:${routing.locales.join("|")}))?`;
+/** The early-access page and the sign-in pages a visitor needs to reach it, with or without a locale. */
+const EARLY_ACCESS_PAGES = new RegExp(
+  `^${LOCALE_PREFIX}/(?:early-access|account/(?:sign-in|sign-up|verify-email|forgot-password|reset-password))/?$`,
+);
+
+/**
+ * What a visitor WITHOUT a pass may still reach while the shop is closed (igs-pharma#199), so they can
+ * sign in and ask for early access: those pages (rendered in a frame that shows nothing of the shop),
+ * the customer sign-in API and the pass route. Only while customer accounts are switched on; otherwise
+ * they are closed like everything else.
+ */
+export function isEarlyAccessPath(pathname: string): boolean {
+  if (!getFeatureFlags().customerAccounts) return false;
+  return (
+    pathname === PASS_PATH || pathname.startsWith("/api/auth/") || EARLY_ACCESS_PAGES.test(pathname)
+  );
 }
 
 /**
@@ -110,8 +135,11 @@ export default function proxy(request: NextRequest) {
   request.headers.set("x-nonce", nonce);
   request.headers.set("content-security-policy", headers["content-security-policy"] ?? "");
 
-  // a client never sets this: it is added below, and only for a verified preview cookie
+  // a client never sets these: they are added below, and only after the cookie verified
   request.headers.delete(PREVIEW_HEADER);
+  request.headers.delete(EARLY_ACCESS_HEADER);
+  request.headers.delete(GATE_HEADER);
+  request.headers.delete(RETURN_HEADER);
 
   const { pathname } = request.nextUrl;
   const gated = siteGateEnabled(parseEnvFor(gateEnv));
@@ -123,17 +151,47 @@ export default function proxy(request: NextRequest) {
   const entry = gated ? previewEntry(request, secrets) : null;
   const preview =
     gated && verifyPreviewCookie(secrets, request.cookies.get(PREVIEW_COOKIE)?.value, now);
+  // igs-pharma#199: a pass is only worth anything with the session cookie it was issued for
+  // only while customer accounts are on: without them nobody can be signed in to hold a pass
+  const pass =
+    gated && getFeatureFlags().customerAccounts
+      ? verifyPass(
+          passSecret(process.env),
+          request.cookies.get(PASS_COOKIE)?.value,
+          sessionCookieValue((name) => request.cookies.get(name)?.value),
+          now,
+        )
+      : null;
+  const early = pass?.fresh === true;
+  const passed = preview || early;
+  const navigation = request.method === "GET" || request.method === "HEAD";
   if (entry) {
     response = entry;
   } else if (gated && secrets && pathname === PREVIEW_END_PATH) {
     // leaving the preview: drop the cookie and land on whatever the public sees. With no key
     // configured this path is just another closed URL (no hint that a preview exists, #91)
-    response = NextResponse.redirect(new URL("/", request.url));
-    response.cookies.set({ name: PREVIEW_COOKIE, value: "", ...PREVIEW_COOKIE_OPTIONS, maxAge: 0 });
+    // configured this path is just another closed URL (no hint that a preview exists, #91). The
+    // route handler answers (`src/app/preview/end/route.ts`): the proxy cannot send a relative
+    // Location, and one built from `request.url` would carry the container's address (#199)
+    response = NextResponse.next({ request });
   } else if (gated && !passesGate(pathname, preview) && pathname.startsWith(MOBILE_API_PREFIX)) {
-    // the Android app reads JSON: it gets a code it can show as "opens soon", and still no data
+    // the Android app reads JSON: it gets a code it can show as "opens soon", and still no data. A
+    // browser pass does not open it (#199, decision 1)
     response = NextResponse.json({ error: "coming_soon" }, { status: 503 });
-  } else if (gated && !passesGate(pathname, preview)) {
+  } else if (gated && !passesGate(pathname, passed) && isEarlyAccessPath(pathname)) {
+    // the way in (#199): reachable, in a frame that shows nothing of the shop
+    request.headers.set(GATE_HEADER, "closed");
+    response = pathname.startsWith("/api/")
+      ? NextResponse.next({ request })
+      : handleI18nRouting(request);
+  } else if (gated && !passed && pass && navigation && !pathname.startsWith("/api/")) {
+    // a pass that ran out (#199): the pass route re-checks the grant in the database and answers in
+    // place of the page: a fresh pass and a 303 back to this very URL, or the early-access page.
+    // Only someone who held a pass gets this. A rewrite, not a redirect: the proxy cannot send a
+    // relative Location, and one built from `request.url` would carry the container's address
+    request.headers.set(RETURN_HEADER, `${pathname}${request.nextUrl.search}`);
+    response = NextResponse.rewrite(new URL(PASS_PATH, request.url), { request });
+  } else if (gated && !passesGate(pathname, passed)) {
     // every other URL renders the static page in place (no redirect: nothing to follow or index)
     response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });
   } else if (
@@ -145,6 +203,7 @@ export default function proxy(request: NextRequest) {
     response = NextResponse.next({ request });
   } else {
     if (preview) request.headers.set(PREVIEW_HEADER, "1");
+    if (early) request.headers.set(EARLY_ACCESS_HEADER, "1");
     response = handleI18nRouting(request);
   }
   for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);

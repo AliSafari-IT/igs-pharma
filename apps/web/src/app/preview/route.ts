@@ -11,6 +11,9 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const seeOther = (path: string) =>
+  new NextResponse(null, { status: 303, headers: { location: path, "cache-control": "no-store" } });
+
 /** Longer than any real key: a bigger body is refused before it is compared. */
 const MAX_KEY_LENGTH = 512;
 
@@ -22,7 +25,8 @@ const MAX_KEY_LENGTH = 512;
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const secrets = previewSecrets(process.env);
-  const home = NextResponse.redirect(new URL("/", request.url), 303);
+  // relative Locations (igs-pharma#199): `request.url` behind the edge is the container's address
+  const home = seeOther("/");
   if (!secrets) return home;
   let given: FormDataEntryValue | null = null;
   try {
@@ -33,7 +37,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (typeof given !== "string" || given.length > MAX_KEY_LENGTH || !keyMatches(given, secrets)) {
     return home;
   }
-  const response = NextResponse.redirect(new URL("/nl", request.url), 303);
+  const response = seeOther("/nl");
   response.cookies.set({
     name: PREVIEW_COOKIE,
     value: createPreviewCookie(secrets, Date.now()),

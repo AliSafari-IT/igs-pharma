@@ -34,6 +34,7 @@ export {
   suspendUser,
 } from "./commands";
 export { MailRequested, requestMail } from "./mail";
+export { type RateLimit, consumeRateLimit } from "./rate-limit";
 export {
   DEFAULT_EARLY_ACCESS_DURATION,
   EARLY_ACCESS_DURATIONS,

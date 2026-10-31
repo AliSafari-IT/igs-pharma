@@ -19,7 +19,8 @@
   },
   "comingSoon": {
     "title": "Opening soon",
-    "body": "IGS-Pharma, your online pharmacy in Belgium, is opening soon."
+    "body": "IGS-Pharma, your online pharmacy in Belgium, is opening soon.",
+    "earlyAccessLink": "Early access"
   },
   "storefront": {
     "title": "Our products",
@@ -125,7 +126,9 @@
     "pharmacyDetailsLink": "All pharmacy details",
     "headerPharmacyLink": "Our pharmacy",
     "askPharmacistHeading": "Ask your pharmacist",
-    "headerCart": "Cart"
+    "headerCart": "Cart",
+    "earlyAccessBanner": "Early access: you are seeing the shop before it opens to everyone.",
+    "earlyAccessDetails": "Your early access"
   },
   "account": {
     "headerSignIn": "Sign in",
@@ -250,7 +253,8 @@
     "resultAlreadyOpen": "You already have an open request of this kind.",
     "resultFreshRequired": "Sign in again first, then repeat your request.",
     "resultFailed": "That didn't work. Try again.",
-    "legalPlaceholder": "Placeholder text until the pharmacy's counsel supplies the final wording."
+    "legalPlaceholder": "Placeholder text until the pharmacy's counsel supplies the final wording.",
+    "earlyAccessTitle": "Early access"
   },
   "cart": {
     "title": "Cart",
@@ -348,5 +352,34 @@
     "statusExpired": "Expired",
     "statusLinkTitle": "Keep this page",
     "statusLinkBody": "The link to this page lets you follow your order, even without an account or on another device. Don't share it with anyone."
+  },
+  "earlyAccess": {
+    "title": "Early access",
+    "intro": "The IGS-Pharma webshop opens soon. With early access you can already see it, with your own account.",
+    "signedOut": "Sign in to ask for early access. No account yet? Create one first.",
+    "createAccount": "Create an account",
+    "afterSignUp": "After you confirm your e-mail address, sign in and come back to this page.",
+    "statusTitle": "Your request",
+    "stateNone": "You have not asked for early access yet.",
+    "statePending": "Your request of {since} is waiting for a decision. You will get an e-mail.",
+    "stateApproved": "You have early access until {until}.",
+    "stateApprovedUntilLaunch": "You have early access until the webshop opens to everyone.",
+    "stateExpired": "Your early access ended on {at}. You can ask again.",
+    "stateRejected": "Your request was not approved.",
+    "stateRevoked": "Your early access was ended.",
+    "askAgainAt": "You can ask again from {at}.",
+    "openShop": "Open the webshop",
+    "noteLabel": "A note for the pharmacy (optional)",
+    "noteHint": "For example why you would like early access. At most {max} characters.",
+    "ask": "Ask for early access",
+    "updateNote": "Update my note",
+    "resultRequested": "Thank you. Your request was sent; you will get an e-mail once it is decided.",
+    "resultUpdated": "Your note was updated.",
+    "resultTooSoon": "You cannot ask again yet.",
+    "resultAlreadyGranted": "You already have early access.",
+    "resultNotVerified": "Confirm your e-mail address first, then ask again.",
+    "resultRateLimited": "Too many attempts. Please try again later.",
+    "resultPassRefused": "You do not have early access at the moment.",
+    "resultFailed": "Something went wrong. Please try again."
   }
 }

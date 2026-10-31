@@ -13,6 +13,7 @@ import {
   MailRequested,
   type MailToSend,
   approveEarlyAccess,
+  consumeRateLimit,
   deliverMail,
   getOwnEarlyAccess,
   issueEarlyAccessPass,
@@ -474,5 +475,30 @@ describe("mails and retention", () => {
     await iso.db.delete(userRoles).where(eq(userRoles.userId, an.id));
     await iso.db.delete(users).where(eq(users.id, an.id));
     expect(await rowsOf(an.id)).toEqual([]);
+  });
+});
+
+describe("consumeRateLimit (#199)", () => {
+  it("allows max hits per window and starts a new window after it", async () => {
+    const key = `igs:test:${crypto.randomUUID()}`;
+    const limit = { windowSeconds: 60, max: 2 };
+    const hit = (date: Date) => consumeRateLimit(iso.db, key, limit, date);
+    expect(await hit(NOW)).toBe(true);
+    expect(await hit(at(1_000))).toBe(true);
+    expect(await hit(at(2_000))).toBe(false);
+    expect(await hit(at(59_000))).toBe(false);
+    expect(await hit(at(60_000))).toBe(true); // the window that started at NOW is over
+    expect(await hit(at(61_000))).toBe(true);
+    expect(await hit(at(62_000))).toBe(false);
+  });
+
+  it("counts parallel hits exactly", async () => {
+    const key = `igs:test:${crypto.randomUUID()}`;
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        consumeRateLimit(iso.db, key, { windowSeconds: 60, max: 3 }, NOW),
+      ),
+    );
+    expect(results.filter(Boolean)).toHaveLength(3);
   });
 });
