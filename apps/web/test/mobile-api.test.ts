@@ -1,5 +1,6 @@
 // The Android app's read-only API (asafarim-docs ventures/igs-pharma/09-mobile): the storefront
 // queries as JSON, the same actor, and stable error codes with no message, stack or input.
+import { PHARMACY_IDENTITY } from "@igs/config";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -195,5 +196,26 @@ describe("GET /api/mobile/v1/pharmacy", () => {
     const body = await GET().json();
     expect(body).toMatchObject({ name: "IGS-Pharma", isPlaceholder: expect.any(Boolean) });
     expect(body.address).toHaveProperty("city");
+  });
+
+  it("keeps v1's exact fields: nothing added to the identity reaches it (the VAT number, milestone 5.1)", async () => {
+    const { GET } = await import("../src/app/api/mobile/v1/pharmacy/route");
+    const body = await GET().json();
+    expect(Object.keys(body).sort()).toEqual(
+      [
+        "address",
+        "authorisationNumber",
+        "email",
+        "isPlaceholder",
+        "name",
+        "openingHours",
+        "pharmacistTitular",
+        "phone",
+      ].sort(),
+    );
+    expect(Object.keys(body.address).sort()).toEqual(["city", "country", "postalCode", "street"]);
+    // and each field carries its own value
+    const { vatNumber: _offV1, ...v1 } = PHARMACY_IDENTITY;
+    expect(body).toEqual(v1);
   });
 });
