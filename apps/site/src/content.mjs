@@ -15,7 +15,14 @@ const nl = {
   skip: "Naar de inhoud",
   themeLabel: "Donker thema",
   langLabel: "Taal",
-  nav: { what: "Wat komt er", app: "De app", care: "Zorgvuldig", plan: "Planning", faq: "Vragen" },
+  nav: {
+    what: "Wat komt er",
+    site: "De website",
+    app: "De app",
+    care: "Zorgvuldig",
+    plan: "Planning",
+    faq: "Vragen",
+  },
   playSoon: "Binnenkort op Google Play",
   shopSoon: "Webshop: binnenkort",
   meta: {
@@ -29,6 +36,7 @@ const nl = {
     lead: "IGS-Pharma brengt een Belgische apotheek online. Een webshop voor producten zonder voorschrift, waar een apotheker meekijkt. En een gratis Android-app om producten op te zoeken en uw apotheek te bereiken.",
     note: "We zijn nog niet open. U kan nog niets bestellen.",
     cta: "Bekijk de app",
+    ctaSite: "Bekijk de website",
     chips: [
       "NL · FR · DE · EN",
       "Prijs incl. btw",
@@ -199,12 +207,90 @@ const nl = {
     privacy: "Privacybeleid",
     delete: "Uw gegevens verwijderen",
   },
+  site: {
+    title: "De website",
+    lead: "De webshop is een echte, werkende website. We testen hem met verzonnen producten en hij opent als de apotheek er klaar voor is.",
+    items: [
+      {
+        icon: "speak",
+        title: "In uw taal",
+        text: "Nederlands, Frans, Duits en Engels, een licht en een donker thema, en gemaakt om met toetsenbord en schermlezer te gebruiken.",
+      },
+      {
+        icon: "leaflet",
+        title: "Duidelijke prijs en voorraad",
+        text: "De prijs is inclusief btw en de voorraad staat in woorden. Elk product heeft zijn bijsluiter.",
+      },
+      {
+        icon: "cart",
+        title: "Afhalen nu, levering straks",
+        text: "Haal uw bestelling gratis op in de apotheek. Levering aan huis met Sendcloud komt eraan, met de kost vóór u betaalt.",
+      },
+      {
+        icon: "pharmacist",
+        title: "Een apotheker kijkt mee",
+        text: "Een bestelling met een geneesmiddel wordt door een apotheker nagekeken voor ze klaargemaakt wordt.",
+      },
+      {
+        icon: "lock",
+        title: "Een beheer voor de apotheek",
+        text: "Voorraad met vervaldata, terugroepacties, prijzen, bestellingen en nazicht, voor medewerkers die met een passkey inloggen.",
+      },
+      {
+        icon: "eu",
+        title: "Zorgvuldig met uw gegevens",
+        text: "Gehost in de Europese Unie, geen tracking, en tijdens de test alleen vroege toegang op uitnodiging.",
+      },
+    ],
+  },
+  maker: {
+    kicker: "Achter IGS-Pharma",
+    title: "Gebouwd door Ali Safari",
+    lead: "Ali (ASafariM) is een full-stack, AI-gedreven app-ontwikkelaar. IGS-Pharma toont hoe dat in de praktijk werkt: een webshop, een beheer voor de apotheek en een Android-app, van het eerste idee tot een zorgvuldig, getest product.",
+    items: [
+      {
+        icon: "code",
+        tag: "Full stack",
+        title: "Van scherm tot database",
+        text: "Een winkel in vier talen, een beheer, achtergrondtaken, een database met auditspoor en een Android-app, gemaakt om samen te werken.",
+      },
+      {
+        icon: "spark",
+        tag: "AI-gedreven",
+        title: "Snel, en nagekeken",
+        text: "AI-assistenten helpen de code schrijven en testen. Bij elke wijziging draaien automatische tests en een mens kijkt na en voegt ze samen.",
+      },
+      {
+        icon: "lock",
+        tag: "Zorgvuldig",
+        title: "Zorgvuldig door ontwerp",
+        text: "Inloggen met passkey voor medewerkers, rollen en rechten, een auditspoor en privacy als standaard.",
+      },
+    ],
+    stackLabel: "Gebruikte tools",
+    stack: [
+      "Next.js",
+      "React",
+      "TypeScript",
+      "Node.js",
+      "PostgreSQL",
+      "Expo en Android",
+      "Docker",
+      "CI/CD",
+      "AI-ondersteunde ontwikkeling",
+    ],
+    cta: "Meer werk op asafarim.com",
+  },
   faq: {
     title: "Vragen",
     items: [
       {
         q: "Kan ik al bestellen?",
         a: "Nee. De webshop is nog niet open. Hij komt op igs-pharma.be. Tot dan kan u gewoon bij uw apotheek terecht.",
+      },
+      {
+        q: "Is er een website?",
+        a: "Ja. De webshop van IGS-Pharma werkt al en wordt getest met verzonnen producten. Hij is nog niet open. Hij komt op igs-pharma.be. Tot dan tonen deze pagina en de app wat er komt.",
       },
       {
         q: "Kan ik geneesmiddelen op voorschrift bestellen?",
@@ -224,7 +310,7 @@ const nl = {
       },
       {
         q: "Wie zit erachter?",
-        a: "IGS-Pharma wordt gebouwd door ASafariM, voor en met een Belgische apotheek. De apotheek is de verkoper en uw zorgverlener. Haar gegevens (adres, titularis-apotheker, erkenningsnummer) komen op de webshop als die opent.",
+        a: "IGS-Pharma wordt gebouwd door Ali Safari (ASafariM), een full-stack, AI-gedreven app-ontwikkelaar, voor en met een Belgische apotheek. De apotheek is de verkoper en uw zorgverlener. Haar gegevens (adres, titularis-apotheker, erkenningsnummer) komen op de webshop als die opent.",
       },
     ],
   },
@@ -234,6 +320,7 @@ const nl = {
     cookies: "Cookies",
     delete: "Gegevens verwijderen",
     os: "ASafariM OS",
+    maker: "Gebouwd door ASafariM",
     rights: "ASafariM. IGS-Pharma is nog niet open; deze site verkoopt niets.",
     emergency: "Noodgeval: 112 · Antigifcentrum: 070 245 245",
   },
@@ -254,6 +341,7 @@ const fr = {
   langLabel: "Langue",
   nav: {
     what: "Ce qui arrive",
+    site: "Le site",
     app: "L'app",
     care: "Avec soin",
     plan: "Calendrier",
@@ -272,6 +360,7 @@ const fr = {
     lead: "IGS-Pharma met une pharmacie belge en ligne. Une boutique pour les produits sans ordonnance, avec un pharmacien qui veille. Et une app Android gratuite pour chercher un produit et joindre votre pharmacie.",
     note: "Nous ne sommes pas encore ouverts. Vous ne pouvez encore rien commander.",
     cta: "Découvrir l'app",
+    ctaSite: "Voir le site",
     chips: [
       "NL · FR · DE · EN",
       "Prix TVAC",
@@ -442,12 +531,90 @@ const fr = {
     privacy: "Politique de confidentialité",
     delete: "Supprimer vos données",
   },
+  site: {
+    title: "Le site web",
+    lead: "La boutique est un vrai site qui fonctionne. Nous la testons avec des produits inventés et elle ouvrira quand la pharmacie sera prête.",
+    items: [
+      {
+        icon: "speak",
+        title: "Dans votre langue",
+        text: "Néerlandais, français, allemand et anglais, un thème clair et un thème sombre, et pensé pour le clavier et les lecteurs d'écran.",
+      },
+      {
+        icon: "leaflet",
+        title: "Prix et stock clairs",
+        text: "Le prix inclut la TVA et le stock est dit en mots. Chaque produit a sa notice.",
+      },
+      {
+        icon: "cart",
+        title: "Retrait d'abord, livraison ensuite",
+        text: "Retirez votre commande gratuitement à la pharmacie. La livraison à domicile par Sendcloud arrive, avec son coût affiché avant de payer.",
+      },
+      {
+        icon: "pharmacist",
+        title: "Un pharmacien veille",
+        text: "Une commande contenant un médicament est vérifiée par un pharmacien avant d'être préparée.",
+      },
+      {
+        icon: "lock",
+        title: "Un back-office pour la pharmacie",
+        text: "Stock avec dates de péremption, rappels de produits, prix, commandes et vérifications, pour une équipe qui se connecte avec une passkey.",
+      },
+      {
+        icon: "eu",
+        title: "Soin de vos données",
+        text: "Hébergé dans l'Union européenne, sans pistage, et un accès anticipé sur invitation pendant le test.",
+      },
+    ],
+  },
+  maker: {
+    kicker: "Derrière IGS-Pharma",
+    title: "Construit par Ali Safari",
+    lead: "Ali (ASafariM) est un développeur d'applications full-stack, propulsé par l'IA. IGS-Pharma montre ce que cela donne : une boutique, un back-office pour la pharmacie et une application Android, de la première idée à un produit soigné et testé.",
+    items: [
+      {
+        icon: "code",
+        tag: "Full stack",
+        title: "De l'écran à la base de données",
+        text: "Une boutique en quatre langues, un back-office, des tâches de fond, une base de données avec journal d'audit et une application Android, conçus pour fonctionner ensemble.",
+      },
+      {
+        icon: "spark",
+        tag: "Propulsé par l'IA",
+        title: "Rapide, et vérifié",
+        text: "Des assistants IA aident à écrire et tester le code. Des tests automatiques tournent à chaque changement et une personne le relit et le valide.",
+      },
+      {
+        icon: "lock",
+        tag: "Soigné",
+        title: "Soigné dès la conception",
+        text: "Connexion par passkey pour l'équipe, rôles et droits, journal d'audit et vie privée par défaut.",
+      },
+    ],
+    stackLabel: "Outils utilisés",
+    stack: [
+      "Next.js",
+      "React",
+      "TypeScript",
+      "Node.js",
+      "PostgreSQL",
+      "Expo et Android",
+      "Docker",
+      "CI/CD",
+      "Développement assisté par IA",
+    ],
+    cta: "Plus de travaux sur asafarim.com",
+  },
   faq: {
     title: "Questions",
     items: [
       {
         q: "Puis-je déjà commander ?",
         a: "Non. La boutique n'est pas encore ouverte. Elle sera sur igs-pharma.be. D'ici là, votre pharmacie vous accueille comme d'habitude.",
+      },
+      {
+        q: "Y a-t-il un site web ?",
+        a: "Oui. La boutique en ligne d'IGS-Pharma fonctionne déjà et est testée avec des produits inventés. Elle n'est pas encore ouverte. Elle sera sur igs-pharma.be. D'ici là, cette page et l'application montrent ce qui arrive.",
       },
       {
         q: "Puis-je commander des médicaments sur ordonnance ?",
@@ -467,7 +634,7 @@ const fr = {
       },
       {
         q: "Qui est derrière IGS-Pharma ?",
-        a: "IGS-Pharma est construite par ASafariM, pour et avec une pharmacie belge. La pharmacie est le vendeur et votre prestataire de soins. Ses coordonnées (adresse, pharmacien titulaire, numéro d'autorisation) figureront sur la boutique à son ouverture.",
+        a: "IGS-Pharma est construite par Ali Safari (ASafariM), développeur d'applications full-stack propulsé par l'IA, pour et avec une pharmacie belge. La pharmacie est le vendeur et votre prestataire de soins. Ses coordonnées (adresse, pharmacien titulaire, numéro d'autorisation) figureront sur la boutique à son ouverture.",
       },
     ],
   },
@@ -477,6 +644,7 @@ const fr = {
     cookies: "Cookies",
     delete: "Supprimer vos données",
     os: "ASafariM OS",
+    maker: "Construit par ASafariM",
     rights: "ASafariM. IGS-Pharma n'est pas encore ouverte ; ce site ne vend rien.",
     emergency: "Urgence : 112 · Centre Antipoisons : 070 245 245",
   },
@@ -495,7 +663,14 @@ const de = {
   skip: "Zum Inhalt",
   themeLabel: "Dunkles Design",
   langLabel: "Sprache",
-  nav: { what: "Was kommt", app: "Die App", care: "Sorgfältig", plan: "Zeitplan", faq: "Fragen" },
+  nav: {
+    what: "Was kommt",
+    site: "Die Website",
+    app: "Die App",
+    care: "Sorgfältig",
+    plan: "Zeitplan",
+    faq: "Fragen",
+  },
   playSoon: "Bald bei Google Play",
   shopSoon: "Webshop: bald",
   meta: {
@@ -509,6 +684,7 @@ const de = {
     lead: "IGS-Pharma bringt eine belgische Apotheke online. Einen Webshop für rezeptfreie Produkte, bei dem ein Apotheker mitschaut. Und eine kostenlose Android-App, um Produkte zu suchen und Ihre Apotheke zu erreichen.",
     note: "Wir sind noch nicht geöffnet. Sie können noch nichts bestellen.",
     cta: "Die App ansehen",
+    ctaSite: "Website ansehen",
     chips: [
       "NL · FR · DE · EN",
       "Preis inkl. MwSt.",
@@ -683,12 +859,90 @@ const de = {
     privacy: "Datenschutzerklärung",
     delete: "Ihre Daten löschen",
   },
+  site: {
+    title: "Die Website",
+    lead: "Der Webshop ist eine echte, funktionierende Website. Wir testen ihn mit erfundenen Produkten, und er öffnet, wenn die Apotheke bereit ist.",
+    items: [
+      {
+        icon: "speak",
+        title: "In Ihrer Sprache",
+        text: "Niederländisch, Französisch, Deutsch und Englisch, ein helles und ein dunkles Design, und gemacht für Tastatur und Screenreader.",
+      },
+      {
+        icon: "leaflet",
+        title: "Klare Preise und Bestände",
+        text: "Der Preis enthält die MwSt., und der Bestand steht in Worten. Jedes Produkt hat seinen Beipackzettel.",
+      },
+      {
+        icon: "cart",
+        title: "Erst Abholung, dann Lieferung",
+        text: "Holen Sie Ihre Bestellung kostenlos in der Apotheke ab. Die Lieferung nach Hause mit Sendcloud kommt, mit den Kosten vor dem Bezahlen.",
+      },
+      {
+        icon: "pharmacist",
+        title: "Ein Apotheker schaut mit",
+        text: "Eine Bestellung mit einem Arzneimittel prüft ein Apotheker, bevor sie vorbereitet wird.",
+      },
+      {
+        icon: "lock",
+        title: "Ein Backoffice für die Apotheke",
+        text: "Bestand mit Verfallsdaten, Rückrufe, Preise, Bestellungen und Prüfungen, für Mitarbeitende, die sich mit einem Passkey anmelden.",
+      },
+      {
+        icon: "eu",
+        title: "Sorgfältig mit Ihren Daten",
+        text: "In der Europäischen Union gehostet, ohne Tracking, und in der Testphase ein früher Zugang nur auf Einladung.",
+      },
+    ],
+  },
+  maker: {
+    kicker: "Hinter IGS-Pharma",
+    title: "Gebaut von Ali Safari",
+    lead: "Ali (ASafariM) ist ein Full-Stack-App-Entwickler mit KI-Unterstützung. IGS-Pharma zeigt, wie das in der Praxis aussieht: ein Webshop, ein Backoffice für die Apotheke und eine Android-App, von der ersten Idee bis zu einem sorgfältig getesteten Produkt.",
+    items: [
+      {
+        icon: "code",
+        tag: "Full Stack",
+        title: "Vom Bildschirm bis zur Datenbank",
+        text: "Ein Shop in vier Sprachen, ein Backoffice, Hintergrundaufgaben, eine Datenbank mit Prüfprotokoll und eine Android-App, gebaut, um zusammenzuarbeiten.",
+      },
+      {
+        icon: "spark",
+        tag: "KI-gestützt",
+        title: "Schnell, und geprüft",
+        text: "KI-Assistenten helfen beim Schreiben und Testen des Codes. Bei jeder Änderung laufen automatische Tests, und ein Mensch prüft und übernimmt sie.",
+      },
+      {
+        icon: "lock",
+        tag: "Sorgfältig",
+        title: "Sorgfalt im Entwurf",
+        text: "Anmeldung per Passkey für Mitarbeitende, Rollen und Rechte, ein Prüfprotokoll und Datenschutz als Standard.",
+      },
+    ],
+    stackLabel: "Verwendete Werkzeuge",
+    stack: [
+      "Next.js",
+      "React",
+      "TypeScript",
+      "Node.js",
+      "PostgreSQL",
+      "Expo und Android",
+      "Docker",
+      "CI/CD",
+      "KI-gestützte Entwicklung",
+    ],
+    cta: "Mehr Arbeiten auf asafarim.com",
+  },
   faq: {
     title: "Fragen",
     items: [
       {
         q: "Kann ich schon bestellen?",
         a: "Nein. Der Webshop ist noch nicht geöffnet. Er kommt auf igs-pharma.be. Bis dahin ist Ihre Apotheke wie gewohnt für Sie da.",
+      },
+      {
+        q: "Gibt es eine Website?",
+        a: "Ja. Der Webshop von IGS-Pharma funktioniert schon und wird mit erfundenen Produkten getestet. Er ist noch nicht geöffnet. Er kommt auf igs-pharma.be. Bis dahin zeigen diese Seite und die App, was kommt.",
       },
       {
         q: "Kann ich verschreibungspflichtige Arzneimittel bestellen?",
@@ -708,7 +962,7 @@ const de = {
       },
       {
         q: "Wer steckt dahinter?",
-        a: "IGS-Pharma wird von ASafariM gebaut, für und mit einer belgischen Apotheke. Die Apotheke ist der Verkäufer und Ihr Gesundheitsdienstleister. Ihre Angaben (Adresse, Inhaber-Apotheker, Zulassungsnummer) stehen im Webshop, sobald er öffnet.",
+        a: "IGS-Pharma wird von Ali Safari (ASafariM) gebaut, einem Full-Stack-App-Entwickler mit KI-Unterstützung, für und mit einer belgischen Apotheke. Die Apotheke ist der Verkäufer und Ihr Gesundheitsdienstleister. Ihre Angaben (Adresse, Inhaber-Apotheker, Zulassungsnummer) stehen im Webshop, sobald er öffnet.",
       },
     ],
   },
@@ -718,6 +972,7 @@ const de = {
     cookies: "Cookies",
     delete: "Daten löschen",
     os: "ASafariM OS",
+    maker: "Gebaut von ASafariM",
     rights: "ASafariM. IGS-Pharma ist noch nicht geöffnet; diese Website verkauft nichts.",
     emergency: "Notfall: 112 · Giftnotrufzentrale: 070 245 245",
   },
@@ -738,6 +993,7 @@ const en = {
   langLabel: "Language",
   nav: {
     what: "What's coming",
+    site: "The website",
     app: "The app",
     care: "With care",
     plan: "Timeline",
@@ -756,6 +1012,7 @@ const en = {
     lead: "IGS-Pharma brings a Belgian pharmacy online. A webshop for non-prescription products, with a pharmacist looking over it. And a free Android app to look up products and reach your pharmacy.",
     note: "We are not open yet. You can't order anything yet.",
     cta: "See the app",
+    ctaSite: "See the website",
     chips: ["NL · FR · DE · EN", "Price incl. VAT", "In stock", "Ask your pharmacist", "Free app"],
   },
   what: {
@@ -920,12 +1177,90 @@ const en = {
     privacy: "Privacy policy",
     delete: "Delete your data",
   },
+  site: {
+    title: "The website",
+    lead: "The webshop is a real, working website. We test it with invented products and it opens when the pharmacy is ready.",
+    items: [
+      {
+        icon: "speak",
+        title: "In your language",
+        text: "Dutch, French, German and English, a light and a dark theme, and built to be used with a keyboard and a screen reader.",
+      },
+      {
+        icon: "leaflet",
+        title: "Clear prices and stock",
+        text: "The price includes VAT and the stock is told in words. Every product has its leaflet.",
+      },
+      {
+        icon: "cart",
+        title: "Pickup now, delivery next",
+        text: "Collect your order at the pharmacy for free. Home delivery by Sendcloud is coming, with its cost shown before you pay.",
+      },
+      {
+        icon: "pharmacist",
+        title: "A pharmacist looks over it",
+        text: "An order with a medicine is checked by a pharmacist before it is prepared.",
+      },
+      {
+        icon: "lock",
+        title: "A back-office for the pharmacy",
+        text: "Stock with expiry dates, recalls, prices, orders and reviews, for staff who sign in with a passkey.",
+      },
+      {
+        icon: "eu",
+        title: "Careful with your data",
+        text: "Hosted in the European Union, no tracking, and an invitation-only early access while it is in test.",
+      },
+    ],
+  },
+  maker: {
+    kicker: "Behind IGS-Pharma",
+    title: "Built by Ali Safari",
+    lead: "Ali (ASafariM) is a full-stack, AI-powered app developer. IGS-Pharma is what that looks like at work: a webshop, a pharmacy back-office and an Android app, from the first idea to a careful, tested product.",
+    items: [
+      {
+        icon: "code",
+        tag: "Full stack",
+        title: "From screen to database",
+        text: "A storefront in four languages, a back-office, background jobs, a database with an audit trail and an Android app, built to work together.",
+      },
+      {
+        icon: "spark",
+        tag: "AI-powered",
+        title: "Fast, and checked",
+        text: "AI assistants help write and test the code. Automated tests run on every change and a person reviews and merges it.",
+      },
+      {
+        icon: "lock",
+        tag: "Careful",
+        title: "Careful by design",
+        text: "Passkey sign-in for staff, roles and permissions, an audit trail and privacy by default.",
+      },
+    ],
+    stackLabel: "Tools used",
+    stack: [
+      "Next.js",
+      "React",
+      "TypeScript",
+      "Node.js",
+      "PostgreSQL",
+      "Expo and Android",
+      "Docker",
+      "CI/CD",
+      "AI-assisted engineering",
+    ],
+    cta: "More work on asafarim.com",
+  },
   faq: {
     title: "Questions",
     items: [
       {
         q: "Can I order yet?",
         a: "No. The webshop is not open yet. It will be at igs-pharma.be. Until then, your pharmacy is there for you as usual.",
+      },
+      {
+        q: "Is there a website?",
+        a: "Yes. The IGS-Pharma webshop already works and is being tested with invented products. It is not open yet. It will be at igs-pharma.be. Until then, this page and the app show what is coming.",
       },
       {
         q: "Can I order prescription medicines?",
@@ -945,7 +1280,7 @@ const en = {
       },
       {
         q: "Who is behind it?",
-        a: "IGS-Pharma is built by ASafariM, for and with a Belgian pharmacy. The pharmacy is the seller and your healthcare provider. Its details (address, pharmacist-titular, authorisation number) will be on the webshop when it opens.",
+        a: "IGS-Pharma is built by Ali Safari (ASafariM), a full-stack, AI-powered app developer, for and with a Belgian pharmacy. The pharmacy is the seller and your healthcare provider. Its details (address, pharmacist-titular, authorisation number) will be on the webshop when it opens.",
       },
     ],
   },
@@ -955,6 +1290,7 @@ const en = {
     cookies: "Cookies",
     delete: "Delete your data",
     os: "ASafariM OS",
+    maker: "Built by ASafariM",
     rights: "ASafariM. IGS-Pharma is not open yet; this site sells nothing.",
     emergency: "Emergency: 112 · Poison Centre: 070 245 245",
   },

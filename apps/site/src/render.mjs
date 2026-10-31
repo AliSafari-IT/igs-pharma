@@ -5,6 +5,9 @@ import { esc } from "./html.mjs";
 import { phone } from "./phone.mjs";
 
 export const SITE_URL = "https://igs.asafarim.site";
+/** The maker's portfolio, which the home pages link to and describe in their structured data. */
+export const MAKER_URL = "https://asafarim.com/";
+const PERSON_ID = `${MAKER_URL}#ali`;
 
 /** Every page, per language, so the language switch links to the same page in the other languages. */
 export const routes = {
@@ -36,6 +39,9 @@ const ICONS = {
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/><path d="M4 20L20 4"/>',
   speak: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  code: '<path d="M8 8l-5 4 5 4M16 8l5 4-5 4M13.5 5l-3 14"/>',
+  spark:
+    '<path d="M11 3l1.9 5.6L18.5 10.5l-5.6 1.9L11 18l-1.9-5.6L3.5 10.5l5.6-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
 };
 const icon = (name) =>
   `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${ICONS[name] ?? ""}</svg>`;
@@ -87,6 +93,25 @@ function structuredData(t, lang) {
         url: "https://asafarim.site/",
       },
       {
+        "@type": "Person",
+        "@id": PERSON_ID,
+        name: "Ali Safari",
+        alternateName: "ASafariM",
+        url: "https://asafarim.com/",
+        jobTitle: "Full-stack, AI-powered app developer",
+        worksFor: { "@id": "https://asafarim.site/#org" },
+        knowsAbout: [
+          "Full-stack web development",
+          "Next.js",
+          "React",
+          "TypeScript",
+          "Node.js",
+          "PostgreSQL",
+          "Android apps",
+          "AI-assisted software engineering",
+        ],
+      },
+      {
         "@type": "WebSite",
         "@id": `${url}#website`,
         url,
@@ -94,6 +119,7 @@ function structuredData(t, lang) {
         description: t.meta.description,
         inLanguage: t.lang,
         publisher: { "@id": "https://asafarim.site/#org" },
+        creator: { "@id": PERSON_ID },
       },
       {
         "@type": "MobileApplication",
@@ -107,6 +133,7 @@ function structuredData(t, lang) {
         isAccessibleForFree: true,
         offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
         publisher: { "@id": "https://asafarim.site/#org" },
+        creator: { "@id": PERSON_ID },
       },
     ],
   };
@@ -130,6 +157,7 @@ function layout({
   const anchors = nav
     ? `<nav class="nav" aria-label="IGS-Pharma">
         <a href="${home}#what">${esc(t.nav.what)}</a>
+        <a href="${home}#site">${esc(t.nav.site)}</a>
         <a href="${home}#app">${esc(t.nav.app)}</a>
         <a href="${home}#care">${esc(t.nav.care)}</a>
         <a href="${home}#plan">${esc(t.nav.plan)}</a>
@@ -198,6 +226,8 @@ ${body}
         <a href="${routes.cookies[lang]}">${esc(t.footer.cookies)}</a>
         <a href="${routes.deletion[lang]}">${esc(t.footer.delete)}</a>
         <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>
+        <a href="${home}#maker">${esc(t.footer.maker)}</a>
+        <a href="${MAKER_URL}" rel="noopener">asafarim.com</a>
         <a href="https://asafarim.site/">${esc(t.footer.os)}</a>
       </nav>
       ${langSwitch(t, lang, page, "langs langs--footer")}
@@ -243,6 +273,19 @@ function home(t, lang) {
         `<li class="plan-step${i === 0 ? " is-now" : ""}"><span class="plan-dot" aria-hidden="true">${i === 0 ? icon("check") : i + 1}</span><div><span class="tag">${esc(s.status)}</span><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p></div></li>`,
     )
     .join("");
+  const site = t.site.items
+    .map(
+      (it) =>
+        `<li class="feature">${icon(it.icon)}<h3>${esc(it.title)}</h3><p>${esc(it.text)}</p></li>`,
+    )
+    .join("");
+  const maker = t.maker.items
+    .map(
+      (it, i) =>
+        `<li class="offer offer--${i + 1}">${icon(it.icon)}<span class="tag">${esc(it.tag)}</span><h3>${esc(it.title)}</h3><p>${esc(it.text)}</p></li>`,
+    )
+    .join("");
+  const stack = t.maker.stack.map((tool) => `<li>${esc(tool)}</li>`).join("");
   const faq = t.faq.items
     .map(
       (it) =>
@@ -259,7 +302,8 @@ function home(t, lang) {
       <p class="lead">${esc(t.hero.lead)}</p>
       <p class="notice">${esc(t.hero.note)}</p>
       <div class="hero-actions">
-        <a class="btn" href="#app">${esc(t.hero.cta)}</a>
+        <a class="btn" href="#site">${esc(t.hero.ctaSite)}</a>
+        <a class="btn btn--ghost" href="#app">${esc(t.hero.cta)}</a>
         <span class="btn btn--ghost btn--static" aria-disabled="true">${esc(t.playSoon)}</span>
       </div>
     </div>
@@ -278,7 +322,16 @@ function home(t, lang) {
   </div>
 </section>
 
-<section id="app" class="section section--alt">
+<section id="site" class="section section--alt">
+  <div class="wrap">
+    <h2>${esc(t.site.title)}</h2>
+    <p class="lead">${esc(t.site.lead)}</p>
+    <ul class="features">${site}</ul>
+    <p class="notice">${esc(t.hero.note)}</p>
+  </div>
+</section>
+
+<section id="app" class="section">
   <div class="wrap">
     <h2>${esc(a.title)}</h2>
     <p class="lead">${esc(a.lead)}</p>
@@ -295,7 +348,7 @@ function home(t, lang) {
   </div>
 </section>
 
-<section id="care" class="section">
+<section id="care" class="section section--alt">
   <div class="wrap">
     <h2>${esc(t.care.title)}</h2>
     <p class="lead">${esc(t.care.lead)}</p>
@@ -310,11 +363,23 @@ function home(t, lang) {
   </div>
 </section>
 
-<section id="plan" class="section section--alt">
+<section id="plan" class="section">
   <div class="wrap">
     <h2>${esc(t.plan.title)}</h2>
     <p class="lead">${esc(t.plan.lead)}</p>
     <ol class="plan">${plan}</ol>
+  </div>
+</section>
+
+<section id="maker" class="section section--alt">
+  <div class="wrap">
+    <p class="kicker">${esc(t.maker.kicker)}</p>
+    <h2>${esc(t.maker.title)}</h2>
+    <p class="lead">${esc(t.maker.lead)}</p>
+    <ul class="offers">${maker}</ul>
+    <p class="stack-label"><strong>${esc(t.maker.stackLabel)}</strong></p>
+    <ul class="stack">${stack}</ul>
+    <p class="maker-actions"><a class="btn" href="${MAKER_URL}" rel="noopener">${esc(t.maker.cta)}</a> <a class="btn btn--ghost" href="https://asafarim.site/" rel="noopener">${esc(t.footer.os)}</a></p>
   </div>
 </section>
 
