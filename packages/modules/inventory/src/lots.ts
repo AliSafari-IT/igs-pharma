@@ -187,7 +187,7 @@ async function trackedLot(
  * after its product's stock-level row: a reservation takes that row before it reads what is
  * sellable, so a quarantine and a reservation never interleave.
  */
-async function lockLot(ctx: Ctx, lotId: string) {
+export async function lockLot(ctx: Ctx, lotId: string) {
   const [peek] = await ctx.tx
     .select({ productId: lots.productId })
     .from(lots)
@@ -211,7 +211,7 @@ async function lotUnderActiveRecall(tx: Tx, lotId: string): Promise<boolean> {
   return row !== undefined;
 }
 
-const lotOnHand = async (tx: Tx, lotId: string): Promise<number> => {
+export const lotOnHand = async (tx: Tx, lotId: string): Promise<number> => {
   const [row] = await tx
     .select({ onHand: lotLevels.onHand })
     .from(lotLevels)

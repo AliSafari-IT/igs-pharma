@@ -23,6 +23,7 @@ import {
 import { loadRbacCatalogue } from "@igs/module-identity";
 import {
   adjustStock,
+  configureRecallEndGuard,
   endRecall,
   receiveStock,
   registerAuditActions as registerInventoryAudit,
@@ -49,6 +50,7 @@ beforeAll(async () => {
   registerCatalogAudit(registerAuditAction);
   registerInventoryAudit(registerAuditAction);
   registerPricingAudit(registerAuditAction);
+  configureRecallEndGuard(async () => {});
 });
 afterAll(async () => {
   await iso?.drop();

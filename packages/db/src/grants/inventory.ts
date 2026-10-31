@@ -100,5 +100,10 @@ export const inventory: SchemaGrants = {
       note: "trigger function: the recall lifecycle",
       since: 72,
     }),
+    table("inventory.recall_disposals", "mutable", {
+      app: ["SELECT", "INSERT"],
+      note: "what happened to a recall's stock (igs-pharma#189), insert-only by grant; a trigger refuses UPDATE and DELETE",
+      since: 75,
+    }),
   ],
 };

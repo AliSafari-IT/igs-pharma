@@ -15,6 +15,7 @@ export const ORDERS_AUDIT = {
   orderCancelled: "orders.order.cancelled",
   refundRequested: "orders.refund.requested",
   refundStatusRecorded: "orders.refund.status_recorded",
+  recallNoticesRequested: "orders.recall.notices_requested",
 } as const;
 
 /** Ids and counts only (D-028): never the cart token, which opens the cart. */
@@ -96,6 +97,14 @@ const refundStatusRecorded = z.object({
   failureCode: z.string().max(40).nullable(),
 });
 
+/** igs-pharma#189: ids and counts only; never who the customers are. */
+const recallNoticesRequested = z.object({
+  recallId: z.uuid(),
+  productId: z.uuid(),
+  requested: z.number().int().min(0),
+  affected: z.number().int().min(0),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -117,4 +126,5 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(ORDERS_AUDIT.orderCancelled, orderCancelled);
   register(ORDERS_AUDIT.refundRequested, refundRequested);
   register(ORDERS_AUDIT.refundStatusRecorded, refundStatusRecorded);
+  register(ORDERS_AUDIT.recallNoticesRequested, recallNoticesRequested);
 }

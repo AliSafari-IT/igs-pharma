@@ -1,22 +1,32 @@
-import { type Tx, command, conflict, notFound, query } from "@igs/kernel";
+import { type Ctx, type Tx, command, conflict, notFound, query } from "@igs/kernel";
 import { endStopSale, productRefsById, startStopSale } from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { reconcileAllocations } from "./allocations";
 import { INVENTORY_AUDIT } from "./audit";
 import {
   DEFAULT_LOCATION_ID,
+  DISPOSAL_METHODS,
+  type DisposalMethod,
+  MAX_QUANTITY,
   RECALL_LOTS_MAX,
   RECALL_NOTE_MAX,
   RECALL_SOURCES,
   type RecallScope,
   type RecallSource,
 } from "./domain";
-import { lockStock } from "./ledger";
-import { type LotView, lotsOf } from "./lots";
-import { lots, recallLots, recalls } from "./schema";
+import { lockStock, recordMovements } from "./ledger";
+import { type LotView, lockLot, lotOnHand, lotsOf } from "./lots";
+import {
+  lots,
+  recallDisposals,
+  recallLots,
+  recalls,
+  reservationAllocations,
+  reservations,
+} from "./schema";
 
 /**
  * Recalls, part 1 (igs-pharma#187, REQ-SAF-01, milestone 5.1). A pharmacist starts a recall on a
@@ -41,12 +51,107 @@ export interface RecallListItem {
   readonly endedAt: Date | null;
 }
 
+export interface RecallDisposalView {
+  readonly disposalId: string;
+  readonly lotId: string;
+  readonly quantity: number;
+  readonly method: DisposalMethod;
+  readonly note: string | null;
+  readonly recordedById: string;
+  readonly recordedAt: Date;
+}
+
 export interface RecallView extends RecallListItem {
   readonly note: string;
   readonly startedById: string;
   readonly endedById: string | null;
   /** The lots it covers, as they stand now. */
   readonly lots: readonly LotView[];
+  /** What was destroyed or returned, oldest first (igs-pharma#189). */
+  readonly disposals: readonly RecallDisposalView[];
+}
+
+/**
+ * What a recall covers, for the modules that act on it (the orders module lists the affected orders,
+ * igs-pharma#189). `lotIds` are the lots recorded when it started; `null` when it is unknown.
+ */
+export interface RecallCoverage {
+  readonly recallId: string;
+  readonly productId: string;
+  readonly scope: RecallScope;
+  readonly lotIds: readonly string[];
+  readonly startedAt: Date;
+  readonly endedAt: Date | null;
+}
+
+/** The recall's coverage, `null` for an unknown recall. No permission: callers check their own. */
+export async function recallCoverage(tx: Tx, recallId: string): Promise<RecallCoverage | null> {
+  const [row] = await tx
+    .select({
+      recallId: recalls.id,
+      productId: recalls.productId,
+      scope: recalls.scope,
+      startedAt: recalls.startedAt,
+      endedAt: recalls.endedAt,
+    })
+    .from(recalls)
+    .where(eq(recalls.id, recallId));
+  if (!row) return null;
+  const covered = await tx
+    .select({ lotId: recallLots.lotId })
+    .from(recallLots)
+    .where(eq(recallLots.recallId, recallId));
+  return {
+    ...row,
+    scope: row.scope as RecallScope,
+    lotIds: covered.map((lot) => lot.lotId).sort(),
+  };
+}
+
+/**
+ * The holder references of the ORDER reservations picked, or to be picked, from these lots: an
+ * allocation that stands (`active`) or was picked (`consumed`), and one moved off the lots since
+ * `since` (`superseded`): starting a recall quarantines its lots and allocates their orders again, so
+ * the orders that held them at that moment still count. Released shares never left the shelf.
+ */
+export async function orderHoldersOfLots(
+  tx: Tx,
+  lotIds: readonly string[],
+  since: Date,
+): Promise<readonly string[]> {
+  if (lotIds.length === 0) return [];
+  const rows = await tx
+    .selectDistinct({ holderRef: reservations.holderRef })
+    .from(reservationAllocations)
+    .innerJoin(reservations, eq(reservations.id, reservationAllocations.reservationId))
+    .where(
+      and(
+        inArray(reservationAllocations.lotId, [...lotIds]),
+        or(
+          inArray(reservationAllocations.status, ["active", "consumed"]),
+          and(
+            eq(reservationAllocations.status, "superseded"),
+            gte(reservationAllocations.updatedAt, since),
+          ),
+        ),
+        eq(reservations.kind, "order"),
+      ),
+    );
+  return rows.map((row) => row.holderRef).sort();
+}
+
+/**
+ * What must hold before a recall ends, decided outside inventory (igs-pharma#189): the orders module
+ * refuses while an affected order is open or a collected one was never told. Each composition root
+ * that runs `endRecall` installs it once with `configureRecallEndGuard`. Without one, ending is refused
+ * (`inventory.recall_end_guard_missing`): a recall never ends unchecked.
+ */
+export type RecallEndGuard = (ctx: Ctx, recall: RecallCoverage) => Promise<void>;
+
+let endGuard: RecallEndGuard | null = null;
+
+export function configureRecallEndGuard(guard: RecallEndGuard | null): void {
+  endGuard = guard;
 }
 
 /** The most recalls the list shows (active ones first, then the latest ended). */
@@ -178,7 +283,8 @@ export const startRecall = command({
 
 /**
  * Ends an active recall (pharmacist) and lifts its stop-sale. Its lots stay quarantined. Refused for
- * an unknown recall (`inventory.recall_not_found`) or one already ended (`inventory.recall_ended`).
+ * an unknown recall (`inventory.recall_not_found`), one already ended (`inventory.recall_ended`), and
+ * whatever the installed end guard refuses (igs-pharma#189).
  */
 export const endRecall = command({
   name: "inventory.recall.end",
@@ -193,6 +299,9 @@ export const endRecall = command({
       .for("update");
     if (!recall) throw notFound("inventory.recall_not_found");
     if (recall.endedAt) throw conflict("inventory.recall_ended");
+    if (!endGuard) throw conflict("inventory.recall_end_guard_missing");
+    const coverage = await recallCoverage(ctx.tx, recall.id);
+    if (coverage) await endGuard(ctx, coverage);
     await ctx.tx
       .update(recalls)
       .set({ endedAt: ctx.now, endedByType: ctx.actor.type, endedById: ctx.actor.id })
@@ -205,6 +314,90 @@ export const endRecall = command({
       data: { recallId: recall.id, productId: recall.productId },
     });
     return { recallId: recall.id };
+  },
+});
+
+/**
+ * Records that `quantity` units of one of the recall's lots were destroyed or returned to the supplier
+ * (pharmacist, igs-pharma#189): a `disposal` movement takes them out of the lot, and the record keeps
+ * the method. Refused for an unknown recall (`inventory.recall_not_found`), a lot the recall does not
+ * cover (`inventory.lot_not_in_recall`), or more than the lot holds (`inventory.negative_stock`). It
+ * may be recorded while the recall is active or after it ended.
+ */
+export const recordRecallDisposal = command({
+  name: "inventory.recall.dispose",
+  input: z.object({
+    recallId: z.uuid(),
+    lotId: z.uuid(),
+    quantity: z.number().int().min(1).max(MAX_QUANTITY),
+    method: z.enum(DISPOSAL_METHODS),
+    note: z.string().trim().min(1).max(200).optional(),
+  }),
+  output: z.object({
+    disposalId: z.uuid(),
+    movementId: z.uuid(),
+    lotOnHand: z.number().int(),
+  }),
+  permission: PERMISSIONS.inventory.recallsManage,
+  async handler({ input, ctx }) {
+    const [recall] = await ctx.tx
+      .select({ id: recalls.id, productId: recalls.productId })
+      .from(recalls)
+      .where(eq(recalls.id, input.recallId));
+    if (!recall) throw notFound("inventory.recall_not_found");
+    const [covered] = await ctx.tx
+      .select({ lotId: recallLots.lotId })
+      .from(recallLots)
+      .where(and(eq(recallLots.recallId, recall.id), eq(recallLots.lotId, input.lotId)));
+    if (!covered) throw notFound("inventory.lot_not_in_recall");
+    await lockStock(ctx.tx);
+    const lot = await lockLot(ctx, input.lotId);
+    const [movement] = await recordMovements(ctx.tx, ctx, [
+      {
+        productId: lot.productId,
+        lotId: lot.id,
+        delta: -input.quantity,
+        reason: "disposal",
+        ...(input.note ? { note: input.note } : {}),
+      },
+    ]);
+    if (!movement) throw new Error("inventory.disposal_not_stored");
+    const [disposal] = await ctx.tx
+      .insert(recallDisposals)
+      .values({
+        recallId: recall.id,
+        lotId: lot.id,
+        movementId: movement.id,
+        quantity: input.quantity,
+        method: input.method,
+        note: input.note ?? null,
+        recordedByType: ctx.actor.type,
+        recordedById: ctx.actor.id,
+        recordedAt: ctx.now,
+      })
+      .returning({ id: recallDisposals.id });
+    if (!disposal) throw new Error("inventory.disposal_not_stored");
+    await ctx.audit.record({
+      action: INVENTORY_AUDIT.recallDisposed,
+      entityType: "product",
+      entityId: recall.productId,
+      data: {
+        recallId: recall.id,
+        disposalId: disposal.id,
+        movementId: movement.id,
+        productId: recall.productId,
+        lotId: lot.id,
+        quantity: input.quantity,
+        method: input.method,
+      },
+    });
+    // what left the lot no longer counts anywhere (the lot was quarantined: nothing was allocated from it)
+    await reconcileAllocations(ctx, [recall.productId]);
+    return {
+      disposalId: disposal.id,
+      movementId: movement.id,
+      lotOnHand: await lotOnHand(ctx.tx, lot.id),
+    };
   },
 });
 
@@ -279,6 +472,19 @@ export const getRecall = query({
     const covered = (await lotsOf(ctx.tx, [row.productId], ctx.now)).filter((lot) =>
       lotIds.has(lot.lotId),
     );
+    const disposals = await ctx.tx
+      .select({
+        disposalId: recallDisposals.id,
+        lotId: recallDisposals.lotId,
+        quantity: recallDisposals.quantity,
+        method: recallDisposals.method,
+        note: recallDisposals.note,
+        recordedById: recallDisposals.recordedById,
+        recordedAt: recallDisposals.recordedAt,
+      })
+      .from(recallDisposals)
+      .where(eq(recallDisposals.recallId, row.recallId))
+      .orderBy(recallDisposals.recordedAt, recallDisposals.id);
     return {
       ...row,
       scope: row.scope as RecallScope,
@@ -286,6 +492,7 @@ export const getRecall = query({
       cnk: ref?.cnk ?? "",
       nameNl: ref?.nameNl ?? null,
       lots: covered,
+      disposals: disposals.map((d) => ({ ...d, method: d.method as DisposalMethod })),
     };
   },
 });

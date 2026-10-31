@@ -17,12 +17,14 @@ import { loadRbacCatalogue } from "@igs/module-identity";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  configureRecallEndGuard,
   endRecall,
   getRecall,
   getStock,
   listRecalls,
   quarantineLot,
   receiveStock,
+  recordRecallDisposal,
   registerAuditActions,
   releaseLot,
   startRecall,
@@ -38,6 +40,8 @@ beforeAll(async () => {
   await loadRbacCatalogue(iso.db);
   registerCatalogAudit(registerAuditAction);
   registerAuditActions(registerAuditAction);
+  // the orders module's guard is tested there (igs-pharma#189); here a recall ends unchecked
+  configureRecallEndGuard(async () => {});
 });
 afterAll(async () => {
   await iso?.drop();
@@ -305,5 +309,106 @@ describe("the database keeps the record", () => {
     await expect(
       iso.sql`UPDATE catalog.stop_sales SET ended_at = now() WHERE reference_id = ${recallId}`,
     ).rejects.toThrow(/ended/);
+  });
+});
+
+describe("disposal (igs-pharma#189)", () => {
+  it("takes recalled stock out of its lot, by a pharmacist, and keeps the record", async () => {
+    const { productId, a1, a2 } = await recallable();
+    const { recallId } = await startRecall(
+      { productId, lotIds: [a1], source: "famhp", note: "x" },
+      pharmacist,
+    );
+    // only a lot of the recall, only what it holds, only a pharmacist
+    expect(
+      await codeOf(
+        recordRecallDisposal({ recallId, lotId: a2, quantity: 1, method: "destroyed" }, pharmacist),
+      ),
+    ).toBe("inventory.lot_not_in_recall");
+    expect(
+      await codeOf(
+        recordRecallDisposal({ recallId, lotId: a1, quantity: 6, method: "destroyed" }, pharmacist),
+      ),
+    ).toBe("inventory.negative_stock");
+    expect(
+      await codeOf(
+        recordRecallDisposal({ recallId, lotId: a1, quantity: 1, method: "destroyed" }, owner),
+      ),
+    ).toBe("kernel.forbidden");
+
+    const first = await recordRecallDisposal(
+      {
+        recallId,
+        lotId: a1,
+        quantity: 2,
+        method: "returned_to_supplier",
+        note: "Wholesaler ref 9",
+      },
+      pharmacist,
+    );
+    expect(first.lotOnHand).toBe(3);
+    await recordRecallDisposal({ recallId, lotId: a1, quantity: 3, method: "destroyed" }, titular);
+
+    const recall = await getRecall({ recallId }, pharmacist);
+    expect(recall.lots[0]?.onHand).toBe(0);
+    expect(recall.disposals.map((d) => [d.quantity, d.method])).toEqual([
+      [2, "returned_to_supplier"],
+      [3, "destroyed"],
+    ]);
+    const stock = await getStock({ productId }, pharmacist);
+    expect(stock.onHand).toBe(5);
+    expect(stock.movements[0]).toMatchObject({ reason: "disposal", delta: -3 });
+
+    const [audit] = (await actions(productId)).filter(
+      (row) => row.action === "inventory.recall.disposed",
+    );
+    // ids, the quantity and the method: never the note
+    expect(audit?.data).toMatchObject({
+      recallId,
+      lotId: a1,
+      quantity: 2,
+      method: "returned_to_supplier",
+    });
+    expect(JSON.stringify(audit?.data)).not.toContain("Wholesaler");
+
+    await expect(
+      iso.sql`DELETE FROM inventory.recall_disposals WHERE recall_id = ${recallId}`,
+    ).rejects.toThrow();
+  });
+});
+
+describe("the end guard (igs-pharma#189)", () => {
+  it("is asked before a recall ends; without one, a recall never ends", async () => {
+    const { productId, a1 } = await recallable();
+    const { recallId } = await startRecall(
+      { productId, lotIds: [a1], source: "famhp", note: "x" },
+      pharmacist,
+    );
+    try {
+      configureRecallEndGuard(null);
+      expect(await codeOf(endRecall({ recallId }, pharmacist))).toBe(
+        "inventory.recall_end_guard_missing",
+      );
+      const seen: unknown[] = [];
+      configureRecallEndGuard(async (_ctx, coverage) => {
+        seen.push(coverage);
+        throw (await import("@igs/kernel")).conflict("orders.recall_orders_open", { count: "1" });
+      });
+      expect(await codeOf(endRecall({ recallId }, pharmacist))).toBe("orders.recall_orders_open");
+      expect(seen).toEqual([
+        {
+          recallId,
+          productId,
+          scope: "lots",
+          lotIds: [a1],
+          startedAt: expect.any(Date),
+          endedAt: null,
+        },
+      ]);
+      expect((await getRecall({ recallId }, pharmacist)).endedAt).toBeNull();
+    } finally {
+      configureRecallEndGuard(async () => {});
+    }
+    expect(await codeOf(endRecall({ recallId }, pharmacist))).toBe("ok");
   });
 });

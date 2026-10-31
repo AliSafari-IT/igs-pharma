@@ -1,5 +1,6 @@
 import type {
   AdjustReason,
+  DisposalMethod,
   ExpiryState,
   LotTracking,
   MovementReason,
@@ -23,6 +24,7 @@ export const REASON_LABELS: Record<MovementReason, string> = {
   sale: "Sale (picked for an order)",
   receipt: "Received into the web stock",
   return: "Returned to the pharmacy",
+  disposal: "Recalled stock disposed of",
 };
 
 /** A lot as staff read it (igs-pharma#164): its number, or what it is when it has none. */
@@ -173,6 +175,13 @@ const ERRORS: Record<string, string> = {
   "inventory.recall_not_found": "This recall doesn't exist. Reload the page.",
   "inventory.recall_ended": "This recall has already ended.",
   "inventory.recall_lots_missing": "Choose at least one lot, or recall every lot.",
+  "inventory.lot_not_in_recall": "This lot is not part of this recall.",
+  "inventory.recall_end_guard_missing":
+    "The recall can't be ended right now: the order check isn't available. Try again or contact support.",
+  "orders.recall_orders_open":
+    "Some affected orders are still open. Cancel them (they are refunded) or wait until they are collected, then end the recall.",
+  "orders.recall_notices_missing":
+    "Some customers who collected an affected order haven't been told yet. Send the notice first.",
   "inventory.stock_not_sellable":
     "The stock left for this order can't be sold (quarantined, too close to expiry, or its lot not recorded).",
   "inventory.allocation_short":
@@ -200,6 +209,17 @@ export const RECALL_SOURCE_LABELS: Record<RecallSource, string> = {
   manufacturer: "Manufacturer or marketing authorisation holder",
   wholesaler: "Wholesaler",
   pharmacy: "This pharmacy",
+};
+
+/** How recalled stock left (igs-pharma#189). A type-only copy of `DISPOSAL_METHODS`. */
+export const DISPOSAL_METHOD_OPTIONS = [
+  "destroyed",
+  "returned_to_supplier",
+] as const satisfies readonly DisposalMethod[];
+
+export const DISPOSAL_METHOD_LABELS: Record<DisposalMethod, string> = {
+  destroyed: "Destroyed",
+  returned_to_supplier: "Returned to the supplier or wholesaler",
 };
 
 export const RECALL_SCOPE_LABELS: Record<RecallScope, string> = {
