@@ -10,6 +10,7 @@ export {
 } from "./rbac";
 export {
   FRESH_MFA_MS,
+  requireFreshMfa,
   SECURITY_EVENTS,
   type SecurityEventInput,
   type SecurityEventType,

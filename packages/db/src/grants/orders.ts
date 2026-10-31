@@ -117,5 +117,10 @@ export const orders: SchemaGrants = {
       note: "trigger function: pending → sent or skipped",
       since: 61,
     }),
+    table("orders.delivery_settings", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "one row: the home-delivery price and the free-delivery value staff set (igs-pharma#202); never deleted",
+      since: 80,
+    }),
   ],
 };

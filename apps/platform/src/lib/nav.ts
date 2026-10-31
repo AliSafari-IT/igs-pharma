@@ -49,6 +49,11 @@ export const NAV: readonly NavGroup[] = [
         href: "/early-access",
         permission: PERMISSIONS.storefront.earlyAccessManage,
       },
+      {
+        label: "Delivery",
+        href: "/settings/delivery",
+        permission: PERMISSIONS.orders.deliverySettingsManage,
+      },
       // no permission: every signed-in staff member has an account page
       { label: "Your account", href: "/account" },
     ],
