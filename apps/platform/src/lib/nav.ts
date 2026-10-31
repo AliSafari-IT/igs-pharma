@@ -18,9 +18,14 @@ export interface NavGroup {
 }
 
 export const NAV: readonly NavGroup[] = [
+  // the OS look (igs-pharma#197): three groups, the daily work first
   {
-    label: "Orders",
-    items: [{ label: "Orders", href: "/orders", permission: PERMISSIONS.orders.read }],
+    label: "Shop",
+    items: [
+      { label: "Orders", href: "/orders", permission: PERMISSIONS.orders.read },
+      { label: "Stock", href: "/stock", permission: PERMISSIONS.inventory.stockRead },
+      { label: "Recalls", href: "/recalls", permission: PERMISSIONS.inventory.stockRead },
+    ],
   },
   {
     label: "Catalogue",
@@ -30,14 +35,7 @@ export const NAV: readonly NavGroup[] = [
     ],
   },
   {
-    label: "Stock",
-    items: [
-      { label: "Stock", href: "/stock", permission: PERMISSIONS.inventory.stockRead },
-      { label: "Recalls", href: "/recalls", permission: PERMISSIONS.inventory.stockRead },
-    ],
-  },
-  {
-    label: "Privacy",
+    label: "Admin",
     items: [
       {
         label: "Data requests",
@@ -45,15 +43,10 @@ export const NAV: readonly NavGroup[] = [
         permission: PERMISSIONS.privacy.dsrRead,
       },
       { label: "Consents", href: "/privacy/consents", permission: PERMISSIONS.privacy.consentRead },
+      { label: "Staff", href: "/staff", permission: PERMISSIONS.staff.manage },
+      // no permission: every signed-in staff member has an account page
+      { label: "Your account", href: "/account" },
     ],
-  },
-  {
-    label: "Staff",
-    items: [{ label: "Staff", href: "/staff", permission: PERMISSIONS.staff.manage }],
-  },
-  {
-    label: "Account",
-    items: [{ label: "Your account", href: "/account" }],
   },
 ];
 

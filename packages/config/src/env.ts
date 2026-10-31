@@ -155,6 +155,22 @@ export const uiGalleryEnv = z.object({
   UI_GALLERY: z.preprocess((v) => (v === "" ? undefined : v), z.enum(["on", "off"]).optional()),
 });
 
+/**
+ * Which deployment this is (igs-pharma#197, milestone 5.2): `staging|production`. The back-office
+ * shows a "Staging" badge only when it is exactly `staging`: unset or anything else shows nothing,
+ * so production never carries the badge by mistake. Not a secret.
+ */
+export const deployStageEnv = z.object({
+  DEPLOY_STAGE: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["staging", "production"]).optional(),
+  ),
+});
+
+/** Whether this deployment is staging (the back-office badge). */
+export const isStaging = (env: z.output<typeof deployStageEnv>): boolean =>
+  env.DEPLOY_STAGE === "staging";
+
 /** Whether platform serves `/dev/ui` (otherwise it is a 404). */
 export function uiGalleryEnabled(
   env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof uiGalleryEnv>,

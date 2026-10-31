@@ -23,28 +23,24 @@ describe("visibleNav", () => {
       PERMISSIONS.staff.manage,
     );
     expect(labels(visibleNav([], all))).toEqual([
-      "Orders: Orders",
+      "Shop: Orders, Stock, Recalls",
       "Catalogue: Products, Categories",
-      "Stock: Stock, Recalls",
-      "Privacy: Data requests, Consents",
-      "Staff: Staff",
-      "Account: Your account",
+      "Admin: Data requests, Consents, Staff, Your account",
     ]);
   });
 
   it("leaves out an item without its permission, and a group with no item left", () => {
     expect(labels(visibleNav([], holding(PERMISSIONS.catalog.productsRead)))).toEqual([
       "Catalogue: Products, Categories",
-      "Account: Your account",
+      "Admin: Your account",
     ]);
     expect(labels(visibleNav([], holding(PERMISSIONS.privacy.consentRead)))).toEqual([
-      "Privacy: Consents",
-      "Account: Your account",
+      "Admin: Consents, Your account",
     ]);
   });
 
   it("always keeps the account page, which needs no permission", () => {
-    expect(labels(visibleNav([], holding()))).toEqual(["Account: Your account"]);
+    expect(labels(visibleNav([], holding()))).toEqual(["Admin: Your account"]);
   });
 
   it("lists every page once (no link appears in two groups)", () => {

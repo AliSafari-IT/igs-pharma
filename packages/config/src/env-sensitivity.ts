@@ -42,6 +42,7 @@ export const ENV_SENSITIVITY = {
   STOREFRONT_URL: "not-sensitive",
   CSP_REPORTING: "not-sensitive",
   UI_GALLERY: "not-sensitive",
+  DEPLOY_STAGE: "not-sensitive", // staging | production: the back-office badge
   SITE_GATE: "not-sensitive",
   STOREFRONT_LOW_STOCK_THRESHOLD: "not-sensitive",
   IGS_ALLOW_SYNTHETIC_SEED: "not-sensitive",
