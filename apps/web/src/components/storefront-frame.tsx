@@ -10,7 +10,6 @@ import type { ReactNode } from "react";
 import type { ContentLocale } from "@igs/module-catalog";
 import { EARLY_ACCESS_HEADER, GATE_HEADER } from "../early-access";
 import { hasCustomerSessionCookie } from "../lib/account-area";
-import { PREVIEW_HEADER } from "../preview";
 import { cartItemCount } from "../server/cart";
 import { categoryTree } from "../server/storefront";
 import { BrandIcon } from "./brand";
@@ -179,7 +178,6 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
     );
   }
   const t = await getTranslations({ locale, namespace: "storefront" });
-  const preview = requestHeaders.get(PREVIEW_HEADER) === "1";
   const early = requestHeaders.get(EARLY_ACCESS_HEADER) === "1";
   const theme = themeFromCookie((await cookies()).get(THEME_COOKIE)?.value);
   const signedIn = hasCustomerSessionCookie(requestHeaders.get("cookie"));
@@ -209,18 +207,6 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
       >
         {t("skipToContent")}
       </a>
-      {preview ? (
-        <div
-          role="note"
-          data-testid="preview-banner"
-          className="bg-[var(--color-accent)] px-4 py-2 text-center text-sm font-semibold text-[var(--color-text)]"
-        >
-          {t("previewBanner")} ·{" "}
-          <a href="/preview/end" className="underline underline-offset-2">
-            {t("previewEnd")}
-          </a>
-        </div>
-      ) : null}
       {early ? (
         <div
           role="note"

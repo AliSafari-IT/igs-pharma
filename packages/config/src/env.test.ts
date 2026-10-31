@@ -14,7 +14,6 @@ import {
   parseEnv,
   parseEnvFor,
   paymentsEnv,
-  previewSecrets,
   siteGateEnabled,
   siteGateEnv,
   storefrontEnv,
@@ -312,33 +311,6 @@ describe("syntheticSeedAllowed (igs-pharma#50)", () => {
 
   it("accepts only 1", () => {
     expect(() => allowed({ NODE_ENV: "production", IGS_ALLOW_SYNTHETIC_SEED: "true" })).toThrow();
-  });
-});
-
-describe("previewSecrets (igs-pharma#62)", () => {
-  const KEY = "k".repeat(32);
-  const SECRET = "s".repeat(32);
-
-  it("returns the key and the signing secret when both are set", () => {
-    expect(previewSecrets({ IGS_PREVIEW_KEY: KEY, AUTH_SECRET: SECRET })).toEqual({
-      key: KEY,
-      secret: SECRET,
-    });
-  });
-
-  it("is off, never an error, when the key is unset, empty or too short", () => {
-    for (const IGS_PREVIEW_KEY of [undefined, "", "short", "k".repeat(31)]) {
-      expect(
-        previewSecrets({ IGS_PREVIEW_KEY, AUTH_SECRET: SECRET }),
-        String(IGS_PREVIEW_KEY),
-      ).toBe(null);
-    }
-  });
-
-  it("is off without a usable AUTH_SECRET: nothing could sign the cookie", () => {
-    for (const AUTH_SECRET of [undefined, "", "short"]) {
-      expect(previewSecrets({ IGS_PREVIEW_KEY: KEY, AUTH_SECRET }), String(AUTH_SECRET)).toBe(null);
-    }
   });
 });
 
