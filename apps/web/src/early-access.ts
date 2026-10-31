@@ -41,6 +41,13 @@ export const EARLY_ACCESS_HEADER = "x-igs-early-access";
  */
 export const GATE_HEADER = "x-igs-gate";
 
+/**
+ * Where the pass route sends the browser back to after a re-check the proxy asked for: set by the
+ * proxy on the rewritten request (a rewritten request keeps the URL the browser asked for, so the
+ * route cannot read it from its own query). The proxy deletes any value the client sent.
+ */
+export const RETURN_HEADER = "x-igs-pass-return";
+
 /** The pass cookie: HttpOnly, Secure and SameSite=Lax, for this site only. */
 export const PASS_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -129,15 +136,38 @@ export function verifyPass(
   return { userId, fresh: expires > seconds };
 }
 
+/** Characters a path segment or query may carry as they are: unreserved, sub-delims, `%XX`. */
+const SEGMENT = /^(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-Fa-f]{2})+$/;
+const QUERY = /^(?:[A-Za-z0-9._~!$&'()*+,;=:@/?-]|%[0-9A-Fa-f]{2})*$/;
+
 /**
- * Where to go after a pass was issued: a storefront page path (`/nl`, `/fr/p/123`), never an address,
- * a protocol-relative `//host`, a backslash trick or a query. Anything else is the home page.
+ * Where to go after a pass was issued: the storefront URL the visitor asked for (`/nl`,
+ * `/fr/p/123`, `/nl/search?q=…`, percent-encoded segments included). Never an address, a
+ * protocol-relative `//host`, a backslash trick, a fragment, or a dot segment, also once decoded
+ * (`%2e%2e`, `%2f`). Anything else is the home page.
  */
 export function safeReturnPath(value: string | null | undefined): string {
-  if (typeof value !== "string" || value.length > 200) return "/";
-  if (!/^\/(?:[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*\/?)?$/.test(value)) return "/";
-  // no dot segments: what the browser resolves must be what was checked
-  return value.split("/").some((segment) => segment === "." || segment === "..") ? "/" : value;
+  if (typeof value !== "string" || value.length > 500 || !value.startsWith("/")) return "/";
+  const queryAt = value.indexOf("?");
+  const path = queryAt === -1 ? value : value.slice(0, queryAt);
+  const query = queryAt === -1 ? "" : value.slice(queryAt + 1);
+  if (!QUERY.test(query)) return "/";
+  if (path === "/") return value;
+  const segments = path.slice(1).split("/");
+  // a trailing slash leaves one empty last segment; an empty one anywhere else is `//`
+  if (segments.at(-1) === "") segments.pop();
+  for (const segment of segments) {
+    if (!SEGMENT.test(segment)) return "/";
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      return "/";
+    }
+    // what the browser and the router resolve must be what was checked
+    if (decoded === "." || decoded === ".." || /[/\\]/.test(decoded)) return "/";
+  }
+  return value;
 }
 
 /**

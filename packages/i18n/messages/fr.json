@@ -355,7 +355,7 @@
   },
   "earlyAccess": {
     "title": "Accès anticipé",
-    "intro": "La boutique en ligne d'IGS-Pharma ouvre bientôt. Avec un accès anticipé, vous pouvez déjà la voir et commander, avec votre propre compte.",
+    "intro": "La boutique en ligne d'IGS-Pharma ouvre bientôt. Avec un accès anticipé, vous pouvez déjà la voir, avec votre propre compte.",
     "signedOut": "Connectez-vous pour demander un accès anticipé. Pas encore de compte ? Créez-en un d'abord.",
     "createAccount": "Créer un compte",
     "afterSignUp": "Après avoir confirmé votre adresse e-mail, connectez-vous et revenez sur cette page.",

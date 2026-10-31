@@ -95,10 +95,22 @@ describe("sessionCookieValue", () => {
 });
 
 describe("safeReturnPath", () => {
-  it("keeps storefront paths only", () => {
-    for (const ok of ["/", "/nl", "/fr/p/1234567", "/de/c/pijn-en-koorts/", "/en/search"]) {
+  it("keeps the storefront URL asked for, query and percent-encoding included", () => {
+    for (const ok of [
+      "/",
+      "/nl",
+      "/fr/p/1234567",
+      "/de/c/pijn-en-koorts/",
+      "/en/search",
+      "/fr/search?q=aspirine&page=2",
+      "/nl/c/%73hoes",
+      "/nl/search?q=cr%C3%A8me",
+    ]) {
       expect(safeReturnPath(ok), ok).toBe(ok);
     }
+  });
+
+  it("refuses anything that could leave the site or resolve elsewhere than checked", () => {
     for (const bad of [
       null,
       undefined,
@@ -106,12 +118,17 @@ describe("safeReturnPath", () => {
       "nl",
       "//evil.example",
       "/\\evil.example",
+      "/%5Cevil.example",
       "https://evil.example/",
-      "/nl?x=1",
       "/nl#x",
+      "/nl?q=a b",
       "/nl/../x",
       "/./nl",
-      `/${"a".repeat(250)}`,
+      "/nl/%2e%2e/x",
+      "/nl/%2F%2Fevil",
+      "/nl/%zz",
+      "/nl//x",
+      `/${"a".repeat(600)}`,
     ]) {
       expect(safeReturnPath(bad), String(bad)).toBe("/");
     }

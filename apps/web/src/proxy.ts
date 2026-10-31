@@ -19,16 +19,12 @@ import {
   GATE_HEADER,
   PASS_COOKIE,
   PASS_PATH,
+  RETURN_HEADER,
   passSecret,
   sessionCookieValue,
   verifyPass,
 } from "./early-access";
-import {
-  PREVIEW_COOKIE,
-  PREVIEW_COOKIE_OPTIONS,
-  PREVIEW_HEADER,
-  verifyPreviewCookie,
-} from "./preview";
+import { PREVIEW_COOKIE, PREVIEW_HEADER, verifyPreviewCookie } from "./preview";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -143,6 +139,7 @@ export default function proxy(request: NextRequest) {
   request.headers.delete(PREVIEW_HEADER);
   request.headers.delete(EARLY_ACCESS_HEADER);
   request.headers.delete(GATE_HEADER);
+  request.headers.delete(RETURN_HEADER);
 
   const { pathname } = request.nextUrl;
   const gated = siteGateEnabled(parseEnvFor(gateEnv));
@@ -155,14 +152,16 @@ export default function proxy(request: NextRequest) {
   const preview =
     gated && verifyPreviewCookie(secrets, request.cookies.get(PREVIEW_COOKIE)?.value, now);
   // igs-pharma#199: a pass is only worth anything with the session cookie it was issued for
-  const pass = gated
-    ? verifyPass(
-        passSecret(process.env),
-        request.cookies.get(PASS_COOKIE)?.value,
-        sessionCookieValue((name) => request.cookies.get(name)?.value),
-        now,
-      )
-    : null;
+  // only while customer accounts are on: without them nobody can be signed in to hold a pass
+  const pass =
+    gated && getFeatureFlags().customerAccounts
+      ? verifyPass(
+          passSecret(process.env),
+          request.cookies.get(PASS_COOKIE)?.value,
+          sessionCookieValue((name) => request.cookies.get(name)?.value),
+          now,
+        )
+      : null;
   const early = pass?.fresh === true;
   const passed = preview || early;
   const navigation = request.method === "GET" || request.method === "HEAD";
@@ -171,8 +170,10 @@ export default function proxy(request: NextRequest) {
   } else if (gated && secrets && pathname === PREVIEW_END_PATH) {
     // leaving the preview: drop the cookie and land on whatever the public sees. With no key
     // configured this path is just another closed URL (no hint that a preview exists, #91)
-    response = new NextResponse(null, { status: 307, headers: { location: "/" } });
-    response.cookies.set({ name: PREVIEW_COOKIE, value: "", ...PREVIEW_COOKIE_OPTIONS, maxAge: 0 });
+    // configured this path is just another closed URL (no hint that a preview exists, #91). The
+    // route handler answers (`src/app/preview/end/route.ts`): the proxy cannot send a relative
+    // Location, and one built from `request.url` would carry the container's address (#199)
+    response = NextResponse.next({ request });
   } else if (gated && !passesGate(pathname, preview) && pathname.startsWith(MOBILE_API_PREFIX)) {
     // the Android app reads JSON: it gets a code it can show as "opens soon", and still no data. A
     // browser pass does not open it (#199, decision 1)
@@ -184,12 +185,12 @@ export default function proxy(request: NextRequest) {
       ? NextResponse.next({ request })
       : handleI18nRouting(request);
   } else if (gated && !passed && pass && navigation && !pathname.startsWith("/api/")) {
-    // a pass that ran out (#199): back to the pass route for a fresh database check, then here again.
-    // Only someone who held a pass gets this; a relative Location, never built from request.url
-    response = new NextResponse(null, {
-      status: 307,
-      headers: { location: `${PASS_PATH}?next=${encodeURIComponent(pathname)}` },
-    });
+    // a pass that ran out (#199): the pass route re-checks the grant in the database and answers in
+    // place of the page: a fresh pass and a 303 back to this very URL, or the early-access page.
+    // Only someone who held a pass gets this. A rewrite, not a redirect: the proxy cannot send a
+    // relative Location, and one built from `request.url` would carry the container's address
+    request.headers.set(RETURN_HEADER, `${pathname}${request.nextUrl.search}`);
+    response = NextResponse.rewrite(new URL(PASS_PATH, request.url), { request });
   } else if (gated && !passesGate(pathname, passed)) {
     // every other URL renders the static page in place (no redirect: nothing to follow or index)
     response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });

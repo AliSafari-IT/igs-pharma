@@ -8,6 +8,7 @@ await vi.hoisted(async () => {
   Object.assign(globalThis, { AsyncLocalStorage });
 });
 
+import { GET as endPreview } from "../src/app/preview/end/route";
 import { POST as postPreview } from "../src/app/preview/route";
 import { PREVIEW_COOKIE, PREVIEW_HEADER, createPreviewCookie } from "../src/preview";
 import proxy, { COMING_SOON_PATH, PREVIEW_FORM_PATH } from "../src/proxy";
@@ -185,15 +186,21 @@ describe("the preview cookie", () => {
 });
 
 describe("/preview/end", () => {
-  it("clears the cookie and sends the visitor to the public face", () => {
+  it("goes to its route handler, which clears the cookie with a relative 303 to / (#199)", () => {
     configure({ IGS_PREVIEW_KEY: KEY });
     const res = call("/preview/end", {
       cookie: createPreviewCookie(secrets, Date.now()),
     });
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("/");
-    expect(setCookie(res)).toContain(`${PREVIEW_COOKIE}=;`);
-    expect(setCookie(res)).toContain("Max-Age=0");
+    expect(closed(res)).toBe(false);
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+    // the proxy itself never sends a Location: it cannot be relative there (Invalid URL in next start)
+    expect(res.headers.get("location")).toBeNull();
+
+    const end = endPreview();
+    expect(end.status).toBe(303);
+    expect(end.headers.get("location")).toBe("/");
+    expect(setCookie(end)).toContain(`${PREVIEW_COOKIE}=;`);
+    expect(setCookie(end)).toContain("Max-Age=0");
   });
 
   it("with no key configured, reveals nothing: coming-soon, no cookie change (#91)", () => {

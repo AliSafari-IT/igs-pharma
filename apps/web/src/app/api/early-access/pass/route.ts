@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import {
   PASS_COOKIE,
   PASS_COOKIE_OPTIONS,
+  RETURN_HEADER,
   createPass,
   passSecret,
   safeReturnPath,
@@ -14,7 +15,7 @@ import {
 } from "../../../../early-access";
 import { EARLY_ACCESS_LIMITS, type EarlyAccessResult } from "../../../../lib/early-access-area";
 import { currentCustomer, requestOrigin } from "../../../../server/customer";
-import { withinLimits } from "../../../../server/early-access";
+import { ipKey, withinLimits } from "../../../../server/early-access";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,8 @@ function withoutPass(response: NextResponse): NextResponse {
 }
 
 /**
- * `GET /api/early-access/pass?next=/nl/…` (igs-pharma#199): issues or refreshes the early-access pass.
+ * `GET /api/early-access/pass?next=/nl/…` (igs-pharma#199), or a page view the proxy hands over
+ * when a pass ran out: issues or refreshes the early-access pass.
  * The grant is read from the database (`issueEarlyAccessPass`, audited) on every call; the pass is
  * bound to the caller's session cookie and lives 15 minutes at most. Granted: the pass and a 303 to
  * `next` (a storefront path only). Otherwise the pass is cleared and the visitor lands on the
@@ -47,7 +49,10 @@ function withoutPass(response: NextResponse): NextResponse {
  * sends a browser here when its pass runs out; it changes nothing but the caller's own cookie.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const next = safeReturnPath(request.nextUrl.searchParams.get("next"));
+  // the proxy's re-check (a rewrite) names the page in a header; a link names it in `?next=`
+  const next = safeReturnPath(
+    request.headers.get(RETURN_HEADER) ?? request.nextUrl.searchParams.get("next"),
+  );
   if (!siteGateEnabled(parseEnvFor(appEnv.extend(siteGateEnv.shape)))) {
     // the shop is open to everyone: no pass needed
     return withoutPass(seeOther(next));
@@ -64,7 +69,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       limit: EARLY_ACCESS_LIMITS.passPerUser,
     },
     {
-      key: origin.ip ? `igs:early-access:pass:ip:${origin.ip}` : null,
+      key: ipKey("pass", origin.ip),
       limit: EARLY_ACCESS_LIMITS.passPerIp,
     },
   ]);

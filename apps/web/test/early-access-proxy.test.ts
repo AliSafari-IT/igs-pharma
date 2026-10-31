@@ -14,6 +14,7 @@ import {
   PASS_COOKIE,
   PASS_PATH,
   PASS_TTL_S,
+  RETURN_HEADER,
   createPass,
 } from "../src/early-access";
 import proxy, { COMING_SOON_PATH } from "../src/proxy";
@@ -98,19 +99,25 @@ describe("a valid pass", () => {
     expect(forwarded(open, EARLY_ACCESS_HEADER)).toBeNull();
 
     configure();
-    const spoofed = call("/nl", { headers: { [EARLY_ACCESS_HEADER]: "1", [GATE_HEADER]: "open" } });
+    const spoofed = call("/nl", {
+      headers: { [EARLY_ACCESS_HEADER]: "1", [GATE_HEADER]: "open", [RETURN_HEADER]: "/x" },
+    });
     expect(closed(spoofed)).toBe(true);
     expect(forwarded(spoofed, EARLY_ACCESS_HEADER)).toBeNull();
+    expect(forwarded(spoofed, RETURN_HEADER)).toBeNull();
   });
 });
 
 describe("a pass that ran out", () => {
-  it("sends a page view to the pass route for a re-check, with a RELATIVE Location", () => {
+  it("hands a page view to the pass route for a re-check, query kept; never a redirect", () => {
     configure();
-    const res = call("/fr/p/1234567", { pass: stale(), session: SESSION });
-    expect(res.status).toBe(307);
-    // never `http://0.0.0.0:3000/…`: the browser resolves it against the public address
-    expect(res.headers.get("location")).toBe(`${PASS_PATH}?next=%2Ffr%2Fp%2F1234567`);
+    const res = call("/fr/search?q=aspirine&page=2", { pass: stale(), session: SESSION });
+    // a rewrite: the proxy cannot send a relative Location, and an absolute one would carry the
+    // container's address (`0.0.0.0:3000`); the pass route answers with a relative 303 instead
+    expect(res.headers.get("location")).toBeNull();
+    expect(new URL(res.headers.get("x-middleware-rewrite") ?? "").pathname).toBe(PASS_PATH);
+    // a rewritten request keeps the URL asked for: the page to return to travels in a header
+    expect(forwarded(res, RETURN_HEADER)).toBe("/fr/search?q=aspirine&page=2");
   });
 
   it("anything that is not a page view just gets the coming-soon page", () => {
@@ -138,8 +145,14 @@ describe("the way in while the shop is closed", () => {
       const res = call(path);
       expect(closed(res), path).toBe(false);
       expect(res.headers.get("x-robots-tag"), path).toBe("noindex, nofollow");
+      if (path === "/early-access") {
+        // no locale yet: next-intl's usual redirect to the visitor's language comes first
+        expect(res.headers.get("location"), path).toMatch(/\/nl\/early-access$/);
+      } else {
+        // every page renders in the frame that shows nothing of the shop
+        expect(forwarded(res, GATE_HEADER), path).toBe("closed");
+      }
     }
-    expect(forwarded(call("/nl/early-access"), GATE_HEADER)).toBe("closed");
   });
 
   it("the customer sign-in API and the pass route are reachable too", () => {
@@ -164,6 +177,12 @@ describe("the way in while the shop is closed", () => {
     configure({ NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "false" });
     for (const path of [...WAY_IN, "/api/auth/sign-in/email", PASS_PATH]) {
       expect(closed(call(path)), path).toBe(true);
+    }
+    // nobody can hold a pass without accounts: an old one opens nothing and is never re-checked
+    for (const pass of [fresh(), stale()]) {
+      const res = call("/nl", { pass, session: SESSION });
+      expect(closed(res)).toBe(true);
+      expect(forwarded(res, EARLY_ACCESS_HEADER)).toBeNull();
     }
   });
 });

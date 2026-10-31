@@ -11,7 +11,7 @@ import {
 } from "../../../lib/early-access-area";
 import { accountLocale } from "../../../server/account";
 import { requestOrigin, requireCustomer } from "../../../server/customer";
-import { withinLimits } from "../../../server/early-access";
+import { ipKey, withinLimits } from "../../../server/early-access";
 
 /**
  * Asks for early access, or updates the note of the open request (igs-pharma#199). Acts on the
@@ -33,7 +33,7 @@ export async function askForEarlyAccess(form: FormData): Promise<void> {
       limit: EARLY_ACCESS_LIMITS.requestPerUser,
     },
     {
-      key: origin.ip ? `igs:early-access:request:ip:${origin.ip}` : null,
+      key: ipKey("request", origin.ip),
       limit: EARLY_ACCESS_LIMITS.requestPerIp,
     },
   ]);
