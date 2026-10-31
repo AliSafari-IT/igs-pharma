@@ -294,10 +294,11 @@ test("staff without the permission cannot see or decide early access", async ({
  * customer accounts ON. `NEXT_PUBLIC_*` flags are fixed at build time and the smoke build keeps them
  * off (`customer-accounts.spec.ts` asserts that), so this runs against one you start yourself:
  * `SMOKE_EARLY_ACCESS_URL=http://localhost:3002 pnpm exec playwright test early-access`.
+ * The smoke config leaves it out by its tag (`grepInvert`), as the smoke run fails on any skipped test.
  */
 const STOREFRONT = process.env["SMOKE_EARLY_ACCESS_URL"];
 
-test.describe("the storefront side (needs SMOKE_EARLY_ACCESS_URL)", () => {
+test.describe("the storefront side (needs SMOKE_EARLY_ACCESS_URL) @early-access-storefront", () => {
   test.skip(
     !STOREFRONT,
     "set SMOKE_EARLY_ACCESS_URL to a closed storefront built with accounts on",
@@ -364,6 +365,8 @@ test.describe("the storefront side (needs SMOKE_EARLY_ACCESS_URL)", () => {
       .click();
     await back.getByRole("dialog").getByRole("button", { name: "End access" }).click();
     await expect(back.getByTestId("early-access-history").getByRole("row", { name })).toBeVisible();
+    // an address of its own: the pass route's per-address limit must not carry over between runs
+    await customer.setExtraHTTPHeaders({ "x-forwarded-for": `198.51.100.${Date.now() % 250}` });
     await page.goto(`${shop}/api/early-access/pass?next=/nl`);
     await expect(page.getByTestId("early-access-result-passRefused")).toBeVisible();
     await page.goto(`${shop}/nl`);
