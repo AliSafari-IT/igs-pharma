@@ -154,7 +154,9 @@ function Outcome({ item }: { readonly item: EarlyAccessListItem }) {
     item.status === "approved" ? "Expired" : item.status === "rejected" ? "Rejected" : "Revoked";
   return (
     <span className="flex flex-col gap-1">
-      <Badge variant={item.status === "approved" ? "neutral" : "error"}>{label}</Badge>
+      <Badge variant={item.status === "approved" ? "neutral" : "error"} className="self-start">
+        {label}
+      </Badge>
       {item.decisionReason ? (
         <span className="whitespace-pre-line text-sm">{item.decisionReason}</span>
       ) : null}

@@ -98,7 +98,11 @@ export function EarlyAccessDialog({ intent, requestId, name, label }: Props) {
       <Button
         size="sm"
         variant={intent === "approve" ? "primary" : "secondary"}
-        onClick={() => dialog.current?.showModal()}
+        onClick={() => {
+          dialog.current?.showModal();
+          // showModal focuses the first field; the safe choice has the focus instead (#199)
+          dialog.current?.querySelector<HTMLButtonElement>("[data-cancel]")?.focus();
+        }}
         data-testid={`early-access-${intent}-${requestId}`}
       >
         {label}
@@ -171,7 +175,7 @@ export function EarlyAccessDialog({ intent, requestId, name, label }: Props) {
               <Button
                 type="button"
                 variant="ghost"
-                autoFocus
+                data-cancel
                 onClick={() => dialog.current?.close()}
               >
                 Cancel
