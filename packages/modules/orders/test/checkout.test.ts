@@ -311,6 +311,8 @@ describe("placing the order", () => {
       orderId: placed.orderId,
       checkoutId,
       totalCents,
+      deliveryMethod: "pickup",
+      deliveryFeeCents: 0,
       replay: false,
     });
     expect(JSON.stringify(events)).not.toContain("example.be");

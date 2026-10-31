@@ -13,7 +13,13 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { MAX_DELIVERY_PRICE_CENTS, MAX_FREE_FROM_CENTS } from "./delivery-domain";
+import {
+  BE_POSTAL_CODE_PATTERN,
+  DELIVERY_COUNTRY,
+  DELIVERY_METHODS,
+  MAX_DELIVERY_PRICE_CENTS,
+  MAX_FREE_FROM_CENTS,
+} from "./delivery-domain";
 import {
   CHECKOUT_STATUSES,
   ORDER_CURRENCY,
@@ -126,6 +132,17 @@ export const ordersTable = orders.table(
     totalCents: integer("total_cents").notNull(),
     /** The VAT part of `total_cents`. */
     vatCents: integer("vat_cents").notNull(),
+    /**
+     * How it reaches the customer (igs-pharma#202): `pickup` (free) or `delivery` (Sendcloud, with an
+     * address in `order_addresses`). Fixed when the order is placed.
+     */
+    deliveryMethod: text("delivery_method").notNull().default("pickup"),
+    /**
+     * What delivery cost, VAT included, as it was when the order was placed: it is PART of
+     * `total_cents` (the lines plus this), and its VAT part is part of `vat_cents`.
+     */
+    deliveryFeeCents: integer("delivery_fee_cents").notNull().default(0),
+    deliveryVatCents: integer("delivery_vat_cents").notNull().default(0),
     version: integer("version").notNull().default(1),
     createdByType: text("created_by_type").notNull(),
     createdById: text("created_by_id").notNull(),
@@ -135,6 +152,14 @@ export const ordersTable = orders.table(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
+    check("orders_delivery_method_check", oneOf("delivery_method", DELIVERY_METHODS)),
+    check(
+      "orders_delivery_amounts_check",
+      sql`${t.deliveryFeeCents} >= 0 AND ${t.deliveryVatCents} >= 0
+        AND ${t.deliveryVatCents} <= ${t.deliveryFeeCents}
+        AND (${t.deliveryMethod} = 'delivery' OR (${t.deliveryFeeCents} = 0 AND ${t.deliveryVatCents} = 0))
+        AND ${t.deliveryFeeCents} <= ${t.totalCents}`,
+    ),
     check(
       "orders_reference_check",
       sql`${t.reference} ~ ${sql.raw(`'${ORDER_REFERENCE_PATTERN.source}'`)}`,
@@ -320,6 +345,35 @@ export const orderContacts = orders.table("order_contacts", {
   phone: text("phone").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * Where a home-delivery order goes (igs-pharma#202): one row for each `delivery` order and none for a
+ * pickup order (a deferred constraint trigger keeps the two in step). Personal data, kept apart from
+ * the order like the contact, so it can be purged on its own retention while the order stays.
+ */
+export const orderAddresses = orders.table(
+  "order_addresses",
+  {
+    orderId: uuid("order_id")
+      .primaryKey()
+      .references(() => ordersTable.id, { onDelete: "restrict" }),
+    /** Street, number and box in one line, as written on a parcel. */
+    street: text("street").notNull(),
+    postalCode: text("postal_code").notNull(),
+    city: text("city").notNull(),
+    country: text("country").notNull().default(DELIVERY_COUNTRY),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("order_addresses_street_check", sql`char_length(${t.street}) BETWEEN 1 AND 120`),
+    check(
+      "order_addresses_postal_code_check",
+      sql`${t.postalCode} ~ ${sql.raw(`'${BE_POSTAL_CODE_PATTERN.source}'`)}`,
+    ),
+    check("order_addresses_city_check", sql`char_length(${t.city}) BETWEEN 1 AND 80`),
+    check("order_addresses_country_check", sql`${t.country} = ${sql.raw(`'${DELIVERY_COUNTRY}'`)}`),
+  ],
+);
 
 /** Pharmacist review decision, one per order; append-only (migration 0053). */
 export const orderReviews = orders.table(

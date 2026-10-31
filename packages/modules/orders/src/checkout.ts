@@ -17,6 +17,13 @@ import { z } from "zod";
 
 import { ORDERS_AUDIT } from "./audit";
 import { type Owner, cartToken, lockCart, newCartToken, ownerOf } from "./cart";
+import { loadDeliverySettings } from "./delivery";
+import {
+  BE_POSTAL_CODE_PATTERN,
+  DELIVERY_COUNTRY,
+  deliveryFeeCents,
+  deliveryVatCents,
+} from "./delivery-domain";
 import {
   CHECKOUT_HOLD_MINUTES,
   MINUTE_MS,
@@ -30,6 +37,7 @@ import {
   cartLines,
   checkoutLines,
   checkouts,
+  orderAddresses,
   orderContacts,
   orderLines,
   ordersTable,
@@ -226,6 +234,23 @@ const contact = z.object({
     .pipe(z.string().regex(/^\+?[0-9]{6,15}$/)),
 });
 
+/**
+ * How the order reaches the customer (igs-pharma#202): collected at the pharmacy (free), or sent by
+ * Sendcloud to a Belgian address. The fee is never sent by the client: it is worked out here from the
+ * staff's settings and the checkout's lines.
+ */
+const delivery = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("pickup") }),
+  z.object({
+    method: z.literal("delivery"),
+    address: z.object({
+      street: z.string().trim().min(1).max(120),
+      postalCode: z.string().trim().regex(BE_POSTAL_CODE_PATTERN),
+      city: z.string().trim().min(1).max(80),
+    }),
+  }),
+]);
+
 /** The next `IGS-<year>-<number>` of this Brussels calendar year (the counter row serialises writers). */
 async function nextReference(ctx: Ctx): Promise<string> {
   const { year } = brusselsLocal(ctx.now.getTime());
@@ -251,7 +276,13 @@ const placedOutput = z.object({
 /** The order (and its payment) already placed from `checkout`. */
 async function placedFrom(ctx: Ctx, checkout: Checkout) {
   const [order] = await ctx.tx
-    .select({ orderId: ordersTable.id, reference: ordersTable.reference })
+    .select({
+      orderId: ordersTable.id,
+      reference: ordersTable.reference,
+      totalCents: ordersTable.totalCents,
+      deliveryMethod: ordersTable.deliveryMethod,
+      deliveryFeeCents: ordersTable.deliveryFeeCents,
+    })
     .from(ordersTable)
     .where(eq(ordersTable.checkoutId, checkout.id));
   const [payment] = order
@@ -280,7 +311,13 @@ async function placedFrom(ctx: Ctx, checkout: Checkout) {
  */
 export const placeOrder = command({
   name: "orders.order.place",
-  input: z.object({ cartToken: cartToken.optional(), checkoutId: z.uuid(), contact }),
+  input: z.object({
+    cartToken: cartToken.optional(),
+    checkoutId: z.uuid(),
+    contact,
+    /** Omitted: pickup, as before home delivery existed. */
+    delivery: delivery.default({ method: "pickup" }),
+  }),
   output: placedOutput,
   permission: "public",
   async handler({ input, ctx }) {
@@ -294,8 +331,13 @@ export const placeOrder = command({
     if (checkout.status === "placed") {
       const placed = await placedFrom(ctx, checkout);
       // a retry changes nothing; it is still recorded who asked
-      await audit(ctx, placed.orderId, checkout.id, checkout.totalCents, true);
-      return placed;
+      await audit(ctx, placed.orderId, checkout.id, placed, true);
+      return {
+        orderId: placed.orderId,
+        reference: placed.reference,
+        paymentId: placed.paymentId,
+        statusToken: null,
+      };
     }
     if (checkout.status === "cancelled") throw conflict("orders.checkout_cancelled");
     if (checkout.expiresAt.getTime() <= ctx.now.getTime()) {
@@ -315,6 +357,14 @@ export const placeOrder = command({
     if (unavailable.length > 0) {
       throw conflict("orders.checkout_unavailable", { products: unavailable.join(",") });
     }
+    // delivery (igs-pharma#202): the fee follows the staff's settings of NOW and the lines' value, and
+    // is part of what the customer pays (the order's total, and so its payment)
+    const feeCents =
+      input.delivery.method === "delivery"
+        ? deliveryFeeCents(await loadDeliverySettings(ctx.tx), checkout.totalCents)
+        : 0;
+    const feeVatCents = deliveryVatCents(feeCents);
+    const totalCents = checkout.totalCents + feeCents;
     const orderId = newId();
     const paymentId = newId();
     const reference = await nextReference(ctx);
@@ -328,8 +378,11 @@ export const placeOrder = command({
       locale: checkout.locale,
       status: "pending_payment",
       needsReview: checkout.needsReview,
-      totalCents: checkout.totalCents,
-      vatCents: checkout.vatCents,
+      totalCents,
+      vatCents: checkout.vatCents + feeVatCents,
+      deliveryMethod: input.delivery.method,
+      deliveryFeeCents: feeCents,
+      deliveryVatCents: feeVatCents,
       version: 1,
       createdByType: ctx.actor.type,
       createdById: ctx.actor.id,
@@ -354,11 +407,19 @@ export const placeOrder = command({
       })),
     );
     await ctx.tx.insert(orderContacts).values({ orderId, ...input.contact, createdAt: ctx.now });
+    if (input.delivery.method === "delivery") {
+      await ctx.tx.insert(orderAddresses).values({
+        orderId,
+        ...input.delivery.address,
+        country: DELIVERY_COUNTRY,
+        createdAt: ctx.now,
+      });
+    }
     await ctx.tx.insert(payments).values({
       id: paymentId,
       orderId,
       provider: "mollie",
-      amountCents: checkout.totalCents,
+      amountCents: totalCents,
       status: "created",
       createdAt: ctx.now,
       updatedAt: ctx.now,
@@ -367,17 +428,36 @@ export const placeOrder = command({
       .update(checkouts)
       .set({ status: "placed", updatedAt: ctx.now })
       .where(eq(checkouts.id, checkout.id));
-    await audit(ctx, orderId, checkout.id, checkout.totalCents, false);
+    await audit(
+      ctx,
+      orderId,
+      checkout.id,
+      { totalCents, deliveryMethod: input.delivery.method, deliveryFeeCents: feeCents },
+      false,
+    );
     return { orderId, reference, paymentId, statusToken };
   },
 });
 
-/** Ids and an amount only (D-028): never the contact. */
-function audit(ctx: Ctx, orderId: string, checkoutId: string, totalCents: number, replay: boolean) {
+/** Ids, the way it is delivered and amounts only (D-028): never the contact or the address. */
+function audit(
+  ctx: Ctx,
+  orderId: string,
+  checkoutId: string,
+  order: { totalCents: number; deliveryMethod: string; deliveryFeeCents: number },
+  replay: boolean,
+) {
   return ctx.audit.record({
     action: ORDERS_AUDIT.orderPlaced,
     entityType: "order",
     entityId: orderId,
-    data: { orderId, checkoutId, totalCents, replay },
+    data: {
+      orderId,
+      checkoutId,
+      totalCents: order.totalCents,
+      deliveryMethod: order.deliveryMethod === "delivery" ? "delivery" : "pickup",
+      deliveryFeeCents: order.deliveryFeeCents,
+      replay,
+    },
   });
 }

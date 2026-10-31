@@ -36,11 +36,16 @@ const checkoutStarted = z.object({
   lines: z.number().int().min(1),
   totalCents: z.number().int().min(0),
 });
-/** Never the contact (name, e-mail, phone). `replay`: the same checkout placed again. */
+/**
+ * Never the contact (name, e-mail, phone) or the delivery address. `replay`: the same checkout placed
+ * again. The total includes the delivery fee (igs-pharma#202); amounts only.
+ */
 const orderPlaced = z.object({
   orderId: z.uuid(),
   checkoutId: z.uuid(),
   totalCents: z.number().int().min(0),
+  deliveryMethod: z.enum(["pickup", "delivery"]),
+  deliveryFeeCents: z.number().int().min(0),
   replay: z.boolean(),
 });
 
