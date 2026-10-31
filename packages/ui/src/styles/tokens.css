@@ -34,6 +34,11 @@
   --color-warning: #f59e0b;
   --color-warning-text: #92400e;
   --color-info: #0f4c6e;
+  --color-topbar: #222222; /* the charcoal top bar (both themes) */
+  --color-topbar-raised: #2e2e2e; /* hover on the top bar */
+  --color-on-topbar: #f4f4f4; /* text on the top bar */
+  --color-on-topbar-muted: #c2c2c2;
+  --color-topbar-accent: #8bb9e2; /* links, focus and counts on the top bar */
 
   /* Typography */
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
@@ -87,6 +92,11 @@
   --color-warning: #a14a08;
   --color-warning-text: #fcd34d;
   --color-info: #7fb0dc;
+  --color-topbar: #161616;
+  --color-topbar-raised: #262626;
+  --color-on-topbar: #f4f4f4;
+  --color-on-topbar-muted: #c2c2c2;
+  --color-topbar-accent: #8bb9e2;
   color-scheme: dark;
 }
 
@@ -122,6 +132,11 @@
     --color-warning: #a14a08;
     --color-warning-text: #fcd34d;
     --color-info: #7fb0dc;
+    --color-topbar: #161616;
+    --color-topbar-raised: #262626;
+    --color-on-topbar: #f4f4f4;
+    --color-on-topbar-muted: #c2c2c2;
+    --color-topbar-accent: #8bb9e2;
     color-scheme: dark;
   }
 }

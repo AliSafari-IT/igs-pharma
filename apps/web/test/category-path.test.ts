@@ -1,7 +1,7 @@
 import type { StorefrontCategoryNode } from "@igs/module-storefront";
 import { describe, expect, it } from "vitest";
 
-import { categoryPath, topLevel } from "../src/lib/category-path";
+import { categoryBar, categoryPath, topLevel } from "../src/lib/category-path";
 
 const cat = (id: string, parentId: string | null, depth: number): StorefrontCategoryNode => ({
   id,
@@ -33,5 +33,25 @@ describe("categoryPath", () => {
 describe("topLevel", () => {
   it("keeps only the categories without a parent, in order", () => {
     expect(topLevel(tree).map((c) => c.slug)).toEqual(["a", "d"]);
+  });
+});
+
+describe("categoryBar (igs-pharma#193)", () => {
+  it("shows the top level; inside a branch, every level under its top", () => {
+    expect(categoryBar(tree, undefined)).toEqual({
+      top: [tree[0], tree[3]],
+      activeTopId: null,
+      branch: [],
+    });
+    for (const slug of ["a", "b", "c"]) {
+      const bar = categoryBar(tree, slug);
+      expect(bar.activeTopId, slug).toBe("a");
+      expect(
+        bar.branch.map((c) => c.slug),
+        slug,
+      ).toEqual(["b", "c"]);
+    }
+    expect(categoryBar(tree, "d")).toMatchObject({ activeTopId: "d", branch: [] });
+    expect(categoryBar(tree, "nope").activeTopId).toBeNull();
   });
 });

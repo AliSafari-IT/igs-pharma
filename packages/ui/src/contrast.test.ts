@@ -14,7 +14,7 @@ import {
 } from "./components/field";
 import { linkContrast, linkVariants } from "./components/link";
 import { priceContrast } from "./components/price";
-import { COLOR_TOKENS, type ContrastPair, MIN_RATIO, NEVER_TEXT } from "./contrast";
+import { COLOR_TOKENS, type ContrastPair, MIN_RATIO, NEVER_TEXT, topBarContrast } from "./contrast";
 
 /** tokens.css is the single source of colour values: its @theme block (light) and dark blocks. */
 const CSS = readFileSync(new URL("./styles/tokens.css", import.meta.url), "utf8");
@@ -152,6 +152,15 @@ describe("WCAG AA for every variant pair, in both themes", () => {
   });
 });
 
+describe("the storefront top bar (igs-pharma#193), in both themes", () => {
+  const cases = (["light", "dark"] as const).flatMap((theme) =>
+    topBarContrast.map((pair) => [`${theme}: ${pair.fg} on ${pair.bg}`, theme, pair] as const),
+  );
+  it.each(cases)("%s", (_, theme, pair) => {
+    expect(contrastIn(theme, pair.fg, pair.bg)).toBeGreaterThanOrEqual(MIN_RATIO[pair.use]);
+  });
+});
+
 describe("manifests match the classes (they can't lie)", () => {
   it.each(MANIFESTS.map((m) => [m.name, m] as const))("%s", (_, { classes, pairs }) => {
     for (const { fg, bg } of pairs) {
@@ -168,7 +177,9 @@ describe("manifests match the classes (they can't lie)", () => {
   it("no variant colours text with a never-text token", () => {
     for (const { name, classes } of MANIFESTS) {
       for (const token of NEVER_TEXT) {
-        expect(classes, name).not.toContain(`text-[var(--color-${token})]`);
+        // built by joining: Tailwind scans this folder, and a template literal here reads as a class
+        // and breaks `next dev`'s CSS parser
+        expect(classes, name).not.toContain(["text-[var(--color-", token, ")]"].join(""));
       }
     }
   });

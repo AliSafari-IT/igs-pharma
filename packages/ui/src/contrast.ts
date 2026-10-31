@@ -36,6 +36,11 @@ export const COLOR_TOKENS = [
   "warning",
   "warning-text",
   "info",
+  "topbar",
+  "topbar-raised",
+  "on-topbar",
+  "on-topbar-muted",
+  "topbar-accent",
 ] as const;
 
 export type ColorToken = (typeof COLOR_TOKENS)[number];
@@ -79,3 +84,17 @@ export function onSurfaces(fg: TextFg | UiFg, use: ContrastPair["use"]): Contras
 
 /** The keyboard focus ring every interactive primitive draws (`focus-visible:outline-…`). */
 export const FOCUS_RING = onSurfaces("focus", "ui");
+
+/**
+ * The storefront's charcoal top bar (igs-pharma#193): what it puts on screen. Its links and text are
+ * `on-topbar`, the cart count and the focus ring `topbar-accent` (the global navy focus ring would
+ * vanish on charcoal), the hover `topbar-raised`.
+ */
+export const topBarContrast: ContrastPair[] = [
+  { fg: "on-topbar", bg: "topbar", use: "text" },
+  { fg: "on-topbar", bg: "topbar-raised", use: "text" },
+  { fg: "on-topbar-muted", bg: "topbar", use: "text" },
+  { fg: "topbar-accent", bg: "topbar", use: "text" },
+  { fg: "topbar-accent", bg: "topbar-raised", use: "ui" },
+  { fg: "topbar", bg: "topbar-accent", use: "text" },
+];

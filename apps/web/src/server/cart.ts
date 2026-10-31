@@ -1,7 +1,7 @@
 import { getFeatureFlags } from "@igs/config/feature-flags";
 import type { Actor } from "@igs/kernel";
 import type { ContentLocale } from "@igs/module-catalog";
-import { attachCart } from "@igs/module-orders";
+import { attachCart, getCart } from "@igs/module-orders";
 import { logger } from "@igs/observability/logger";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
@@ -52,4 +52,27 @@ export async function cartActor(): Promise<{ actor: Actor; token: string | undef
     }
   }
   return { actor: session.actor, token: undefined };
+}
+
+/**
+ * How many items the cart holds, for the header and the phone tab bar (igs-pharma#193): the sum of
+ * its quantities. It goes through `cartActor`, so a signed-in customer who still carries a guest
+ * cookie gets those lines attached first and counted on any page (attaching again is a plain read,
+ * audited only when it merges something). `null` when the cart is off or cannot be read: the link
+ * then shows without a count.
+ */
+export async function cartItemCount(locale: ContentLocale): Promise<number | null> {
+  if (!getFeatureFlags().cart) return null;
+  try {
+    const { actor, token } = await cartActor();
+    if (actor === GUEST_ACTOR && !token) return 0;
+    const cart = await getCart({ cartToken: token, locale }, actor);
+    return cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+  } catch (error) {
+    logger.error(
+      { event: "storefront.cart_count_failed", err: error },
+      "storefront.cart_count_failed",
+    );
+    return null;
+  }
 }

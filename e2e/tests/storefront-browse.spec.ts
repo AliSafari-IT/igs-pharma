@@ -181,6 +181,8 @@ test("a category with more than a page paginates, and the language switch keeps 
   await expect(page.getByRole("article")).toHaveCount(EXTRA);
 
   // Français: the same category, the same page, the French names
+  // the language menu (#193): a native disclosure in the top bar
+  await page.getByTestId("language-menu").locator("summary").click();
   await page
     .getByRole("navigation", { name: "Taal" })
     .getByRole("link", { name: "Français" })
@@ -281,14 +283,18 @@ test.describe("a phone, 360 px wide", () => {
       await expectAxeClean(page);
     }
     await page.goto(`${WEB}/nl`, { waitUntil: "networkidle" });
-    // the side column is hidden; the disclosure opens with the keyboard
-    const summary = page.getByText("Categorieën", { exact: true }).first();
-    await summary.focus();
-    await page.keyboard.press("Enter");
-    const link = page.getByRole("link", { name: parent.nl }).first();
+    // the categories are chips in a row that scrolls sideways (#193), each a 44 px target
+    const link = page
+      .getByRole("navigation", { name: "Categorieën" })
+      .getByRole("link", { name: parent.nl });
     await expect(link).toBeVisible();
     const box = await link.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    // the tab bar (#193): Shop and Search (Cart and Account join when those features are on)
+    const tabs = page.getByRole("navigation", { name: "Snelmenu" });
+    await expect(tabs.getByRole("link", { name: "Winkel" })).toBeVisible();
+    await tabs.getByRole("link", { name: "Zoeken" }).click();
+    await expect(page).toHaveURL(/\/nl\/search$/);
   });
 });
 
