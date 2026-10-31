@@ -41,6 +41,7 @@ export async function HowItWorks({ locale }: { readonly locale: ContentLocale })
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <path d={step.icon} />
               </svg>
