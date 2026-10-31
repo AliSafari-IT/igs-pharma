@@ -148,6 +148,10 @@ test("with the key: banner, a category, a product with price, VAT and availabili
   expect(cookie?.value).not.toContain(smokePreviewKey);
 
   await expect(page.getByTestId("preview-banner")).toBeVisible();
+  // the notice itself, in the page's language (not just the end link, which also says "Voorvertoning")
+  await expect(page.getByTestId("preview-banner")).toContainText(
+    "deze webshop is nog in ontwikkeling en opent binnenkort",
+  );
   await expect(page.getByRole("heading", { level: 1, name: "IGS-Pharma" })).toBeVisible();
   await expectAxeClean(page);
 
