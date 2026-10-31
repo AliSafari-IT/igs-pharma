@@ -21,6 +21,11 @@ const ERRORS: Record<string, string> = {
   "identity.role_already_granted": "They already have that role.",
   "identity.role_not_granted": "They don't have that role.",
   "identity.role_kind_mismatch": "That role is not for a staff account.",
+  // early access (igs-pharma#199)
+  "identity.early_access.not_found": "That request was not found. Reload the page.",
+  "identity.early_access.own_request": "You cannot decide your own request: another owner must.",
+  "identity.early_access.state_changed":
+    "That request changed in the meantime (decided or ended). Reload the page and look again.",
   "kernel.forbidden": "You are not allowed to do that.",
   "kernel.invalid_input": "That request was not valid. Reload the page and try again.",
 };
