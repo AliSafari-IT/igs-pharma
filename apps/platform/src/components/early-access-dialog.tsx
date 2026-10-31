@@ -144,7 +144,7 @@ export function EarlyAccessDialog({ intent, requestId, who, trigger }: Props) {
                 name="reason"
                 maxLength={500}
                 autoComplete="off"
-                hint="They can read it in the mail they get. Don't put anything private in it."
+                hint="They read it on their early-access page when signed in; the mail does not quote it. Don't put anything private in it."
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />
