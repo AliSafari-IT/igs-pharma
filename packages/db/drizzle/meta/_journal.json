@@ -533,6 +533,27 @@
       "when": 1793450863663,
       "tag": "0075_recall_disposals_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1793467881951,
+      "tag": "0076_identity_early_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1793467891360,
+      "tag": "0077_identity_early_access_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793467894105,
+      "tag": "0078_rbac_seed_early_access",
+      "breakpoints": true
     }
   ]
 }

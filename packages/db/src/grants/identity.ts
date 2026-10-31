@@ -21,6 +21,8 @@ export const identity: SchemaGrants = {
     // the worker gets its own grant on mail_tokens with the mail jobs
     table("identity.rate_limits", "mutable", { app: ALL, since: 44 }),
     table("identity.mail_tokens", "mutable", { app: ALL, since: 44 }),
+    // early access to the gated storefront (igs-pharma#199); DELETE for the worker's retention purge
+    table("identity.early_access_requests", "mutable", { app: ALL, since: 77 }),
     table("identity.roles", "catalogue", { app: ["SELECT"] }),
     table("identity.permissions", "catalogue", { app: ["SELECT"] }),
     table("identity.role_permissions", "catalogue", { app: ["SELECT"] }),

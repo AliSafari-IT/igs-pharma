@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -309,7 +310,18 @@ export const rateLimits = identity.table("rate_limits", {
 });
 
 /** Mail templates the identity flows ask for (igs-pharma#114). */
-export const MAIL_TEMPLATES = ["verify_email", "reset_password", "account_exists"] as const;
+export const MAIL_TEMPLATES = [
+  "verify_email",
+  "reset_password",
+  "account_exists",
+  // early access (igs-pharma#199): to the requester, and the staff notice (sent to the configured
+  // staff list, never to the requester; it names nobody)
+  "early_access_received",
+  "early_access_approved",
+  "early_access_rejected",
+  "early_access_revoked",
+  "early_access_staff_notice",
+] as const;
 export type MailTemplate = (typeof MAIL_TEMPLATES)[number];
 
 /**
@@ -327,6 +339,11 @@ export const mailTokens = identity.table(
       .references(() => users.id, { onDelete: "cascade" }),
     template: text("template").$type<MailTemplate>().notNull(),
     url: text("url"),
+    /**
+     * The end date the mail states (igs-pharma#199: an early-access approval). NULL = none, or, for
+     * `early_access_approved`, "until the shop opens".
+     */
+    validUntil: timestamp("valid_until", { withTimezone: true }),
     createdAt: createdAt(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
@@ -334,5 +351,61 @@ export const mailTokens = identity.table(
     index("mail_tokens_user_id_idx").on(t.userId),
     index("mail_tokens_expires_at_idx").on(t.expiresAt),
     check("mail_tokens_template_check", oneOf("template", MAIL_TEMPLATES)),
+  ],
+);
+
+// ── Early access (igs-pharma#199) ───────────────────────────────────────────────────────────────
+
+export const EARLY_ACCESS_STATUSES = ["pending", "approved", "rejected", "revoked"] as const;
+export type EarlyAccessStatus = (typeof EARLY_ACCESS_STATUSES)[number];
+
+/** The longest note or decision reason, in characters. */
+export const EARLY_ACCESS_TEXT_MAX = 500;
+
+/**
+ * A person's request to see the gated storefront before launch, and the staff decision on it. The
+ * GRANT is a row with status `approved` whose `expires_at` is in the future (or NULL: until launch);
+ * it is read from here on every pass issue, never from anything the browser holds.
+ *
+ * One OPEN (`pending`) request per user (partial unique index): asking again updates its note. A
+ * decided row stays as history; a new request after a rejection, revocation or expiry is a new row.
+ * `invited_email` is for staff invitations (a later PR): a row has a user, an invited address, or
+ * both. Deleted with the user (erasure); decided rows are purged 12 months after they end.
+ */
+export const earlyAccessRequests = identity.table(
+  "early_access_requests",
+  {
+    id: id(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    invitedEmail: citext("invited_email"),
+    status: text("status").$type<EarlyAccessStatus>().default("pending").notNull(),
+    note: text("note"),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionReason: text("decision_reason"),
+    /** Approved only: when the access ends; NULL = until the shop opens to everyone. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("early_access_requests_one_pending").on(t.userId).where(sql`status = 'pending'`),
+    index("early_access_requests_user_id_idx").on(t.userId),
+    index("early_access_requests_status_idx").on(t.status, t.requestedAt),
+    check("early_access_requests_status_check", oneOf("status", EARLY_ACCESS_STATUSES)),
+    check(
+      "early_access_requests_subject_check",
+      sql`user_id IS NOT NULL OR invited_email IS NOT NULL`,
+    ),
+    check(
+      "early_access_requests_note_length",
+      sql.raw(`char_length(note) <= ${EARLY_ACCESS_TEXT_MAX}`),
+    ),
+    check(
+      "early_access_requests_reason_length",
+      sql.raw(`char_length(decision_reason) <= ${EARLY_ACCESS_TEXT_MAX}`),
+    ),
+    check("early_access_requests_decision_check", sql`(status = 'pending') = (decided_at IS NULL)`),
   ],
 );

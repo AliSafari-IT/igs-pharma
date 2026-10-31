@@ -47,6 +47,7 @@ describe("hasPermission (code catalogue installed)", () => {
     "privacy.dsr.read",
     "staff.invite",
     "staff.manage",
+    "storefront.early_access.manage",
   ];
 
   it("the owner's permission set is pinned exactly (C7, D-030)", () => {
@@ -130,6 +131,15 @@ describe("hasPermission (code catalogue installed)", () => {
     expect(hasPermission(["pharmacist"], PERMISSIONS.pharmacy.pharmacistsManage)).toBe(false);
   });
 
+  it("only the owner decides early access; customers ask for their own (#199)", () => {
+    const manage = PERMISSIONS.storefront.earlyAccessManage;
+    const self = PERMISSIONS.storefront.earlyAccessSelf;
+    for (const role of ROLE_KEYS) {
+      expect(hasPermission([role], manage), role).toBe(role === "owner");
+      expect(hasPermission([role], self), role).toBe(role === "customer");
+    }
+  });
+
   it("fulfilment is staff work; customer service only reads (#116)", () => {
     for (const role of [
       "owner",
@@ -194,6 +204,7 @@ describe("hasPermission (code catalogue installed)", () => {
       "account.self.update",
       "privacy.self.consent.manage",
       "privacy.self.dsr.create",
+      "storefront.early_access.self.request",
     ]);
     for (const permission of self) {
       const holders = ROLE_KEYS.filter((role) => hasPermission([role], permission));

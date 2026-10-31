@@ -335,6 +335,12 @@ describe("registerAuditActions", () => {
       "identity.mfa.backup_codes_regenerated",
       "identity.mail.requested",
       "identity.profile.updated",
+      "identity.early_access.requested",
+      "identity.early_access.approved",
+      "identity.early_access.rejected",
+      "identity.early_access.revoked",
+      "identity.early_access.pass_issued",
+      "identity.early_access.pass_refused",
     ]);
   });
 });

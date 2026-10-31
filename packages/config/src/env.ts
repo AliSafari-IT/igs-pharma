@@ -321,6 +321,24 @@ export const mailEnv = z.object({
   SMTP_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   /** The From header, e.g. `IGS-Pharma <no-reply@example.be>`. */
   MAIL_FROM: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(3).max(200).optional()),
+  /**
+   * Who is told about a new early-access request (igs-pharma#199): a comma-separated list of at most
+   * 10 addresses, e.g. `owner@example.be,pharmacy@example.be`. Unset: no staff notice (the worker
+   * logs an alarm instead); the request still shows in the back-office.
+   */
+  EARLY_ACCESS_NOTIFY_TO: z.preprocess(
+    (v) => (typeof v === "string" ? (v.trim() === "" ? undefined : v) : v),
+    z
+      .string()
+      .transform((v) =>
+        v
+          .split(",")
+          .map((address) => address.trim())
+          .filter((address) => address !== ""),
+      )
+      .pipe(z.array(z.email()).max(10))
+      .optional(),
+  ),
 });
 
 /**

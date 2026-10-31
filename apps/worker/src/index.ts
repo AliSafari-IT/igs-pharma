@@ -126,7 +126,14 @@ async function main() {
   );
   // Account mail (igs-pharma#114): the worker is the only process that talks to a mail server (D-019).
   // `identity.mail.requested` events arrive through the outbox; expired links are purged hourly.
-  await registerIdentityJobs(boss as unknown as IdentityJobScheduler, createMailSender(env));
+  // igs-pharma#199: the early-access staff notice goes to EARLY_ACCESS_NOTIFY_TO; ended requests are
+  // purged daily after 12 months.
+  await registerIdentityJobs(
+    boss as unknown as IdentityJobScheduler,
+    createMailSender(env),
+    undefined,
+    { staffRecipients: env.EARLY_ACCESS_NOTIFY_TO ?? [] },
+  );
   // Order mails (igs-pharma#157): `orders.mail.requested` events, each tied to the order's state.
   await registerOrderMailJobs(boss as unknown as OrderMailJobScheduler, createOrderMailSender(env));
   // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.

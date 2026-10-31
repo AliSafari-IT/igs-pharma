@@ -26,6 +26,7 @@ export const ENV_SENSITIVITY = {
   MOLLIE_API_KEY: "sensitive", // can create payments and refunds
   MOLLIE_WEBHOOK_BASE_URL: "not-sensitive",
   MAIL_FROM: "not-sensitive",
+  EARLY_ACCESS_NOTIFY_TO: "not-sensitive", // staff addresses for the early-access notice (#199)
   // crypto
   ENCRYPTION_KEY: "sensitive",
   KMS_KEY_ID: "sensitive", // names the key that wraps the data keys

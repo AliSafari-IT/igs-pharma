@@ -9,6 +9,7 @@ const mail = {
   locale: "en",
   template: MAIL_TEMPLATES[0],
   url: "http://localhost:3000/x",
+  validUntil: undefined,
 } as const;
 
 describe("createMailSender", () => {
@@ -20,8 +21,21 @@ describe("createMailSender", () => {
       to: "an@example.test",
       locale: "en",
       template: "verify_email",
-      data: { name: "An", url: "http://localhost:3000/x" },
+      data: { name: "An", url: "http://localhost:3000/x", validUntil: undefined },
     });
+  });
+
+  it("passes the end date of an early-access approval (#199)", async () => {
+    const send = vi.fn(async () => {});
+    const sender = createMailSender({}, { send, sendOrder: vi.fn() } as Mailer);
+    const until = new Date("2026-12-01T10:00:00Z");
+    await sender({ ...mail, template: "early_access_approved", validUntil: until });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: "early_access_approved",
+        data: { name: "An", url: "http://localhost:3000/x", validUntil: until },
+      }),
+    );
   });
 
   it("without SMTP settings the worker still boots; the first mail fails and is retried", async () => {
