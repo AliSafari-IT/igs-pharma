@@ -29,6 +29,12 @@ export {
   type LotTracking,
   QUARANTINE_REASONS,
   type QuarantineReason,
+  RECALL_LOTS_MAX,
+  RECALL_NOTE_MAX,
+  RECALL_SCOPES,
+  RECALL_SOURCES,
+  type RecallScope,
+  type RecallSource,
   RELEASE_REASONS,
   RESERVATION_KINDS,
   RESERVATION_STATUSES,
@@ -119,3 +125,13 @@ export {
   reportImportPlanPurgeFailed,
   runImportPlanPurge,
 } from "./jobs";
+export {
+  RECALL_LIST_LIMIT,
+  type RecallListItem,
+  type RecallView,
+  activeRecallOf,
+  endRecall,
+  getRecall,
+  listRecalls,
+  startRecall,
+} from "./recalls";

@@ -3,7 +3,7 @@ import { type SQL, and, eq, ne, sql } from "drizzle-orm";
 import type { AnyColumn } from "drizzle-orm";
 
 import type { ContentLocale, VatClass } from "./domain";
-import { productContent, products } from "./schema";
+import { productContent, products, stopSales } from "./schema";
 
 /**
  * A medicine, in SQL: product type `otc_medicine`, or legal status `otc` (the SQL twin of
@@ -24,13 +24,18 @@ const approvedText = (locale: "nl" | "fr"): SQL =>
 export const approvedForStorefront = (): SQL =>
   sql`(NOT ${isMedicineSql()} OR (${approvedText("nl")} AND ${approvedText("fr")}))`;
 
+/** No active stop-sale holds the product (igs-pharma#187: a recall stops it selling). */
+export const notStopped = (): SQL =>
+  sql`NOT EXISTS (SELECT 1 FROM ${stopSales} WHERE ${stopSales.productId} = ${products.id} AND ${stopSales.endedAt} IS NULL)`;
+
 /**
  * D-034: what the storefront may list, show and price. Phase 1 sells OTC only, and prescription
  * medicines must never be advertised or sold at a distance. A product is storefront-visible only
  * when it is active, not prescription-only (`legal_status <> 'rx'` and `product_type <>
  * 'rx_medicine'`; `pharmacy_only` stays visible) AND, for a medicine, its text is approved
- * (`approvedForStorefront`). This is the ONE predicate every storefront-actor read applies; a hidden
- * product behaves exactly like one that does not exist.
+ * (`approvedForStorefront`), AND no stop-sale holds it (`notStopped`, igs-pharma#187). This is the ONE
+ * predicate every storefront-actor read applies; a hidden product behaves exactly like one that does
+ * not exist.
  */
 export const storefrontVisible = () =>
   and(
@@ -38,6 +43,7 @@ export const storefrontVisible = () =>
     ne(products.legalStatus, "rx"),
     ne(products.productType, "rx_medicine"),
     approvedForStorefront(),
+    notStopped(),
   );
 
 /**

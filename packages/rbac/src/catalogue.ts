@@ -44,6 +44,11 @@ export const PERMISSIONS = {
     productsRegulatedManage: "catalog.products.regulated.manage",
     /** Storefront: read active products and the category tree, never drafts (igs-pharma#62). */
     storefrontRead: "catalog.storefront.read",
+    /**
+     * Pharmacist-only (igs-pharma#187): start and end a product's stop-sale. A recall does it in its
+     * own transaction; while one is active the product is not storefront-visible.
+     */
+    stopSalesManage: "catalog.stop_sales.manage",
   },
   inventory: {
     /** Back-office: on-hand stock and the movement ledger (igs-pharma#53). */
@@ -62,6 +67,11 @@ export const PERMISSIONS = {
     lotsQuarantine: "inventory.lots.quarantine",
     /** Titular-only (igs-pharma#164): the shop-wide expiry buffer (how close to expiry a lot stops selling). */
     settingsManage: "inventory.settings.manage",
+    /**
+     * Pharmacist-only (igs-pharma#187, REQ-SAF-01): start a recall (its lots quarantined, the product's
+     * sale stopped) and end it.
+     */
+    recallsManage: "inventory.recalls.manage",
   },
   pricing: {
     /** Back-office: a product's web price, its VAT part, scheduled changes and history (igs-pharma#59). */
@@ -192,6 +202,8 @@ export const PHARMACIST_ONLY: readonly Permission[] = [
   PERMISSIONS.catalog.productsRegulatedManage,
   PERMISSIONS.inventory.lotsQuarantine,
   PERMISSIONS.inventory.settingsManage,
+  PERMISSIONS.inventory.recallsManage,
+  PERMISSIONS.catalog.stopSalesManage,
 ];
 
 /** Roles that only a holder of `pharmacy.pharmacists.manage` may grant or revoke (Q7). */
@@ -246,6 +258,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
     PERMISSIONS.inventory.lotsQuarantine,
+    PERMISSIONS.inventory.recallsManage,
+    PERMISSIONS.catalog.stopSalesManage,
     PERMISSIONS.inventory.settingsManage,
     PERMISSIONS.pharmacy.pharmacistsManage,
   ],
@@ -261,6 +275,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.inventory.stockRead,
     PERMISSIONS.inventory.stockManage,
     PERMISSIONS.inventory.lotsQuarantine,
+    PERMISSIONS.inventory.recallsManage,
+    PERMISSIONS.catalog.stopSalesManage,
   ],
   pharmacy_assistant: [
     PERMISSIONS.orders.read,

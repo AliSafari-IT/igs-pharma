@@ -4,6 +4,8 @@ import {
   ADJUST_REASONS,
   ALLOCATION_CAUSES,
   QUARANTINE_REASONS,
+  RECALL_SCOPES,
+  RECALL_SOURCES,
   RECONCILIATION_SOURCES,
   RELEASE_REASONS,
 } from "./domain";
@@ -31,6 +33,8 @@ export const INVENTORY_AUDIT = {
   reconciliationStarted: "inventory.reconciliation.started",
   reconciliationApplied: "inventory.reconciliation.applied",
   reconciliationDiscarded: "inventory.reconciliation.discarded",
+  recallStarted: "inventory.recall.started",
+  recallEnded: "inventory.recall.ended",
 } as const;
 
 const stockImportPrepared = z.object({
@@ -112,6 +116,17 @@ const reconciliationApplied = z.object({
 });
 const reconciliationDiscarded = z.object({ reconciliationId: z.uuid() });
 
+/** igs-pharma#187: ids, the scope, the source and counts; never the pharmacist's note. */
+const recallStarted = z.object({
+  recallId: z.uuid(),
+  productId: z.uuid(),
+  scope: z.enum(RECALL_SCOPES),
+  source: z.enum(RECALL_SOURCES),
+  lots: z.number().int().min(0),
+  quarantined: z.number().int().min(0),
+});
+const recallEnded = z.object({ recallId: z.uuid(), productId: z.uuid() });
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -141,4 +156,6 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(INVENTORY_AUDIT.reconciliationStarted, reconciliationStarted);
   register(INVENTORY_AUDIT.reconciliationApplied, reconciliationApplied);
   register(INVENTORY_AUDIT.reconciliationDiscarded, reconciliationDiscarded);
+  register(INVENTORY_AUDIT.recallStarted, recallStarted);
+  register(INVENTORY_AUDIT.recallEnded, recallEnded);
 }

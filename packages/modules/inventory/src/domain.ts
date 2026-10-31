@@ -251,6 +251,22 @@ export type LotTracking = (typeof LOT_TRACKING)[number];
 export const QUARANTINE_REASONS = ["quality", "recall", "damaged", "other"] as const;
 export type QuarantineReason = (typeof QUARANTINE_REASONS)[number];
 
+/**
+ * Who called the recall (igs-pharma#187, REQ-SAF-01): the FAMHP, the manufacturer (or marketing
+ * authorisation holder), the wholesaler, or the pharmacy itself.
+ */
+export const RECALL_SOURCES = ["famhp", "manufacturer", "wholesaler", "pharmacy"] as const;
+export type RecallSource = (typeof RECALL_SOURCES)[number];
+
+/** Which lots a recall covers: every lot of the product, or the lots it names. */
+export const RECALL_SCOPES = ["all_lots", "lots"] as const;
+export type RecallScope = (typeof RECALL_SCOPES)[number];
+
+/** The pharmacist's note on a recall (the notice's reference, what is wrong): staff text, never audited. */
+export const RECALL_NOTE_MAX = 500;
+/** The most lots one recall may name. */
+export const RECALL_LOTS_MAX = 100;
+
 /** A lot number as printed on the pack. */
 export const LOT_NUMBER_MAX = 40;
 export const LOT_NUMBER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9./ -]{0,39}$/;

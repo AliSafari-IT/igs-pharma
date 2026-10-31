@@ -156,6 +156,19 @@ describe("hasPermission (code catalogue installed)", () => {
     ).toEqual(["pharmacist_titular"]);
   });
 
+  it("recalls and stop-sales are started and ended by pharmacists only (#187)", () => {
+    for (const permission of [
+      PERMISSIONS.inventory.recallsManage,
+      PERMISSIONS.catalog.stopSalesManage,
+    ]) {
+      expect(
+        ROLE_KEYS.filter((r) => ROLE_PERMISSIONS[r].includes(permission)),
+        permission,
+      ).toEqual(["pharmacist_titular", "pharmacist"]);
+      expect(PHARMACIST_ONLY, permission).toContain(permission);
+    }
+  });
+
   it("refunds are asked by the owner and pharmacists only (#156)", () => {
     for (const role of ["owner", "pharmacist_titular", "pharmacist"] as const) {
       expect(hasPermission([role], PERMISSIONS.orders.refundRequest), role).toBe(true);

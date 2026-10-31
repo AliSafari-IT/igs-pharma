@@ -23,8 +23,10 @@ import {
 import { loadRbacCatalogue } from "@igs/module-identity";
 import {
   adjustStock,
+  endRecall,
   receiveStock,
   registerAuditActions as registerInventoryAudit,
+  startRecall,
 } from "@igs/module-inventory";
 import { registerAuditActions as registerPricingAudit, setPrice } from "@igs/module-pricing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -392,6 +394,27 @@ describe("what the shop may show at all", () => {
       expect(answer.visible, product.name).toBe(answer.reasons.length === 0);
     }
     expect(listed.size).toBe(2); // only an active, priced care product and an active, priced, approved medicine
+  });
+
+  it("a recall stops a product selling and says why; ending it brings the product back (#187)", async () => {
+    const tag = marker();
+    const p = await make({ name: `${tag} teruggeroepen` });
+    const { recallId } = await startRecall(
+      { productId: p.id, source: "famhp", note: "FAMHP notice" },
+      pharmacist,
+    );
+    expect(await names({ locale: "nl", q: tag })).toEqual([]);
+    expect(await codeOf(getStorefrontProduct({ cnk: p.cnk, locale: "nl" }, storefront))).toBe(
+      "catalog.product_not_found",
+    );
+    expect(await productVisibility({ productId: p.id }, pharmacist)).toEqual({
+      visible: false,
+      reasons: [{ code: "stop_sale", reasons: ["recall"] }],
+    });
+
+    await endRecall({ recallId }, pharmacist);
+    expect(await names({ locale: "nl", q: tag })).toEqual([`${tag} teruggeroepen`]);
+    expect((await productVisibility({ productId: p.id }, pharmacist)).visible).toBe(true);
   });
 
   it("the back-office explanation is for staff only", async () => {

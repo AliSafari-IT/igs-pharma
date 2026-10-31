@@ -152,6 +152,7 @@ export const VISIBILITY_REASON_CODES = [
   "prescription_only",
   "no_price",
   "text_not_approved",
+  "stop_sale",
 ] as const;
 export const visibilityReasonSchema = z.discriminatedUnion("code", [
   z.object({ code: z.literal("draft") }),
@@ -163,6 +164,8 @@ export const visibilityReasonSchema = z.discriminatedUnion("code", [
     /** The required locales whose text no pharmacist approved. */
     locales: z.array(z.enum(["nl", "fr"])).min(1),
   }),
+  /** igs-pharma#187: an active recall stops the product selling. */
+  z.object({ code: z.literal("stop_sale"), reasons: z.array(z.enum(["recall"])).min(1) }),
 ]);
 export type VisibilityReason = z.infer<typeof visibilityReasonSchema>;
 

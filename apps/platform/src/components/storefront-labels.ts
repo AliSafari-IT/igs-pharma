@@ -20,5 +20,7 @@ export function visibilityReasonLabel(reason: VisibilityReason): string {
       return `A pharmacist has not approved the ${reason.locales
         .map((locale) => LOCALE_NAMES[locale])
         .join(" and ")} text of this medicine yet.`;
+    case "stop_sale":
+      return "A recall stops this product selling. It returns when a pharmacist ends the recall.";
   }
 }

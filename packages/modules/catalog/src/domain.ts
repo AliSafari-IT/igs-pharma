@@ -89,6 +89,13 @@ export type ContentLocale = (typeof CONTENT_LOCALES)[number];
 export const CONTENT_SOURCES = ["manual", "medipim", "sam"] as const;
 
 /**
+ * Why a product's sale is stopped (igs-pharma#187, REQ-SAF-01): a recall. While a stop-sale is
+ * active the product is not storefront-visible, whatever its status.
+ */
+export const STOP_SALE_REASONS = ["recall"] as const;
+export type StopSaleReason = (typeof STOP_SALE_REASONS)[number];
+
+/**
  * Locales a product needs before it may become `active` (MVP-lite: Dutch and French, the two
  * languages a Belgian pharmacy must serve).
  */
