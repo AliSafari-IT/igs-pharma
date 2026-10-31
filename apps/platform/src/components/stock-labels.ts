@@ -4,6 +4,8 @@ import type {
   LotTracking,
   MovementReason,
   QuarantineReason,
+  RecallScope,
+  RecallSource,
   ReleaseReason,
   ReservationKind,
 } from "@igs/module-inventory";
@@ -165,6 +167,12 @@ const ERRORS: Record<string, string> = {
   "inventory.lot_not_found": "This lot no longer exists. Reload the page.",
   "inventory.lot_quarantined": "This lot is already in quarantine.",
   "inventory.lot_not_quarantined": "This lot is not in quarantine.",
+  "inventory.lot_under_recall":
+    "This lot belongs to an active recall. It stays in quarantine until a pharmacist ends the recall.",
+  "inventory.recall_active": "This product already has an active recall.",
+  "inventory.recall_not_found": "This recall doesn't exist. Reload the page.",
+  "inventory.recall_ended": "This recall has already ended.",
+  "inventory.recall_lots_missing": "Choose at least one lot, or recall every lot.",
   "inventory.stock_not_sellable":
     "The stock left for this order can't be sold (quarantined, too close to expiry, or its lot not recorded).",
   "inventory.allocation_short":
@@ -173,6 +181,30 @@ const ERRORS: Record<string, string> = {
   "kernel.forbidden": "You don't have permission to work with stock.",
   "kernel.mfa_required": "Confirm your 2-step login first.",
   "kernel.validation_failed": "Some fields are not filled in correctly.",
+};
+
+/** Who calls a recall. A type-only copy of `RECALL_SOURCES` for client components (igs-pharma#187). */
+export const RECALL_SOURCE_OPTIONS = [
+  "famhp",
+  "manufacturer",
+  "wholesaler",
+  "pharmacy",
+] as const satisfies readonly RecallSource[];
+
+/** `RECALL_NOTE_MAX`, for client components. */
+export const RECALL_NOTE_LIMIT = 500;
+
+/** Who called a recall (igs-pharma#187). */
+export const RECALL_SOURCE_LABELS: Record<RecallSource, string> = {
+  famhp: "FAMHP (federal agency)",
+  manufacturer: "Manufacturer or marketing authorisation holder",
+  wholesaler: "Wholesaler",
+  pharmacy: "This pharmacy",
+};
+
+export const RECALL_SCOPE_LABELS: Record<RecallScope, string> = {
+  all_lots: "Every lot",
+  lots: "Chosen lots",
 };
 
 export const stockErrorMessage = (code: string | undefined): string =>

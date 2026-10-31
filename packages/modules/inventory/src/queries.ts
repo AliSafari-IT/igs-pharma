@@ -24,6 +24,7 @@ import {
 import { addDays } from "./domain";
 import { availabilityFor, brusselsToday, expiryBufferDays, levelOf, stockLevels } from "./ledger";
 import { type LotView, isFlagged, lotsOf } from "./lots";
+import { activeRecallOf } from "./recalls";
 import { lots, reservationAllocations, reservations, stockMovements } from "./schema";
 
 /** Inventory queries for the back-office (igs-pharma#53). */
@@ -136,6 +137,8 @@ export interface ProductStock extends Availability {
   readonly expiryBufferDays: number;
   /** Whether the product is a medicine (its stock is always in a real lot). */
   readonly isMedicine: boolean;
+  /** The product's active recall (igs-pharma#187), `null` when it has none. */
+  readonly activeRecallId: string | null;
 }
 
 export const MOVEMENT_HISTORY_LIMIT = 200;
@@ -207,6 +210,7 @@ export const getStock = query({
       lots: await lotsOf(ctx.tx, [ref.id], ctx.now),
       expiryBufferDays: await expiryBufferDays(ctx.tx),
       isMedicine: ref.isMedicine,
+      activeRecallId: await activeRecallOf(ctx.tx, ref.id),
     };
   },
 });

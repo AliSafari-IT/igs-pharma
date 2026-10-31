@@ -31,7 +31,10 @@ export const NAV: readonly NavGroup[] = [
   },
   {
     label: "Stock",
-    items: [{ label: "Stock", href: "/stock", permission: PERMISSIONS.inventory.stockRead }],
+    items: [
+      { label: "Stock", href: "/stock", permission: PERMISSIONS.inventory.stockRead },
+      { label: "Recalls", href: "/recalls", permission: PERMISSIONS.inventory.stockRead },
+    ],
   },
   {
     label: "Privacy",

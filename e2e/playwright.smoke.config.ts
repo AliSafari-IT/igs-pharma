@@ -21,6 +21,7 @@ export default defineConfig({
     "coming-soon.spec.ts",
     "catalog.spec.ts",
     "stock.spec.ts",
+    "recalls.spec.ts",
     "categories.spec.ts",
     "privacy.spec.ts",
     "prices.spec.ts",

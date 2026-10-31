@@ -26,6 +26,9 @@ import {
   MAX_QUANTITY,
   MOVEMENT_REASONS,
   QUARANTINE_REASONS,
+  RECALL_NOTE_MAX,
+  RECALL_SCOPES,
+  RECALL_SOURCES,
   RECONCILIATION_SOURCES,
   RECONCILIATION_STATUSES,
   RELEASE_REASONS,
@@ -410,5 +413,67 @@ export const reconciliationLines = inventory.table(
       "reconciliation_lines_counted_check",
       sql`${t.counted} >= 0 AND ${t.counted} <= ${sql.raw(String(MAX_QUANTITY))}`,
     ),
+  ],
+);
+
+/**
+ * Recalls (igs-pharma#187, REQ-SAF-01). A pharmacist starts one on a product, for all its lots or the
+ * lots it names: those lots are quarantined with reason `recall`, and the catalogue stops the product
+ * selling (a `catalog.stop_sales` row whose reference is this recall). Only a pharmacist ends it; its
+ * lots stay quarantined (their disposal is recorded later). A product has at most one active recall.
+ * A trigger keeps who started it and when, lets only an active recall end, once, and refuses DELETE.
+ * `product_id` has no foreign key: a module never references another module's tables.
+ */
+export const recalls = inventory.table(
+  "recalls",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    productId: uuid("product_id").notNull(),
+    scope: text("scope").notNull(),
+    source: text("source").notNull(),
+    /** The pharmacist's note (the notice's reference, what is wrong); never copied into the audit trail. */
+    note: text("note").notNull(),
+    startedByType: text("started_by_type").notNull(),
+    startedById: text("started_by_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedByType: text("ended_by_type"),
+    endedById: text("ended_by_id"),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("recalls_scope_check", oneOf("scope", RECALL_SCOPES)),
+    check("recalls_source_check", oneOf("source", RECALL_SOURCES)),
+    check(
+      "recalls_note_check",
+      sql`char_length(${t.note}) BETWEEN 1 AND ${sql.raw(String(RECALL_NOTE_MAX))}`,
+    ),
+    check(
+      "recalls_ended_check",
+      sql`(${t.endedAt} IS NULL) = (${t.endedById} IS NULL) AND (${t.endedAt} IS NULL) = (${t.endedByType} IS NULL)`,
+    ),
+    // one active recall per product
+    uniqueIndex("recalls_active_product_idx")
+      .on(t.productId)
+      .where(sql`${t.endedAt} IS NULL`),
+    index("recalls_started_at_idx").on(t.startedAt),
+  ],
+);
+
+/** The lots a recall covers, recorded when it starts. Written once. */
+export const recallLots = inventory.table(
+  "recall_lots",
+  {
+    recallId: uuid("recall_id")
+      .notNull()
+      .references(() => recalls.id, { onDelete: "restrict" }),
+    lotId: uuid("lot_id")
+      .notNull()
+      .references(() => lots.id, { onDelete: "restrict" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.recallId, t.lotId] }),
+    index("recall_lots_lot_id_idx").on(t.lotId),
   ],
 );

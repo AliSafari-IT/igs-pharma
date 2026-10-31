@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CNK_PATTERN, PRODUCT_STATUSES, REGULATED_FIELDS } from "./domain";
+import { CNK_PATTERN, PRODUCT_STATUSES, REGULATED_FIELDS, STOP_SALE_REASONS } from "./domain";
 
 /** Audit actions recorded by the catalog commands (`<domain>.<noun>.<verb>`). */
 export const CATALOG_AUDIT = {
@@ -15,6 +15,8 @@ export const CATALOG_AUDIT = {
   categoryMoved: "catalog.category.moved",
   categoryDeleted: "catalog.category.deleted",
   productCategoriesSet: "catalog.product.categories_set",
+  productSaleStopped: "catalog.product.sale_stopped",
+  productSaleResumed: "catalog.product.sale_resumed",
 } as const;
 
 const cnk = z.string().regex(CNK_PATTERN);
@@ -62,6 +64,14 @@ const productCategoriesSet = z.object({
   total: z.number().int(),
 });
 
+/** igs-pharma#187: ids and the reason only. */
+const stopSale = z.object({
+  productId: z.uuid(),
+  stopSaleId: z.uuid(),
+  reason: z.enum(STOP_SALE_REASONS),
+  referenceId: z.uuid(),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -82,4 +92,6 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(CATALOG_AUDIT.categoryMoved, categoryMoved);
   register(CATALOG_AUDIT.categoryDeleted, categoryChange);
   register(CATALOG_AUDIT.productCategoriesSet, productCategoriesSet);
+  register(CATALOG_AUDIT.productSaleStopped, stopSale);
+  register(CATALOG_AUDIT.productSaleResumed, stopSale);
 }

@@ -9,7 +9,7 @@ import {
 } from "@igs/kernel";
 import { productRefsById } from "@igs/module-catalog";
 import { PERMISSIONS } from "@igs/rbac";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { productsWithOrders, reconcileAllocations } from "./allocations";
@@ -26,7 +26,7 @@ import {
   expiryStateOf,
 } from "./domain";
 import { brusselsToday, expiryBufferDays, lockStock, recordMovements } from "./ledger";
-import { lotLevels, lots, settings } from "./schema";
+import { lotLevels, lots, recallLots, recalls, settings } from "./schema";
 
 /**
  * Lots of the web pool (igs-pharma#164, ADR 0011). Every unit of stock is in a lot. A medicine's
@@ -199,6 +199,16 @@ async function lockLot(ctx: Ctx, lotId: string) {
   const [lot] = await ctx.tx.select().from(lots).where(eq(lots.id, lotId)).for("update");
   if (!lot) throw notFound("inventory.lot_not_found");
   return lot;
+}
+
+/** Whether the lot is covered by an active recall (igs-pharma#187): it then may not be released. */
+async function lotUnderActiveRecall(tx: Tx, lotId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ recallId: recallLots.recallId })
+    .from(recallLots)
+    .innerJoin(recalls, eq(recalls.id, recallLots.recallId))
+    .where(and(eq(recallLots.lotId, lotId), isNull(recalls.endedAt)));
+  return row !== undefined;
 }
 
 const lotOnHand = async (tx: Tx, lotId: string): Promise<number> => {
@@ -385,7 +395,10 @@ export const quarantineLot = command({
   },
 });
 
-/** Puts a quarantined lot back on sale (pharmacist). Its expiry still applies. */
+/**
+ * Puts a quarantined lot back on sale (pharmacist). Its expiry still applies. A lot of an active
+ * recall is refused (`inventory.lot_under_recall`).
+ */
 export const releaseLot = command({
   name: "inventory.lot.release",
   input: z.object({ lotId: z.uuid() }),
@@ -395,6 +408,8 @@ export const releaseLot = command({
     await lockStock(ctx.tx);
     const lot = await lockLot(ctx, input.lotId);
     if (!lot.quarantinedAt) throw conflict("inventory.lot_not_quarantined");
+    // a recalled lot stays out of sale until its recall ends (igs-pharma#187)
+    if (await lotUnderActiveRecall(ctx.tx, lot.id)) throw conflict("inventory.lot_under_recall");
     await ctx.tx
       .update(lots)
       .set({

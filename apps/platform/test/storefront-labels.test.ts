@@ -10,6 +10,7 @@ describe("visibilityReasonLabel", () => {
     { code: "prescription_only" },
     { code: "no_price" },
     { code: "text_not_approved", locales: ["nl", "fr"] },
+    { code: "stop_sale", reasons: ["recall"] },
   ];
 
   it("has its own sentence for every reason the module can give", () => {

@@ -13,6 +13,7 @@ import {
   ReturnDialog,
 } from "../../../components/lot-dialogs";
 import { PageHeader } from "../../../components/page-header";
+import { StartRecallDialog } from "../../../components/recall-dialogs";
 import { ReleaseDialog } from "../../../components/release-dialog";
 import {
   KIND_LABELS,
@@ -59,6 +60,7 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
   const { adjusted, released, done } = await searchParams;
   const doneText = DONE[first(done) ?? ""];
   const canQuarantine = hasPermission(actor.roles, PERMISSIONS.inventory.lotsQuarantine);
+  const canRecall = hasPermission(actor.roles, PERMISSIONS.inventory.recallsManage);
   const now = new Date();
 
   let stock: ProductStock | null = null;
@@ -109,6 +111,15 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
                       }))}
                     />
                   ) : null}
+                  {canRecall && !stock.activeRecallId ? (
+                    <StartRecallDialog
+                      productId={stock.productId}
+                      lots={stock.lots.map((lot) => ({
+                        lotId: lot.lotId,
+                        label: `${lotLabel(lot)}${lot.expiryDate ? ` · exp. ${formatDate(lot.expiryDate)}` : ""} · ${lot.onHand} on hand`,
+                      }))}
+                    />
+                  ) : null}
                   <AdjustDialog
                     productId={stock.productId}
                     onHand={stock.onHand}
@@ -135,6 +146,17 @@ export default async function ProductStockPage({ params, searchParams }: Props) 
 
           {stock ? (
             <>
+              {stock.activeRecallId ? (
+                <Alert
+                  variant="error"
+                  title="Recalled: this product is not selling"
+                  data-testid="recalled"
+                >
+                  Its recalled lots are in quarantine and it is off the webshop.{" "}
+                  <Link href={`/recalls/${stock.activeRecallId}`}>See the recall</Link>
+                </Alert>
+              ) : null}
+
               {first(adjusted) === "1" ? (
                 <Alert variant="success" title="Stock changed">
                   On hand is now {stock.onHand}.

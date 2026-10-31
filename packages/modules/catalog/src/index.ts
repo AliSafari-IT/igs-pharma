@@ -16,6 +16,8 @@ export {
   DEFAULT_EDITOR_VAT_CLASS,
   REGULATED_FIELDS,
   type RegulatedField,
+  STOP_SALE_REASONS,
+  type StopSaleReason,
   isMedicine,
   isValidCnk,
   normalizeGtin,
@@ -89,3 +91,5 @@ export {
 } from "./listing";
 export { SEARCH_FOLD_FROM, SEARCH_FOLD_TO, foldSearch, searchTerms } from "./domain";
 export { approvedForStorefront, inUuidSet, isMedicineSql } from "./visibility";
+export { activeStopSales, endStopSale, startStopSale } from "./stop-sales";
+export { notStopped } from "./visibility";

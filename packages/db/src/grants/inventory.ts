@@ -86,5 +86,19 @@ export const inventory: SchemaGrants = {
       note: "trigger function: the reconciliation lifecycle",
       since: 68,
     }),
+    table("inventory.recalls", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "recalls (igs-pharma#187); a trigger lets only an active one end, once, and refuses DELETE",
+      since: 72,
+    }),
+    table("inventory.recall_lots", "mutable", {
+      app: ["SELECT", "INSERT"],
+      note: "the lots a recall covers, insert-only by grant; a trigger refuses UPDATE and DELETE",
+      since: 72,
+    }),
+    fn("inventory.recall_guard()", {
+      note: "trigger function: the recall lifecycle",
+      since: 72,
+    }),
   ],
 };

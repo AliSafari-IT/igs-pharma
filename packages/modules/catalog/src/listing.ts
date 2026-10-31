@@ -7,6 +7,7 @@ import {
   type ContentLocale,
   SEARCH_FOLD_FROM,
   SEARCH_FOLD_TO,
+  type StopSaleReason,
   type VatClass,
   escapeLikeTerm,
   foldSearch,
@@ -14,6 +15,7 @@ import {
   searchTerms,
 } from "./domain";
 import { brands, categories, productCategories, productContent, products } from "./schema";
+import { activeStopSales } from "./stop-sales";
 import { isMedicineSql, storefrontVisible } from "./visibility";
 
 /**
@@ -385,6 +387,8 @@ export interface VisibilityFacts {
   readonly isMedicine: boolean;
   /** Whether a pharmacist approved the text of each required locale (absent text counts as not approved). */
   readonly approved: { readonly nl: boolean; readonly fr: boolean };
+  /** Why an active stop-sale holds it (igs-pharma#187); empty when none does. */
+  readonly stoppedFor: readonly StopSaleReason[];
 }
 
 /**
@@ -424,6 +428,7 @@ export async function productVisibilityFacts(
     productType: product.productType,
     isMedicine: product.isMedicine,
     approved: { nl: approved("nl"), fr: approved("fr") },
+    stoppedFor: (await activeStopSales(tx, [product.id])).get(product.id) ?? [],
   };
 }
 

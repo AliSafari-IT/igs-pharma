@@ -68,6 +68,8 @@ const ERRORS: Record<string, string> = {
   "catalog.stale_version":
     "This was changed by someone else while you were editing. Reload the page and apply your changes again.",
   "catalog.product_not_found": "This product no longer exists.",
+  "catalog.stop_sale_exists": "This product's sale is already stopped for this recall.",
+  "catalog.stop_sale_not_found": "This product's sale is not stopped for this recall.",
   "catalog.brand_not_found": "That brand no longer exists. Pick another one.",
   "catalog.brand_slug_taken": "A brand with that name already exists.",
   "catalog.content_missing": "An active product needs a Dutch and a French name.",

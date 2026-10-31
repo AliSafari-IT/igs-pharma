@@ -52,3 +52,27 @@ describe("reservations (igs-pharma#99)", () => {
     expect(formatAge(new Date(now.getTime() + 5_000), now)).toBe("just now");
   });
 });
+
+describe("recalls (igs-pharma#187)", () => {
+  it("copies the module's sources and note limit for client components, and labels each", async () => {
+    const labels = await import("../src/components/stock-labels");
+    const inventory = await import("@igs/module-inventory");
+    expect([...labels.RECALL_SOURCE_OPTIONS]).toEqual([...inventory.RECALL_SOURCES]);
+    expect(labels.RECALL_NOTE_LIMIT).toBe(inventory.RECALL_NOTE_MAX);
+    expect(Object.keys(labels.RECALL_SOURCE_LABELS).sort()).toEqual(
+      [...inventory.RECALL_SOURCES].sort(),
+    );
+  });
+
+  it("explains the recall refusals", () => {
+    for (const code of [
+      "inventory.lot_under_recall",
+      "inventory.recall_active",
+      "inventory.recall_not_found",
+      "inventory.recall_ended",
+      "inventory.recall_lots_missing",
+    ]) {
+      expect(stockErrorMessage(code), code).not.toBe(stockErrorMessage("inventory.unknown_code"));
+    }
+  });
+});

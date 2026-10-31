@@ -17,9 +17,9 @@ import { QUARANTINE_LABELS, QUARANTINE_REASON_OPTIONS, stockErrorMessage } from 
 
 /** The lot dialogs and buttons on a product's stock page (igs-pharma#164). */
 
-type Action = (previous: LotActionState, form: FormData) => Promise<LotActionState>;
+export type Action = (previous: LotActionState, form: FormData) => Promise<LotActionState>;
 
-function LotDialog({
+export function LotDialog({
   action,
   open,
   title,

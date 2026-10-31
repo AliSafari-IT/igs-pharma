@@ -204,6 +204,8 @@ export const productVisibility = query({
       const locales = (["nl", "fr"] as const).filter((locale) => !facts.approved[locale]);
       if (locales.length > 0) reasons.push({ code: "text_not_approved", locales });
     }
+    const [first, ...more] = facts.stoppedFor;
+    if (first) reasons.push({ code: "stop_sale", reasons: [first, ...more] });
     const priced = await productsWithCurrentPrice(ctx.tx, [facts.productId], ctx.now, ctx.can);
     if (!priced.has(facts.productId)) reasons.push({ code: "no_price" });
     return { visible: reasons.length === 0, reasons };

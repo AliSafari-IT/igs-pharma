@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -21,6 +22,7 @@ import {
   PRODUCT_TYPES,
   SEARCH_FOLD_FROM,
   SEARCH_FOLD_TO,
+  STOP_SALE_REASONS,
   VAT_CLASSES,
 } from "./domain";
 
@@ -176,5 +178,39 @@ export const productCategories = catalog.table(
   (t) => [
     primaryKey({ columns: [t.productId, t.categoryId] }),
     index("product_categories_category_id_idx").on(t.categoryId),
+  ],
+);
+
+/**
+ * Stop-sales (igs-pharma#187, REQ-SAF-01): while one is active (`ended_at` NULL) the product is not
+ * storefront-visible (`storefrontVisible`), so checkout and every fulfilment step refuse it through
+ * the eligibility recheck (#182). `reference_id` is the id of what stopped it (the inventory recall),
+ * without a foreign key: a module never references another module's tables. A trigger lets only an
+ * active stop-sale end, once, and refuses DELETE.
+ */
+export const stopSales = catalog.table(
+  "stop_sales",
+  {
+    id: id(),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    referenceId: uuid("reference_id").notNull(),
+    startedByType: text("started_by_type").notNull(),
+    startedById: text("started_by_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedByType: text("ended_by_type"),
+    endedById: text("ended_by_id"),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("stop_sales_reason_check", oneOf("reason", STOP_SALE_REASONS)),
+    check(
+      "stop_sales_ended_check",
+      sql`(${t.endedAt} IS NULL) = (${t.endedById} IS NULL) AND (${t.endedAt} IS NULL) = (${t.endedByType} IS NULL)`,
+    ),
+    uniqueIndex("stop_sales_reference_idx").on(t.reason, t.referenceId),
+    index("stop_sales_active_idx").on(t.productId).where(sql`${t.endedAt} IS NULL`),
   ],
 );

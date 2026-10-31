@@ -25,7 +25,7 @@ describe("visibleNav", () => {
     expect(labels(visibleNav([], all))).toEqual([
       "Orders: Orders",
       "Catalogue: Products, Categories",
-      "Stock: Stock",
+      "Stock: Stock, Recalls",
       "Privacy: Data requests, Consents",
       "Staff: Staff",
       "Account: Your account",
