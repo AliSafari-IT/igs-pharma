@@ -41,9 +41,9 @@ export const PHARMACY_IDENTITY: PharmacyIdentity = {
   },
   phone: "[phone number]",
   email: "[e-mail address]",
-  pharmacistTitular: "[name of the pharmacist-titular]",
+  pharmacistTitular: "Djavad Salehi",
   authorisationNumber: "[authorisation number]",
-  vatNumber: "[VAT number]",
+  vatNumber: "BE 0739.742.487",
   openingHours: "[opening hours]",
 };
 
