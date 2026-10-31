@@ -41,6 +41,28 @@ export {
 } from "./cart";
 export { placeOrder, startCheckout } from "./checkout";
 export {
+  DELIVERY_DEFAULTS,
+  DELIVERY_DEFAULT_FREE_FROM_CENTS,
+  DELIVERY_DEFAULT_PRICE_CENTS,
+  DELIVERY_VAT_RATE_BP,
+  type DeliveryRates,
+  MAX_DELIVERY_PRICE_CENTS,
+  MAX_FREE_FROM_CENTS,
+  deliveryFeeCents,
+  deliveryVatCents,
+  formatEuroAmount,
+  freeDeliveryMissingCents,
+  isValidDeliveryPrice,
+  isValidFreeFrom,
+  parseEuroAmount,
+} from "./delivery-domain";
+export {
+  type DeliverySettings,
+  getDeliverySettings,
+  loadDeliverySettings,
+  setDeliverySettings,
+} from "./delivery";
+export {
   type BasketLineView,
   type CheckoutView,
   type OrderView,

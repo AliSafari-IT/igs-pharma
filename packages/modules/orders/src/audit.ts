@@ -16,6 +16,7 @@ export const ORDERS_AUDIT = {
   refundRequested: "orders.refund.requested",
   refundStatusRecorded: "orders.refund.status_recorded",
   recallNoticesRequested: "orders.recall.notices_requested",
+  deliverySettingsSet: "orders.delivery_settings.set",
 } as const;
 
 /** Ids and counts only (D-028): never the cart token, which opens the cart. */
@@ -105,6 +106,18 @@ const recallNoticesRequested = z.object({
   affected: z.number().int().min(0),
 });
 
+/**
+ * igs-pharma#202: amounts in cents and the new version only; the person who changed it is the audit
+ * entry's actor. `previous*` is null the first time (the shop was on the defaults).
+ */
+const deliverySettingsSet = z.object({
+  priceCents: z.number().int().min(0),
+  freeFromCents: z.number().int().min(0).nullable(),
+  previousPriceCents: z.number().int().min(0).nullable(),
+  previousFreeFromCents: z.number().int().min(0).nullable(),
+  version: z.number().int().min(1),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -127,4 +140,5 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(ORDERS_AUDIT.refundRequested, refundRequested);
   register(ORDERS_AUDIT.refundStatusRecorded, refundStatusRecorded);
   register(ORDERS_AUDIT.recallNoticesRequested, recallNoticesRequested);
+  register(ORDERS_AUDIT.deliverySettingsSet, deliverySettingsSet);
 }

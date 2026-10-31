@@ -44,11 +44,15 @@ export const NAV: readonly NavGroup[] = [
       },
       { label: "Consents", href: "/privacy/consents", permission: PERMISSIONS.privacy.consentRead },
       { label: "Staff", href: "/staff", permission: PERMISSIONS.staff.manage },
-      // igs-pharma#199: who may see the webshop before it opens (owner only)
       {
         label: "Early access",
         href: "/early-access",
         permission: PERMISSIONS.storefront.earlyAccessManage,
+      },
+      {
+        label: "Delivery",
+        href: "/settings/delivery",
+        permission: PERMISSIONS.orders.deliverySettingsManage,
       },
       // no permission: every signed-in staff member has an account page
       { label: "Your account", href: "/account" },

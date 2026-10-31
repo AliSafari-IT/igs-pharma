@@ -198,38 +198,6 @@ export function siteGateEnabled(
 }
 
 /**
- * Storefront preview (igs-pharma#62): a secret key that lets its holder past the site gate. Unset (or
- * empty) means no preview is possible, which is the default everywhere. Minimum 32 characters:
- * generate it with `openssl rand -hex 32`.
- */
-export const previewEnv = z.object({
-  IGS_PREVIEW_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
-});
-
-/** What the preview pass needs to sign and check its cookie. */
-export interface PreviewSecrets {
-  /** `IGS_PREVIEW_KEY`: what a visitor presents at `/preview?key=…`. */
-  readonly key: string;
-  /** `AUTH_SECRET`: signs the cookie, so the cookie never contains the key. */
-  readonly secret: string;
-}
-
-/**
- * The preview key and the cookie signing secret, or `null` when the preview is off. Fails CLOSED:
- * an unset, empty or too short key, or a missing or short `AUTH_SECRET`, means no preview, and never
- * an error (a mistyped key must not take the closed storefront down).
- */
-export function previewSecrets(
-  env: Readonly<Record<string, string | undefined>>,
-): PreviewSecrets | null {
-  const parsed = previewEnv
-    .extend({ AUTH_SECRET: authEnv.shape.AUTH_SECRET })
-    .safeParse({ IGS_PREVIEW_KEY: env["IGS_PREVIEW_KEY"], AUTH_SECRET: env["AUTH_SECRET"] });
-  if (!parsed.success || !parsed.data.IGS_PREVIEW_KEY) return null;
-  return { key: parsed.data.IGS_PREVIEW_KEY, secret: parsed.data.AUTH_SECRET };
-}
-
-/**
  * Synthetic catalogue seed (igs-pharma#50): `node dist/seed-catalog.js` loads fake products. It runs
  * only when `NODE_ENV=development` is set explicitly, or with `IGS_ALLOW_SYNTHETIC_SEED=1` (staging
  * runs the production image, so the operator opts in there on purpose; never on the live shop). A

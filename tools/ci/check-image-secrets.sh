@@ -10,7 +10,7 @@
 set -euo pipefail
 image="${1:?usage: check-image-secrets.sh <image>}"
 # Every `sensitive` variable of packages/config/src/env-sensitivity.ts, plus the CI-only ones.
-names='AUTH_SECRET|DATABASE_URL|DATABASE_MIGRATE_URL|AUTH_URL|AUDIT_HMAC_KEY|IGS_PREVIEW_KEY|ENCRYPTION_KEY|KMS_KEY_ID|SENTRY_DSN|SMTP_URL|MOLLIE_API_KEY|TURBO_TOKEN|TURBO_TEAM'
+names='AUTH_SECRET|DATABASE_URL|DATABASE_MIGRATE_URL|AUTH_URL|AUDIT_HMAC_KEY|ENCRYPTION_KEY|KMS_KEY_ID|SENTRY_DSN|SMTP_URL|MOLLIE_API_KEY|TURBO_TOKEN|TURBO_TEAM'
 
 # Capture first, then grep: `docker ... | grep -q` under pipefail can exit 141 (SIGPIPE) when grep
 # matches early, and an `if` would read that as "no match", i.e. pass while the secret is present.

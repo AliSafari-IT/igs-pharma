@@ -19,8 +19,6 @@ export const ENV_SENSITIVITY = {
   AUTH_SECRET: "sensitive",
   AUTH_URL: "not-sensitive", // the public address of the app
   AUDIT_HMAC_KEY: "sensitive",
-  // storefront preview pass
-  IGS_PREVIEW_KEY: "sensitive",
   // outgoing mail (igs-pharma#114)
   SMTP_URL: "sensitive", // can carry the mail server password
   MOLLIE_API_KEY: "sensitive", // can create payments and refunds

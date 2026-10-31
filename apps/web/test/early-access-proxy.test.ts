@@ -51,13 +51,30 @@ const stale = () =>
 function configure(env: Record<string, string> = {}) {
   vi.stubEnv("SITE_GATE", "coming-soon");
   vi.stubEnv("AUTH_SECRET", SECRET);
-  vi.stubEnv("IGS_PREVIEW_KEY", "");
   vi.stubEnv("NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS", "true");
   for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
 }
 
 afterEach(() => {
   vi.unstubAllEnvs();
+});
+
+describe("the shared preview key is gone (igs-pharma#199, part 4)", () => {
+  it("/preview and /preview/end are just closed URLs: coming-soon in place, no cookie, no form", () => {
+    // even with the old variable still set on a server: nothing reads it any more
+    configure({ IGS_PREVIEW_KEY: "k".repeat(40) });
+    for (const [path, method] of [
+      ["/preview", "GET"],
+      ["/preview", "POST"],
+      [`/preview?key=${"k".repeat(40)}`, "GET"],
+      ["/preview/end", "GET"],
+    ] as const) {
+      const res = call(path, { method });
+      expect(closed(res), `${method} ${path}`).toBe(true);
+      expect(res.headers.get("set-cookie"), `${method} ${path}`).toBeNull();
+      expect(res.headers.get("location"), `${method} ${path}`).toBeNull();
+    }
+  });
 });
 
 describe("a valid pass", () => {

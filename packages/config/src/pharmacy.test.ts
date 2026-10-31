@@ -39,6 +39,33 @@ describe("the pharmacy identity", () => {
     expect(identityValues(almost).filter(isStandIn)).toEqual(["[VAT number]"]);
   });
 
+  it("holds the real pharmacist-titular and VAT number (igs-pharma#203), and still counts as a placeholder", () => {
+    expect(PHARMACY_IDENTITY.pharmacistTitular).toBe("Djavad Salehi");
+    expect(PHARMACY_IDENTITY.vatNumber).toBe("BE 0739.742.487");
+    // the address, phone, e-mail, authorisation number and opening hours are still to come from the
+    // owner: they stay marked stand-ins, so the identity stays a placeholder and the note stays on
+    expect(identityValues(PHARMACY_IDENTITY).filter(isStandIn)).toEqual([
+      "[street and number]",
+      "[postal code]",
+      "[city]",
+      "[phone number]",
+      "[e-mail address]",
+      "[authorisation number]",
+      "[opening hours]",
+    ]);
+    expect(PHARMACY_IDENTITY.isPlaceholder).toBe(true);
+  });
+
+  it("writes the VAT number in the display format and its Belgian check digits add up", () => {
+    // "BE 0123.456.789": the country, a space, then ten digits in groups of 4, 3 and 3
+    const match = /^BE (\d{4})\.(\d{3})\.(\d{3})$/.exec(PHARMACY_IDENTITY.vatNumber);
+    expect(match).not.toBeNull();
+    const digits = (match ?? []).slice(1).join("");
+    // the last two digits are 97 minus the first eight digits modulo 97
+    const check = 97 - (Number(digits.slice(0, 8)) % 97);
+    expect(Number(digits.slice(8))).toBe(check);
+  });
+
   it("recognises a stand-in by its brackets only", () => {
     expect(isStandIn("[city]")).toBe(true);
     expect(isStandIn(" [city] ")).toBe(true);

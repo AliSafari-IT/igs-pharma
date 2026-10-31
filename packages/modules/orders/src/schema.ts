@@ -13,6 +13,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { MAX_DELIVERY_PRICE_CENTS, MAX_FREE_FROM_CENTS } from "./delivery-domain";
 import {
   CHECKOUT_STATUSES,
   ORDER_CURRENCY,
@@ -470,5 +471,39 @@ export const orderMails = orders.table(
       .on(t.refundId, t.kind)
       .where(sql`${t.refundId} IS NOT NULL`),
     index("order_mails_status_created_idx").on(t.status, t.createdAt),
+  ],
+);
+
+/**
+ * Home delivery, as staff set it (igs-pharma#202): ONE row, key `delivery`. The price and the
+ * free-delivery value are whole cents with VAT included; `free_from_cents` NULL means delivery is
+ * never free. With no row the shop uses the defaults in `delivery-domain.ts` and the back-office says
+ * so. Read from the database on every request, never cached across a staff change.
+ */
+export const deliverySettings = orders.table(
+  "delivery_settings",
+  {
+    key: text("key").primaryKey().default("delivery"),
+    priceCents: integer("price_cents").notNull(),
+    freeFromCents: integer("free_from_cents"),
+    /** Bumped by one on every change. */
+    version: integer("version").notNull().default(1),
+    updatedByType: text("updated_by_type").notNull(),
+    updatedById: text("updated_by_id").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("delivery_settings_key_check", sql`${t.key} = 'delivery'`),
+    check(
+      "delivery_settings_price_check",
+      sql.raw(`price_cents >= 0 AND price_cents <= ${MAX_DELIVERY_PRICE_CENTS}`),
+    ),
+    check(
+      "delivery_settings_free_from_check",
+      sql.raw(
+        `free_from_cents IS NULL OR (free_from_cents >= 0 AND free_from_cents <= ${MAX_FREE_FROM_CENTS})`,
+      ),
+    ),
+    check("delivery_settings_version_check", sql`${t.version} >= 1`),
   ],
 );

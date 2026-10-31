@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { smokeEnv, smokePreviewKey } from "./smoke-env";
+import { smokeEnv } from "./smoke-env";
 
 /**
  * Visual smoke check (T-015) and axe (T-017) against the PRODUCTION build of both apps: run
@@ -18,6 +18,8 @@ export default defineConfig({
     "account.spec.ts",
     "two-step.spec.ts",
     "staff.spec.ts",
+    "early-access.spec.ts",
+    "delivery-settings.spec.ts",
     "coming-soon.spec.ts",
     "catalog.spec.ts",
     "stock.spec.ts",
@@ -25,7 +27,6 @@ export default defineConfig({
     "categories.spec.ts",
     "privacy.spec.ts",
     "prices.spec.ts",
-    "storefront-preview.spec.ts",
     "storefront-browse.spec.ts",
     "storefront-search.spec.ts",
     "backoffice-dashboard.spec.ts",
@@ -33,7 +34,6 @@ export default defineConfig({
     "reservations.spec.ts",
     "customer-accounts.spec.ts",
     "orders.spec.ts",
-    "early-access.spec.ts",
   ],
   timeout: 30_000,
   reporter: process.env["CI"] ? "github" : "list",
@@ -61,7 +61,7 @@ export default defineConfig({
       command: "pnpm --filter=@igs/web exec next start --port 3002",
       url: "http://localhost:3002/api/health/live",
       // "" counts as unset, and overrides a SITE_GATE inherited from the shell
-      env: { ...env, SITE_GATE: "", IGS_PREVIEW_KEY: smokePreviewKey },
+      env: { ...env, SITE_GATE: "" },
       reuseExistingServer: false,
     },
     {
