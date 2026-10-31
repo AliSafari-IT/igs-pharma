@@ -36,6 +36,7 @@ describe("hasPermission (code catalogue installed)", () => {
     "inventory.availability.read",
     "inventory.stock.manage",
     "inventory.stock.read",
+    "orders.delivery_settings.manage",
     "orders.order.manage",
     "orders.read",
     "orders.refund.request",
@@ -138,6 +139,14 @@ describe("hasPermission (code catalogue installed)", () => {
       expect(hasPermission([role], manage), role).toBe(role === "owner");
       expect(hasPermission([role], self), role).toBe(role === "customer");
     }
+  });
+
+  it("only the owner and the pharmacist-titular set the delivery price and threshold (#202)", () => {
+    expect(
+      ROLE_KEYS.filter((r) =>
+        ROLE_PERMISSIONS[r].includes(PERMISSIONS.orders.deliverySettingsManage),
+      ),
+    ).toEqual(["owner", "pharmacist_titular"]);
   });
 
   it("fulfilment is staff work; customer service only reads (#116)", () => {
