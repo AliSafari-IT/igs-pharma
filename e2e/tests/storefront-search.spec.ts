@@ -146,6 +146,8 @@ test("sort by price and the in-stock filter, kept in the URL and in the language
   await expect(page.getByRole("article")).toHaveCount(SEEDS.length - 1);
 
   // the language switch keeps the query, the sort and the filter
+  // the language menu (#193): a native disclosure in the top bar
+  await page.getByTestId("language-menu").locator("summary").click();
   await page
     .getByRole("navigation", { name: "Taal" })
     .getByRole("link", { name: "Français" })

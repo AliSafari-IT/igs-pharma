@@ -1,10 +1,9 @@
 import type { ContentLocale } from "@igs/module-catalog";
 import type { StorefrontCategoryNode } from "@igs/module-storefront";
-import { Link } from "@igs/ui";
+import { Container } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
-/** Indent by depth as fixed classes: the CSP refuses inline styles, and Tailwind needs literals. */
-const INDENT: Record<number, string> = { 1: "", 2: "pl-4", 3: "pl-8", 4: "pl-12" };
+import { categoryBar } from "../lib/category-path";
 
 interface Props {
   readonly locale: ContentLocale;
@@ -12,47 +11,65 @@ interface Props {
   readonly activeSlug?: string | undefined;
 }
 
-function List({ locale, tree, activeSlug }: Props) {
-  return (
-    <ul className="flex flex-col">
-      {tree.map((category) => (
-        <li key={category.id} className={INDENT[category.depth] ?? ""}>
-          <Link
-            href={`/${locale}/c/${category.slug}`}
-            aria-current={category.slug === activeSlug ? "page" : undefined}
-            className={`inline-flex min-h-[44px] items-center ${category.slug === activeSlug ? "font-semibold" : ""}`}
-          >
-            {category.name}
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
-}
+const chip = (current: boolean, inBranch: boolean) =>
+  `inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border px-4 no-underline ${
+    current
+      ? "border-[var(--color-primary)] bg-[var(--color-primary)] font-semibold text-[var(--color-on-primary)]"
+      : inBranch
+        ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] font-semibold text-[var(--color-primary)]"
+        : "border-[var(--color-border-strong)] bg-[var(--color-bg)] text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+  }`;
 
 /**
- * The category tree as navigation: a side column from `md`, and on a phone a collapsed
- * "Categories" disclosure above the content (a native `<details>`: no script, so the CSP and
- * keyboard behaviour are the browser's own). The two renderings never show together; the hidden
- * one is `display: none`, so a screen reader meets one landmark.
+ * The category bar (igs-pharma#193, milestone 5.2): the top-level categories as one row of chips,
+ * and inside a branch a second row with every level under it, so a shopper can go deeper. One
+ * `Categories` navigation at every width: on a phone the rows scroll sideways. Links only, no
+ * script. The category the page shows carries `aria-current="page"`.
  */
 export async function CategoryNav({ locale, tree, activeSlug }: Props) {
-  if (tree.length === 0) return <div className="hidden md:block" />;
+  if (tree.length === 0) return null;
   const t = await getTranslations({ locale, namespace: "storefront" });
+  const { top, activeTopId, branch } = categoryBar(tree, activeSlug);
+  const row = "flex gap-2 overflow-x-auto py-2";
   return (
-    <>
-      <details className="rounded-[var(--radius-md)] border border-[var(--color-border-strong)] md:hidden">
-        <summary className="flex min-h-[44px] cursor-pointer items-center px-4 font-semibold">
-          {t("showCategories")}
-        </summary>
-        <nav aria-label={t("categoriesNav")} className="px-4 pb-3">
-          <List locale={locale} tree={tree} activeSlug={activeSlug} />
-        </nav>
-      </details>
-      <nav aria-label={t("categoriesNav")} className="hidden md:block">
-        <h2 className="mb-2 font-display text-lg font-semibold">{t("categories")}</h2>
-        <List locale={locale} tree={tree} activeSlug={activeSlug} />
-      </nav>
-    </>
+    <nav
+      aria-label={t("categoriesNav")}
+      data-testid="category-bar"
+      className="border-b border-[var(--color-border)] bg-[var(--color-bg)]"
+    >
+      <Container>
+        <ul className={row}>
+          {top.map((category) => (
+            <li key={category.id} className="shrink-0">
+              <a
+                href={`/${locale}/c/${category.slug}`}
+                aria-current={category.slug === activeSlug ? "page" : undefined}
+                className={chip(category.slug === activeSlug, category.id === activeTopId)}
+              >
+                {category.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+        {branch.length > 0 ? (
+          <ul
+            className={`${row} border-t border-[var(--color-border)]`}
+            aria-label={t("subcategoriesNav")}
+          >
+            {branch.map((category) => (
+              <li key={category.id} className="shrink-0">
+                <a
+                  href={`/${locale}/c/${category.slug}`}
+                  aria-current={category.slug === activeSlug ? "page" : undefined}
+                  className={chip(category.slug === activeSlug, false)}
+                >
+                  {category.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </Container>
+    </nav>
   );
 }

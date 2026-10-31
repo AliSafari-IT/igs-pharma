@@ -10,6 +10,8 @@ export interface ThemeToggleProps {
   /** The button's label in each direction, in the page's language. */
   readonly labels: { readonly toDark: string; readonly toLight: string };
   readonly className?: string;
+  /** `topbar`: drawn on the charcoal storefront top bar (igs-pharma#193). */
+  readonly tone?: "default" | "topbar";
 }
 
 const prefersDark = () =>
@@ -21,7 +23,7 @@ const prefersDark = () =>
  * in dark (go light), a moon in light (go dark). Until it mounts it renders with the server's theme
  * (the system's when there is none: the label then says "dark", the usual default).
  */
-export function ThemeToggle({ initial, labels, className }: ThemeToggleProps) {
+export function ThemeToggle({ initial, labels, className, tone = "default" }: ThemeToggleProps) {
   const [theme, setTheme] = useState<ThemeChoice>(initial ?? "light");
   useEffect(() => {
     if (!initial) setTheme(prefersDark() ? "dark" : "light");
@@ -41,7 +43,11 @@ export function ThemeToggle({ initial, labels, className }: ThemeToggleProps) {
         document.cookie = themeCookie(next, window.location.protocol === "https:");
         setTheme(next);
       }}
-      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text)] hover:bg-[var(--color-surface-2)] ${className ?? ""}`}
+      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--radius-md)] ${
+        tone === "topbar"
+          ? "text-[var(--color-on-topbar)] hover:bg-[var(--color-topbar-raised)]"
+          : "text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
+      } ${className ?? ""}`}
     >
       {theme === "dark" ? (
         <svg
