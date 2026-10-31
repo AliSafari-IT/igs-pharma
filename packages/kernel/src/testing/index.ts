@@ -17,7 +17,7 @@ import {
   configureKernel,
   resetKernelConfig,
 } from "../config";
-import { resetEventRegistry } from "../events";
+import { registeredTopics, resetEventRegistry } from "../events";
 
 // ── RBAC catalogue ─────────────────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ import { resetEventRegistry } from "../events";
  * Installs the code RBAC catalogue (T-016) so `hasPermission` works without a database load. Call
  * once per test process, e.g. from a vitest `setupFiles` entry.
  */
-export { useCodeRbacCatalogue };
+export { registeredTopics, useCodeRbacCatalogue };
 
 // ── clock ──────────────────────────────────────────────────────────────────────────────────────
 
