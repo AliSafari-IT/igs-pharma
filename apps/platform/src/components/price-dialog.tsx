@@ -48,7 +48,7 @@ export function PriceDialog({ productId, currentCents, submissionId }: Props) {
       <dialog
         ref={dialog}
         aria-labelledby={`${id}-title`}
-        className="m-auto w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg)] p-6 text-[var(--color-text)] shadow-lg backdrop:bg-[var(--color-text)]/40"
+        className="m-auto w-full max-w-md rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg)] p-6 text-[var(--color-text)] shadow-lg backdrop:bg-black/50"
       >
         <form action={action} noValidate>
           <Stack gap={4}>

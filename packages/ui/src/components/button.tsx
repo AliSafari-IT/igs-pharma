@@ -17,13 +17,14 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)]",
+          "bg-[var(--color-primary)] text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)]",
         secondary:
           "bg-transparent border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]",
         ghost: "bg-transparent text-[var(--color-text)] hover:bg-[var(--color-surface-2)]",
         // Amber only ever carries the dark text colour; no prop can change it
         accent: "bg-[var(--color-accent)] text-[var(--color-text)] hover:brightness-95",
-        danger: "bg-[var(--color-error)] text-white hover:bg-[var(--color-error-text)]",
+        danger:
+          "bg-[var(--color-error)] text-[var(--color-on-error)] hover:bg-[var(--color-error-text)]",
       },
       size: {
         sm: "min-h-[36px] min-w-[36px] px-3 py-2 text-xs",
@@ -41,9 +42,9 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "accent" | "dang
 /** The token pairs each variant draws (checked by contrast.test.ts). */
 export const buttonContrast: Record<ButtonVariant, ContrastPair[]> = {
   primary: [
-    { fg: "white", bg: "primary", use: "text" },
-    { fg: "white", bg: "primary-hover", use: "text" },
-    { fg: "white", bg: "primary-active", use: "text" },
+    { fg: "on-primary", bg: "primary", use: "text" },
+    { fg: "on-primary", bg: "primary-hover", use: "text" },
+    { fg: "on-primary", bg: "primary-active", use: "text" },
     ...FOCUS_RING,
   ],
   secondary: [
@@ -59,8 +60,8 @@ export const buttonContrast: Record<ButtonVariant, ContrastPair[]> = {
   ],
   accent: [{ fg: "text", bg: "accent", use: "text" }, ...FOCUS_RING],
   danger: [
-    { fg: "white", bg: "error", use: "text" },
-    { fg: "white", bg: "error-text", use: "text" },
+    { fg: "on-error", bg: "error", use: "text" },
+    { fg: "on-error", bg: "error-text", use: "text" },
     ...FOCUS_RING,
   ],
 };

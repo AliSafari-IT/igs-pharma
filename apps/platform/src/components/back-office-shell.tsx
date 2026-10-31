@@ -1,3 +1,4 @@
+import { type ThemeChoice, ThemeToggle } from "@igs/ui";
 import type { ReactNode } from "react";
 
 import type { NavGroup } from "../lib/nav";
@@ -11,6 +12,8 @@ interface Props {
   /** Their staff roles, already named (`staffRoleSummary`); nothing is shown when empty. */
   readonly roleSummary: string;
   readonly groups: readonly NavGroup[];
+  /** The staff member's light/dark choice from the cookie, for the toggle (igs-pharma#191). */
+  readonly theme?: ThemeChoice | undefined;
   readonly children: ReactNode;
 }
 
@@ -21,7 +24,7 @@ interface Props {
  * sidebar is a column (below that the wide tables of the pages need the full width); under it the sidebar is a native "Menu" disclosure (no script, so the CSP and the
  * keyboard behaviour are the browser's own).
  */
-export function BackOfficeShell({ name, roleSummary, groups, children }: Props) {
+export function BackOfficeShell({ name, roleSummary, groups, theme, children }: Props) {
   return (
     <div className="flex min-h-screen flex-col">
       <a
@@ -50,6 +53,10 @@ export function BackOfficeShell({ name, roleSummary, groups, children }: Props) 
                 </span>
               ) : null}
             </span>
+            <ThemeToggle
+              initial={theme}
+              labels={{ toDark: "Switch to the dark theme", toLight: "Switch to the light theme" }}
+            />
             <SignOutButton />
           </div>
         </div>

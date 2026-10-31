@@ -3,38 +3,37 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand */
-  --color-primary: #0f766e; /* teal-700 */
-  --color-primary-hover: #115e59; /* teal-800 */
-  --color-primary-active: #134e4a; /* teal-900 */
-  --color-primary-subtle: #f0fdfa; /* teal-50  */
-  --color-primary-muted: #ccfbf1; /* teal-100 */
-  --color-secondary: #14b8a6; /* teal-500 — decorative only */
-  --color-accent: #f59e0b; /* amber-500 — use with dark text */
-  --color-accent-subtle: #fffbeb; /* amber-50  */
-  --color-accent-strong: #92400e; /* amber-800 */
-
-  /* Neutrals */
-  --color-bg: #ffffff;
-  --color-surface: #f8fafc; /* slate-50  */
-  --color-surface-2: #f1f5f9; /* slate-100 */
-  --color-border: #e2e8f0; /* slate-200 — decorative */
-  --color-border-strong: #64748b; /* slate-500 — inputs ≥3:1 */
-  --color-text: #0f172a; /* slate-900 */
-  --color-text-muted: #64748b; /* slate-500 — on white/surface only */
-  --color-text-subtle: #475569; /* slate-600 — muted on surface-2 */
-  --color-focus: #0f766e;
-
-  /* Feedback */
+  /* Colours: the ASafariM OS theme, light (igs-pharma#191, milestone 5.2). Dark values below. */
+  --color-page: #d8e6f1; /* the page behind the cards (OS cool light blue) */
+  --color-primary: #0f4c6e; /* navy: actions, links */
+  --color-primary-hover: #0b3a55;
+  --color-primary-active: #082c41;
+  --color-primary-subtle: #e6eff6;
+  --color-primary-muted: #cfe0ec;
+  --color-on-primary: #ffffff; /* text on a filled primary */
+  --color-secondary: #8bb9e2; /* light blue: decorative only */
+  --color-accent: #f59e0b; /* amber: use with dark text */
+  --color-accent-subtle: #fef3c7;
+  --color-accent-strong: #92400e;
+  --color-bg: #ffffff; /* cards, dialogs, fields */
+  --color-surface: #eef4f9; /* a card inside a card */
+  --color-surface-2: #e2ecf4;
+  --color-border: #b9cfdf; /* decorative */
+  --color-border-strong: #5b7186; /* inputs ≥3:1 */
+  --color-text: #15212b;
+  --color-text-muted: #4b5b69; /* on bg/surface only */
+  --color-text-subtle: #45525e; /* muted on surface-2 */
+  --color-focus: #0f4c6e;
   --color-success: #16a34a;
-  --color-success-text: #15803d;
+  --color-success-text: #166534;
   --color-success-subtle: #f0fdf4;
   --color-error: #dc2626;
   --color-error-text: #b91c1c;
   --color-error-subtle: #fef2f2;
+  --color-on-error: #ffffff; /* text on a filled error */
   --color-warning: #f59e0b;
   --color-warning-text: #92400e;
-  --color-info: #0f766e;
+  --color-info: #0f4c6e;
 
   /* Typography */
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
@@ -49,4 +48,80 @@
   /* Shadows */
   --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
   --shadow-pop: 0 8px 32px rgb(15 23 42 / 0.12);
+}
+
+/*
+ * Dark (igs-pharma#191): charcoal with light-blue accents, as the Android app and igs.asafarim.site.
+ * The system setting decides unless the visitor picked one: the root layout writes
+ * data-theme="light|dark" on <html> from the `igs_theme` cookie. The two blocks carry the same values
+ * (contrast.test.ts checks that, and checks every pair in both themes).
+ */
+:root[data-theme="dark"] {
+  --color-page: #262626;
+  --color-primary: #7fb0dc;
+  --color-primary-hover: #a2c7ea;
+  --color-primary-active: #c2dbf1;
+  --color-primary-subtle: #1f2a33;
+  --color-primary-muted: #2a3b49;
+  --color-on-primary: #0d1b26;
+  --color-secondary: #3f5a70;
+  --color-accent: #a14a08;
+  --color-accent-subtle: #3a2e0c;
+  --color-accent-strong: #fcd34d;
+  --color-bg: #1c1c1c;
+  --color-surface: #2a2a2a;
+  --color-surface-2: #333333;
+  --color-border: #3d3d3d;
+  --color-border-strong: #8a8a8a;
+  --color-text: #f2f2f2;
+  --color-text-muted: #b5b5b5;
+  --color-text-subtle: #b5b5b5;
+  --color-focus: #7fb0dc;
+  --color-success: #16a34a;
+  --color-success-text: #86efac;
+  --color-success-subtle: #14301e;
+  --color-error: #f87171;
+  --color-error-text: #fca5a5;
+  --color-error-subtle: #3b1515;
+  --color-on-error: #1c1c1c;
+  --color-warning: #a14a08;
+  --color-warning-text: #fcd34d;
+  --color-info: #7fb0dc;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-page: #262626;
+    --color-primary: #7fb0dc;
+    --color-primary-hover: #a2c7ea;
+    --color-primary-active: #c2dbf1;
+    --color-primary-subtle: #1f2a33;
+    --color-primary-muted: #2a3b49;
+    --color-on-primary: #0d1b26;
+    --color-secondary: #3f5a70;
+    --color-accent: #a14a08;
+    --color-accent-subtle: #3a2e0c;
+    --color-accent-strong: #fcd34d;
+    --color-bg: #1c1c1c;
+    --color-surface: #2a2a2a;
+    --color-surface-2: #333333;
+    --color-border: #3d3d3d;
+    --color-border-strong: #8a8a8a;
+    --color-text: #f2f2f2;
+    --color-text-muted: #b5b5b5;
+    --color-text-subtle: #b5b5b5;
+    --color-focus: #7fb0dc;
+    --color-success: #16a34a;
+    --color-success-text: #86efac;
+    --color-success-subtle: #14301e;
+    --color-error: #f87171;
+    --color-error-text: #fca5a5;
+    --color-error-subtle: #3b1515;
+    --color-on-error: #1c1c1c;
+    --color-warning: #a14a08;
+    --color-warning-text: #fcd34d;
+    --color-info: #7fb0dc;
+    color-scheme: dark;
+  }
 }
