@@ -110,7 +110,7 @@ test("without the cookie every storefront page is coming-soon, and robots disall
     expect(response?.headers()["x-robots-tag"], path).toBe("noindex, nofollow");
     await expect(page.getByText("Binnenkort open"), path).toBeVisible();
     await expect(page.getByText(stocked.name), path).toHaveCount(0);
-    await expect(page.getByText("Preview — not public"), path).toHaveCount(0);
+    await expect(page.getByTestId("preview-banner"), path).toHaveCount(0);
   }
   expect(await (await request.get(`${GATED}/robots.txt`)).text()).toMatch(/Disallow: \//);
 });
@@ -147,7 +147,11 @@ test("with the key: banner, a category, a product with price, VAT and availabili
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax", path: "/" });
   expect(cookie?.value).not.toContain(smokePreviewKey);
 
-  await expect(page.getByText("Preview — not public")).toBeVisible();
+  await expect(page.getByTestId("preview-banner")).toBeVisible();
+  // the notice itself, in the page's language (not just the end link, which also says "Voorvertoning")
+  await expect(page.getByTestId("preview-banner")).toContainText(
+    "deze webshop is nog in ontwikkeling en opent binnenkort",
+  );
   await expect(page.getByRole("heading", { level: 1, name: "IGS-Pharma" })).toBeVisible();
   await expectAxeClean(page);
 
@@ -217,8 +221,8 @@ test("a private window without the cookie still sees coming-soon; ending the pre
   await privateWindow.close();
 
   await openPreview(page);
-  await expect(page.getByText("Preview — not public")).toBeVisible();
-  await page.getByRole("link", { name: "End preview" }).click();
+  await expect(page.getByTestId("preview-banner")).toBeVisible();
+  await page.getByRole("link", { name: "Voorvertoning beëindigen" }).click();
   await expect(page.getByText("Binnenkort open")).toBeVisible();
   await page.goto(`${GATED}/nl`);
   await expect(page.getByText("Binnenkort open")).toBeVisible();

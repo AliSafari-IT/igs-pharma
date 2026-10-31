@@ -48,6 +48,8 @@
     "backTo": "Retour à {name}",
     "unavailable": "Les produits sont temporairement indisponibles. Réessayez plus tard.",
     "skipToContent": "Aller au contenu",
+    "previewBanner": "Aperçu : cette boutique est encore en développement et ouvre bientôt. Elle n'est pas encore publique.",
+    "previewEnd": "Quitter l'aperçu",
     "tagline": "Pharmacie en ligne en Belgique. La commande en ligne sera bientôt possible.",
     "home": "Accueil",
     "breadcrumb": "Fil d'Ariane",
