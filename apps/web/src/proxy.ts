@@ -7,7 +7,6 @@ import {
   cspReportingEnabled,
   getFeatureFlags,
   parseEnvFor,
-  previewSecrets,
   siteGateEnabled,
   siteGateEnv,
 } from "@igs/config";
@@ -24,7 +23,6 @@ import {
   sessionCookieValue,
   verifyPass,
 } from "./early-access";
-import { PREVIEW_COOKIE, PREVIEW_HEADER, verifyPreviewCookie } from "./preview";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -43,12 +41,6 @@ export const COMING_SOON_PATH = "/coming-soon";
 /** The read-only routes of the Android app (`src/app/api/mobile`); closed like the rest by the gate. */
 export const MOBILE_API_PREFIX = "/api/mobile/";
 
-/** The entry and the exit of the storefront preview pass (igs-pharma#62). */
-export const PREVIEW_PATH = "/preview";
-export const PREVIEW_END_PATH = "/preview/end";
-/** The internal route of the preview key form (`src/app/preview-key`); reachable only by rewrite. */
-export const PREVIEW_FORM_PATH = "/preview-key";
-
 /**
  * What stays reachable while the storefront is closed (igs-pharma#46, IGS-D4): health checks, the
  * ASafariM OS manifest and CSP reports. `/robots.txt` is outside the matcher and answers
@@ -59,7 +51,7 @@ function isOpenPath(pathname: string): boolean {
     pathname === "/api/health" ||
     pathname.startsWith("/api/health/") ||
     pathname === "/api/csp-report" ||
-    // Mollie's server calls it, never with a preview cookie (igs-pharma#116)
+    // Mollie's server calls it, never with a session or pass cookie (igs-pharma#116)
     pathname === "/api/webhooks/mollie" ||
     pathname === "/.well-known/asafarim-app.json"
   );
@@ -67,7 +59,7 @@ function isOpenPath(pathname: string): boolean {
 
 /**
  * The one place that decides whether a request gets past the closed storefront: the few open paths,
- * or a request holding a valid preview cookie (igs-pharma#62) or early-access pass (igs-pharma#199).
+ * or a request holding a valid early-access pass (igs-pharma#199).
  * `passed` is only ever true after the cookie's signature and expiry were checked.
  */
 function passesGate(pathname: string, passed: boolean): boolean {
@@ -94,27 +86,6 @@ export function isEarlyAccessPath(pathname: string): boolean {
 }
 
 /**
- * The preview entry (igs-pharma#91: the key never travels in a URL). Only while the gate is on AND a
- * key is configured:
- * - `GET /preview` with no query string shows the key form;
- * - `POST /preview` goes to the route handler (`src/app/preview/route.ts`), which checks the key in
- *   constant time, sets the signed cookie and redirects.
- * Anything else, `GET /preview?key=…` included, returns `null`: it falls through to the gate and
- * gets the coming-soon page, with no hint that a preview exists.
- */
-function previewEntry(
-  request: NextRequest,
-  secrets: ReturnType<typeof previewSecrets>,
-): NextResponse | null {
-  if (!secrets || request.nextUrl.pathname !== PREVIEW_PATH) return null;
-  if (request.method === "POST") return NextResponse.next({ request });
-  if (request.method === "GET" && request.nextUrl.search === "") {
-    return NextResponse.rewrite(new URL(PREVIEW_FORM_PATH, request.url), { request });
-  }
-  return null;
-}
-
-/**
  * Next 16 proxy: per-request CSP nonce + security headers (T-011, D-031), then next-intl locale routing.
  * Next reads the nonce from the request's Content-Security-Policy header and stamps it on its own
  * <script> tags; `x-nonce` exposes it to server components (headers()) for any script they render.
@@ -136,21 +107,15 @@ export default function proxy(request: NextRequest) {
   request.headers.set("content-security-policy", headers["content-security-policy"] ?? "");
 
   // a client never sets these: they are added below, and only after the cookie verified
-  request.headers.delete(PREVIEW_HEADER);
   request.headers.delete(EARLY_ACCESS_HEADER);
   request.headers.delete(GATE_HEADER);
   request.headers.delete(RETURN_HEADER);
 
   const { pathname } = request.nextUrl;
   const gated = siteGateEnabled(parseEnvFor(gateEnv));
-  // fails closed: no key configured (the default) means no preview, whatever a request carries
-  const secrets = previewSecrets(process.env);
   const now = Date.now();
 
   let response: NextResponse;
-  const entry = gated ? previewEntry(request, secrets) : null;
-  const preview =
-    gated && verifyPreviewCookie(secrets, request.cookies.get(PREVIEW_COOKIE)?.value, now);
   // igs-pharma#199: a pass is only worth anything with the session cookie it was issued for
   // only while customer accounts are on: without them nobody can be signed in to hold a pass
   const pass =
@@ -163,35 +128,25 @@ export default function proxy(request: NextRequest) {
         )
       : null;
   const early = pass?.fresh === true;
-  const passed = preview || early;
   const navigation = request.method === "GET" || request.method === "HEAD";
-  if (entry) {
-    response = entry;
-  } else if (gated && secrets && pathname === PREVIEW_END_PATH) {
-    // leaving the preview: drop the cookie and land on whatever the public sees. With no key
-    // configured this path is just another closed URL (no hint that a preview exists, #91)
-    // configured this path is just another closed URL (no hint that a preview exists, #91). The
-    // route handler answers (`src/app/preview/end/route.ts`): the proxy cannot send a relative
-    // Location, and one built from `request.url` would carry the container's address (#199)
-    response = NextResponse.next({ request });
-  } else if (gated && !passesGate(pathname, preview) && pathname.startsWith(MOBILE_API_PREFIX)) {
+  if (gated && !isOpenPath(pathname) && pathname.startsWith(MOBILE_API_PREFIX)) {
     // the Android app reads JSON: it gets a code it can show as "opens soon", and still no data. A
     // browser pass does not open it (#199, decision 1)
     response = NextResponse.json({ error: "coming_soon" }, { status: 503 });
-  } else if (gated && !passesGate(pathname, passed) && isEarlyAccessPath(pathname)) {
+  } else if (gated && !passesGate(pathname, early) && isEarlyAccessPath(pathname)) {
     // the way in (#199): reachable, in a frame that shows nothing of the shop
     request.headers.set(GATE_HEADER, "closed");
     response = pathname.startsWith("/api/")
       ? NextResponse.next({ request })
       : handleI18nRouting(request);
-  } else if (gated && !passed && pass && navigation && !pathname.startsWith("/api/")) {
+  } else if (gated && !early && pass && navigation && !pathname.startsWith("/api/")) {
     // a pass that ran out (#199): the pass route re-checks the grant in the database and answers in
     // place of the page: a fresh pass and a 303 back to this very URL, or the early-access page.
     // Only someone who held a pass gets this. A rewrite, not a redirect: the proxy cannot send a
     // relative Location, and one built from `request.url` would carry the container's address
     request.headers.set(RETURN_HEADER, `${pathname}${request.nextUrl.search}`);
     response = NextResponse.rewrite(new URL(PASS_PATH, request.url), { request });
-  } else if (gated && !passesGate(pathname, passed)) {
+  } else if (gated && !passesGate(pathname, early)) {
     // every other URL renders the static page in place (no redirect: nothing to follow or index)
     response = NextResponse.rewrite(new URL(COMING_SOON_PATH, request.url), { request });
   } else if (
@@ -202,7 +157,6 @@ export default function proxy(request: NextRequest) {
     // locale-free: never redirected to /nl/…
     response = NextResponse.next({ request });
   } else {
-    if (preview) request.headers.set(PREVIEW_HEADER, "1");
     if (early) request.headers.set(EARLY_ACCESS_HEADER, "1");
     response = handleI18nRouting(request);
   }
