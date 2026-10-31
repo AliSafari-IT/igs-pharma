@@ -7,6 +7,8 @@ import {
   authEnv,
   cspEnv,
   cspReportingEnabled,
+  deployStageEnv,
+  isStaging,
   migrateDsn,
   parseEnv,
   parseEnvFor,
@@ -217,6 +219,21 @@ describe("UI_GALLERY (T-017)", () => {
 
   it("rejects anything but on/off", () => {
     expect(() => enabled({ UI_GALLERY: "true" })).toThrow(/UI_GALLERY/);
+  });
+});
+
+describe("DEPLOY_STAGE (#197)", () => {
+  const staging = (env: NodeJS.ProcessEnv) => isStaging(parseEnvFor(deployStageEnv, env));
+
+  it("is staging only when it says exactly staging", () => {
+    expect(staging({ DEPLOY_STAGE: "staging" })).toBe(true);
+    for (const env of [{}, { DEPLOY_STAGE: "" }, { DEPLOY_STAGE: "production" }]) {
+      expect(staging(env), JSON.stringify(env)).toBe(false);
+    }
+  });
+
+  it("refuses anything else", () => {
+    expect(() => staging({ DEPLOY_STAGE: "Staging" })).toThrow(/DEPLOY_STAGE/);
   });
 });
 

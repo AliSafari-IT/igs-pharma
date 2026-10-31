@@ -90,7 +90,8 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Back-office" });
-  for (const group of ["Catalogue", "Stock", "Privacy", "Staff", "Account"]) {
+  // the OS look (#197): Shop, Catalogue, Admin
+  for (const group of ["Shop", "Catalogue", "Admin"]) {
     await expect(nav.getByRole("heading", { name: group, level: 2 })).toBeVisible();
   }
   for (const link of [
@@ -210,7 +211,7 @@ test("a content editor sees only the catalogue tile and the catalogue and accoun
   for (const hidden of ["Stock", "Data requests", "Consents", "Staff"]) {
     await expect(nav.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
   }
-  await expect(nav.getByRole("heading", { name: "Stock", level: 2 })).toHaveCount(0);
+  await expect(nav.getByRole("heading", { name: "Shop", level: 2 })).toHaveCount(0);
   await expectAxeClean(page);
 });
 

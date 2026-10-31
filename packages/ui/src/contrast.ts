@@ -94,6 +94,8 @@ export const topBarContrast: ContrastPair[] = [
   { fg: "on-topbar", bg: "topbar", use: "text" },
   { fg: "on-topbar", bg: "topbar-raised", use: "text" },
   { fg: "on-topbar-muted", bg: "topbar", use: "text" },
+  // the back-office sign-out button's border (igs-pharma#197)
+  { fg: "on-topbar-muted", bg: "topbar", use: "ui" },
   { fg: "topbar-accent", bg: "topbar", use: "text" },
   { fg: "topbar-accent", bg: "topbar-raised", use: "ui" },
   { fg: "topbar", bg: "topbar-accent", use: "text" },

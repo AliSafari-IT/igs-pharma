@@ -1,3 +1,4 @@
+import { deployStageEnv, isStaging, parseEnvFor } from "@igs/config";
 import { THEME_COOKIE, themeFromCookie } from "@igs/ui";
 import { fontDisplay, fontSans } from "@igs/ui/fonts";
 import { cookies } from "next/headers";
@@ -39,6 +40,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         roleSummary={staffRoleSummary(actor.roles)}
         groups={visibleNav(actor.roles)}
         theme={theme}
+        staging={isStaging(parseEnvFor(deployStageEnv))}
       >
         {children}
       </BackOfficeShell>
