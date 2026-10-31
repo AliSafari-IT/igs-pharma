@@ -54,6 +54,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <Suspense fallback={<HomeSkeleton label={common("loading")} />}>
         <HomeSections locale={locale} />
       </Suspense>
+      {/* outside the streamed sections: it reads no catalogue, so a failed read never hides it */}
+      {getFeatureFlags().cart ? <HowItWorks locale={locale} /> : null}
     </StorefrontFrame>
   );
 }
@@ -106,7 +108,6 @@ async function HomeSections({ locale }: { readonly locale: ContentLocale }) {
           <ProductGrid locale={locale} items={listing.items} />
         )}
       </section>
-      {getFeatureFlags().cart ? <HowItWorks locale={locale} /> : null}
     </>
   );
 }
