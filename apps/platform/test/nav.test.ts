@@ -1,4 +1,5 @@
 import { PERMISSIONS, type Permission } from "@igs/rbac";
+import { useCodeRbacCatalogue } from "@igs/rbac/testing";
 import { describe, expect, it } from "vitest";
 
 import { NAV, isActive, visibleNav } from "../src/lib/nav";
@@ -21,12 +22,24 @@ describe("visibleNav", () => {
       PERMISSIONS.privacy.dsrRead,
       PERMISSIONS.privacy.consentRead,
       PERMISSIONS.staff.manage,
+      PERMISSIONS.storefront.earlyAccessManage,
     );
     expect(labels(visibleNav([], all))).toEqual([
       "Shop: Orders, Stock, Recalls",
       "Catalogue: Products, Categories",
-      "Admin: Data requests, Consents, Staff, Your account",
+      "Admin: Data requests, Consents, Staff, Early access, Your account",
     ]);
+  });
+
+  it("shows Early access only with its permission, which the owner alone holds (#199)", () => {
+    useCodeRbacCatalogue();
+    expect(labels(visibleNav([], holding(PERMISSIONS.storefront.earlyAccessManage)))).toEqual([
+      "Admin: Early access, Your account",
+    ]);
+    expect(labels(visibleNav(["owner"]))).toContain(
+      "Admin: Data requests, Consents, Staff, Early access, Your account",
+    );
+    expect(labels(visibleNav(["pharmacist_titular"])).join(" ")).not.toContain("Early access");
   });
 
   it("leaves out an item without its permission, and a group with no item left", () => {
