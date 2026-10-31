@@ -71,13 +71,13 @@ export async function StorefrontFrame({ locale, path, activeSlug, query, childre
       </a>
       {preview ? (
         <div
-          lang="en"
           role="note"
+          data-testid="preview-banner"
           className="bg-[var(--color-accent)] px-4 py-2 text-center text-sm font-semibold text-[var(--color-text)]"
         >
-          Preview — not public ·{" "}
+          {t("previewBanner")} ·{" "}
           <a href="/preview/end" className="underline underline-offset-2">
-            End preview
+            {t("previewEnd")}
           </a>
         </div>
       ) : null}
