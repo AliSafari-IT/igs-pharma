@@ -56,17 +56,17 @@ export async function cartActor(): Promise<{ actor: Actor; token: string | undef
 
 /**
  * How many items the cart holds, for the header and the phone tab bar (igs-pharma#193): the sum of
- * its quantities. A read only: unlike `cartActor` it never attaches a guest cart, so it may run on
- * every page. `null` when the cart is off or cannot be read (the link then shows without a count).
+ * its quantities. It goes through `cartActor`, so a signed-in customer who still carries a guest
+ * cookie gets those lines attached first and counted on any page (attaching again is a plain read,
+ * audited only when it merges something). `null` when the cart is off or cannot be read: the link
+ * then shows without a count.
  */
 export async function cartItemCount(locale: ContentLocale): Promise<number | null> {
   if (!getFeatureFlags().cart) return null;
   try {
-    await ensureKernelConfigured();
-    const session = getFeatureFlags().customerAccounts ? await currentCustomer() : null;
-    const token = session ? undefined : await cartToken();
-    if (!session && !token) return 0;
-    const cart = await getCart({ cartToken: token, locale }, session ? session.actor : GUEST_ACTOR);
+    const { actor, token } = await cartActor();
+    if (actor === GUEST_ACTOR && !token) return 0;
+    const cart = await getCart({ cartToken: token, locale }, actor);
     return cart.lines.reduce((sum, line) => sum + line.quantity, 0);
   } catch (error) {
     logger.error(
