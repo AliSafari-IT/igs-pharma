@@ -21,11 +21,12 @@ describe("visibleNav", () => {
       PERMISSIONS.privacy.dsrRead,
       PERMISSIONS.privacy.consentRead,
       PERMISSIONS.staff.manage,
+      PERMISSIONS.storefront.earlyAccessManage,
     );
     expect(labels(visibleNav([], all))).toEqual([
       "Shop: Orders, Stock, Recalls",
       "Catalogue: Products, Categories",
-      "Admin: Data requests, Consents, Staff, Your account",
+      "Admin: Data requests, Consents, Staff, Early access, Your account",
     ]);
   });
 

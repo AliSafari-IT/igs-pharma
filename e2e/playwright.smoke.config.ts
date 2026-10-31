@@ -18,6 +18,7 @@ export default defineConfig({
     "account.spec.ts",
     "two-step.spec.ts",
     "staff.spec.ts",
+    "early-access.spec.ts",
     "coming-soon.spec.ts",
     "catalog.spec.ts",
     "stock.spec.ts",

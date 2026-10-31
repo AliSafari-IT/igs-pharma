@@ -44,6 +44,11 @@ export const NAV: readonly NavGroup[] = [
       },
       { label: "Consents", href: "/privacy/consents", permission: PERMISSIONS.privacy.consentRead },
       { label: "Staff", href: "/staff", permission: PERMISSIONS.staff.manage },
+      {
+        label: "Early access",
+        href: "/early-access",
+        permission: PERMISSIONS.storefront.earlyAccessManage,
+      },
       // no permission: every signed-in staff member has an account page
       { label: "Your account", href: "/account" },
     ],
