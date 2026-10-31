@@ -24,6 +24,11 @@ export const PERMISSIONS = {
      */
     refundRequest: "orders.refund.request",
     /**
+     * Staff (igs-pharma#202): set the home-delivery price and the free-delivery threshold. The owner
+     * and the pharmacist-titular only; every change also needs a fresh passkey check.
+     */
+    deliverySettingsManage: "orders.delivery_settings.manage",
+    /**
      * System-only (igs-pharma#116): attach a provider payment to an order's payment and record what
      * the provider says about it (paid confirms the stock holds; failed cancels the order). Held by
      * the webhook, the "pay now" route and the worker's reconciliation, never by a person.
@@ -239,6 +244,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.read,
     PERMISSIONS.orders.manage,
     PERMISSIONS.orders.refundRequest,
+    PERMISSIONS.orders.deliverySettingsManage,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.manage,
     PERMISSIONS.catalog.productsRead,
@@ -262,6 +268,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.orders.manage,
     PERMISSIONS.orders.reviewDecide,
     PERMISSIONS.orders.refundRequest,
+    PERMISSIONS.orders.deliverySettingsManage,
     PERMISSIONS.catalog.read,
     PERMISSIONS.catalog.productsRead,
     PERMISSIONS.catalog.productsRegulatedManage,
