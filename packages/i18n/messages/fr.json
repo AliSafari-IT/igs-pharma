@@ -19,7 +19,8 @@
   },
   "comingSoon": {
     "title": "Bientôt ouvert",
-    "body": "IGS-Pharma, votre pharmacie en ligne en Belgique, ouvre bientôt."
+    "body": "IGS-Pharma, votre pharmacie en ligne en Belgique, ouvre bientôt.",
+    "earlyAccessLink": "Accès anticipé"
   },
   "storefront": {
     "title": "Nos produits",
@@ -125,7 +126,9 @@
     "pharmacyDetailsLink": "Toutes les coordonnées de la pharmacie",
     "headerPharmacyLink": "Notre pharmacie",
     "askPharmacistHeading": "Demandez à votre pharmacien",
-    "headerCart": "Panier"
+    "headerCart": "Panier",
+    "earlyAccessBanner": "Accès anticipé : vous voyez la boutique avant son ouverture à tous.",
+    "earlyAccessDetails": "Votre accès anticipé"
   },
   "account": {
     "headerSignIn": "Se connecter",
@@ -250,7 +253,8 @@
     "resultAlreadyOpen": "Vous avez déjà une demande ouverte de ce type.",
     "resultFreshRequired": "Reconnectez-vous d'abord, puis répétez votre demande.",
     "resultFailed": "Cela n'a pas fonctionné. Réessayez.",
-    "legalPlaceholder": "Texte provisoire jusqu'à ce que le conseiller juridique de la pharmacie fournisse la formulation définitive."
+    "legalPlaceholder": "Texte provisoire jusqu'à ce que le conseiller juridique de la pharmacie fournisse la formulation définitive.",
+    "earlyAccessTitle": "Accès anticipé"
   },
   "cart": {
     "title": "Panier",
@@ -348,5 +352,34 @@
     "statusExpired": "Expirée",
     "statusLinkTitle": "Conservez cette page",
     "statusLinkBody": "Le lien de cette page vous permet de suivre votre commande, même sans compte ou sur un autre appareil. Ne le partagez avec personne."
+  },
+  "earlyAccess": {
+    "title": "Accès anticipé",
+    "intro": "La boutique en ligne d'IGS-Pharma ouvre bientôt. Avec un accès anticipé, vous pouvez déjà la voir et commander, avec votre propre compte.",
+    "signedOut": "Connectez-vous pour demander un accès anticipé. Pas encore de compte ? Créez-en un d'abord.",
+    "createAccount": "Créer un compte",
+    "afterSignUp": "Après avoir confirmé votre adresse e-mail, connectez-vous et revenez sur cette page.",
+    "statusTitle": "Votre demande",
+    "stateNone": "Vous n'avez pas encore demandé d'accès anticipé.",
+    "statePending": "Votre demande du {since} attend une décision. Vous recevrez un e-mail.",
+    "stateApproved": "Vous avez un accès anticipé jusqu'au {until}.",
+    "stateApprovedUntilLaunch": "Vous avez un accès anticipé jusqu'à l'ouverture de la boutique à tous.",
+    "stateExpired": "Votre accès anticipé a pris fin le {at}. Vous pouvez en redemander un.",
+    "stateRejected": "Votre demande n'a pas été acceptée.",
+    "stateRevoked": "Votre accès anticipé a pris fin.",
+    "askAgainAt": "Vous pourrez redemander à partir du {at}.",
+    "openShop": "Vers la boutique en ligne",
+    "noteLabel": "Un message pour la pharmacie (facultatif)",
+    "noteHint": "Par exemple pourquoi vous souhaitez un accès anticipé. {max} caractères au plus.",
+    "ask": "Demander un accès anticipé",
+    "updateNote": "Mettre à jour mon message",
+    "resultRequested": "Merci. Votre demande a été envoyée ; vous recevrez un e-mail dès qu'elle sera décidée.",
+    "resultUpdated": "Votre message a été mis à jour.",
+    "resultTooSoon": "Vous ne pouvez pas encore redemander.",
+    "resultAlreadyGranted": "Vous avez déjà un accès anticipé.",
+    "resultNotVerified": "Confirmez d'abord votre adresse e-mail, puis redemandez.",
+    "resultRateLimited": "Trop de tentatives. Veuillez réessayer plus tard.",
+    "resultPassRefused": "Vous n'avez pas d'accès anticipé pour le moment.",
+    "resultFailed": "Une erreur s'est produite. Veuillez réessayer."
   }
 }

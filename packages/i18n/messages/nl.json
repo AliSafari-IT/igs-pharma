@@ -19,7 +19,8 @@
   },
   "comingSoon": {
     "title": "Binnenkort open",
-    "body": "IGS-Pharma, uw online apotheek in België, opent binnenkort."
+    "body": "IGS-Pharma, uw online apotheek in België, opent binnenkort.",
+    "earlyAccessLink": "Vroege toegang"
   },
   "storefront": {
     "title": "Onze producten",
@@ -125,7 +126,9 @@
     "pharmacyDetailsLink": "Alle gegevens van de apotheek",
     "headerPharmacyLink": "Onze apotheek",
     "askPharmacistHeading": "Vraag het uw apotheker",
-    "headerCart": "Winkelmandje"
+    "headerCart": "Winkelmandje",
+    "earlyAccessBanner": "Vroege toegang: u ziet de webwinkel voor hij voor iedereen opengaat.",
+    "earlyAccessDetails": "Uw vroege toegang"
   },
   "account": {
     "headerSignIn": "Aanmelden",
@@ -250,7 +253,8 @@
     "resultAlreadyOpen": "U hebt al een openstaande aanvraag van dit type.",
     "resultFreshRequired": "Meld u eerst opnieuw aan en herhaal dan uw aanvraag.",
     "resultFailed": "Dat is niet gelukt. Probeer het opnieuw.",
-    "legalPlaceholder": "Tijdelijke tekst tot de juridische raadgever van de apotheek de definitieve formulering aanlevert."
+    "legalPlaceholder": "Tijdelijke tekst tot de juridische raadgever van de apotheek de definitieve formulering aanlevert.",
+    "earlyAccessTitle": "Vroege toegang"
   },
   "cart": {
     "title": "Winkelmandje",
@@ -348,5 +352,34 @@
     "statusExpired": "Verlopen",
     "statusLinkTitle": "Bewaar deze pagina",
     "statusLinkBody": "Met de link van deze pagina volg je je bestelling, ook zonder account of op een ander toestel. Deel hem met niemand."
+  },
+  "earlyAccess": {
+    "title": "Vroege toegang",
+    "intro": "De webwinkel van IGS-Pharma opent binnenkort. Met vroege toegang kunt u hem nu al bekijken en bestellen, met uw eigen account.",
+    "signedOut": "Meld u aan om vroege toegang te vragen. Nog geen account? Maak er dan eerst een aan.",
+    "createAccount": "Account aanmaken",
+    "afterSignUp": "Bevestig eerst uw e-mailadres, meld u dan aan en kom terug naar deze pagina.",
+    "statusTitle": "Uw aanvraag",
+    "stateNone": "U heeft nog geen vroege toegang gevraagd.",
+    "statePending": "Uw aanvraag van {since} wacht op een beslissing. U krijgt een e-mail.",
+    "stateApproved": "U heeft vroege toegang tot {until}.",
+    "stateApprovedUntilLaunch": "U heeft vroege toegang tot de webwinkel voor iedereen opengaat.",
+    "stateExpired": "Uw vroege toegang liep af op {at}. U kunt opnieuw aanvragen.",
+    "stateRejected": "Uw aanvraag werd niet goedgekeurd.",
+    "stateRevoked": "Uw vroege toegang werd beëindigd.",
+    "askAgainAt": "U kunt opnieuw aanvragen vanaf {at}.",
+    "openShop": "Naar de webwinkel",
+    "noteLabel": "Een bericht voor de apotheek (niet verplicht)",
+    "noteHint": "Bijvoorbeeld waarom u vroege toegang wilt. Hoogstens {max} tekens.",
+    "ask": "Vroege toegang vragen",
+    "updateNote": "Mijn bericht bijwerken",
+    "resultRequested": "Bedankt. Uw aanvraag is verstuurd; u krijgt een e-mail zodra er een beslissing is.",
+    "resultUpdated": "Uw bericht is bijgewerkt.",
+    "resultTooSoon": "U kunt nog niet opnieuw aanvragen.",
+    "resultAlreadyGranted": "U heeft al vroege toegang.",
+    "resultNotVerified": "Bevestig eerst uw e-mailadres en vraag dan opnieuw.",
+    "resultRateLimited": "Te veel pogingen. Probeer het later opnieuw.",
+    "resultPassRefused": "U heeft op dit moment geen vroege toegang.",
+    "resultFailed": "Er ging iets mis. Probeer het opnieuw."
   }
 }

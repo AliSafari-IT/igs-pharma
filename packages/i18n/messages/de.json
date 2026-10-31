@@ -19,7 +19,8 @@
   },
   "comingSoon": {
     "title": "Bald geöffnet",
-    "body": "IGS-Pharma, Ihre Online-Apotheke in Belgien, öffnet bald."
+    "body": "IGS-Pharma, Ihre Online-Apotheke in Belgien, öffnet bald.",
+    "earlyAccessLink": "Früher Zugang"
   },
   "storefront": {
     "title": "Unsere Produkte",
@@ -125,7 +126,9 @@
     "pharmacyDetailsLink": "Alle Angaben zur Apotheke",
     "headerPharmacyLink": "Unsere Apotheke",
     "askPharmacistHeading": "Fragen Sie Ihren Apotheker",
-    "headerCart": "Warenkorb"
+    "headerCart": "Warenkorb",
+    "earlyAccessBanner": "Früher Zugang: Sie sehen den Webshop, bevor er für alle öffnet.",
+    "earlyAccessDetails": "Ihr früher Zugang"
   },
   "account": {
     "headerSignIn": "Anmelden",
@@ -250,7 +253,8 @@
     "resultAlreadyOpen": "Sie haben bereits eine offene Anfrage dieser Art.",
     "resultFreshRequired": "Melden Sie sich zuerst erneut an und wiederholen Sie dann Ihre Anfrage.",
     "resultFailed": "Das hat nicht geklappt. Versuchen Sie es erneut.",
-    "legalPlaceholder": "Platzhaltertext, bis die Rechtsberatung der Apotheke die endgültige Formulierung liefert."
+    "legalPlaceholder": "Platzhaltertext, bis die Rechtsberatung der Apotheke die endgültige Formulierung liefert.",
+    "earlyAccessTitle": "Früher Zugang"
   },
   "cart": {
     "title": "Warenkorb",
@@ -348,5 +352,34 @@
     "statusExpired": "Abgelaufen",
     "statusLinkTitle": "Speichern Sie diese Seite",
     "statusLinkBody": "Mit dem Link dieser Seite verfolgen Sie Ihre Bestellung, auch ohne Konto oder auf einem anderen Gerät. Teilen Sie ihn mit niemandem."
+  },
+  "earlyAccess": {
+    "title": "Früher Zugang",
+    "intro": "Der Webshop von IGS-Pharma öffnet bald. Mit frühem Zugang können Sie ihn schon jetzt sehen und bestellen, mit Ihrem eigenen Konto.",
+    "signedOut": "Melden Sie sich an, um frühen Zugang zu beantragen. Noch kein Konto? Erstellen Sie zuerst eines.",
+    "createAccount": "Konto erstellen",
+    "afterSignUp": "Bestätigen Sie zuerst Ihre E-Mail-Adresse, melden Sie sich dann an und kehren Sie zu dieser Seite zurück.",
+    "statusTitle": "Ihre Anfrage",
+    "stateNone": "Sie haben noch keinen frühen Zugang beantragt.",
+    "statePending": "Ihre Anfrage vom {since} wartet auf eine Entscheidung. Sie erhalten eine E-Mail.",
+    "stateApproved": "Sie haben frühen Zugang bis zum {until}.",
+    "stateApprovedUntilLaunch": "Sie haben frühen Zugang, bis der Webshop für alle öffnet.",
+    "stateExpired": "Ihr früher Zugang endete am {at}. Sie können ihn erneut beantragen.",
+    "stateRejected": "Ihre Anfrage wurde nicht angenommen.",
+    "stateRevoked": "Ihr früher Zugang wurde beendet.",
+    "askAgainAt": "Sie können ab dem {at} erneut beantragen.",
+    "openShop": "Zum Webshop",
+    "noteLabel": "Eine Nachricht an die Apotheke (freiwillig)",
+    "noteHint": "Zum Beispiel, warum Sie frühen Zugang möchten. Höchstens {max} Zeichen.",
+    "ask": "Frühen Zugang beantragen",
+    "updateNote": "Meine Nachricht ändern",
+    "resultRequested": "Danke. Ihre Anfrage wurde gesendet; Sie erhalten eine E-Mail, sobald entschieden ist.",
+    "resultUpdated": "Ihre Nachricht wurde geändert.",
+    "resultTooSoon": "Sie können noch nicht erneut beantragen.",
+    "resultAlreadyGranted": "Sie haben bereits frühen Zugang.",
+    "resultNotVerified": "Bestätigen Sie zuerst Ihre E-Mail-Adresse und beantragen Sie dann erneut.",
+    "resultRateLimited": "Zu viele Versuche. Bitte versuchen Sie es später erneut.",
+    "resultPassRefused": "Sie haben im Moment keinen frühen Zugang.",
+    "resultFailed": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
   }
 }

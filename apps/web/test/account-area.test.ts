@@ -33,8 +33,14 @@ describe("resultOf", () => {
 });
 
 describe("safeNext", () => {
-  it("allows the account area only", () => {
-    for (const ok of ["/account", "/account/security", "/account/privacy", "/account/profile"]) {
+  it("allows the account area and the early-access page (#199) only", () => {
+    for (const ok of [
+      "/account",
+      "/account/security",
+      "/account/privacy",
+      "/account/profile",
+      "/early-access",
+    ]) {
       expect(safeNext(ok), ok).toBe(ok);
     }
   });
@@ -52,6 +58,8 @@ describe("safeNext", () => {
       "/account/security?x=1",
       "/account/security#top",
       "/accounts",
+      "/early-access/x",
+      "/early-access?x=1",
       "/account\\evil",
       "javascript:alert(1)",
     ]) {

@@ -39,12 +39,13 @@ export function resultOf(params: Params): AccountResult | null {
 
 /**
  * Where to go after signing in again: only a path inside the account area (`/account` or
- * `/account/…`), never an address, a protocol-relative `//host` or anything with a query or a dot,
- * so the sign-in page can never be turned into an open redirect.
+ * `/account/…`) or the early-access page (igs-pharma#199), never an address, a protocol-relative
+ * `//host` or anything with a query or a dot, so the sign-in page can never be turned into an open
+ * redirect.
  */
 export function safeNext(value: string | string[] | undefined): string | null {
   if (typeof value !== "string") return null;
-  return /^\/account(?:\/[a-z-]+)*$/.test(value) ? value : null;
+  return /^\/(?:account(?:\/[a-z-]+)*|early-access)$/.test(value) ? value : null;
 }
 
 /**

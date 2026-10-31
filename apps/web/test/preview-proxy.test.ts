@@ -101,7 +101,7 @@ describe("POST /preview (the route handler)", () => {
     configure({ IGS_PREVIEW_KEY: KEY });
     const res = await submit(form(KEY));
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe(`${BASE}/nl`);
+    expect(res.headers.get("location")).toBe("/nl"); // relative: never the container address (#199)
     const cookie = setCookie(res);
     expect(cookie).toContain(`${PREVIEW_COOKIE}=v1.`);
     expect(cookie).toMatch(/HttpOnly/i);
@@ -125,7 +125,7 @@ describe("POST /preview (the route handler)", () => {
     ]) {
       const res = await submit(body);
       expect(res.status, String(body)).toBe(303);
-      expect(res.headers.get("location"), String(body)).toBe(`${BASE}/`);
+      expect(res.headers.get("location"), String(body)).toBe("/");
       expect(setCookie(res), String(body)).toBe("");
     }
     const json = await submit(JSON.stringify({ key: KEY }), "application/json");
@@ -135,7 +135,7 @@ describe("POST /preview (the route handler)", () => {
   it("with no IGS_PREVIEW_KEY configured, no key works", async () => {
     configure({});
     const res = await submit(form(KEY));
-    expect(res.headers.get("location")).toBe(`${BASE}/`);
+    expect(res.headers.get("location")).toBe("/");
     expect(setCookie(res)).toBe("");
   });
 });
@@ -191,7 +191,7 @@ describe("/preview/end", () => {
       cookie: createPreviewCookie(secrets, Date.now()),
     });
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe(`${BASE}/`);
+    expect(res.headers.get("location")).toBe("/");
     expect(setCookie(res)).toContain(`${PREVIEW_COOKIE}=;`);
     expect(setCookie(res)).toContain("Max-Age=0");
   });
