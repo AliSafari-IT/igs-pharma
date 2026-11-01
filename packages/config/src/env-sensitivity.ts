@@ -38,6 +38,7 @@ export const ENV_SENSITIVITY = {
   NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO: "not-sensitive",
   NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "not-sensitive",
   NEXT_PUBLIC_FEATURE_CART: "not-sensitive",
+  NEXT_PUBLIC_FEATURE_HOME_DELIVERY: "not-sensitive",
   STOREFRONT_URL: "not-sensitive",
   CSP_REPORTING: "not-sensitive",
   UI_GALLERY: "not-sensitive",

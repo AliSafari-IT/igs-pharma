@@ -136,6 +136,19 @@ describe("parseEnv", () => {
     }
   });
 
+  it("home delivery (#202): strict flag, off by default", () => {
+    expect(parseEnv(valid).NEXT_PUBLIC_FEATURE_HOME_DELIVERY).toBe(false);
+    expect(
+      parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_HOME_DELIVERY: "true" })
+        .NEXT_PUBLIC_FEATURE_HOME_DELIVERY,
+    ).toBe(true);
+    for (const bad of ["yes", "1", "TRUE", "on"]) {
+      expect(() => parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_HOME_DELIVERY: bad }), bad).toThrow(
+        /FEATURE_HOME_DELIVERY/,
+      );
+    }
+  });
+
   it("customer accounts (#114): strict flag, off by default; STOREFRONT_URL a URL, empty = unset", () => {
     expect(
       parseEnv({ ...valid, NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS: "true" })

@@ -126,7 +126,9 @@
     "askPharmacistHeading": "Fragen Sie Ihren Apotheker",
     "headerCart": "Warenkorb",
     "earlyAccessBanner": "Früher Zugang: Sie sehen den Webshop, bevor er für alle öffnet.",
-    "earlyAccessDetails": "Ihr früher Zugang"
+    "earlyAccessDetails": "Ihr früher Zugang",
+    "deliveryNote": "Die Abholung in der Apotheke ist kostenlos. Lieferung nach Hause {price}, kostenlos ab {amount}. Preise inklusive MwSt.",
+    "deliveryNoteNever": "Die Abholung in der Apotheke ist kostenlos. Lieferung nach Hause {price}. Preise inklusive MwSt."
   },
   "account": {
     "headerSignIn": "Anmelden",
@@ -278,7 +280,10 @@
     "resultUnavailable": "Dieses Produkt ist nicht mehr verfügbar.",
     "resultFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
     "resultShort": "Für einige Produkte ist nicht genug Vorrat da. Verringern Sie die Menge oder entfernen Sie sie.",
-    "resultEmpty": "Ihr Warenkorb ist leer."
+    "resultEmpty": "Ihr Warenkorb ist leer.",
+    "deliveryInfo": "Die Abholung in der Apotheke ist kostenlos. Lieferung nach Hause: {price}, inklusive MwSt.",
+    "deliveryFreeNow": "Die Abholung ist kostenlos, und Ihre Bestellung erhält die kostenlose Lieferung nach Hause.",
+    "deliveryMissing": "Fügen Sie noch {amount} hinzu für die kostenlose Lieferung nach Hause."
   },
   "checkout": {
     "title": "Zur Kasse",
@@ -314,7 +319,27 @@
     "failureCancelled": "Diese Bestellung wurde durch eine neuere ersetzt. Gehen Sie zurück zum Warenkorb.",
     "failureNotFound": "Wir finden diese Bestellung nicht mehr. Gehen Sie zurück zum Warenkorb.",
     "failureInvalid": "Bitte prüfen Sie Ihre Angaben.",
-    "failureFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut."
+    "failureFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
+    "pickupWhere": "Wenn Sie die Abholung wählen, holen Sie Ihre Bestellung hier ab:",
+    "stepDelivery": "Wie möchten Sie Ihre Bestellung erhalten?",
+    "deliveryPickup": "Abholung in der Apotheke",
+    "deliveryHome": "Lieferung nach Hause in Belgien (Sendcloud)",
+    "deliveryFree": "Kostenlos",
+    "deliveryFreeReached": "Ihre Bestellung erhält die kostenlose Lieferung.",
+    "deliveryMissing": "Fügen Sie noch {amount} hinzu für die kostenlose Lieferung.",
+    "deliveryCost": "Lieferung",
+    "toPay": "Zu zahlen",
+    "addressTitle": "Lieferadresse",
+    "addressNote": "Nur für die Lieferung nach Hause. Wir liefern nur in Belgien.",
+    "street": "Straße und Hausnummer",
+    "streetHint": "Gegebenenfalls mit Boxnummer",
+    "postalCode": "Postleitzahl",
+    "city": "Ort",
+    "streetRequired": "Geben Sie Straße und Hausnummer ein.",
+    "streetTooLong": "Das ist zu lang (höchstens 120 Zeichen).",
+    "postalCodeInvalid": "Geben Sie eine belgische Postleitzahl mit vier Ziffern ein.",
+    "cityRequired": "Geben Sie den Ort ein.",
+    "cityTooLong": "Das ist zu lang (höchstens 80 Zeichen)."
   },
   "order": {
     "title": "Danke, wir haben Ihre Bestellung erhalten",
@@ -349,7 +374,11 @@
     "statusCancelled": "Storniert",
     "statusExpired": "Abgelaufen",
     "statusLinkTitle": "Speichern Sie diese Seite",
-    "statusLinkBody": "Mit dem Link dieser Seite verfolgen Sie Ihre Bestellung, auch ohne Konto oder auf einem anderen Gerät. Teilen Sie ihn mit niemandem."
+    "statusLinkBody": "Mit dem Link dieser Seite verfolgen Sie Ihre Bestellung, auch ohne Konto oder auf einem anderen Gerät. Teilen Sie ihn mit niemandem.",
+    "deliveryCost": "Lieferung",
+    "deliveryFree": "Kostenlos",
+    "deliveryTitle": "Lieferung",
+    "deliveryHome": "Lieferung nach Hause"
   },
   "earlyAccess": {
     "title": "Früher Zugang",

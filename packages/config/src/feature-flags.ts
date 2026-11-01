@@ -10,6 +10,8 @@ export interface FeatureFlags {
   customerAccounts: boolean;
   /** The storefront cart (igs-pharma#116); off by default. */
   cart: boolean;
+  /** Home delivery by Sendcloud at the checkout (igs-pharma#202); off by default, needs the cart. */
+  homeDelivery: boolean;
 }
 
 export function getFeatureFlags(): FeatureFlags {
@@ -19,5 +21,9 @@ export function getFeatureFlags(): FeatureFlags {
     euCommonLogo: process.env["NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO"] === "true",
     customerAccounts: process.env["NEXT_PUBLIC_FEATURE_CUSTOMER_ACCOUNTS"] === "true",
     cart: process.env["NEXT_PUBLIC_FEATURE_CART"] === "true",
+    // delivery is a way to check out: without the cart there is nothing to deliver
+    homeDelivery:
+      process.env["NEXT_PUBLIC_FEATURE_CART"] === "true" &&
+      process.env["NEXT_PUBLIC_FEATURE_HOME_DELIVERY"] === "true",
   };
 }

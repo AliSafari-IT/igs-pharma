@@ -1,7 +1,7 @@
 import { getFeatureFlags } from "@igs/config/feature-flags";
-import { type CartView, getCart } from "@igs/module-orders";
+import { type CartView, type DeliveryQuote, getCart, getDeliveryQuote } from "@igs/module-orders";
 import { logger } from "@igs/observability/logger";
-import { Alert, Button, EmptyState, Label, Link, Price, Select } from "@igs/ui";
+import { Alert, Button, EmptyState, Label, Link, Price, Select, formatPrice } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 
 import { StorefrontFrame } from "../../../components/storefront-frame";
@@ -37,9 +37,14 @@ export default async function CartPage({ params, searchParams }: Props) {
   const intl = INTL_LOCALE[locale];
 
   let cart: CartView | null = null;
+  // what home delivery would cost this basket (igs-pharma#202); `null` while it is off
+  let quote: DeliveryQuote | null = null;
   try {
     const { actor, token } = await cartActor();
     cart = await getCart({ cartToken: token, locale }, actor);
+    if (getFeatureFlags().homeDelivery) {
+      quote = await getDeliveryQuote({ itemsTotalCents: cart.totalCents }, actor);
+    }
   } catch (error) {
     logger.error({ event: "storefront.cart_failed", err: error }, "storefront.cart_failed");
   }
@@ -141,6 +146,24 @@ export default async function CartPage({ params, searchParams }: Props) {
                 <Price cents={cart.totalCents} locale={intl} vatLabel={t("vatIncluded")} />
               </p>
               <p className="text-sm text-[var(--color-text-subtle)]">{t("totalNote")}</p>
+              {quote ? (
+                <div
+                  className="flex flex-col gap-1 text-sm"
+                  data-testid="cart-delivery"
+                  aria-live="polite"
+                >
+                  <p>
+                    {quote.isFree
+                      ? t("deliveryFreeNow")
+                      : t("deliveryInfo", { price: formatPrice(quote.feeCents, intl) })}
+                  </p>
+                  {quote.missingCents !== null ? (
+                    <p data-testid="cart-delivery-missing">
+                      {t("deliveryMissing", { amount: formatPrice(quote.missingCents, intl) })}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <form action={startCheckoutAction}>
                 <input type="hidden" name="locale" value={locale} />
                 <Button

@@ -126,7 +126,9 @@
     "askPharmacistHeading": "Demandez à votre pharmacien",
     "headerCart": "Panier",
     "earlyAccessBanner": "Accès anticipé : vous voyez la boutique avant son ouverture à tous.",
-    "earlyAccessDetails": "Votre accès anticipé"
+    "earlyAccessDetails": "Votre accès anticipé",
+    "deliveryNote": "Le retrait à la pharmacie est gratuit. Livraison à domicile {price}, gratuite dès {amount}. Prix TVA comprise.",
+    "deliveryNoteNever": "Le retrait à la pharmacie est gratuit. Livraison à domicile {price}. Prix TVA comprise."
   },
   "account": {
     "headerSignIn": "Se connecter",
@@ -278,7 +280,10 @@
     "resultUnavailable": "Ce produit n'est plus disponible.",
     "resultFailed": "Cela n'a pas fonctionné. Veuillez réessayer.",
     "resultShort": "Le stock est insuffisant pour certains produits. Réduisez la quantité ou retirez-les.",
-    "resultEmpty": "Votre panier est vide."
+    "resultEmpty": "Votre panier est vide.",
+    "deliveryInfo": "Le retrait à la pharmacie est gratuit. Livraison à domicile : {price}, TVA comprise.",
+    "deliveryFreeNow": "Le retrait est gratuit, et votre commande donne droit à la livraison à domicile gratuite.",
+    "deliveryMissing": "Ajoutez encore {amount} pour la livraison à domicile gratuite."
   },
   "checkout": {
     "title": "Commander",
@@ -314,7 +319,27 @@
     "failureCancelled": "Cette commande a été remplacée par une plus récente. Retournez au panier.",
     "failureNotFound": "Nous ne trouvons plus cette commande. Retournez au panier.",
     "failureInvalid": "Vérifiez vos coordonnées.",
-    "failureFailed": "Cela n'a pas fonctionné. Veuillez réessayer."
+    "failureFailed": "Cela n'a pas fonctionné. Veuillez réessayer.",
+    "pickupWhere": "Si vous choisissez le retrait, vous retirez votre commande ici :",
+    "stepDelivery": "Comment voulez-vous recevoir votre commande ?",
+    "deliveryPickup": "Retrait à la pharmacie",
+    "deliveryHome": "Livraison à domicile en Belgique (Sendcloud)",
+    "deliveryFree": "Gratuit",
+    "deliveryFreeReached": "Votre commande donne droit à la livraison gratuite.",
+    "deliveryMissing": "Ajoutez encore {amount} pour la livraison gratuite.",
+    "deliveryCost": "Livraison",
+    "toPay": "À payer",
+    "addressTitle": "Adresse de livraison",
+    "addressNote": "Uniquement pour la livraison à domicile. Nous livrons seulement en Belgique.",
+    "street": "Rue et numéro",
+    "streetHint": "Avec le numéro de boîte, le cas échéant",
+    "postalCode": "Code postal",
+    "city": "Commune",
+    "streetRequired": "Indiquez la rue et le numéro.",
+    "streetTooLong": "C'est trop long (120 caractères au maximum).",
+    "postalCodeInvalid": "Indiquez un code postal belge de quatre chiffres.",
+    "cityRequired": "Indiquez la commune.",
+    "cityTooLong": "C'est trop long (80 caractères au maximum)."
   },
   "order": {
     "title": "Merci, nous avons bien reçu votre commande",
@@ -349,7 +374,11 @@
     "statusCancelled": "Annulée",
     "statusExpired": "Expirée",
     "statusLinkTitle": "Conservez cette page",
-    "statusLinkBody": "Le lien de cette page vous permet de suivre votre commande, même sans compte ou sur un autre appareil. Ne le partagez avec personne."
+    "statusLinkBody": "Le lien de cette page vous permet de suivre votre commande, même sans compte ou sur un autre appareil. Ne le partagez avec personne.",
+    "deliveryCost": "Livraison",
+    "deliveryFree": "Gratuit",
+    "deliveryTitle": "Livraison",
+    "deliveryHome": "Livraison à domicile"
   },
   "earlyAccess": {
     "title": "Accès anticipé",

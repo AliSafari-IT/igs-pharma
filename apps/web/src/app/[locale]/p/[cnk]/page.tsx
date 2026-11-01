@@ -1,8 +1,9 @@
 import { getFeatureFlags } from "@igs/config/feature-flags";
 import { isDomainError } from "@igs/kernel";
+import { getDeliveryQuote } from "@igs/module-orders";
 import { type StorefrontProductView, getStorefrontProduct } from "@igs/module-storefront";
 import { logger } from "@igs/observability/logger";
-import { Alert, Breadcrumbs, Button } from "@igs/ui";
+import { Alert, Breadcrumbs, Button, formatPrice } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
@@ -10,7 +11,7 @@ import { PriceLine, StockBadge } from "../../../../components/product-card";
 import { ProductIllustration } from "../../../../components/product-illustration";
 import { StorefrontFrame } from "../../../../components/storefront-frame";
 import { ensureKernelConfigured } from "../../../../server/kernel";
-import { STOREFRONT_ACTOR, localeOf } from "../../../../server/storefront";
+import { INTL_LOCALE, STOREFRONT_ACTOR, localeOf } from "../../../../server/storefront";
 import { addToCart } from "../../cart/actions";
 
 interface Props {
@@ -36,6 +37,28 @@ export default async function ProductPage({ params }: Props) {
   } catch (error) {
     if (isDomainError(error) && error.code === "catalog.product_not_found") notFound();
     logger.error({ event: "storefront.product_failed", err: error }, "storefront.product_failed");
+  }
+
+  // what getting it costs, before the cart (igs-pharma#202): the staff's delivery price and the order
+  // value from which delivery is free; `null` while home delivery is off (pickup only)
+  let deliveryNote: string | null = null;
+  if (product && getFeatureFlags().homeDelivery) {
+    try {
+      const quote = await getDeliveryQuote({ itemsTotalCents: 0 }, STOREFRONT_ACTOR);
+      const intl = INTL_LOCALE[locale];
+      deliveryNote =
+        quote.freeFromCents === null
+          ? t("deliveryNoteNever", { price: formatPrice(quote.priceCents, intl) })
+          : t("deliveryNote", {
+              price: formatPrice(quote.priceCents, intl),
+              amount: formatPrice(quote.freeFromCents, intl),
+            });
+    } catch (error) {
+      logger.error(
+        { event: "storefront.delivery_quote_failed", err: error },
+        "storefront.delivery_quote_failed",
+      );
+    }
   }
 
   return (
@@ -90,10 +113,19 @@ export default async function ProductPage({ params }: Props) {
                 <StockBadge locale={locale} status={product.status} />
               </div>
               {getFeatureFlags().cart ? (
-                // milestone 5.2: what getting it costs, before the cart (pickup only until 5.3)
-                <p data-testid="pickup-cost" className="text-sm text-[var(--color-text-subtle)]">
-                  {t("pickupFree")}
-                </p>
+                // what getting it costs, before the cart: pickup only, or pickup and home delivery
+                deliveryNote ? (
+                  <p
+                    data-testid="delivery-cost"
+                    className="text-sm text-[var(--color-text-subtle)]"
+                  >
+                    {deliveryNote}
+                  </p>
+                ) : (
+                  <p data-testid="pickup-cost" className="text-sm text-[var(--color-text-subtle)]">
+                    {t("pickupFree")}
+                  </p>
+                )
               ) : null}
               {product.isMedicine ? (
                 // "ask your pharmacist" (#112): amber as background and border only, never as text
