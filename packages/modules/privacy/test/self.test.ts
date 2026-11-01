@@ -21,7 +21,10 @@ import {
 
 let iso: IsolatedDatabase;
 let kernel: KernelTestHandles;
-const NOW = new Date("2026-10-14T12:00:00Z");
+// The audit trail only has partitions for the current UTC month and the next few, so the test clock
+// must follow the real month (a fixed date broke on the first day of the next month).
+const today = new Date();
+const NOW = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 14, 12));
 
 beforeAll(async () => {
   iso = await createIsolatedDatabase();
