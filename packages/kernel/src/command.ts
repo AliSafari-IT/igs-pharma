@@ -14,6 +14,7 @@ import {
   type Tx,
   getKernelConfig,
 } from "./config";
+import { isAuditedRefusal, recordDenied } from "./denied";
 import {
   type FieldIssue,
   conflict,
@@ -135,7 +136,12 @@ export interface QuerySpec<I, O> {
   readonly handler: (args: { input: I; ctx: QueryCtx }) => Promise<O>;
 }
 
-export type Query<I, O> = ((rawInput: unknown, actor: Actor) => Promise<O>) & {
+export type Query<I, O> = ((
+  rawInput: unknown,
+  actor: Actor,
+  /** Only `origin` is used: a refused query's `kernel.access.denied` entry hashes it (igs-pharma#210). */
+  options?: Pick<CallOptions, "origin">,
+) => Promise<O>) & {
   readonly spec: QuerySpec<I, O>;
 };
 
@@ -423,62 +429,96 @@ export function command<I, O>(spec: CommandSpec<I, O>): Command<I, O> {
   const run = async (rawInput: unknown, actor: Actor, options: CallOptions = {}): Promise<O> => {
     const config = getKernelConfig();
     guardNotNested(spec.name);
-    return traced(config, spec.name, actor, async () => {
-      // authorize BEFORE validating: an unauthorised caller learns nothing about the input schema (K1)
-      authorize(spec.permission, actor);
-      if (spec.internal && actor.type !== "system") {
-        throw invariant("kernel.internal_command", { command: spec.name });
-      }
-      const input = parseInput(spec.input, rawInput);
+    return traced(config, spec.name, actor, () =>
+      auditRefusals(config, spec.name, spec.permission, actor, options.origin, () =>
+        execute(rawInput, actor, options, config),
+      ),
+    );
+  };
+  const execute = async (
+    rawInput: unknown,
+    actor: Actor,
+    options: CallOptions,
+    config: KernelConfig,
+  ): Promise<O> => {
+    // authorize BEFORE validating: an unauthorised caller learns nothing about the input schema (K1)
+    authorize(spec.permission, actor);
+    if (spec.internal && actor.type !== "system") {
+      throw invariant("kernel.internal_command", { command: spec.name });
+    }
+    const input = parseInput(spec.input, rawInput);
 
-      const key = options.idempotencyKey;
-      if (key !== undefined) {
-        if (!spec.output) throw invariant("kernel.output_schema_required", { command: spec.name });
-        if (key.length === 0 || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
-          throw validationFailed("kernel.invalid_idempotency_key", [
-            { path: "idempotencyKey", code: "invalid_length" },
-          ]);
+    const key = options.idempotencyKey;
+    if (key !== undefined) {
+      if (!spec.output) throw invariant("kernel.output_schema_required", { command: spec.name });
+      if (key.length === 0 || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+        throw validationFailed("kernel.invalid_idempotency_key", [
+          { path: "idempotencyKey", code: "invalid_length" },
+        ]);
+      }
+    }
+    const storageKey = key === undefined ? undefined : `${spec.name}:${actor.id}:${key}`;
+
+    return inTransaction(
+      config,
+      spec.name,
+      async (tx) => {
+        const now = config.clock();
+        if (storageKey !== undefined) {
+          const claimed = await claim(
+            config,
+            spec as CommandSpec<unknown, O>,
+            tx,
+            storageKey,
+            requestHash(input),
+            now,
+          );
+          if (claimed.replayed) return claimed.value;
         }
-      }
-      const storageKey = key === undefined ? undefined : `${spec.name}:${actor.id}:${key}`;
-
-      return inTransaction(
-        config,
-        spec.name,
-        async (tx) => {
-          const now = config.clock();
-          if (storageKey !== undefined) {
-            const claimed = await claim(
-              config,
-              spec as CommandSpec<unknown, O>,
-              tx,
-              storageKey,
-              requestHash(input),
-              now,
-            );
-            if (claimed.replayed) return claimed.value;
+        const buffer: AuditBuffer = []; // per attempt: a retried execution starts clean
+        const output = await runHandler(config, spec, input, tx, actor, now, buffer);
+        await flushAudit(config, buffer, tx, actor, now, options.origin);
+        if (storageKey !== undefined) {
+          const response = JSON.stringify(output);
+          if (response === undefined) {
+            // would leave the key "in progress" forever (K4)
+            throw invariant("kernel.idempotent_output_undefined", { command: spec.name });
           }
-          const buffer: AuditBuffer = []; // per attempt: a retried execution starts clean
-          const output = await runHandler(config, spec, input, tx, actor, now, buffer);
-          await flushAudit(config, buffer, tx, actor, now, options.origin);
-          if (storageKey !== undefined) {
-            const response = JSON.stringify(output);
-            if (response === undefined) {
-              // would leave the key "in progress" forever (K4)
-              throw invariant("kernel.idempotent_output_undefined", { command: spec.name });
-            }
-            await tx
-              .update(idempotencyKeys)
-              .set({ response })
-              .where(eq(idempotencyKeys.key, storageKey));
-          }
-          return output;
-        },
-        { isolationLevel: "read committed" },
-      );
-    });
+          await tx
+            .update(idempotencyKeys)
+            .set({ response })
+            .where(eq(idempotencyKeys.key, storageKey));
+        }
+        return output;
+      },
+      { isolationLevel: "read committed" },
+    );
   };
   return Object.assign(run, { spec });
+}
+
+/**
+ * igs-pharma#210: runs `fn` and, when it refuses a person (`Forbidden`, from the kernel's check or a
+ * handler), records one `kernel.access.denied` entry in its own short transaction, AFTER the refusal
+ * and outside the operation's (so K1 holds: the refused call itself did no database work). The refusal
+ * is rethrown unchanged; allowed calls pay nothing.
+ */
+async function auditRefusals<T>(
+  config: KernelConfig,
+  name: string,
+  permission: PermissionSpec,
+  actor: Actor,
+  origin: Origin | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (isAuditedRefusal(error, actor)) {
+      await recordDenied(config, name, permission, error, actor, origin);
+    }
+    throw error;
+  }
 }
 
 // ── query() ────────────────────────────────────────────────────────────────────────────────────
@@ -488,28 +528,34 @@ export function query<I, O>(spec: QuerySpec<I, O>): Query<I, O> {
   if ((spec as { auditRead?: unknown }).auditRead) {
     throw new Error("kernel.audit_read_not_implemented: `auditRead` is reserved");
   }
-  const run = async (rawInput: unknown, actor: Actor): Promise<O> => {
+  const run = async (
+    rawInput: unknown,
+    actor: Actor,
+    options: Pick<CallOptions, "origin"> = {},
+  ): Promise<O> => {
     const config = getKernelConfig();
     guardNotNested(spec.name);
-    return traced(config, spec.name, actor, async () => {
-      authorize(spec.permission, actor);
-      const input = parseInput(spec.input, rawInput);
-      return inTransaction(
-        config,
-        spec.name,
-        (tx) => {
-          const ctx: QueryCtx = {
-            tx,
-            actor,
-            now: config.clock(),
-            can: (p) => canDo(actor, p),
-            authorizeResource: (check) => authorizeResource(actor, check),
-          };
-          return spec.handler({ input, ctx });
-        },
-        { isolationLevel: "read committed", accessMode: "read only" },
-      );
-    });
+    return traced(config, spec.name, actor, () =>
+      auditRefusals(config, spec.name, spec.permission, actor, options.origin, async () => {
+        authorize(spec.permission, actor);
+        const input = parseInput(spec.input, rawInput);
+        return inTransaction(
+          config,
+          spec.name,
+          (tx) => {
+            const ctx: QueryCtx = {
+              tx,
+              actor,
+              now: config.clock(),
+              can: (p) => canDo(actor, p),
+              authorizeResource: (check) => authorizeResource(actor, check),
+            };
+            return spec.handler({ input, ctx });
+          },
+          { isolationLevel: "read committed", accessMode: "read only" },
+        );
+      }),
+    );
   };
   return Object.assign(run, { spec });
 }

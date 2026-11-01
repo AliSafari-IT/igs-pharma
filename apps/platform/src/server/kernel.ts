@@ -1,6 +1,11 @@
 import { configureAuth } from "@igs/auth";
 import { auditEnv, parseEnvFor } from "@igs/config/env";
-import { configureKernel, isDomainError, registerEvents } from "@igs/kernel";
+import {
+  configureKernel,
+  isDomainError,
+  registerEvents,
+  registerKernelAuditActions,
+} from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
 import {
@@ -58,6 +63,8 @@ export async function ensureKernelConfigured(): Promise<void> {
 export function ensureAuthConfigured(): void {
   if (configured) return;
   const env = parseEnvFor(auditEnv);
+  // igs-pharma#210: a person refused by any command or query leaves a `kernel.access.denied` entry
+  registerKernelAuditActions(registerAuditAction);
   registerIdentityAuditActions(registerAuditAction);
   registerCatalogAuditActions(registerAuditAction);
   registerInventoryAuditActions(registerAuditAction);

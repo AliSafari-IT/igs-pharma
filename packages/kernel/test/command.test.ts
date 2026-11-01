@@ -23,6 +23,14 @@ const countingDb = () => ({
   }) as IsolatedDatabase["db"]["transaction"],
 });
 
+/**
+ * The transactions the OPERATIONS opened: every refused person also gets one short transaction of its
+ * own for the `kernel.access.denied` entry (igs-pharma#210), after the refusal. Each test here refuses
+ * a person at most once per operation, so each of those left one throttle row.
+ */
+const operationTransactions = async (): Promise<number> =>
+  transactionCalls - (await count("system.denied_audit_throttle"));
+
 const count = async (table: string): Promise<number> => {
   const [row] = await iso.sql.unsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM ${table}`);
   return row?.n ?? 0;
@@ -48,7 +56,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   transactionCalls = 0;
-  await iso.sql`TRUNCATE kernel_items, kernel_audit, system.idempotency_keys`;
+  await iso.sql`TRUNCATE kernel_items, kernel_audit, system.idempotency_keys, system.denied_audit_throttle`;
   kernel = configureKernelForTests({ db: countingDb() });
 });
 
@@ -165,7 +173,7 @@ describe("authorization and validation happen before any database work", () => {
       kind: "Forbidden",
       code: "kernel.forbidden",
     });
-    expect(transactionCalls).toBe(0);
+    expect(await operationTransactions()).toBe(0);
     expect(await count("kernel_items")).toBe(0);
   });
 
@@ -181,7 +189,7 @@ describe("authorization and validation happen before any database work", () => {
       handler: async () => [],
     });
     await expect(read({ page: "x" }, customer)).rejects.toMatchObject({ kind: "Forbidden" });
-    expect(transactionCalls).toBe(0);
+    expect(await operationTransactions()).toBe(0);
   });
 
   it("anonymous actors can never run non-public commands, whatever roles are passed", async () => {
@@ -244,7 +252,7 @@ describe("2-step login guard (36b)", () => {
       code: "kernel.mfa_required",
     });
     await expect(listOrders({}, owner)).rejects.toMatchObject({ code: "kernel.mfa_required" });
-    expect(transactionCalls).toBe(0);
+    expect(await operationTransactions()).toBe(0);
     expect(await count("kernel_items")).toBe(0);
   });
 
@@ -271,7 +279,7 @@ describe("2-step login guard (36b)", () => {
     expect(await createItem({ id: "ok" }, { ...kindless, mfaVerified: true })).toEqual({
       id: "ok",
     });
-    expect(transactionCalls).toBe(1);
+    expect(await operationTransactions()).toBe(1);
   });
 
   it("a wrong kind does not hide a staff role: customer kind with a staff role still needs MFA", async () => {

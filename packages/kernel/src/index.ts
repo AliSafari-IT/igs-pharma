@@ -40,6 +40,11 @@ export {
   toErrorResponse,
   validationFailed,
 } from "./errors";
+export {
+  KERNEL_AUDIT,
+  type RegisterKernelAuditAction,
+  registerKernelAuditActions,
+} from "./denied";
 export { type EventDef, defineEvent, registerEvents } from "./events";
 export { handleOnce } from "./handle-once";
 export { type JobExecutor, pgBossExecutor } from "./pgboss";

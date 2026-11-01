@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgSchema, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 /**
  * Tables owned by the kernel (D-017): Postgres schema `system` (domain-model §10).
@@ -54,5 +63,25 @@ export const outbox = system.table(
     index("outbox_pending_idx")
       .on(t.nextAttemptAt)
       .where(sql`${t.publishedAt} IS NULL AND ${t.deadAt} IS NULL`),
+  ],
+);
+
+/**
+ * igs-pharma#210: one row per (user, operation, minute) in which a refusal was audited
+ * (`kernel.access.denied`). The denied write inserts here first and audits only when the row is new,
+ * so a caller who repeats a refused call 50 times in a minute leaves one audit entry, from every app
+ * instance alike. Rows older than an hour are removed by the same write; they hold an actor id and an
+ * operation name only.
+ */
+export const deniedAuditThrottle = system.table(
+  "denied_audit_throttle",
+  {
+    actorId: text("actor_id").notNull(),
+    operation: text("operation").notNull(),
+    minute: timestamp("minute", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.actorId, t.operation, t.minute] }),
+    index("denied_audit_throttle_minute_idx").on(t.minute),
   ],
 );
