@@ -9,6 +9,13 @@
  */
 
 export const PERMISSIONS = {
+  /**
+   * The audit trail (igs-pharma#220): read and search `audit.events` in the back-office, the
+   * refused actions (`kernel.access.denied`) included. The owner only; nobody writes it but the code.
+   */
+  audit: {
+    eventsRead: "audit.events.read",
+  },
   orders: {
     /** Staff-wide access to orders. Customers hold `readOwn` instead. */
     read: "orders.read",
@@ -268,6 +275,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.staff.invite,
     PERMISSIONS.staff.manage,
     PERMISSIONS.storefront.earlyAccessManage,
+    PERMISSIONS.audit.eventsRead,
   ],
   pharmacist_titular: [
     PERMISSIONS.orders.read,

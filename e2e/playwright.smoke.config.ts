@@ -19,6 +19,7 @@ export default defineConfig({
     "two-step.spec.ts",
     "staff.spec.ts",
     "early-access.spec.ts",
+    "audit.spec.ts",
     "delivery-settings.spec.ts",
     "coming-soon.spec.ts",
     "catalog.spec.ts",
