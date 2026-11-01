@@ -1,4 +1,4 @@
-import { type Tx, command, query, validationFailed } from "@igs/kernel";
+import { type Tx, command, conflict, query, validationFailed } from "@igs/kernel";
 import { requireFreshMfa } from "@igs/module-identity";
 import { PERMISSIONS } from "@igs/rbac";
 import { eq, sql } from "drizzle-orm";
@@ -103,8 +103,11 @@ export const getDeliverySettings = query({
  * Sets the price and the free-delivery value (the owner and the pharmacist-titular), from now on.
  * Needs a fresh passkey check (`identity.fresh_mfa_required`) and is audited with amounts only.
  * Errors: `orders.delivery_price_invalid` (a whole number of cents from 0 to the limit),
- * `orders.delivery_free_from_invalid` (empty, or the same range). The proof check runs AFTER the
- * validation, so a refused attempt changes nothing and its idempotency key stays unused.
+ * `orders.delivery_free_from_invalid` (empty, or the same range), `orders.delivery_settings_stale`
+ * (409: `expectedVersion` is no longer the stored version). The proof check runs AFTER the
+ * validation, so a refused attempt changes nothing and its idempotency key stays unused. Saves are
+ * serialised by a transaction-scoped lock, so the audited "previous" values are always the ones
+ * this save really replaced.
  */
 export const setDeliverySettings = command({
   name: "orders.delivery_settings.set",
@@ -112,6 +115,11 @@ export const setDeliverySettings = command({
     priceCents: z.number(),
     /** `null`: delivery is never free. */
     freeFromCents: z.number().nullable(),
+    /**
+     * The version the person saw when they opened the form (0: the defaults). When it is no longer
+     * the stored one, someone saved in between and nothing is overwritten (`orders.delivery_settings_stale`).
+     */
+    expectedVersion: z.number().int().min(0).optional(),
   }),
   output: z.object({ version: z.number().int() }),
   permission: PERMISSIONS.orders.deliverySettingsManage,
@@ -128,14 +136,11 @@ export const setDeliverySettings = command({
     }
     requireFreshMfa(ctx);
 
-    const [previous] = await ctx.tx
-      .select({
-        priceCents: deliverySettings.priceCents,
-        freeFromCents: deliverySettings.freeFromCents,
-      })
-      .from(deliverySettings)
-      .where(eq(deliverySettings.key, "delivery"))
-      .limit(1);
+    await ctx.tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('orders.delivery_settings'))`);
+    const current = await loadDeliverySettings(ctx.tx);
+    if (input.expectedVersion !== undefined && input.expectedVersion !== current.version) {
+      throw conflict("orders.delivery_settings_stale", { currentVersion: current.version });
+    }
     const [saved] = await ctx.tx
       .insert(deliverySettings)
       .values({
@@ -166,8 +171,10 @@ export const setDeliverySettings = command({
       data: {
         priceCents: input.priceCents,
         freeFromCents: input.freeFromCents,
-        previousPriceCents: previous?.priceCents ?? null,
-        previousFreeFromCents: previous ? previous.freeFromCents : null,
+        // what was in force: the stored values, or the defaults when staff had never set any
+        previousPriceCents: current.priceCents,
+        previousFreeFromCents: current.freeFromCents,
+        previousWasDefault: current.isDefault,
         version,
       },
     });

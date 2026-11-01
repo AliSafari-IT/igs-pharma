@@ -182,8 +182,10 @@ test("with a fresh check: saves a price and 'never free', audited with amounts o
       data: {
         priceCents: 595,
         freeFromCents: null,
-        previousPriceCents: null,
-        previousFreeFromCents: null,
+        // staff had never saved: the defaults (4.95, free from 49.00) were in force
+        previousPriceCents: 495,
+        previousFreeFromCents: 4900,
+        previousWasDefault: true,
         version: 1,
       },
     },
@@ -195,6 +197,7 @@ test("with a fresh check: saves a price and 'never free', audited with amounts o
         freeFromCents: 6000,
         previousPriceCents: 595,
         previousFreeFromCents: null,
+        previousWasDefault: false,
         version: 2,
       },
     },
