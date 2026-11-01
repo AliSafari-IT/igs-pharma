@@ -36,6 +36,9 @@ let iso: IsolatedDatabase;
 let kernel: KernelTestHandles;
 
 beforeAll(async () => {
+  // home delivery is a build-time flag, off by default; these tests need it on (and one turns it off)
+  process.env["NEXT_PUBLIC_FEATURE_CART"] = "true";
+  process.env["NEXT_PUBLIC_FEATURE_HOME_DELIVERY"] = "true";
   iso = await createIsolatedDatabase();
   await loadRbacCatalogue(iso.db);
   registerCatalogAudit(registerAuditAction);
@@ -44,11 +47,16 @@ beforeAll(async () => {
   registerAuditActions(registerAuditAction);
 });
 afterAll(async () => {
+  // biome-ignore lint/performance/noDelete: unset, not the string "undefined"
+  delete process.env["NEXT_PUBLIC_FEATURE_CART"];
+  // biome-ignore lint/performance/noDelete: unset, not the string "undefined"
+  delete process.env["NEXT_PUBLIC_FEATURE_HOME_DELIVERY"];
   await iso?.drop();
 });
 beforeEach(async () => {
   kernel = configureKernelForTests({ db: iso.db, audit: createAuditPort() });
   kernel.clock.set(new Date());
+  process.env["NEXT_PUBLIC_FEATURE_HOME_DELIVERY"] = "true";
   await iso.sql`DELETE FROM orders.delivery_settings`;
 });
 
@@ -93,6 +101,18 @@ async function checkoutWorth(unitCents: number, quantity = 1) {
   await setCartLine({ cartToken: token, productId, quantity }, actor);
   const started = await startCheckout({ cartToken: token, locale: "nl" }, actor);
   return { token, actor, checkoutId: started.checkoutId, itemsCents: started.totalCents };
+}
+
+/** What the checkout page would send for a delivery: the address and the fee it showed for these lines. */
+async function homeDelivery(checkoutId: string, over: { address?: typeof address } = {}) {
+  const [row] = await iso.sql<{ total_cents: number }[]>`
+    SELECT total_cents FROM orders.checkouts WHERE id = ${checkoutId}`;
+  const quote = await getDeliveryQuote({ itemsTotalCents: row?.total_cents ?? 0 }, guest());
+  return {
+    method: "delivery" as const,
+    address: over.address ?? address,
+    expectedFeeCents: quote.feeCents,
+  };
 }
 
 const codeOf = async (promise: Promise<unknown>) => {
@@ -150,7 +170,7 @@ describe("a delivery order", () => {
   it("adds the staff's price (default 4.95) to the total, the VAT and the payment", async () => {
     const { token, actor, checkoutId, itemsCents } = await checkoutWorth(1_000); // 10.00 < 49.00
     const { orderId } = await placeOrder(
-      { cartToken: token, checkoutId, contact, delivery: { method: "delivery", address } },
+      { cartToken: token, checkoutId, contact, delivery: await homeDelivery(checkoutId) },
       actor,
     );
     const [row] = await orderRow(orderId);
@@ -171,7 +191,7 @@ describe("a delivery order", () => {
   it("keeps the address apart and shows it to its owner and to staff, not to another shopper", async () => {
     const { token, actor, checkoutId } = await checkoutWorth(1_000);
     const { orderId } = await placeOrder(
-      { cartToken: token, checkoutId, contact, delivery: { method: "delivery", address } },
+      { cartToken: token, checkoutId, contact, delivery: await homeDelivery(checkoutId) },
       actor,
     );
     const mine = await getOrder({ cartToken: token, orderId }, actor);
@@ -186,6 +206,9 @@ describe("a delivery order", () => {
       deliveryFeeCents: 495,
       deliveryAddress: { ...address, country: "BE" },
     });
+    // the staff read needs orders.read: a customer account is refused, whatever the order id
+    const customer = actors.user({ id: randomUUID(), roles: ["customer"], kind: "customer" });
+    expect(await codeOf(getOrderForStaff({ orderId }, customer))).toBe("kernel.forbidden");
     // someone else's cart cookie opens nothing
     expect(await codeOf(getOrder({ cartToken: newCartToken(), orderId }, guest()))).toBe(
       "orders.order_not_found",
@@ -204,7 +227,7 @@ describe("a delivery order", () => {
           cartToken: c.token,
           checkoutId: c.checkoutId,
           contact,
-          delivery: { method: "delivery", address },
+          delivery: await homeDelivery(c.checkoutId),
         },
         c.actor,
       );
@@ -217,7 +240,7 @@ describe("a delivery order", () => {
     await setDeliverySettings({ priceCents: 395, freeFromCents: null }, freshOwner());
     const { token, actor, checkoutId } = await checkoutWorth(50_000);
     const { orderId } = await placeOrder(
-      { cartToken: token, checkoutId, contact, delivery: { method: "delivery", address } },
+      { cartToken: token, checkoutId, contact, delivery: await homeDelivery(checkoutId) },
       actor,
     );
     expect((await orderRow(orderId))[0]?.delivery_fee_cents).toBe(395);
@@ -230,7 +253,7 @@ describe("a delivery order", () => {
         cartToken: first.token,
         checkoutId: first.checkoutId,
         contact,
-        delivery: { method: "delivery", address },
+        delivery: await homeDelivery(first.checkoutId),
       },
       first.actor,
     );
@@ -241,7 +264,7 @@ describe("a delivery order", () => {
         cartToken: second.token,
         checkoutId: second.checkoutId,
         contact,
-        delivery: { method: "delivery", address },
+        delivery: await homeDelivery(second.checkoutId),
       },
       second.actor,
     );
@@ -274,7 +297,7 @@ describe("a delivery order", () => {
       cartToken: token,
       checkoutId,
       contact,
-      delivery: { method: "delivery" as const, address },
+      delivery: await homeDelivery(checkoutId),
     };
     const first = await placeOrder(input, actor);
     const again = await placeOrder(input, actor);
@@ -306,7 +329,7 @@ describe("a delivery order", () => {
               cartToken: token,
               checkoutId,
               contact,
-              delivery: { method: "delivery", address: bad },
+              delivery: { method: "delivery", address: bad, expectedFeeCents: 495 },
             },
             actor,
           ),
@@ -319,10 +342,82 @@ describe("a delivery order", () => {
     expect(n).toBe(before);
   });
 
+  it("refuses a delivery order while the home-delivery flag is off, and creates nothing", async () => {
+    const { token, actor, checkoutId } = await checkoutWorth(1_000);
+    const delivery = await homeDelivery(checkoutId);
+    const [before] = await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM orders.orders`;
+    process.env["NEXT_PUBLIC_FEATURE_HOME_DELIVERY"] = "false";
+    expect(
+      await codeOf(placeOrder({ cartToken: token, checkoutId, contact, delivery }, actor)),
+    ).toBe("orders.home_delivery_unavailable");
+    const [after] = await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM orders.orders`;
+    expect(after?.n).toBe(before?.n);
+    // pickup is never affected by the flag
+    const placed = await placeOrder(
+      { cartToken: token, checkoutId, contact, delivery: { method: "pickup" } },
+      actor,
+    );
+    expect((await orderRow(placed.orderId))[0]?.delivery_method).toBe("pickup");
+  });
+
+  it("needs the fee the shopper saw: without it nothing is placed", async () => {
+    const { token, actor, checkoutId } = await checkoutWorth(1_000);
+    const { expectedFeeCents: _omitted, ...withoutFee } = await homeDelivery(checkoutId);
+    expect(
+      await codeOf(
+        placeOrder({ cartToken: token, checkoutId, contact, delivery: withoutFee } as never, actor),
+      ),
+    ).toBe("kernel.validation_failed");
+    expect(
+      await codeOf(
+        placeOrder(
+          {
+            cartToken: token,
+            checkoutId,
+            contact,
+            delivery: { ...withoutFee, expectedFeeCents: -1 },
+          },
+          actor,
+        ),
+      ),
+    ).toBe("kernel.validation_failed");
+  });
+
+  it("refuses control characters in the address, and the error never repeats the address", async () => {
+    const { token, actor, checkoutId } = await checkoutWorth(1_000);
+    const secret = "Geheimstraat 99";
+    for (const bad of [
+      { ...address, street: `${secret}\nBox 3` },
+      { ...address, street: `${secret}\tBox 3` },
+      { ...address, street: `${secret}\u0000` },
+      { ...address, city: "Brus\rsel" },
+    ]) {
+      let thrown: unknown;
+      try {
+        await placeOrder(
+          {
+            cartToken: token,
+            checkoutId,
+            contact,
+            delivery: { method: "delivery", address: bad, expectedFeeCents: 495 },
+          },
+          actor,
+        );
+      } catch (error) {
+        thrown = error;
+      }
+      expect(isDomainError(thrown) && thrown.code).toBe("kernel.validation_failed");
+      // only the field and the kind of problem travel with the error, never a value
+      const shown = JSON.stringify(thrown, Object.getOwnPropertyNames(thrown));
+      expect(shown).not.toContain("Geheimstraat");
+      expect(shown).not.toContain("Brus");
+    }
+  });
+
   it("audits the way, the fee and the total, never the address", async () => {
     const { token, actor, checkoutId } = await checkoutWorth(1_000);
     const { orderId } = await placeOrder(
-      { cartToken: token, checkoutId, contact, delivery: { method: "delivery", address } },
+      { cartToken: token, checkoutId, contact, delivery: await homeDelivery(checkoutId) },
       actor,
     );
     const events = await iso.sql<{ data: Record<string, unknown> }[]>`
@@ -388,10 +483,27 @@ describe("the database keeps an order's delivery consistent", () => {
     ).rejects.toThrow(/does not match its lines/);
   });
 
+  it("an address can be neither changed nor deleted once the order is placed", async () => {
+    const { token, actor, checkoutId } = await checkoutWorth(1_000);
+    const { orderId } = await placeOrder(
+      { cartToken: token, checkoutId, contact, delivery: await homeDelivery(checkoutId) },
+      actor,
+    );
+    await expect(
+      iso.sql`UPDATE orders.order_addresses SET city = 'Elsewhere' WHERE order_id = ${orderId}`,
+    ).rejects.toThrow();
+    await expect(
+      iso.sql`DELETE FROM orders.order_addresses WHERE order_id = ${orderId}`,
+    ).rejects.toThrow();
+    const [row] = await iso.sql<{ city: string }[]>`
+      SELECT city FROM orders.order_addresses WHERE order_id = ${orderId}`;
+    expect(row?.city).toBe(address.city);
+  });
+
   it("a placed order's delivery fee cannot change afterwards", async () => {
     const { token, actor, checkoutId } = await checkoutWorth(1_000);
     const { orderId } = await placeOrder(
-      { cartToken: token, checkoutId, contact, delivery: { method: "delivery", address } },
+      { cartToken: token, checkoutId, contact, delivery: await homeDelivery(checkoutId) },
       actor,
     );
     await expect(

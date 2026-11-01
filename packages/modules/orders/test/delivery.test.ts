@@ -327,6 +327,24 @@ describe("the other checks", () => {
     expect(await stored()).toEqual([]);
   });
 
+  it("the VAT part rounds half up at its boundaries and never exceeds the fee", () => {
+    // 21 % of a price that includes it: fee x 21 / 121
+    for (const [fee, vat] of [
+      [0, 0],
+      [1, 0],
+      [239, 41], // 41.48
+      [240, 42], // 41.65
+      [242, 42], // exactly 42
+      [495, 86], // 85.91
+      [5000, 868], // 867.77
+    ] as const) {
+      expect(deliveryVatCents(fee), `fee ${fee}`).toBe(vat);
+    }
+    for (let fee = 0; fee <= 5000; fee++) {
+      expect(deliveryVatCents(fee)).toBe(Math.round((fee * 21) / 121));
+    }
+  });
+
   it("the price includes VAT: net plus VAT is the fee", () => {
     for (const fee of [0, 1, 495, 595, 5000]) {
       const vat = deliveryVatCents(fee);

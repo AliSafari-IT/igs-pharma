@@ -338,9 +338,11 @@
     "city": "Commune",
     "streetRequired": "Indiquez la rue et le numéro.",
     "streetTooLong": "C'est trop long (120 caractères au maximum).",
+    "streetInvalid": "N'utilisez pas de caractères spéciaux ni de retours à la ligne.",
     "postalCodeInvalid": "Indiquez un code postal belge de quatre chiffres.",
     "cityRequired": "Indiquez la commune.",
-    "cityTooLong": "C'est trop long (80 caractères au maximum)."
+    "cityTooLong": "C'est trop long (80 caractères au maximum).",
+    "cityInvalid": "N'utilisez pas de caractères spéciaux ni de retours à la ligne."
   },
   "order": {
     "title": "Merci, nous avons bien reçu votre commande",

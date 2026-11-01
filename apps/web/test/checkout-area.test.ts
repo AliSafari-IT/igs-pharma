@@ -200,6 +200,10 @@ describe("the delivery step", () => {
     expect(addressErrors({ ...address, street: "x".repeat(121) })).toEqual({
       street: "streetTooLong",
     });
+    expect(addressErrors({ ...address, street: "Rue\nNeuve 1", city: "Bru\tssel" })).toEqual({
+      street: "streetInvalid",
+      city: "cityInvalid",
+    });
     expect(addressErrors({ ...address, city: "x".repeat(81), postalCode: "123" })).toEqual({
       city: "cityTooLong",
       postalCode: "postalCodeInvalid",

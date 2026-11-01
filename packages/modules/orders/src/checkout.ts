@@ -1,3 +1,4 @@
+import { getFeatureFlags } from "@igs/config/feature-flags";
 import { sha256Hex } from "@igs/crypto";
 import { newId } from "@igs/db/ids";
 import {
@@ -239,21 +240,24 @@ const contact = z.object({
  * Sendcloud to a Belgian address. The fee is never sent by the client: it is worked out here from the
  * staff's settings and the checkout's lines.
  */
+/** No control character (a newline, a tab, NUL): the address ends up on a shipping label. */
+const NO_CONTROL_CHARACTERS = /^[^\p{Cc}]*$/u;
+
 const delivery = z.discriminatedUnion("method", [
   z.object({ method: z.literal("pickup") }),
   z.object({
     method: z.literal("delivery"),
     address: z.object({
-      street: z.string().trim().min(1).max(120),
+      street: z.string().trim().min(1).max(120).regex(NO_CONTROL_CHARACTERS),
       postalCode: z.string().trim().regex(BE_POSTAL_CODE_PATTERN),
-      city: z.string().trim().min(1).max(80),
+      city: z.string().trim().min(1).max(80).regex(NO_CONTROL_CHARACTERS),
     }),
     /**
-     * The fee the shopper was shown. When staff changed the price or the free-delivery value in the
-     * meantime, nothing is charged: the order is refused with `orders.delivery_fee_changed` (409) and
-     * the shopper sees the new total before confirming again.
+     * The fee the shopper was shown, required: when staff changed the price or the free-delivery
+     * value in the meantime, nothing is charged. The order is refused with
+     * `orders.delivery_fee_changed` (409) and the shopper sees the new total before confirming again.
      */
-    expectedFeeCents: z.number().int().min(0).optional(),
+    expectedFeeCents: z.number().int().min(0),
   }),
 ]);
 
@@ -348,6 +352,11 @@ export const placeOrder = command({
     if (checkout.status === "cancelled") throw conflict("orders.checkout_cancelled");
     if (checkout.expiresAt.getTime() <= ctx.now.getTime()) {
       throw conflict("orders.checkout_expired");
+    }
+    // the flag is enforced here, not only in the web action: placeOrder is public, and a delivery
+    // order made while delivery is off would be handled as a pickup (igs-pharma#202)
+    if (input.delivery.method === "delivery" && !getFeatureFlags().homeDelivery) {
+      throw conflict("orders.home_delivery_unavailable");
     }
 
     const lines = await ctx.tx

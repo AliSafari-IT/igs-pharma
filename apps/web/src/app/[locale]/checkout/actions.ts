@@ -54,6 +54,10 @@ export async function placeOrderAction(_previous: PlaceState, form: FormData): P
       : undefined;
   const problems = delivery === "delivery" ? addressErrors(address) : {};
   const shown = { delivery, address, addressErrors: problems };
+  // a delivery order must say which fee the shopper saw; without it nothing is placed
+  if (delivery === "delivery" && expectedFee === undefined) {
+    return { values, errors, failure: "invalid", ...shown };
+  }
   if (!checkoutId) return { values, errors, failure: "notFound", ...shown };
   if (Object.keys(errors).length > 0 || Object.keys(problems).length > 0) {
     return { values, errors, failure: null, ...shown };
@@ -73,7 +77,7 @@ export async function placeOrderAction(_previous: PlaceState, form: FormData): P
           delivery === "delivery"
             ? {
                 method: "delivery",
-                expectedFeeCents: expectedFee,
+                expectedFeeCents: expectedFee ?? 0,
                 address: {
                   street: address.street,
                   postalCode: address.postalCode,
