@@ -7,6 +7,7 @@ import {
 import { Alert, Badge, Container, EmptyState, Stack } from "@igs/ui";
 
 import { EarlyAccessDialog } from "../../components/early-access-dialog";
+import { EarlyAccessInviteDialog } from "../../components/early-access-invite-dialog";
 import { identityErrorMessage } from "../../components/identity-labels";
 import { PageHeader } from "../../components/page-header";
 import { formatMoment } from "../../components/stock-labels";
@@ -33,9 +34,17 @@ function Person({ item }: { readonly item: EarlyAccessListItem }) {
   );
 }
 
+/** How an ended row reads in the history. */
+function ending(item: EarlyAccessListItem): string {
+  if (item.invitation)
+    return item.status === "revoked" ? "invitation cancelled" : "invitation expired";
+  return item.status === "approved" ? "expired" : item.status;
+}
+
 /**
  * Early access (igs-pharma#199): who asked to see the shop before the launch, who has access now
- * and how it ended for the rest. Only an owner decides, and never on their own request.
+ * and how it ended for the rest. Only an owner decides, and never on their own request. Owners also
+ * invite an e-mail address (igs-pharma#211): it is listed until someone confirms it or it runs out.
  */
 export default async function EarlyAccessPage() {
   const actor = await requireStaffActor();
@@ -57,8 +66,9 @@ export default async function EarlyAccessPage() {
         <Stack gap={8}>
           <PageHeader
             title="Early access"
-            description="Customers who asked to see the shop before the launch. Ending access takes effect within 15 minutes: a pass already issued keeps working until it runs out."
+            description="Customers who asked to see the shop before the launch, and the people you invited. Ending access takes effect within 15 minutes: a pass already issued keeps working until it runs out."
           />
+          <EarlyAccessInviteDialog />
           {error || !list ? (
             <Alert variant="error" title="You can't see the early-access requests">
               {identityErrorMessage(error ?? undefined)}
@@ -211,6 +221,71 @@ export default async function EarlyAccessPage() {
               </Stack>
 
               <Stack gap={3} asChild>
+                <section aria-labelledby="ea-invited">
+                  <h2 id="ea-invited" className="font-display text-2xl font-semibold">
+                    Invited, not signed up yet ({list.invited.length})
+                  </h2>
+                  {list.invited.length === 0 ? (
+                    <EmptyState
+                      title="No open invitations"
+                      data-testid="early-access-invited-empty"
+                    />
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table
+                        className="w-full border-collapse text-left"
+                        data-testid="early-access-invited"
+                      >
+                        <caption className="sr-only">Open invitations, the newest first</caption>
+                        <thead>
+                          <tr className="border-b border-[var(--color-border-strong)]">
+                            <th scope="col" className="py-2 pr-4 font-semibold">
+                              Address
+                            </th>
+                            <th scope="col" className="py-2 pr-4 font-semibold">
+                              Sign up by
+                            </th>
+                            <th scope="col" className="py-2 pr-4 font-semibold">
+                              Access ends
+                            </th>
+                            <th scope="col" className="py-2 pr-4 font-semibold">
+                              Invited by
+                            </th>
+                            <th scope="col" className="py-2 font-semibold">
+                              Change
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {list.invited.map((item) => (
+                            <tr key={item.id} className="border-b border-[var(--color-border)]">
+                              <td className="py-2 pr-4">{item.email}</td>
+                              <td className="py-2 pr-4">
+                                {item.invitationEndsAt ? formatMoment(item.invitationEndsAt) : ""}
+                              </td>
+                              <td className="py-2 pr-4">{endsAt(item)}</td>
+                              <td className="py-2 pr-4">
+                                {item.decidedByName ?? "Unknown"}
+                                {item.decidedAt ? `, ${formatMoment(item.decidedAt)}` : ""}
+                              </td>
+                              <td className="py-2">
+                                <EarlyAccessDialog
+                                  intent="cancel"
+                                  requestId={item.id}
+                                  who={item.email ?? "this address"}
+                                  trigger="Cancel invitation"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              </Stack>
+
+              <Stack gap={3} asChild>
                 <section aria-labelledby="ea-history">
                   <h2 id="ea-history" className="font-display text-2xl font-semibold">
                     History
@@ -250,9 +325,7 @@ export default async function EarlyAccessPage() {
                             <tr key={item.id} className="border-b border-[var(--color-border)]">
                               <Person item={item} />
                               <td className="py-2 pr-4">
-                                <Badge variant="neutral">
-                                  {item.status === "approved" ? "expired" : item.status}
-                                </Badge>
+                                <Badge variant="neutral">{ending(item)}</Badge>
                               </td>
                               <td className="py-2 pr-4">
                                 {formatMoment(item.decidedAt ?? item.expiresAt ?? item.requestedAt)}

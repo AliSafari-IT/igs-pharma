@@ -29,12 +29,21 @@ export type RequestMail = (input: {
   readonly url?: string;
 }) => Promise<void>;
 
+/**
+ * A customer just confirmed an e-mail address (sign-up or a changed address): the composition root
+ * redeems an early-access invitation for it (igs-pharma#211, a `system_auth` kernel command). It must
+ * not throw for an ordinary failure: the address is confirmed already, and the storefront redeems again
+ * on the pass check.
+ */
+export type OnEmailVerified = (input: { readonly userId: string }) => Promise<void>;
+
 export interface CustomerAuthDeps {
   readonly db: Db;
   readonly secret: string;
   /** The STOREFRONT origin: the customer instance lives there, never on the platform's. */
   readonly baseURL: string;
   readonly requestMail: RequestMail;
+  readonly onEmailVerified?: OnEmailVerified;
 }
 
 /**
@@ -44,7 +53,13 @@ export interface CustomerAuthDeps {
  * instance refuses customers. Exported for tests (real Postgres, injected deps); apps use
  * `getCustomerAuth()`.
  */
-export function createCustomerAuth({ db, secret, baseURL, requestMail }: CustomerAuthDeps) {
+export function createCustomerAuth({
+  db,
+  secret,
+  baseURL,
+  requestMail,
+  onEmailVerified,
+}: CustomerAuthDeps) {
   const origin = new URL(baseURL).origin;
   /**
    * D-044: this instance serves customers only. Every mail flow does nothing for any other kind, and
@@ -94,6 +109,10 @@ export function createCustomerAuth({ db, secret, baseURL, requestMail }: Custome
       sendVerificationEmail: async ({ user, url }) => {
         if (!(await isCustomer(user.id))) return;
         await requestMail({ userId: user.id, template: "verify_email", url });
+      },
+      afterEmailVerification: async (user) => {
+        if (!onEmailVerified || !(await isCustomer(user.id))) return;
+        await onEmailVerified({ userId: user.id });
       },
     },
     session: {

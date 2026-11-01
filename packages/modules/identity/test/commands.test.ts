@@ -341,6 +341,9 @@ describe("registerAuditActions", () => {
       "identity.early_access.revoked",
       "identity.early_access.pass_issued",
       "identity.early_access.pass_refused",
+      "identity.early_access.invited",
+      "identity.early_access.invitation_cancelled",
+      "identity.early_access.invitation_redeemed",
     ]);
   });
 });

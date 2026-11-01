@@ -372,7 +372,9 @@ describe("a database built the old way converges, and the migration is idempoten
       if (statement.trim() !== "") await admin.unsafe(statement);
     }
     await expectDatabaseMatchesManifest(db, admin);
-  });
+    // it applies every migration after 0025 (the chain grows with each one), like the beforeAll that
+    // builds the other databases: the same budget, not the 30-second default (igs-pharma#214 CI)
+  }, 120_000);
 });
 
 describe("the ownership assertion", () => {

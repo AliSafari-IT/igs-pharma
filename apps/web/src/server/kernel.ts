@@ -6,6 +6,7 @@ import {
   MailRequested,
   applySecurityEvent,
   ensureRbacCatalogue,
+  redeemEarlyAccessInvitation,
   registerAuditActions as registerIdentityAuditActions,
   requestMail,
 } from "@igs/module-identity";
@@ -74,6 +75,19 @@ export function ensureAuthConfigured(): void {
     requestMail: async (input) => {
       await ensureRbacCatalogue();
       await requestMail(input, AUTH_HOOK_ACTOR);
+    },
+    // igs-pharma#211: a confirmed address redeems its early-access invitation. The address is
+    // confirmed already, so a failure is logged, not thrown: the pass check redeems again.
+    onEmailVerified: async ({ userId }) => {
+      try {
+        await ensureRbacCatalogue();
+        await redeemEarlyAccessInvitation({ userId }, AUTH_HOOK_ACTOR);
+      } catch (error) {
+        logger.error(
+          { event: "identity.early_access.redeem_failed", userId, err: error },
+          "identity.early_access.redeem_failed",
+        );
+      }
     },
   });
   configureAuth({

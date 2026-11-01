@@ -4,19 +4,20 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { IDENTITY_AUDIT } from "./audit";
-import { MAIL_TEMPLATES, type MailTemplate, mailTokens, users } from "./schema";
+import { MAIL_TEMPLATES, type MailTemplate, type UserLocale, mailTokens, users } from "./schema";
 
 /**
  * A mail the identity flows want sent (igs-pharma#114, D-044, D-019: no e-mail from a request).
  * Identifiers only (D-020): the user, the template, and `tokenRef`, the id of the `mail_tokens` row
  * that holds the link. The link (a verification or reset token) is in no payload; the worker reads
- * the row, sends the mail and deletes it.
+ * the row, sends the mail and deletes it. An invitation (igs-pharma#211) goes to an address with no
+ * user: it has no `userId`, and its address is in the row, never in the event.
  */
 export const MailRequested = defineEvent(
   "identity.mail.requested",
   1,
   z.object({
-    userId: z.uuid(),
+    userId: z.uuid().optional(),
     template: z.enum(MAIL_TEMPLATES),
     tokenRef: z.uuid(),
   }),
@@ -33,7 +34,13 @@ const MAIL_TTL_MS: Record<MailTemplate, number> = {
   early_access_rejected: DAY_MS,
   early_access_revoked: DAY_MS,
   early_access_staff_notice: DAY_MS,
+  early_access_invited: DAY_MS,
 };
+
+/** Who a mail goes to: a user, or (an invitation) an address in a language. */
+export type MailRecipient =
+  | { readonly userId: string; readonly toEmail?: undefined; readonly locale?: undefined }
+  | { readonly userId?: undefined; readonly toEmail: string; readonly locale: UserLocale };
 
 /**
  * Stores one mail for the worker and publishes {@link MailRequested}, inside the caller's transaction
@@ -42,8 +49,7 @@ const MAIL_TTL_MS: Record<MailTemplate, number> = {
  */
 export async function queueMail(
   ctx: Ctx,
-  mail: {
-    readonly userId: string;
+  mail: MailRecipient & {
     readonly template: MailTemplate;
     readonly url?: string | undefined;
     readonly validUntil?: Date | null | undefined;
@@ -52,7 +58,9 @@ export async function queueMail(
   const [row] = await ctx.tx
     .insert(mailTokens)
     .values({
-      userId: mail.userId,
+      userId: mail.userId ?? null,
+      toEmail: mail.toEmail ?? null,
+      locale: mail.locale ?? null,
       template: mail.template,
       url: mail.url ?? null,
       validUntil: mail.validUntil ?? null,
@@ -60,14 +68,16 @@ export async function queueMail(
     })
     .returning({ id: mailTokens.id });
   if (!row) throw new Error("identity.mail_token_not_stored");
+  // an invitation's address is in no audit entry and no event: the mail row is the reference
   await ctx.audit.record({
     action: IDENTITY_AUDIT.mailRequested,
-    entityType: "user",
-    entityId: mail.userId,
-    data: { userId: mail.userId, template: mail.template },
+    ...(mail.userId
+      ? { entityType: "user", entityId: mail.userId }
+      : { entityType: "mail", entityId: row.id }),
+    data: { ...(mail.userId ? { userId: mail.userId } : {}), template: mail.template },
   });
   await ctx.outbox.publish(MailRequested, {
-    userId: mail.userId,
+    ...(mail.userId ? { userId: mail.userId } : {}),
     template: mail.template,
     tokenRef: row.id,
   });

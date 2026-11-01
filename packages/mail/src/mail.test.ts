@@ -58,6 +58,24 @@ describe("renderMail", () => {
     ).not.toContain("http");
   });
 
+  it("early access invitation: no name, the address is the key, states the end (#211)", () => {
+    const until = new Date("2026-12-01T10:00:00Z");
+    for (const locale of MAIL_LOCALES) {
+      const mail = renderMail("early_access_invited", locale, { name: "", validUntil: until });
+      expect(mail.text, locale).toMatch(/2026/);
+      expect(mail.text, locale).toMatch(/30/);
+      // greets nobody: "Hello," not "Hello ,"
+      expect(mail.text.split("\n")[0], locale).toMatch(/^\S.*\S,$/);
+    }
+    const link = "https://igs.example.test/early-access";
+    expect(renderMail("early_access_invited", "en", { name: "", url: link }).text).toContain(
+      "until the webshop opens to everyone",
+    );
+    expect(renderMail("early_access_invited", "en", { name: "", url: link }).text).toContain(
+      `Create an account or sign in: ${link}`,
+    );
+  });
+
   it("speaks the person's language and falls back to Dutch for an unknown one", () => {
     expect(renderMail("verify_email", "fr", { name: "An", url: URL_TEXT }).subject).toBe(
       "Confirmez votre adresse e-mail",
