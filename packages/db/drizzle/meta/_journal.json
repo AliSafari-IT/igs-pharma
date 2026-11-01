@@ -624,6 +624,13 @@
       "when": 1793550608593,
       "tag": "0088_kernel_denied_audit_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1793562420483,
+      "tag": "0089_rbac_seed_audit_read",
+      "breakpoints": true
     }
   ]
 }

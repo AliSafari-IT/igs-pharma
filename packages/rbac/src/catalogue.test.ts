@@ -28,6 +28,7 @@ describe("hasPermission (code catalogue installed)", () => {
   // The owner's exact set (#64 C7). Changing the owner's permissions must change this list in the
   // same PR, so every addition is reviewed; a new permission is NOT granted to the owner by default.
   const OWNER_PERMISSIONS = [
+    "audit.events.read",
     "catalog.manage",
     "catalog.products.manage",
     "catalog.products.read",
