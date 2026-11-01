@@ -219,3 +219,162 @@ test("with a fresh check: approve for 90 days, reject with a reason, then revoke
     WHERE entity_id = ${requestIds["reject"] as string} AND data::text LIKE '%Not this round%'`;
   expect(leak?.n).toBe(0);
 });
+
+/** A staff member with a role, a passkey and a session whose passkey check is from just now. */
+async function freshStaff(name: string, role: string): Promise<string> {
+  const id = await user(name, "staff");
+  await sql`
+    INSERT INTO identity.user_roles (id, user_id, role_key, location_id)
+    VALUES (gen_random_uuid(), ${id}, ${role}, NULL)`;
+  await sql`
+    INSERT INTO identity.passkeys (id, user_id, public_key, credential_id, counter, device_type, backed_up)
+    VALUES (gen_random_uuid(), ${id}, 'pk', ${randomUUID()}, 0, 'singleDevice', false)`;
+  const sessionToken = randomUUID();
+  await sql`
+    INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at, passkey_checked_at)
+    VALUES (gen_random_uuid(), ${id}, ${sessionToken}, now() + interval '1 hour', now(), now())`;
+  return sessionToken;
+}
+
+const statusOf = async (requestId: string) =>
+  (
+    await sql<{ status: string }[]>`
+      SELECT status FROM identity.early_access_requests WHERE id = ${requestId}`
+  )[0]?.status;
+
+test("Cancel decides nothing; an approval and a revoke each queue the customer's mail", async ({
+  page,
+  context,
+}) => {
+  const name = `Mail Me ${tag}`;
+  const customerId = await user(name, "customer");
+  const requestId = await pendingRequest(customerId, "Mail test");
+  requestIds["mail"] = requestId;
+  await signIn(context);
+  await page.goto(`${PLATFORM}/early-access`, { waitUntil: "networkidle" });
+  const waiting = page.getByTestId("early-access-pending").getByRole("row", { name });
+
+  await waiting.getByRole("button", { name: "Reject" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  expect(await statusOf(requestId)).toBe("pending");
+
+  await waiting.getByRole("button", { name: "Approve" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Give access" }).click();
+  const active = page.getByTestId("early-access-active").getByRole("row", { name });
+  await expect(active).toBeVisible();
+  await active.getByRole("button", { name: "Revoke" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "End access" }).click();
+  await expect(page.getByTestId("early-access-history").getByRole("row", { name })).toBeVisible();
+
+  // the web request never talks to a mail server: each decision only queued its mail (D-019)
+  const mails = await sql<{ template: string }[]>`
+    SELECT template FROM identity.mail_tokens WHERE user_id = ${customerId} ORDER BY template`;
+  expect(mails.map((mail) => mail.template)).toEqual([
+    "early_access_approved",
+    "early_access_revoked",
+  ]);
+});
+
+test("staff without the permission cannot see or decide early access", async ({
+  page,
+  context,
+}) => {
+  const titularToken = await freshStaff(`Titular ${tag}`, "pharmacist_titular");
+  await context.addCookies([
+    { name: "better-auth.session_token", value: signed(titularToken), url: PLATFORM },
+  ]);
+  await page.goto(`${PLATFORM}/early-access`, { waitUntil: "networkidle" });
+  await expect(page.getByText("You can't see the early-access requests")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Early access" })).toHaveCount(0);
+});
+
+/**
+ * The storefront half (igs-pharma#199's acceptance test): needs a CLOSED storefront built with
+ * customer accounts ON. `NEXT_PUBLIC_*` flags are fixed at build time and the smoke build keeps them
+ * off (`customer-accounts.spec.ts` asserts that), so this runs against one you start yourself:
+ * `SMOKE_EARLY_ACCESS_URL=http://localhost:3002 pnpm exec playwright test early-access`.
+ * The smoke config leaves it out by its tag (`grepInvert`), as the smoke run fails on any skipped test.
+ */
+const STOREFRONT = process.env["SMOKE_EARLY_ACCESS_URL"];
+
+test.describe("the storefront side (needs SMOKE_EARLY_ACCESS_URL) @early-access-storefront", () => {
+  test.skip(
+    !STOREFRONT,
+    "set SMOKE_EARLY_ACCESS_URL to a closed storefront built with accounts on",
+  );
+
+  test("ask → approved → the shop opens → revoked → coming-soon again", async ({ browser }) => {
+    const shop = STOREFRONT as string;
+    const name = `Shopper ${tag}`;
+    const customerId = await user(name, "customer");
+    // a customer may ask for, read and use their own early access through the `customer` role
+    await sql`
+      INSERT INTO identity.user_roles (id, user_id, role_key, location_id)
+      VALUES (gen_random_uuid(), ${customerId}, 'customer', NULL)`;
+    const customerToken = randomUUID();
+    await sql`
+      INSERT INTO identity.sessions (id, user_id, token, expires_at)
+      VALUES (gen_random_uuid(), ${customerId}, ${customerToken}, now() + interval '1 hour')`;
+    const customer = await browser.newContext();
+    await customer.addCookies([
+      { name: "igs-c.session_token", value: signed(customerToken), url: shop },
+    ]);
+    const page = await customer.newPage();
+
+    // closed for them, no redirect, no hint beyond the coming-soon link
+    await page.goto(`${shop}/nl`);
+    await expect(page.getByText("Binnenkort open")).toBeVisible();
+    await page.getByTestId("early-access-link-nl").click();
+    await expect(page.getByTestId("gate-shell")).toBeVisible();
+    await page.getByLabel(/Een bericht voor de apotheek/).fill("Ik test de winkel");
+    await page.getByTestId("early-access-submit").click();
+    await expect(page.getByTestId("early-access-result-requested")).toBeVisible();
+    await expectAxeClean(page);
+    const [request] = await sql<{ id: string }[]>`
+      SELECT id FROM identity.early_access_requests WHERE user_id = ${customerId}`;
+    const requestId = (request as { id: string }).id;
+    requestIds["shopper"] = requestId;
+
+    // the owner approves in the back-office
+    const owner = await browser.newContext();
+    await owner.addCookies([
+      { name: "better-auth.session_token", value: signed(token), url: PLATFORM },
+    ]);
+    const back = await owner.newPage();
+    await back.goto(`${PLATFORM}/early-access`, { waitUntil: "networkidle" });
+    await back
+      .getByTestId("early-access-pending")
+      .getByRole("row", { name })
+      .getByRole("button", { name: "Approve" })
+      .click();
+    await back.getByRole("dialog").getByRole("button", { name: "Give access" }).click();
+    await expect(back.getByTestId("early-access-active").getByRole("row", { name })).toBeVisible();
+
+    // the shop opens, with the banner
+    await page.goto(`${shop}/nl/early-access`);
+    await page.getByRole("link", { name: "Naar de webwinkel" }).click();
+    await expect(page.getByTestId("early-access-banner")).toBeVisible();
+    await expect(page.getByTestId("shell")).toBeVisible();
+
+    // revoked: the next pass check refuses, the pass is cleared, the shop is closed again
+    await back
+      .getByTestId("early-access-active")
+      .getByRole("row", { name })
+      .getByRole("button", { name: "Revoke" })
+      .click();
+    await back.getByRole("dialog").getByRole("button", { name: "End access" }).click();
+    await expect(back.getByTestId("early-access-history").getByRole("row", { name })).toBeVisible();
+    // an address of its own: the pass route's per-address limit must not carry over between runs
+    await customer.setExtraHTTPHeaders({ "x-forwarded-for": `198.51.100.${Date.now() % 250}` });
+    await page.goto(`${shop}/api/early-access/pass?next=/nl`);
+    await expect(page.getByTestId("early-access-result-passRefused")).toBeVisible();
+    await page.goto(`${shop}/nl`);
+    await expect(page.getByText("Binnenkort open")).toBeVisible();
+    expect((await customer.cookies()).some((cookie) => cookie.name === "igs_early_access")).toBe(
+      false,
+    );
+    await customer.close();
+    await owner.close();
+  });
+});
