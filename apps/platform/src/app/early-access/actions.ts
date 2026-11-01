@@ -1,10 +1,14 @@
 "use server";
 
 import { authEnv } from "@igs/config/env";
-import { isDomainError } from "@igs/kernel";
+import { getKernelRuntime, isDomainError } from "@igs/kernel";
 import {
   EARLY_ACCESS_DURATIONS,
+  USER_LOCALES,
   approveEarlyAccess,
+  cancelEarlyAccessInvitation,
+  consumeRateLimit,
+  inviteEarlyAccess,
   rejectEarlyAccess,
   revokeEarlyAccess,
 } from "@igs/module-identity";
@@ -19,7 +23,7 @@ export interface EarlyAccessDecisionState {
   readonly done?: boolean;
 }
 
-const INTENTS = ["approve", "reject", "revoke"] as const;
+const INTENTS = ["approve", "reject", "revoke", "cancel"] as const;
 type Intent = (typeof INTENTS)[number];
 
 const text = (form: FormData, name: string) => {
@@ -68,9 +72,61 @@ export async function decideEarlyAccess(
       await approveEarlyAccess({ requestId, duration, ...(link ? { link } : {}) }, actor, options);
     } else if (intent === "reject") {
       await rejectEarlyAccess({ requestId, reason }, actor, options);
+    } else if (intent === "cancel") {
+      // igs-pharma#211: an invitation nobody redeemed
+      await cancelEarlyAccessInvitation({ requestId }, actor, options);
     } else {
       await revokeEarlyAccess({ requestId, reason }, actor, options);
     }
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/early-access");
+  return { done: true };
+}
+
+/** igs-pharma#211: at most this many invitations per owner and hour, so the form sends no bulk mail. */
+const INVITE_LIMIT = { windowSeconds: 60 * 60, max: 20 } as const;
+
+/**
+ * Invites an e-mail address (igs-pharma#211), with the same passkey retry as the decisions. The answer
+ * is the same whether or not the address has an account (`done`): the page lists an invitation, or a
+ * grant when a verified customer had that address already.
+ */
+export async function inviteToEarlyAccess(
+  _previous: EarlyAccessDecisionState,
+  form: FormData,
+): Promise<EarlyAccessDecisionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const duration = text(form, "duration");
+  const locale = text(form, "locale");
+  if (
+    !(EARLY_ACCESS_DURATIONS as readonly string[]).includes(duration) ||
+    !(USER_LOCALES as readonly string[]).includes(locale)
+  ) {
+    return { error: "kernel.invalid_input" };
+  }
+  const allowed = await consumeRateLimit(
+    getKernelRuntime().db,
+    `igs:early-access:invite:user:${actor.id}`,
+    INVITE_LIMIT,
+    new Date(),
+  );
+  if (!allowed) return { error: "identity.early_access.rate_limited" };
+  const link = storefrontLink();
+  try {
+    await inviteEarlyAccess(
+      {
+        email: text(form, "email"),
+        duration: duration as (typeof EARLY_ACCESS_DURATIONS)[number],
+        locale: locale as (typeof USER_LOCALES)[number],
+        ...(link ? { link } : {}),
+      },
+      actor,
+      { origin: await requestOrigin(), idempotencyKey: text(form, "submissionId") },
+    );
   } catch (error) {
     if (!isDomainError(error)) throw error;
     return { error: error.code };

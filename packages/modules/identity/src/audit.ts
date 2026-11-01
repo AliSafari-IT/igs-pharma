@@ -23,6 +23,10 @@ export const IDENTITY_AUDIT = {
   earlyAccessRevoked: "identity.early_access.revoked",
   earlyAccessPassIssued: "identity.early_access.pass_issued",
   earlyAccessPassRefused: "identity.early_access.pass_refused",
+  // igs-pharma#211
+  earlyAccessInvited: "identity.early_access.invited",
+  earlyAccessInvitationCancelled: "identity.early_access.invitation_cancelled",
+  earlyAccessInvitationRedeemed: "identity.early_access.invitation_redeemed",
 } as const;
 
 const roleChange = z.object({
@@ -33,7 +37,8 @@ const roleChange = z.object({
 const userChange = z.object({ userId: z.uuid() });
 const mfaChange = z.object({ userId: z.uuid(), method: z.enum(["passkey", "totp"]) });
 const mailRequest = z.object({
-  userId: z.uuid(),
+  // absent for an invitation (igs-pharma#211): it goes to an address, not a user
+  userId: z.uuid().optional(),
   template: z.enum(MAIL_TEMPLATES),
 });
 const profileUpdated = z.object({
@@ -60,6 +65,14 @@ const earlyAccessEnded = z.object({
   hasReason: z.boolean(),
 });
 const earlyAccessPass = z.object({ userId: z.uuid() });
+// igs-pharma#211: the invited address only as a hash, salted with the invitation id
+const earlyAccessInvited = z.object({
+  requestId: z.uuid(),
+  addressHash: z.string().regex(/^[0-9a-f]{64}$/),
+  duration: z.enum(["7d", "30d", "90d", "until_launch"]),
+});
+const earlyAccessInvitationCancelled = z.object({ requestId: z.uuid() });
+const earlyAccessInvitationRedeemed = z.object({ requestId: z.uuid(), userId: z.uuid() });
 const bootstrapped = z.object({ userId: z.uuid(), roleKey: z.string() });
 
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
@@ -94,4 +107,7 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(IDENTITY_AUDIT.earlyAccessRevoked, earlyAccessEnded);
   register(IDENTITY_AUDIT.earlyAccessPassIssued, earlyAccessPass);
   register(IDENTITY_AUDIT.earlyAccessPassRefused, earlyAccessPass);
+  register(IDENTITY_AUDIT.earlyAccessInvited, earlyAccessInvited);
+  register(IDENTITY_AUDIT.earlyAccessInvitationCancelled, earlyAccessInvitationCancelled);
+  register(IDENTITY_AUDIT.earlyAccessInvitationRedeemed, earlyAccessInvitationRedeemed);
 }

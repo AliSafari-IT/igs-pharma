@@ -91,15 +91,40 @@ export async function deliverMail(
         url: mailTokens.url,
         validUntil: mailTokens.validUntil,
         expiresAt: mailTokens.expiresAt,
+        userId: mailTokens.userId,
+        toEmail: mailTokens.toEmail,
+        toLocale: mailTokens.locale,
         email: users.email,
         name: users.name,
         locale: users.locale,
         status: users.status,
       })
       .from(mailTokens)
-      .innerJoin(users, eq(users.id, mailTokens.userId))
+      // an invitation (igs-pharma#211) has no user: it goes to `to_email`, in `locale`
+      .leftJoin(users, eq(users.id, mailTokens.userId))
       .where(eq(mailTokens.id, tokenRef));
-    return found;
+    if (!found) return undefined;
+    if (found.userId === null) {
+      if (!found.toEmail || !found.toLocale) return undefined;
+      return {
+        ...found,
+        email: found.toEmail,
+        name: "",
+        locale: found.toLocale,
+        status: "active" as const,
+      };
+    }
+    // a user's mail whose user is gone was deleted with it (cascade): nothing joins
+    if (found.email === null || found.name === null || found.locale === null || !found.status) {
+      return undefined;
+    }
+    return {
+      ...found,
+      email: found.email,
+      name: found.name,
+      locale: found.locale,
+      status: found.status,
+    };
   });
   if (!row) return "skipped";
   if (row.template === "early_access_staff_notice" && routing.staffRecipients.length === 0) {

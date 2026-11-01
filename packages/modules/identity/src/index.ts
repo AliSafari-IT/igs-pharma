@@ -46,8 +46,13 @@ export {
   type EarlyAccessList,
   type EarlyAccessListItem,
   type OwnEarlyAccess,
+  EARLY_ACCESS_INVITATION_DAYS,
   approveEarlyAccess,
   canAskForEarlyAccess,
+  cancelEarlyAccessInvitation,
+  invitationEndsAt,
+  inviteEarlyAccess,
+  redeemEarlyAccessInvitation,
   earlyAccessState,
   getOwnEarlyAccess,
   issueEarlyAccessPass,
@@ -82,6 +87,8 @@ export {
   type EarlyAccessStatus,
   MAIL_TEMPLATES,
   type MailTemplate,
+  USER_LOCALES,
+  type UserLocale,
 } from "./schema";
 export { IDENTITY_AUDIT, type RegisterAuditAction, registerAuditActions } from "./audit";
 export {

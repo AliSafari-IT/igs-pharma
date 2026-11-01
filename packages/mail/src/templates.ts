@@ -16,6 +16,8 @@ export const MAIL_TEMPLATES = [
   "early_access_rejected",
   "early_access_revoked",
   "early_access_staff_notice",
+  // an owner invited this address (igs-pharma#211); it may have no account yet
+  "early_access_invited",
 ] as const;
 export type MailTemplateName = (typeof MAIL_TEMPLATES)[number];
 
@@ -286,6 +288,65 @@ const EARLY_ACCESS_COPY = {
       ignore: "You get this e-mail because your address is on the early access notification list.",
     },
   }),
+  /**
+   * igs-pharma#211: to an address an owner invited. No token: the person creates an account with THIS
+   * address and confirms it, and the shop opens. Greets nobody by name (there may be no account).
+   */
+  early_access_invited: earlyAccess(
+    {
+      nl: {
+        subject: "U bent uitgenodigd om de webwinkel van IGS-Pharma vóór de opening te bekijken",
+        lines: (until) => [
+          "IGS-Pharma nodigt u uit om de webwinkel te bekijken voor hij officieel opengaat.",
+          "Maak een account aan met dit e-mailadres en bevestig het, binnen 30 dagen. Daarna ziet u de webwinkel meteen. Heeft u al een account met dit adres? Meld u dan gewoon aan.",
+          until
+            ? `De toegang loopt tot ${until}.`
+            : "De toegang loopt tot de webwinkel voor iedereen opengaat.",
+        ],
+        ignore: "Verwachtte u deze uitnodiging niet? Dan hoeft u niets te doen.",
+      },
+      fr: {
+        subject:
+          "Vous êtes invité à découvrir la boutique en ligne d'IGS-Pharma avant son ouverture",
+        lines: (until) => [
+          "IGS-Pharma vous invite à voir sa boutique en ligne avant son ouverture officielle.",
+          "Créez un compte avec cette adresse e-mail et confirmez-la, dans les 30 jours. Vous verrez ensuite la boutique tout de suite. Vous avez déjà un compte avec cette adresse ? Connectez-vous simplement.",
+          until
+            ? `L'accès est valable jusqu'au ${until}.`
+            : "L'accès est valable jusqu'à l'ouverture de la boutique à tous.",
+        ],
+        ignore: "Vous n'attendiez pas cette invitation ? Vous n'avez rien à faire.",
+      },
+      de: {
+        subject: "Sie sind eingeladen, den Webshop von IGS-Pharma vor der Eröffnung zu sehen",
+        lines: (until) => [
+          "IGS-Pharma lädt Sie ein, den Webshop vor der offiziellen Eröffnung zu sehen.",
+          "Erstellen Sie innerhalb von 30 Tagen ein Konto mit dieser E-Mail-Adresse und bestätigen Sie sie. Danach sehen Sie den Webshop sofort. Sie haben schon ein Konto mit dieser Adresse? Melden Sie sich einfach an.",
+          until
+            ? `Der Zugang gilt bis zum ${until}.`
+            : "Der Zugang gilt, bis der Webshop für alle öffnet.",
+        ],
+        ignore: "Sie haben diese Einladung nicht erwartet? Dann müssen Sie nichts tun.",
+      },
+      en: {
+        subject: "You are invited to see the IGS-Pharma webshop before it opens",
+        lines: (until) => [
+          "IGS-Pharma invites you to see its webshop before it officially opens.",
+          "Create an account with this e-mail address and confirm it, within 30 days. You then see the webshop straight away. Already have an account with this address? Just sign in.",
+          until
+            ? `Your access lasts until ${until}.`
+            : "Your access lasts until the webshop opens to everyone.",
+        ],
+        ignore: "Not expecting this invitation? You do not need to do anything.",
+      },
+    },
+    {
+      nl: "Account aanmaken of aanmelden",
+      fr: "Créer un compte ou se connecter",
+      de: "Konto erstellen oder anmelden",
+      en: "Create an account or sign in",
+    },
+  ),
 } satisfies Record<string, Record<MailLocale, Copy>>;
 
 const COPY: Record<MailTemplateName, Record<MailLocale, Copy>> = {

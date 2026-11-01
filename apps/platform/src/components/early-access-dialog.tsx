@@ -19,12 +19,13 @@ interface Props {
   readonly requestId: string;
   /** Who the request is from, as the dialog names them. */
   readonly who: string;
-  /** The button on the row: "Approve", "Extend", "Reject", "Revoke". */
+  /** The button on the row: "Approve", "Extend", "Reject", "Revoke", "Cancel invitation". */
   readonly trigger: string;
 }
 
 /**
- * Approve (or extend), reject or revoke one early-access request (igs-pharma#199). One native
+ * Approve (or extend), reject or revoke one early-access request (igs-pharma#199), or cancel an
+ * invitation nobody redeemed (igs-pharma#211). One native
  * `<dialog>` per action, Cancel focused first so Enter never decides by accident. When the server
  * answers that the owner's passkey check is older than 10 minutes, the dialog asks for the passkey
  * and then submits the SAME form again (the same submission id, so the decision happens once);
@@ -138,7 +139,7 @@ export function EarlyAccessDialog({ intent, requestId, who, trigger }: Props) {
                   ))}
                 </select>
               </label>
-            ) : (
+            ) : intent === "cancel" ? null : (
               <TextField
                 label="Reason (optional)"
                 name="reason"

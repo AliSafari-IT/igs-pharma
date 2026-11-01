@@ -26,8 +26,13 @@ const ERRORS: Record<string, string> = {
   "identity.early_access.own_request": "You cannot decide your own request: another owner must.",
   "identity.early_access.state_changed":
     "That request changed in the meantime (decided or ended). Reload the page and look again.",
+  // invitations (igs-pharma#211)
+  "identity.early_access.own_address": "You cannot invite your own address.",
+  "identity.early_access.rate_limited":
+    "You sent many invitations in the last hour. Wait a while, then try again.",
   "kernel.forbidden": "You are not allowed to do that.",
   "kernel.invalid_input": "That request was not valid. Reload the page and try again.",
+  "kernel.validation_failed": "Check what you entered (an e-mail address?) and try again.",
 };
 
 export const identityErrorMessage = (code: string | undefined) =>
