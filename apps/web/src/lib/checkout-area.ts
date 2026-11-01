@@ -48,13 +48,17 @@ export type AddressValues = Record<AddressField, string>;
 export type AddressErrorKey =
   | "streetRequired"
   | "streetTooLong"
+  | "streetInvalid"
   | "postalCodeInvalid"
   | "cityRequired"
-  | "cityTooLong";
+  | "cityTooLong"
+  | "cityInvalid";
 export type AddressErrors = Partial<Record<AddressField, AddressErrorKey>>;
 
 export const STREET_MAX = 120;
 export const CITY_MAX = 80;
+/** No control character (a newline, a tab): the address ends up on a shipping label. */
+const HAS_CONTROL_CHARACTER = /\p{Cc}/u;
 /** A Belgian postal code: four digits, the first not 0 (the same rule as `orders.order.place`). */
 export const BE_POSTAL_CODE = /^[1-9][0-9]{3}$/;
 
@@ -64,10 +68,12 @@ export function addressErrors(values: AddressValues): AddressErrors {
   const street = values.street.trim();
   if (!street) errors.street = "streetRequired";
   else if (street.length > STREET_MAX) errors.street = "streetTooLong";
+  else if (HAS_CONTROL_CHARACTER.test(street)) errors.street = "streetInvalid";
   if (!BE_POSTAL_CODE.test(values.postalCode.trim())) errors.postalCode = "postalCodeInvalid";
   const city = values.city.trim();
   if (!city) errors.city = "cityRequired";
   else if (city.length > CITY_MAX) errors.city = "cityTooLong";
+  else if (HAS_CONTROL_CHARACTER.test(city)) errors.city = "cityInvalid";
   return errors;
 }
 

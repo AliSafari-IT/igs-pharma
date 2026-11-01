@@ -338,9 +338,11 @@
     "city": "Ort",
     "streetRequired": "Geben Sie Straße und Hausnummer ein.",
     "streetTooLong": "Das ist zu lang (höchstens 120 Zeichen).",
+    "streetInvalid": "Verwenden Sie keine Sonderzeichen oder Zeilenumbrüche.",
     "postalCodeInvalid": "Geben Sie eine belgische Postleitzahl mit vier Ziffern ein.",
     "cityRequired": "Geben Sie den Ort ein.",
-    "cityTooLong": "Das ist zu lang (höchstens 80 Zeichen)."
+    "cityTooLong": "Das ist zu lang (höchstens 80 Zeichen).",
+    "cityInvalid": "Verwenden Sie keine Sonderzeichen oder Zeilenumbrüche."
   },
   "order": {
     "title": "Danke, wir haben Ihre Bestellung erhalten",

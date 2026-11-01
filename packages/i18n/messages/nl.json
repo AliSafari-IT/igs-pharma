@@ -338,9 +338,11 @@
     "city": "Gemeente",
     "streetRequired": "Vul straat en nummer in.",
     "streetTooLong": "Dit is te lang (maximaal 120 tekens).",
+    "streetInvalid": "Gebruik geen speciale tekens of regeleinden.",
     "postalCodeInvalid": "Vul een Belgische postcode in van vier cijfers.",
     "cityRequired": "Vul de gemeente in.",
-    "cityTooLong": "Dit is te lang (maximaal 80 tekens)."
+    "cityTooLong": "Dit is te lang (maximaal 80 tekens).",
+    "cityInvalid": "Gebruik geen speciale tekens of regeleinden."
   },
   "order": {
     "title": "Bedankt, we hebben je bestelling ontvangen",

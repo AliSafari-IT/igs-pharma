@@ -338,9 +338,11 @@
     "city": "City",
     "streetRequired": "Enter the street and number.",
     "streetTooLong": "This is too long (120 characters at most).",
+    "streetInvalid": "Do not use line breaks or control characters.",
     "postalCodeInvalid": "Enter a Belgian postal code of four digits.",
     "cityRequired": "Enter the city.",
-    "cityTooLong": "This is too long (80 characters at most)."
+    "cityTooLong": "This is too long (80 characters at most).",
+    "cityInvalid": "Do not use line breaks or control characters."
   },
   "order": {
     "title": "Thank you, we have received your order",

@@ -884,6 +884,9 @@ importers:
 
   packages/modules/orders:
     dependencies:
+      '@igs/config':
+        specifier: workspace:*
+        version: link:../../config
       '@igs/crypto':
         specifier: workspace:*
         version: link:../../crypto

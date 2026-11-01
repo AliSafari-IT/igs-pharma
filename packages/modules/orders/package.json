@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@igs/config": "workspace:*",
     "@igs/crypto": "workspace:*",
     "@igs/db": "workspace:*",
     "@igs/kernel": "workspace:*",
