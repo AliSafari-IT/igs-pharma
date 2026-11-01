@@ -15,6 +15,7 @@ import {
 } from "../../../lib/cart-area";
 import { cartActor, cartLocale } from "../../../server/cart";
 import { requestOrigin } from "../../../server/customer";
+import { checkListToken, loadListEntries } from "../../../server/list-link";
 
 /**
  * The cart's Server Actions (igs-pharma#116). Each answers with a redirect to the cart page and a
@@ -101,4 +102,50 @@ export async function startCheckoutAction(form: FormData): Promise<void> {
   }
   if (!checkoutId) back(locale, result);
   redirect(`/${locale}/checkout/${checkoutId}`);
+}
+
+/**
+ * "Add to cart" on the page an "Order my list" link opens (igs-pharma#218): every product of the list
+ * that is still sold and not in the cart yet, once (the list holds no quantities). Products that can't
+ * be added (no longer sold, the cart full) are skipped and the answer says so. The token is checked
+ * again here: a forged or expired one adds nothing and goes back to the page, which explains.
+ */
+export async function addListToCart(form: FormData): Promise<void> {
+  const locale = cartLocale(text(form, "locale"));
+  const tokenValue = text(form, "l");
+  const check = checkListToken(tokenValue);
+  if (!check.ok) redirect(`/${locale}/cart/from-list?l=${encodeURIComponent(tokenValue)}`);
+
+  let { actor, token } = await cartActor();
+  if (actor.type === "anonymous" && !token) {
+    token = newCartToken();
+    (await cookies()).set(CART_COOKIE, token, cartCookieOptions);
+  }
+  let result: CartResult = "listAdded";
+  try {
+    const entries = await loadListEntries(check.cnks, locale);
+    const cart = await getCart({ cartToken: token, locale }, actor);
+    const inCart = new Set(cart.lines.map((line) => line.productId));
+    const origin = await requestOrigin();
+    for (const { product } of entries) {
+      if (!product) {
+        result = "listPartly";
+        continue;
+      }
+      if (inCart.has(product.id)) continue;
+      try {
+        await setCartLine({ cartToken: token, productId: product.id, quantity: 1 }, actor, {
+          origin,
+        });
+        inCart.add(product.id);
+      } catch (error) {
+        if (!isDomainError(error)) throw error;
+        result = "listPartly";
+      }
+    }
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    result = resultOfCode(error.code);
+  }
+  back(locale, result);
 }

@@ -85,7 +85,13 @@ describe("the cart forms", () => {
     expect(resultOfCode("kernel.anything")).toBe("failed");
     expect(resultOf({ result: "added" })).toBe("added");
     expect(resultOf({ result: "<script>" })).toBeNull();
-    expect(CART_RESULTS.filter(isSuccessResult)).toEqual(["added", "updated", "removed"]);
+    expect(CART_RESULTS.filter(isSuccessResult)).toEqual([
+      "added",
+      "updated",
+      "removed",
+      "listAdded",
+      "listPartly",
+    ]);
     expect(resultMessageKey("full")).toBe("resultFull");
   });
 

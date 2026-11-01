@@ -283,7 +283,20 @@
     "resultEmpty": "Ihr Warenkorb ist leer.",
     "deliveryInfo": "Die Abholung in der Apotheke ist kostenlos. Lieferung nach Hause: {price}, inklusive MwSt.",
     "deliveryFreeNow": "Die Abholung ist kostenlos, und Ihre Bestellung erhält die kostenlose Lieferung nach Hause.",
-    "deliveryMissing": "Fügen Sie noch {amount} hinzu für die kostenlose Lieferung nach Hause."
+    "deliveryMissing": "Fügen Sie noch {amount} hinzu für die kostenlose Lieferung nach Hause.",
+    "fromListTitle": "Ihre Liste aus der App",
+    "fromListIntro": "{count, plural, one {Dieses Produkt steht} other {Diese # Produkte stehen}} auf der Liste, die Sie aus der IGS-Pharma-App gesendet haben. Preise und Bestand sind die von heute.",
+    "fromListExpired": "Dieser Link ist abgelaufen.",
+    "fromListInvalid": "Dieser Link ist nicht gültig.",
+    "fromListAgain": "Öffnen Sie Meine Liste in der IGS-Pharma-App und tippen Sie erneut auf „Meine Liste bestellen“.",
+    "fromListOut": "Nicht vorrätig",
+    "fromListGone": "Produkt {cnk} ist nicht mehr erhältlich.",
+    "fromListAdd": "{count, plural, one {In meinen Warenkorb} other {Diese # in meinen Warenkorb}}",
+    "fromListSkip": "Zu meinem Warenkorb",
+    "fromListNone": "Keines dieser Produkte kann derzeit bestellt werden.",
+    "fromListNote": "Es wird nichts hinzugefügt, bevor Sie auf die Schaltfläche drücken. Mengen ändern Sie im Warenkorb.",
+    "resultListAdded": "Ihre Liste wurde in Ihren Warenkorb gelegt.",
+    "resultListPartly": "Ihre Liste wurde in Ihren Warenkorb gelegt, außer Produkten, die nicht mehr bestellt werden können."
   },
   "checkout": {
     "title": "Zur Kasse",

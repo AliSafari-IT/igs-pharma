@@ -283,7 +283,20 @@
     "resultEmpty": "Your cart is empty.",
     "deliveryInfo": "Pickup at the pharmacy is free. Home delivery: {price}, VAT included.",
     "deliveryFreeNow": "Pickup is free, and your order qualifies for free home delivery.",
-    "deliveryMissing": "Add {amount} more for free home delivery."
+    "deliveryMissing": "Add {amount} more for free home delivery.",
+    "fromListTitle": "Your list from the app",
+    "fromListIntro": "{count, plural, one {This product is} other {These # products are}} on the list you sent from the IGS-Pharma app. Prices and stock are today's.",
+    "fromListExpired": "This link has expired.",
+    "fromListInvalid": "This link is not valid.",
+    "fromListAgain": "Open My list in the IGS-Pharma app and tap “Order my list” again.",
+    "fromListOut": "Out of stock",
+    "fromListGone": "Product {cnk} is no longer available.",
+    "fromListAdd": "{count, plural, one {Add it to my cart} other {Add these # to my cart}}",
+    "fromListSkip": "Go to my cart",
+    "fromListNone": "None of these products can be ordered at the moment.",
+    "fromListNote": "Nothing is added until you press the button. You can change quantities in your cart.",
+    "resultListAdded": "Your list was added to your cart.",
+    "resultListPartly": "Your list was added to your cart, except products that can no longer be ordered."
   },
   "checkout": {
     "title": "Checkout",
