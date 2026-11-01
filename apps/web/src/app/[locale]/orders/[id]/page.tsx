@@ -106,6 +106,28 @@ export default async function OrderPage({ params, searchParams }: Props) {
               cartHref={`/${locale}/cart`}
               t={t}
             />
+            {order.tracking ? (
+              <section
+                aria-labelledby="order-tracking"
+                className="flex flex-col gap-2"
+                data-testid="order-tracking"
+              >
+                <h2 id="order-tracking" className="font-display text-xl font-semibold">
+                  {t("trackingTitle")}
+                </h2>
+                <p>
+                  {t("trackingNumber")}:{" "}
+                  <strong className="tabular-nums">{order.tracking.number}</strong>
+                </p>
+                {order.tracking.url ? (
+                  <p>
+                    <Link href={order.tracking.url} rel="noreferrer noopener" target="_blank">
+                      {t("trackingLink")}
+                    </Link>
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
             {order.needsReview ? (
               <div
                 role="note"

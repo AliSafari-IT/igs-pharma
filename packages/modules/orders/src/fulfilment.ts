@@ -22,7 +22,8 @@ import {
 import { assertOrderSellable, notSellableLinesOf, paidOrderStatus } from "./eligibility";
 import { requestOrderMail } from "./mails";
 import { recordRefund } from "./refunds";
-import { orderLines, orderReviews, ordersTable } from "./schema";
+import { orderLines, orderReviews, ordersTable, shipments } from "./schema";
+import { cancelShipmentOf, requestShipment } from "./shipments";
 
 /** Pharmacist review and fulfilment of paid orders (asafarim-docs:ventures/igs-pharma, D-045). */
 
@@ -113,10 +114,37 @@ export const decideReview = command({
   },
 });
 
-/** Fulfilment steps, in lifecycle order. */
-export const FULFILMENT_STEPS = ["preparing", "ready_for_pickup", "collected"] as const;
+/**
+ * Fulfilment steps staff take, in lifecycle order. A pickup order: prepare, ready for pickup,
+ * collected. A home-delivery order (igs-pharma#202): prepare, pack (`ready_to_ship`, which asks for
+ * the Sendcloud label), hand over to the carrier (`shipped`), then `delivered` (the worker records it
+ * from Sendcloud; staff when the carrier says nothing) or `returned` (the parcel came back).
+ */
+export const FULFILMENT_STEPS = [
+  "preparing",
+  "ready_for_pickup",
+  "collected",
+  "ready_to_ship",
+  "shipped",
+  "delivered",
+  "returned",
+] as const;
 export type FulfilmentStep = (typeof FULFILMENT_STEPS)[number];
 
+/** The steps that move goods out of the pharmacy's hands: each rechecks that they may be sold. */
+const GOODS_STEPS: readonly FulfilmentStep[] = [
+  "preparing",
+  "ready_for_pickup",
+  "collected",
+  "ready_to_ship",
+  "shipped",
+];
+
+/**
+ * Moves an order to its next fulfilment step. Errors: `orders.invalid_transition` (not a step from
+ * here, or not one for its delivery method), `orders.line_not_sellable`, `inventory.allocation_short`
+ * (packing), `orders.shipment_label_missing` (handing over a parcel without its label).
+ */
 export const advanceOrder = command({
   name: "orders.order.advance",
   input: z.object({ orderId: z.uuid(), to: z.enum(FULFILMENT_STEPS), expectedVersion }),
@@ -126,23 +154,36 @@ export const advanceOrder = command({
   async handler({ input, ctx }) {
     const order = await lockOrder(ctx, input.orderId, input.expectedVersion);
     const from = order.status as OrderStatus;
-    if (!canTransition(from, input.to, { needsReview: order.needsReview })) {
+    const deliveryMethod = order.deliveryMethod === "delivery" ? "delivery" : "pickup";
+    if (!canTransition(from, input.to, { needsReview: order.needsReview, deliveryMethod })) {
       throw conflict("orders.invalid_transition", { from, to: input.to });
     }
     // the eligibility recheck before every step that moves the goods (prepare, pack, hand over)
-    await assertOrderSellable(ctx, order.id);
-    if (input.to === "ready_for_pickup") {
+    if (GOODS_STEPS.includes(input.to)) await assertOrderSellable(ctx, order.id);
+    if (input.to === "ready_for_pickup" || input.to === "ready_to_ship") {
       // packed only from sellable lots allocated in full (igs-pharma#165): else
       // `inventory.allocation_short`, and the order stays in preparation
       await ctx.run(checkAllocation, { holderRef: holderOf(order.checkoutId) });
     }
-    if (input.to === "collected") {
+    if (input.to === "shipped") {
+      const [shipment] = await ctx.tx
+        .select({ status: shipments.status })
+        .from(shipments)
+        .where(eq(shipments.orderId, order.id));
+      if (shipment?.status !== "created") {
+        throw conflict("orders.shipment_label_missing", { status: shipment?.status ?? "none" });
+      }
+    }
+    if (input.to === "collected" || input.to === "shipped") {
+      // the stock leaves the pharmacy; a parcel that comes back never goes back into stock
       await ctx.run(consumeReservation, { holderRef: holderOf(order.checkoutId) });
     }
     const version = await moveOrder(ctx, order, input.to);
     if (input.to === "ready_for_pickup") {
       await requestOrderMail(ctx, { orderId: order.id, kind: "ready_for_pickup" });
     }
+    if (input.to === "ready_to_ship") await requestShipment(ctx, order.id);
+    if (input.to === "shipped") await requestOrderMail(ctx, { orderId: order.id, kind: "shipped" });
     await ctx.audit.record({
       action: ORDERS_AUDIT.orderAdvanced,
       entityType: "order",
@@ -263,6 +304,7 @@ const NOT_SELLABLE_CANCELLABLE = [
   "ready_to_prepare",
   "preparing",
   "ready_for_pickup",
+  "ready_to_ship",
 ] as const satisfies readonly OrderStatus[];
 
 /**
@@ -270,7 +312,8 @@ const NOT_SELLABLE_CANCELLABLE = [
  * (`orders.line_not_sellable` stops every fulfilment step): gives back the stock it holds, cancels it
  * and records the full refund (reason `not_sellable`), which also tells the customer. An order in
  * review is refused by the pharmacist instead. Same refund rules as a stock-short order.
- * - `orders.order_not_cancellable`: the order is not waiting to be prepared, in preparation or ready;
+ * - `orders.order_not_cancellable`: the order is not waiting to be prepared, in preparation, ready or
+ *   packed (once handed to the carrier it can't be stopped here);
  * - `orders.order_sellable`: every product is still sellable, nothing to cancel here.
  */
 export const cancelNotSellableOrder = command({
@@ -301,6 +344,8 @@ export const cancelNotSellableOrder = command({
       reason: "order_cancelled",
     });
     const version = await moveOrder(ctx, order, "cancelled");
+    // a packed parcel: its label is cancelled at Sendcloud (by the worker)
+    await cancelShipmentOf(ctx, order.id);
     const refundId = await recordRefund(
       ctx,
       { ...order, status: "cancelled" },

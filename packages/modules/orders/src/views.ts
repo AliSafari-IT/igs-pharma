@@ -14,6 +14,7 @@ import {
   orderLines,
   ordersTable,
   payments,
+  shipments,
 } from "./schema";
 
 /**
@@ -126,6 +127,11 @@ export interface OrderView {
   /** What delivery cost, VAT included, and part of `totalCents`; 0 for a pickup order. */
   readonly deliveryFeeCents: number;
   readonly deliveryAddress: DeliveryAddressView | null;
+  /**
+   * Once the parcel is with the carrier (shipped, delivered or returned): its tracking number and the
+   * carrier's tracking link (igs-pharma#202). `null` before.
+   */
+  readonly tracking: { readonly number: string; readonly url: string | null } | null;
   readonly createdAt: Date;
   readonly lines: readonly BasketLineView[];
   /** The latest payment's status, `null` when there is none. */
@@ -205,6 +211,12 @@ export const getOrder = query({
       })
       .from(orderAddresses)
       .where(eq(orderAddresses.orderId, order.id));
+    const [parcel] = ["shipped", "delivered", "returned"].includes(order.status)
+      ? await ctx.tx
+          .select({ number: shipments.trackingNumber, url: shipments.trackingUrl })
+          .from(shipments)
+          .where(and(eq(shipments.orderId, order.id), eq(shipments.status, "created")))
+      : [];
     return {
       orderId: order.id,
       reference: order.reference,
@@ -215,6 +227,7 @@ export const getOrder = query({
       deliveryMethod: order.deliveryMethod === "delivery" ? "delivery" : "pickup",
       deliveryFeeCents: order.deliveryFeeCents,
       deliveryAddress: address ?? null,
+      tracking: parcel?.number ? { number: parcel.number, url: parcel.url } : null,
       createdAt: order.createdAt,
       lines,
       paymentStatus: (payment?.status as PaymentStatus | undefined) ?? null,

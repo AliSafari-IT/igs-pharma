@@ -23,6 +23,11 @@ export const ENV_SENSITIVITY = {
   SMTP_URL: "sensitive", // can carry the mail server password
   MOLLIE_API_KEY: "sensitive", // can create payments and refunds
   MOLLIE_WEBHOOK_BASE_URL: "not-sensitive",
+  // home delivery labels (igs-pharma#202)
+  SENDCLOUD_PUBLIC_KEY: "sensitive", // half of the key pair that makes labels (they cost money)
+  SENDCLOUD_SECRET_KEY: "sensitive",
+  SENDCLOUD_SHIPPING_METHOD_ID: "not-sensitive",
+  SENDCLOUD_PARCEL_WEIGHT_GRAMS: "not-sensitive",
   MAIL_FROM: "not-sensitive",
   EARLY_ACCESS_NOTIFY_TO: "not-sensitive", // staff addresses for the early-access notice (#199)
   // crypto

@@ -5,9 +5,11 @@ import { z } from "zod";
 
 import type { DeliveryMethod } from "./delivery-domain";
 import {
+  END_STATUSES,
   ORDER_STATUSES,
   type OrderStatus,
   type PaymentStatus,
+  REFUNDABLE_ORDER_STATUSES,
   type ReviewDecision,
   STOCK_SHORT_DEADLINE_HOURS,
   holderOf,
@@ -24,6 +26,7 @@ import {
   payments,
   refunds,
 } from "./schema";
+import { type ShipmentView, shipmentOf } from "./shipments";
 import type { BasketLineView, DeliveryAddressView } from "./views";
 
 /** Back-office order reads (`orders.read`). */
@@ -207,6 +210,8 @@ export interface StaffOrderView {
   /** Part of `totalCents`; 0 for a pickup order. */
   readonly deliveryFeeCents: number;
   readonly deliveryAddress: DeliveryAddressView | null;
+  /** The parcel of a packed delivery order: its label, tracking, or why it failed (igs-pharma#202). */
+  readonly shipment: ShipmentView | null;
   readonly createdAt: Date;
   readonly contact: {
     readonly name: string;
@@ -221,6 +226,11 @@ export interface StaffOrderView {
   readonly notSellable: readonly string[];
   readonly paymentStatus: PaymentStatus | null;
   readonly refundDue: boolean;
+  /**
+   * Staff may refund it now: paid, closed or its parcel returned (`REFUNDABLE_ORDER_STATUSES`), and no
+   * refund under way or done. Wider than `refundDue`, which flags only the ones that MUST be refunded.
+   */
+  readonly refundable: boolean;
   /** Newest first. */
   readonly refunds: readonly RefundView[];
   readonly review: {
@@ -239,8 +249,8 @@ export interface StaffOrderView {
   }[];
 }
 
-/** End states: nothing more happens to their goods. */
-const CLOSED_STATUSES: readonly OrderStatus[] = ["collected", "cancelled", "expired"];
+/** Nothing more can be stopped: closed, or the goods left (collected, or handed to the carrier). */
+const CLOSED_STATUSES: readonly OrderStatus[] = [...END_STATUSES, "shipped"];
 
 export const getOrderForStaff = query({
   name: "orders.order.get_staff",
@@ -334,6 +344,7 @@ export const getOrderForStaff = query({
       deliveryMethod: order.deliveryMethod === "delivery" ? "delivery" : "pickup",
       deliveryFeeCents: order.deliveryFeeCents,
       deliveryAddress: address ?? null,
+      shipment: await shipmentOf(ctx, order.id),
       createdAt: order.createdAt,
       contact: contact ?? null,
       lines,
@@ -342,6 +353,10 @@ export const getOrderForStaff = query({
         : await notSellableLinesOf(ctx.tx, order.id),
       paymentStatus: order.paymentStatus as PaymentStatus | null,
       refundDue: isRefundDue(order.status, order.paymentStatus, order.refunding),
+      refundable:
+        (REFUNDABLE_ORDER_STATUSES as readonly string[]).includes(order.status) &&
+        order.paymentStatus === "paid" &&
+        !order.refunding,
       refunds: await refundsOf(ctx, order.id),
       review: review ? { ...review, decision: review.decision as ReviewDecision } : null,
       events: events.map((event) => ({

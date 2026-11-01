@@ -45,11 +45,15 @@ interface Line {
   readonly vatCents?: number;
 }
 
-/** Inserts an order and its lines in ONE transaction, the way checkout will (totals = sums). */
+/**
+ * Inserts an order and its lines in ONE transaction, the way checkout will (totals = sums). A
+ * `delivery` order (igs-pharma#202) gets its address and no fee (a free delivery).
+ */
 async function placeOrder(
   lines: readonly Line[] = [{ isMedicine: false }],
-  options: { totalCents?: number } = {},
+  options: { totalCents?: number; method?: "pickup" | "delivery" } = {},
 ): Promise<string> {
+  const method = options.method ?? "pickup";
   const id = newId();
   const rows = lines.map((line) => {
     const quantity = line.quantity ?? 1;
@@ -68,9 +72,14 @@ async function placeOrder(
   await app.begin(async (sql) => {
     await sql`
       INSERT INTO orders.orders (id, checkout_id, reference, locale, needs_review, total_cents, vat_cents,
-        created_by_type, created_by_id, updated_by_type, updated_by_id)
+        delivery_method, created_by_type, created_by_id, updated_by_type, updated_by_id)
       VALUES (${id}, ${randomUUID()}, ${reference}, 'nl', ${rows.some((row) => row.isMedicine)}, ${total}, ${vat},
-        'anonymous', 'guest', 'anonymous', 'guest')`;
+        ${method}, 'anonymous', 'guest', 'anonymous', 'guest')`;
+    if (method === "delivery") {
+      await sql`
+        INSERT INTO orders.order_addresses (order_id, street, postal_code, city)
+        VALUES (${id}, 'Rue de la Victoire 12', '1060', 'Saint-Gilles')`;
+    }
     let cnk = 1_000_000;
     for (const row of rows) {
       await sql`
@@ -102,7 +111,20 @@ const approve = (id: string) =>
     INSERT INTO orders.order_reviews (id, order_id, decision, reviewer_id)
     VALUES (${newId()}, ${id}, 'approved', 'pharmacist-1')`;
 
-/** The shortest legal path from `pending_payment` to `status` for an order without a medicine. */
+/** A parcel with its label for a packed delivery order (the guard wants one before `shipped`). */
+async function labelled(id: string): Promise<void> {
+  const shipmentId = newId();
+  await app`INSERT INTO orders.shipments (id, order_id) VALUES (${shipmentId}, ${id})`;
+  await app`
+    UPDATE orders.shipments SET status = 'created', provider_parcel_id = '123', tracking_number = 'T1',
+      label_created_at = now(), version = version + 1
+    WHERE id = ${shipmentId}`;
+}
+
+/**
+ * The shortest legal path from `pending_payment` to `status` for an order without a medicine. The
+ * shipping states are reached by a delivery order (`methodFor`).
+ */
 const PATH: Record<OrderStatus, readonly OrderStatus[]> = {
   pending_payment: [],
   paid_stock_short: ["paid_stock_short"],
@@ -111,31 +133,109 @@ const PATH: Record<OrderStatus, readonly OrderStatus[]> = {
   preparing: ["ready_to_prepare", "preparing"],
   ready_for_pickup: ["ready_to_prepare", "preparing", "ready_for_pickup"],
   collected: ["ready_to_prepare", "preparing", "ready_for_pickup", "collected"],
+  ready_to_ship: ["ready_to_prepare", "preparing", "ready_to_ship"],
+  shipped: ["ready_to_prepare", "preparing", "ready_to_ship", "shipped"],
+  delivered: ["ready_to_prepare", "preparing", "ready_to_ship", "shipped", "delivered"],
+  returned: ["ready_to_prepare", "preparing", "ready_to_ship", "shipped", "returned"],
   cancelled: ["cancelled"],
   expired: ["expired"],
 };
 
-async function orderAt(status: OrderStatus, lines?: readonly Line[]): Promise<string> {
-  const id = await placeOrder(lines);
-  for (const step of PATH[status]) await move(id, step);
+const SHIPPING: readonly OrderStatus[] = ["ready_to_ship", "shipped", "delivered", "returned"];
+const PICKUP: readonly OrderStatus[] = ["ready_for_pickup", "collected"];
+
+async function orderAt(
+  status: OrderStatus,
+  lines?: readonly Line[],
+  method: "pickup" | "delivery" = SHIPPING.includes(status) ? "delivery" : "pickup",
+): Promise<string> {
+  const id = await placeOrder(lines, { method });
+  for (const step of PATH[status]) {
+    if (step === "shipped") await labelled(id);
+    await move(id, step);
+  }
   return id;
 }
 
 describe("the order lifecycle", () => {
-  it("allows exactly the transitions of ORDER_TRANSITIONS, for every pair (no medicine)", async () => {
-    const mismatches: string[] = [];
-    for (const from of ORDER_STATUSES) {
-      for (const to of ORDER_STATUSES) {
-        if (from === to) continue;
-        const id = await orderAt(from);
-        if (from === "in_review" && to === "ready_to_prepare") await approve(id);
-        const refused = await failure(move(id, to));
-        const allowed = canTransition(from, to, { needsReview: false });
-        if (allowed === (refused !== undefined)) mismatches.push(`${from} → ${to}`);
-        if (refused) expect(refused.code).toBe("23000");
+  for (const method of ["pickup", "delivery"] as const) {
+    it(`allows exactly the transitions of ORDER_TRANSITIONS, for every pair (no medicine, ${method})`, async () => {
+      const own = method === "pickup" ? PICKUP : SHIPPING;
+      const mismatches: string[] = [];
+      for (const from of ORDER_STATUSES) {
+        // an order never stands in the other method's states
+        if ((method === "pickup" ? SHIPPING : PICKUP).includes(from)) continue;
+        for (const to of ORDER_STATUSES) {
+          if (from === to) continue;
+          const id = await orderAt(from, undefined, method);
+          if (from === "in_review" && to === "ready_to_prepare") await approve(id);
+          if (from === "ready_to_ship" && to === "shipped") await labelled(id);
+          const refused = await failure(move(id, to));
+          const allowed = canTransition(from, to, { needsReview: false, deliveryMethod: method });
+          if (allowed === (refused !== undefined)) mismatches.push(`${from} → ${to}`);
+          if (refused) expect(refused.code).toBe("23000");
+        }
       }
-    }
-    expect(mismatches).toEqual([]);
+      expect(mismatches).toEqual([]);
+      expect(own.length).toBeGreaterThan(0);
+    });
+  }
+
+  it("a packed parcel is handed to the carrier only with its label", async () => {
+    const id = await orderAt("ready_to_ship");
+    expect((await failure(move(id, "shipped")))?.message).toMatch(/no parcel with a label/);
+    await app`INSERT INTO orders.shipments (id, order_id) VALUES (${newId()}, ${id})`;
+    expect((await failure(move(id, "shipped")))?.message).toMatch(/no parcel with a label/);
+  });
+
+  it("a shipment is only made for a packed delivery order, moves forward only and is kept", async () => {
+    const pickup = await orderAt("preparing");
+    expect(
+      (
+        await failure(
+          app`INSERT INTO orders.shipments (id, order_id) VALUES (${newId()}, ${pickup})`,
+        )
+      )?.message,
+    ).toMatch(/only a packed/);
+    const unpacked = await orderAt("preparing", undefined, "delivery");
+    expect(
+      (
+        await failure(
+          app`INSERT INTO orders.shipments (id, order_id) VALUES (${newId()}, ${unpacked})`,
+        )
+      )?.message,
+    ).toMatch(/only a packed/);
+
+    const id = await orderAt("ready_to_ship");
+    const shipmentId = newId();
+    await app`INSERT INTO orders.shipments (id, order_id) VALUES (${shipmentId}, ${id})`;
+    const set = (assignments: string) =>
+      app.unsafe(
+        `UPDATE orders.shipments SET ${assignments}, version = version + 1 WHERE id = '${shipmentId}'`,
+      );
+    // a second parcel for the same order
+    expect(
+      (await failure(app`INSERT INTO orders.shipments (id, order_id) VALUES (${newId()}, ${id})`))
+        ?.code,
+    ).toBe("23505");
+    expect((await failure(set("status = 'cancelled'")))?.message).toMatch(/may not move/);
+    await set("provider_parcel_id = '42'");
+    expect((await failure(set("provider_parcel_id = '43'")))?.message).toMatch(
+      /keeps its parcel id/,
+    );
+    await set("status = 'failed', failure_code = 'provider_refused'");
+    await set("status = 'requested', failure_code = NULL");
+    await set("status = 'cancel_requested'");
+    await set("status = 'cancelled'");
+    expect((await failure(set("carrier = 'bpost'")))?.message).toMatch(
+      /cancelled and cannot change/,
+    );
+    expect((await failure(app`DELETE FROM orders.shipments WHERE id = ${shipmentId}`))?.code).toBe(
+      "42501",
+    );
+    expect(
+      (await failure(admin`DELETE FROM orders.shipments WHERE id = ${shipmentId}`))?.message,
+    ).toMatch(/kept/);
   });
 
   it("an order holding a medicine is prepared only after in_review", async () => {
@@ -197,7 +297,7 @@ describe("the order lifecycle", () => {
   });
 
   it("an order in an end state never changes again", async () => {
-    for (const end of ["collected", "cancelled", "expired"] as const) {
+    for (const end of ["collected", "delivered", "returned", "cancelled", "expired"] as const) {
       const id = await orderAt(end);
       const touched = await failure(
         app`UPDATE orders.orders SET updated_by_id = 'x', version = version + 1 WHERE id = ${id}`,

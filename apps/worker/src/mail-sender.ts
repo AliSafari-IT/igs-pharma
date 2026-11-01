@@ -31,6 +31,7 @@ const ORDER_TEMPLATE: Record<OrderMailKind, OrderMailTemplateName> = {
   order_received: "order_received",
   stock_short: "order_stock_short",
   ready_for_pickup: "order_ready_for_pickup",
+  shipped: "order_shipped",
   refund_initiated: "order_refund_initiated",
   refund_completed: "order_refund_completed",
   recall_notice: "order_recall_notice",
@@ -45,7 +46,12 @@ export function createOrderMailSender(settings: MailSettings, mailer?: Mailer): 
       to: mail.to,
       locale: mail.locale,
       template: ORDER_TEMPLATE[mail.kind],
-      data: { name: mail.name, reference: mail.reference, amountCents: mail.amountCents },
+      data: {
+        name: mail.name,
+        reference: mail.reference,
+        amountCents: mail.amountCents,
+        trackingUrl: mail.trackingUrl,
+      },
     });
   };
 }

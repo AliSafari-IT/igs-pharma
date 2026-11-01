@@ -27,6 +27,7 @@
     "@igs/module-privacy": "workspace:*",
     "@igs/observability": "workspace:*",
     "@igs/payments": "workspace:*",
+    "@igs/shipping": "workspace:*",
     "drizzle-orm": "0.38.3",
     "nodemailer": "7.0.11",
     "pg-boss": "10.1.6",

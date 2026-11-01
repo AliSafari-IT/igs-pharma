@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { ORDER_MAIL_KINDS, type OrderMailKind } from "./domain";
-import { orderContacts, orderMails, ordersTable, refunds } from "./schema";
+import { orderContacts, orderMails, ordersTable, refunds, shipments } from "./schema";
 
 /**
  * Customer mails about an order (igs-pharma#157, D-019). The command that moves an order or a refund
@@ -65,6 +65,8 @@ export interface OrderMailToSend {
   readonly reference: string;
   /** The refund's amount, for the refund mails. */
   readonly amountCents: number | undefined;
+  /** The carrier's tracking link, for the `shipped` mail (igs-pharma#202). */
+  readonly trackingUrl: string | undefined;
 }
 
 export type OrderMailSender = (mail: OrderMailToSend) => Promise<void>;
@@ -83,6 +85,9 @@ function stillTrue(kind: OrderMailKind, orderStatus: string): boolean {
       return orderStatus === "paid_stock_short";
     case "ready_for_pickup":
       return orderStatus === "ready_for_pickup";
+    // a parcel delivered before its mail went out: the mail still tells where it is
+    case "shipped":
+      return orderStatus === "shipped" || orderStatus === "delivered";
     default:
       return true;
   }
@@ -109,11 +114,13 @@ export async function deliverOrderMail(
         email: orderContacts.email,
         name: orderContacts.name,
         amountCents: refunds.amountCents,
+        trackingUrl: shipments.trackingUrl,
       })
       .from(orderMails)
       .innerJoin(ordersTable, eq(ordersTable.id, orderMails.orderId))
       .leftJoin(orderContacts, eq(orderContacts.orderId, orderMails.orderId))
       .leftJoin(refunds, eq(refunds.id, orderMails.refundId))
+      .leftJoin(shipments, eq(shipments.orderId, orderMails.orderId))
       .where(eq(orderMails.id, mailId));
     return found;
   });
@@ -138,6 +145,7 @@ export async function deliverOrderMail(
     kind,
     reference: row.reference,
     amountCents: row.amountCents ?? undefined,
+    trackingUrl: kind === "shipped" ? (row.trackingUrl ?? undefined) : undefined,
   });
   await mark("sent");
   return "sent";

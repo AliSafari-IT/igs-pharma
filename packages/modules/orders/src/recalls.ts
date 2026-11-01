@@ -10,7 +10,7 @@ import { and, asc, eq, exists, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { ORDERS_AUDIT } from "./audit";
-import type { OrderStatus } from "./domain";
+import { HANDED_OVER_STATUSES, type OrderStatus } from "./domain";
 import { requestOrderMail } from "./mails";
 import { orderContacts, orderLines, orderMails, ordersTable, payments } from "./schema";
 
@@ -30,8 +30,12 @@ import { orderContacts, orderLines, orderMails, ordersTable, payments } from "./
  * composition root).
  */
 
-/** An order's end states: nothing more happens to its goods. */
-const CLOSED: readonly OrderStatus[] = ["collected", "cancelled", "expired"];
+/**
+ * Orders the recall can no longer act on: closed without the goods (cancelled, expired), or the goods
+ * left the pharmacy (collected, or handed to the carrier, igs-pharma#202), whose customers are told.
+ */
+const HANDED_OVER: readonly OrderStatus[] = HANDED_OVER_STATUSES;
+const CLOSED: readonly OrderStatus[] = [...HANDED_OVER_STATUSES, "cancelled", "expired"];
 
 export type RecallNoticeState = "none" | "pending" | "sent" | "skipped";
 
@@ -168,7 +172,9 @@ export const recallEndGuard: RecallEndGuard = async (ctx: Ctx, coverage: RecallC
   const orders = await affectedOrders(ctx.tx, coverage);
   const open = orders.filter((order) => !CLOSED.includes(order.status));
   if (open.length > 0) throw conflict("orders.recall_orders_open", { count: String(open.length) });
-  const untold = orders.filter((order) => order.status === "collected" && order.notice === "none");
+  const untold = orders.filter(
+    (order) => HANDED_OVER.includes(order.status) && order.notice === "none",
+  );
   if (untold.length > 0) {
     throw conflict("orders.recall_notices_missing", { count: String(untold.length) });
   }

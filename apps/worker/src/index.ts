@@ -40,6 +40,7 @@ import {
   registerPrivacyJobs,
 } from "@igs/module-privacy";
 import { createMollieClient } from "@igs/payments";
+import { createSendcloudClient } from "@igs/shipping";
 import PgBoss from "pg-boss";
 
 import { registerWorkerEvents } from "./events";
@@ -119,10 +120,24 @@ async function main() {
   // every 5 minutes, Mollie payments whose webhook never came are re-read and orders unpaid for 24 h
   // expire. igs-pharma#156: `orders.refund.requested` events are executed at Mollie (and re-run by the
   // reconciliation while unsettled). Without MOLLIE_API_KEY only the expiry runs; refunds wait.
+  // igs-pharma#202: `orders.shipment.requested` events make and cancel parcel labels at Sendcloud, and
+  // every 15 minutes waiting labels are retried and shipped parcels read for their delivery. Without
+  // the Sendcloud key pair none of this runs; without the shipping method, labels wait (an alarm).
   await registerOrdersJobs(
     boss as unknown as OrdersJobScheduler,
     undefined,
     env.MOLLIE_API_KEY ? createMollieClient(env.MOLLIE_API_KEY) : null,
+    env.SENDCLOUD_PUBLIC_KEY && env.SENDCLOUD_SECRET_KEY
+      ? {
+          provider: createSendcloudClient(env.SENDCLOUD_PUBLIC_KEY, env.SENDCLOUD_SECRET_KEY),
+          settings: env.SENDCLOUD_SHIPPING_METHOD_ID
+            ? {
+                shippingMethodId: env.SENDCLOUD_SHIPPING_METHOD_ID,
+                weightGrams: env.SENDCLOUD_PARCEL_WEIGHT_GRAMS,
+              }
+            : null,
+        }
+      : null,
   );
   // Account mail (igs-pharma#114): the worker is the only process that talks to a mail server (D-019).
   // `identity.mail.requested` events arrive through the outbox; expired links are purged hourly.

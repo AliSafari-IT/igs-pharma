@@ -41,6 +41,11 @@ export const PERMISSIONS = {
      * the webhook, the "pay now" route and the worker's reconciliation, never by a person.
      */
     paymentManage: "orders.payment.manage",
+    /**
+     * System-only (igs-pharma#202): record what Sendcloud says about a parcel (its label and tracking,
+     * a refusal, a cancellation) and move a shipped order to delivered. Held by the worker only.
+     */
+    shipmentManage: "orders.shipment.manage",
   },
   catalog: {
     read: "catalog.read",
@@ -211,6 +216,11 @@ export const ROLES = {
     description:
       "Payments: the storefront's pay route and webhook and the worker's reconciliation record what the provider says",
   },
+  system_shipping: {
+    kind: "system",
+    description:
+      "Shipping: the worker makes and cancels parcel labels at Sendcloud and records tracking and delivery",
+  },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -242,6 +252,7 @@ export const SYSTEM_ONLY: readonly Permission[] = [
   PERMISSIONS.pricing.storefrontRead,
   PERMISSIONS.inventory.reservationManage,
   PERMISSIONS.orders.paymentManage,
+  PERMISSIONS.orders.shipmentManage,
   // igs-pharma#211: only the Better Auth hook redeems an invitation for someone
   PERMISSIONS.storefront.earlyAccessRedeem,
 ];
@@ -365,6 +376,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   system_maintenance: [PERMISSIONS.privacy.retentionPurge],
   system_reservations: [PERMISSIONS.inventory.reservationManage],
   system_payments: [PERMISSIONS.orders.paymentManage],
+  system_shipping: [PERMISSIONS.orders.shipmentManage],
 };
 
 /** One row of `identity.role_permissions`. */

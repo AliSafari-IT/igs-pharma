@@ -12,6 +12,7 @@ import {
   decide,
   reReserve,
   refund,
+  retryLabel,
 } from "../app/orders/actions";
 import {
   REFUND_REASON_LABELS,
@@ -72,8 +73,13 @@ export function ReviewForm({
   );
 }
 
-/** The one next fulfilment step. */
-export function StepForm({ orderId, version, to }: OrderRef & { readonly to: FulfilmentStep }) {
+/** One next fulfilment step (`secondary` for the less usual one, e.g. a parcel that came back). */
+export function StepForm({
+  orderId,
+  version,
+  to,
+  secondary = false,
+}: OrderRef & { readonly to: FulfilmentStep; readonly secondary?: boolean }) {
   const [state, action, pending] = useActionState(advance, {} as OrderActionState);
   return (
     <form action={action} data-testid="step-form">
@@ -87,8 +93,35 @@ export function StepForm({ orderId, version, to }: OrderRef & { readonly to: Ful
           </Alert>
         ) : null}
         <div>
-          <Button type="submit" loading={pending}>
+          <Button
+            type="submit"
+            loading={pending}
+            variant={secondary ? "secondary" : "primary"}
+            data-step={to}
+          >
             {STEP_ACTION_LABELS[to]}
+          </Button>
+        </div>
+      </Stack>
+    </form>
+  );
+}
+
+/** Asks Sendcloud again for a label it refused (igs-pharma#202). */
+export function RetryLabelForm({ orderId }: { readonly orderId: string }) {
+  const [state, action, pending] = useActionState(retryLabel, {} as OrderActionState);
+  return (
+    <form action={action} data-testid="retry-label-form">
+      <Stack gap={3}>
+        <input type="hidden" name="orderId" value={orderId} />
+        {state.error ? (
+          <Alert variant="error" title="Nothing was asked">
+            {orderErrorMessage(state.error)}
+          </Alert>
+        ) : null}
+        <div>
+          <Button type="submit" variant="secondary" loading={pending}>
+            Try the label again
           </Button>
         </div>
       </Stack>

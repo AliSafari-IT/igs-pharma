@@ -61,6 +61,7 @@ describe("createOrderMailSender (#157)", () => {
       kind: "refund_initiated",
       reference: "IGS-2026-000123",
       amountCents: 1_250,
+      trackingUrl: undefined,
     });
     await sender({
       to: "an@example.be",
@@ -69,19 +70,50 @@ describe("createOrderMailSender (#157)", () => {
       kind: "ready_for_pickup",
       reference: "IGS-2026-000123",
       amountCents: undefined,
+      trackingUrl: undefined,
+    });
+    await sender({
+      to: "an@example.be",
+      name: "An",
+      locale: "en",
+      kind: "shipped",
+      reference: "IGS-2026-000123",
+      amountCents: undefined,
+      trackingUrl: "https://tracking.example/1",
     });
     expect(sendOrder.mock.calls.map((call) => (call as unknown[])[0])).toEqual([
       {
         to: "an@example.be",
         locale: "fr",
         template: "order_refund_initiated",
-        data: { name: "An", reference: "IGS-2026-000123", amountCents: 1_250 },
+        data: {
+          name: "An",
+          reference: "IGS-2026-000123",
+          amountCents: 1_250,
+          trackingUrl: undefined,
+        },
       },
       {
         to: "an@example.be",
         locale: "nl",
         template: "order_ready_for_pickup",
-        data: { name: "An", reference: "IGS-2026-000123", amountCents: undefined },
+        data: {
+          name: "An",
+          reference: "IGS-2026-000123",
+          amountCents: undefined,
+          trackingUrl: undefined,
+        },
+      },
+      {
+        to: "an@example.be",
+        locale: "en",
+        template: "order_shipped",
+        data: {
+          name: "An",
+          reference: "IGS-2026-000123",
+          amountCents: undefined,
+          trackingUrl: "https://tracking.example/1",
+        },
       },
     ]);
   });

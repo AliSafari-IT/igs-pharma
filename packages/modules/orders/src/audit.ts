@@ -17,6 +17,7 @@ export const ORDERS_AUDIT = {
   refundStatusRecorded: "orders.refund.status_recorded",
   recallNoticesRequested: "orders.recall.notices_requested",
   deliverySettingsSet: "orders.delivery_settings.set",
+  shipmentChanged: "orders.shipment.changed",
 } as const;
 
 /** Ids and counts only (D-028): never the cart token, which opens the cart. */
@@ -126,6 +127,18 @@ const deliverySettingsSet = z.object({
   version: z.number().int().min(1),
 });
 
+/**
+ * igs-pharma#202: a parcel's new status, with Sendcloud's parcel id (useless without our key pair) and
+ * a refusal code; never the address, the tracking number or the tracking link (they locate a person).
+ */
+const shipmentChanged = z.object({
+  orderId: z.uuid(),
+  shipmentId: z.uuid(),
+  status: z.enum(["requested", "created", "failed", "cancel_requested", "cancelled"]),
+  providerParcelId: z.string().max(20).nullable(),
+  failureCode: z.string().max(40).nullable(),
+});
+
 /** The signature of `registerAuditAction` from `@igs/module-audit`. */
 export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawShape>) => void;
 
@@ -149,4 +162,5 @@ export function registerAuditActions(register: RegisterAuditAction): void {
   register(ORDERS_AUDIT.refundStatusRecorded, refundStatusRecorded);
   register(ORDERS_AUDIT.recallNoticesRequested, recallNoticesRequested);
   register(ORDERS_AUDIT.deliverySettingsSet, deliverySettingsSet);
+  register(ORDERS_AUDIT.shipmentChanged, shipmentChanged);
 }
