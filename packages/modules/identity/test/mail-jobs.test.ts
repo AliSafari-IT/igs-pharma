@@ -23,7 +23,12 @@ import { mailTokens, users } from "../src/schema";
 
 let iso: IsolatedDatabase;
 let kernel: KernelTestHandles;
-const NOW = new Date("2026-10-14T12:00:00Z");
+// The audit trail only has partitions for the current UTC month onward, so the test clock follows
+// the real month (a fixed date broke on the first day of the next month).
+const month = new Date();
+const inThisMonth = (day: number, hour: number) =>
+  new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day, hour));
+const NOW = inThisMonth(14, 12);
 
 beforeAll(async () => {
   iso = await createIsolatedDatabase();

@@ -60,11 +60,12 @@ export default async function DeliverySettingsPage() {
                 </p>
               )}
               <p>
-                Amounts include VAT ({DELIVERY_VAT_RATE_BP / 100} % is cut out of the delivery
-                price). A change applies to the next order; orders already placed keep what they
-                were charged.
+                Amounts include VAT. {DELIVERY_VAT_RATE_BP / 100} % is cut out of the delivery price
+                for now; that rate is still to be confirmed with the accountant. A change applies to
+                the next order; orders already placed keep what they were charged.
               </p>
               <DeliverySettingsForm
+                version={settings.version}
                 price={formatEuroAmount(settings.priceCents)}
                 freeFrom={
                   settings.freeFromCents === null ? "" : formatEuroAmount(settings.freeFromCents)

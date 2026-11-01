@@ -6,6 +6,8 @@ const ERRORS: Record<string, string> = {
     "The delivery price must be an amount from 0 to 50.00 euros, with at most two decimals.",
   "orders.delivery_free_from_invalid":
     "The free-delivery value must be empty (never free) or an amount from 0 to 1000.00 euros, with at most two decimals.",
+  "orders.delivery_settings_stale":
+    "Someone else changed these settings while you were editing. Reload the page to see the new amounts, then make your change again.",
   "kernel.forbidden": "You are not allowed to change the delivery settings.",
   "kernel.validation_failed": "That was not a valid amount. Check both fields and try again.",
 };

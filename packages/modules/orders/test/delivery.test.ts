@@ -13,6 +13,7 @@ import {
   DELIVERY_DEFAULTS,
   MAX_DELIVERY_PRICE_CENTS,
   MAX_FREE_FROM_CENTS,
+  deliveryVatCents,
   getDeliverySettings,
   loadDeliverySettings,
   registerAuditActions,
@@ -217,8 +218,9 @@ describe("the audit trail", () => {
         data: {
           priceCents: 595,
           freeFromCents: 6000,
-          previousPriceCents: null,
-          previousFreeFromCents: null,
+          previousPriceCents: DELIVERY_DEFAULTS.priceCents,
+          previousFreeFromCents: DELIVERY_DEFAULTS.freeFromCents,
+          previousWasDefault: true,
           version: 1,
         },
       },
@@ -230,6 +232,7 @@ describe("the audit trail", () => {
           freeFromCents: null,
           previousPriceCents: 595,
           previousFreeFromCents: 6000,
+          previousWasDefault: false,
           version: 2,
         },
       },
@@ -244,5 +247,92 @@ describe("the audit trail", () => {
       setDeliverySettings({ priceCents: 495, freeFromCents: 4900 }, staff(["owner"], 30)),
     );
     expect(await stored()).toEqual([]);
+  });
+});
+
+describe("saving twice", () => {
+  it("a double submit with the same key saves once", async () => {
+    const actor = staff(["owner"]);
+    const options = { idempotencyKey: randomUUID() };
+    await setDeliverySettings({ priceCents: 595, freeFromCents: 6000 }, actor, options);
+    await setDeliverySettings({ priceCents: 595, freeFromCents: 6000 }, actor, options);
+    expect((await stored())[0]?.version).toBe(1);
+    const [count] = await iso.sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM audit.events
+      WHERE action = 'orders.delivery_settings.set' AND actor_id = ${actor.id}`;
+    expect(count?.n).toBe(1);
+  });
+
+  it("an empty submission id is refused, not used as a key", async () => {
+    expect(
+      await codeOf(
+        setDeliverySettings({ priceCents: 595, freeFromCents: null }, staff(["owner"]), {
+          idempotencyKey: "",
+        }),
+      ),
+    ).toBe("kernel.invalid_idempotency_key");
+    expect(await stored()).toEqual([]);
+  });
+
+  it("two simultaneous saves each audit the values they really replaced", async () => {
+    const a = staff(["owner"]);
+    const b = staff(["pharmacist_titular"]);
+    await setDeliverySettings({ priceCents: 500, freeFromCents: 5000 }, a);
+    await Promise.all([
+      setDeliverySettings({ priceCents: 600, freeFromCents: 6000 }, a),
+      setDeliverySettings({ priceCents: 700, freeFromCents: 7000 }, b),
+    ]);
+    const events = await iso.sql<{ data: { priceCents: number; previousPriceCents: number } }[]>`
+      SELECT data FROM audit.events WHERE action = 'orders.delivery_settings.set'
+        AND actor_id IN (${a.id}, ${b.id}) ORDER BY seq`;
+    // a chain: each save's "previous" is the one before it, never the same value twice
+    const chain = events.map((e) => [e.data.previousPriceCents, e.data.priceCents]);
+    expect(chain[0]).toEqual([DELIVERY_DEFAULTS.priceCents, 500]);
+    expect(chain[1]?.[1] === 600 || chain[1]?.[1] === 700).toBe(true);
+    expect(chain[1]?.[0]).toBe(500);
+    expect(chain[2]?.[0]).toBe(chain[1]?.[1]);
+    expect((await stored())[0]?.version).toBe(3);
+  });
+
+  it("a stale form (an older expected version) overwrites nothing", async () => {
+    const actor = staff(["owner"]);
+    await setDeliverySettings({ priceCents: 500, freeFromCents: 5000, expectedVersion: 0 }, actor);
+    await setDeliverySettings({ priceCents: 600, freeFromCents: 6000, expectedVersion: 1 }, actor);
+    expect(
+      await codeOf(
+        setDeliverySettings({ priceCents: 700, freeFromCents: 7000, expectedVersion: 1 }, actor),
+      ),
+    ).toBe("orders.delivery_settings_stale");
+    expect(await stored()).toEqual([{ price_cents: 600, free_from_cents: 6000, version: 2 }]);
+  });
+});
+
+describe("the other checks", () => {
+  it("a stale passkey check also blocks the pharmacist-titular", async () => {
+    expect(
+      await codeOf(
+        setDeliverySettings(
+          { priceCents: 495, freeFromCents: 4900 },
+          staff(["pharmacist_titular"], 30),
+        ),
+      ),
+    ).toBe("identity.fresh_mfa_required");
+  });
+
+  it("an actor without a verified second factor is refused", async () => {
+    const actor = { ...staff(["owner"]), mfaVerified: false };
+    expect(
+      await codeOf(setDeliverySettings({ priceCents: 495, freeFromCents: 4900 }, actor)),
+    ).not.toBe("no error");
+    expect(await stored()).toEqual([]);
+  });
+
+  it("the price includes VAT: net plus VAT is the fee", () => {
+    for (const fee of [0, 1, 495, 595, 5000]) {
+      const vat = deliveryVatCents(fee);
+      expect(fee - vat + vat).toBe(fee);
+      expect(vat).toBeLessThanOrEqual(fee);
+    }
+    expect(deliveryVatCents(495)).toBe(86);
   });
 });

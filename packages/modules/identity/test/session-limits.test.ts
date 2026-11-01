@@ -50,7 +50,12 @@ beforeEach(async () => {
   await iso.db.delete(users);
 });
 
-const T0 = new Date("2026-10-14T08:00:00.000Z");
+// The audit trail only has partitions for the current UTC month onward, so the test clock follows
+// the real month (a fixed date broke on the first day of the next month).
+const month = new Date();
+const inThisMonth = (day: number, hour: number) =>
+  new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), day, hour));
+const T0 = inThisMonth(14, 8);
 const plus = (ms: number, from: Date = T0) => new Date(from.getTime() + ms);
 
 async function user(kind: "staff" | "customer" = "staff", ...roleKeys: string[]) {
