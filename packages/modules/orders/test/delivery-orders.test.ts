@@ -249,6 +249,25 @@ describe("a delivery order", () => {
     expect((await orderRow(b.orderId))[0]?.delivery_fee_cents).toBe(795);
   });
 
+  it("refuses to charge a fee other than the one the shopper was shown, and creates nothing", async () => {
+    const { token, actor, checkoutId } = await checkoutWorth(1_000);
+    const [before] = await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM orders.orders`;
+    // staff raise the price after the page was shown with 4.95
+    await setDeliverySettings({ priceCents: 795, freeFromCents: 9_900 }, freshOwner());
+    const input = (expectedFeeCents: number) => ({
+      cartToken: token,
+      checkoutId,
+      contact,
+      delivery: { method: "delivery" as const, address, expectedFeeCents },
+    });
+    expect(await codeOf(placeOrder(input(495), actor))).toBe("orders.delivery_fee_changed");
+    const [after] = await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM orders.orders`;
+    expect(after?.n).toBe(before?.n);
+    // confirming the new fee works
+    const placed = await placeOrder(input(795), actor);
+    expect((await orderRow(placed.orderId))[0]?.delivery_fee_cents).toBe(795);
+  });
+
   it("placing the same checkout again returns the same order, one address, one payment", async () => {
     const { token, actor, checkoutId } = await checkoutWorth(1_000);
     const input = {

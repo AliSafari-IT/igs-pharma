@@ -319,6 +319,7 @@
     "failureCancelled": "This checkout was replaced by a newer one. Go back to your cart.",
     "failureNotFound": "We can no longer find this checkout. Go back to your cart.",
     "failureInvalid": "Please check your details.",
+    "failureFeeChanged": "The delivery price changed while you were ordering. Check the new amount and confirm again.",
     "failureFailed": "That did not work. Please try again.",
     "pickupWhere": "If you choose pickup, you collect your order here:",
     "stepDelivery": "How would you like to get your order?",

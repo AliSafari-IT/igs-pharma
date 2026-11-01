@@ -319,6 +319,7 @@
     "failureCancelled": "Cette commande a été remplacée par une plus récente. Retournez au panier.",
     "failureNotFound": "Nous ne trouvons plus cette commande. Retournez au panier.",
     "failureInvalid": "Vérifiez vos coordonnées.",
+    "failureFeeChanged": "Le prix de livraison a changé pendant votre commande. Vérifiez le nouveau montant et confirmez à nouveau.",
     "failureFailed": "Cela n'a pas fonctionné. Veuillez réessayer.",
     "pickupWhere": "Si vous choisissez le retrait, vous retirez votre commande ici :",
     "stepDelivery": "Comment voulez-vous recevoir votre commande ?",

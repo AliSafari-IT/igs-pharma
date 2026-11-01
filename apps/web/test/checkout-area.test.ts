@@ -58,6 +58,7 @@ describe("refusals", () => {
     expect(placeFailureOf("orders.checkout_cancelled")).toBe("cancelled");
     expect(placeFailureOf("orders.checkout_not_found")).toBe("notFound");
     expect(placeFailureOf("kernel.validation_failed")).toBe("invalid");
+    expect(placeFailureOf("orders.delivery_fee_changed")).toBe("feeChanged");
     expect(placeFailureOf("kernel.anything")).toBe("failed");
     expect(resultOfCode("orders.checkout_short")).toBe("short");
     expect(resultOfCode("orders.checkout_unavailable")).toBe("unavailable");
@@ -89,6 +90,7 @@ describe("messages", () => {
         "failureCancelled",
         "failureNotFound",
         "failureInvalid",
+        "failureFeeChanged",
         "failureFailed",
       ],
       order: [

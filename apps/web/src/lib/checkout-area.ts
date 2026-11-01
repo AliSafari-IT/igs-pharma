@@ -72,7 +72,13 @@ export function addressErrors(values: AddressValues): AddressErrors {
 }
 
 /** Why placing the order did not work, as a message key of the `checkout` namespace. */
-export type PlaceFailure = "expired" | "cancelled" | "notFound" | "invalid" | "failed";
+export type PlaceFailure =
+  | "expired"
+  | "cancelled"
+  | "notFound"
+  | "invalid"
+  | "feeChanged"
+  | "failed";
 
 export function placeFailureOf(code: string): PlaceFailure {
   switch (code) {
@@ -84,6 +90,8 @@ export function placeFailureOf(code: string): PlaceFailure {
       return "notFound";
     case "kernel.validation_failed":
       return "invalid";
+    case "orders.delivery_fee_changed":
+      return "feeChanged";
     default:
       return "failed";
   }

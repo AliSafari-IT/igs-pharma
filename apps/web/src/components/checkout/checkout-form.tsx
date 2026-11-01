@@ -69,7 +69,7 @@ export function CheckoutForm({ locale, checkoutId, intl, delivery }: Props) {
       return key ? [{ fieldId: FIELD_IDS[field], message: t(key) }] : [];
     }),
     ...ADDRESS_FIELDS.flatMap((field) => {
-      const key = state.addressErrors[field];
+      const key = choice === "delivery" ? state.addressErrors[field] : undefined;
       return key ? [{ fieldId: FIELD_IDS[field], message: t(key) }] : [];
     }),
   ];
@@ -82,6 +82,7 @@ export function CheckoutForm({ locale, checkoutId, intl, delivery }: Props) {
       <ErrorSummary title={t("errorSummary")} items={items} />
       {delivery ? (
         <fieldset className="flex flex-col gap-3" data-testid="delivery-choice">
+          {delivery ? <input type="hidden" name="expectedFee" value={delivery.feeCents} /> : null}
           <legend className="font-display text-xl font-semibold">{t("stepDelivery")}</legend>
           <label className="flex min-h-[44px] items-start gap-3">
             <input

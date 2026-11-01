@@ -319,6 +319,7 @@
     "failureCancelled": "Deze bestelling werd vervangen door een nieuwere. Ga terug naar je winkelmandje.",
     "failureNotFound": "We vinden deze bestelling niet meer. Ga terug naar je winkelmandje.",
     "failureInvalid": "Controleer je gegevens.",
+    "failureFeeChanged": "De bezorgprijs is gewijzigd terwijl u bestelde. Controleer het nieuwe bedrag en bevestig opnieuw.",
     "failureFailed": "Dat is niet gelukt. Probeer het opnieuw.",
     "pickupWhere": "Kiest u afhalen, dan haalt u uw bestelling hier op:",
     "stepDelivery": "Hoe wilt u uw bestelling krijgen?",

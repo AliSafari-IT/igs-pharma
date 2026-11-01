@@ -73,7 +73,7 @@ export interface DeliveryQuote {
  */
 export const getDeliveryQuote = query({
   name: "orders.delivery.quote",
-  input: z.object({ itemsTotalCents: z.number().int().min(0).max(100_000_000) }),
+  input: z.object({ itemsTotalCents: z.number().int().min(0) }),
   permission: "public",
   async handler({ input, ctx }): Promise<DeliveryQuote> {
     const rates = await loadDeliverySettings(ctx.tx);

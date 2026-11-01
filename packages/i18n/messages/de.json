@@ -319,6 +319,7 @@
     "failureCancelled": "Diese Bestellung wurde durch eine neuere ersetzt. Gehen Sie zurück zum Warenkorb.",
     "failureNotFound": "Wir finden diese Bestellung nicht mehr. Gehen Sie zurück zum Warenkorb.",
     "failureInvalid": "Bitte prüfen Sie Ihre Angaben.",
+    "failureFeeChanged": "Der Lieferpreis hat sich während Ihrer Bestellung geändert. Prüfen Sie den neuen Betrag und bestätigen Sie erneut.",
     "failureFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
     "pickupWhere": "Wenn Sie die Abholung wählen, holen Sie Ihre Bestellung hier ab:",
     "stepDelivery": "Wie möchten Sie Ihre Bestellung erhalten?",

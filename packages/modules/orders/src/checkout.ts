@@ -248,6 +248,12 @@ const delivery = z.discriminatedUnion("method", [
       postalCode: z.string().trim().regex(BE_POSTAL_CODE_PATTERN),
       city: z.string().trim().min(1).max(80),
     }),
+    /**
+     * The fee the shopper was shown. When staff changed the price or the free-delivery value in the
+     * meantime, nothing is charged: the order is refused with `orders.delivery_fee_changed` (409) and
+     * the shopper sees the new total before confirming again.
+     */
+    expectedFeeCents: z.number().int().min(0).optional(),
   }),
 ]);
 
@@ -363,6 +369,13 @@ export const placeOrder = command({
       input.delivery.method === "delivery"
         ? deliveryFeeCents(await loadDeliverySettings(ctx.tx), checkout.totalCents)
         : 0;
+    if (
+      input.delivery.method === "delivery" &&
+      input.delivery.expectedFeeCents !== undefined &&
+      input.delivery.expectedFeeCents !== feeCents
+    ) {
+      throw conflict("orders.delivery_fee_changed", { feeCents });
+    }
     const feeVatCents = deliveryVatCents(feeCents);
     const totalCents = checkout.totalCents + feeCents;
     const orderId = newId();

@@ -3,6 +3,7 @@
 import { getFeatureFlags } from "@igs/config/feature-flags";
 import { isDomainError } from "@igs/kernel";
 import { placeOrder } from "@igs/module-orders";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import {
@@ -46,6 +47,11 @@ export async function placeOrderAction(_previous: PlaceState, form: FormData): P
     city: text(form, "city"),
   };
   const errors = contactErrors(values);
+  const expectedText = form.get("expectedFee");
+  const expectedFee =
+    typeof expectedText === "string" && /^\d{1,9}$/.test(expectedText)
+      ? Number(expectedText)
+      : undefined;
   const problems = delivery === "delivery" ? addressErrors(address) : {};
   const shown = { delivery, address, addressErrors: problems };
   if (!checkoutId) return { values, errors, failure: "notFound", ...shown };
@@ -67,6 +73,7 @@ export async function placeOrderAction(_previous: PlaceState, form: FormData): P
           delivery === "delivery"
             ? {
                 method: "delivery",
+                expectedFeeCents: expectedFee,
                 address: {
                   street: address.street,
                   postalCode: address.postalCode,
@@ -81,6 +88,8 @@ export async function placeOrderAction(_previous: PlaceState, form: FormData): P
   } catch (error) {
     if (!isDomainError(error)) throw error;
     failure = placeFailureOf(error.code);
+    // the shopper must see the new fee before confirming again
+    if (failure === "feeChanged") revalidatePath(`/${locale}/checkout/${checkoutId}`);
   }
   if (!orderId) return { values, errors: {}, failure, delivery, address, addressErrors: {} };
   // the status link: the order page, openable later without the cart cookie
