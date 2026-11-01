@@ -13,6 +13,8 @@ interface Props {
   readonly price: string;
   /** The free-delivery value now in force ("49.00"), or "" when delivery is never free. */
   readonly freeFrom: string;
+  /** The version of the settings the form was opened on (0: still the defaults). */
+  readonly version: number;
 }
 
 /**
@@ -20,7 +22,11 @@ interface Props {
  * person's passkey check is older than 10 minutes, the form asks for the passkey and then submits
  * the SAME form again (the same submission id, so it saves once); cancelling the prompt saves nothing.
  */
-export function DeliverySettingsForm({ price: savedPrice, freeFrom: savedFreeFrom }: Props) {
+export function DeliverySettingsForm({
+  price: savedPrice,
+  freeFrom: savedFreeFrom,
+  version,
+}: Props) {
   const [state, action, pending] = useActionState(
     saveDeliverySettings,
     {} as DeliverySettingsState,
@@ -56,6 +62,7 @@ export function DeliverySettingsForm({ price: savedPrice, freeFrom: savedFreeFro
     <form ref={form} action={action} data-testid="delivery-form">
       <Stack gap={4}>
         <input type="hidden" name="submissionId" value={submissionId} />
+        <input type="hidden" name="expectedVersion" value={version} />
         <TextField
           label="Delivery price (euros, VAT included)"
           name="price"

@@ -38,8 +38,10 @@ export async function saveDeliverySettings(
   if (freeFromText !== "" && freeFromCents === null) {
     return { error: "orders.delivery_free_from_invalid" };
   }
+  const expectedText = text(form, "expectedVersion");
+  const expectedVersion = /^\d{1,9}$/.test(expectedText) ? Number(expectedText) : undefined;
   try {
-    await setDeliverySettings({ priceCents, freeFromCents }, actor, {
+    await setDeliverySettings({ priceCents, freeFromCents, expectedVersion }, actor, {
       origin: await requestOrigin(),
       idempotencyKey: text(form, "submissionId"),
     });
