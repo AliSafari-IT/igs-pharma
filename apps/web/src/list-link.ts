@@ -79,6 +79,8 @@ export function verifyListToken(
   const seconds = Math.floor(now / 1000);
   if (expires > seconds + LIST_LINK_TTL_S) return invalid;
   const given = Buffer.from(signature, "base64url");
+  // Node skips characters that are not base64url: only the exact encoding of the bytes counts
+  if (given.toString("base64url") !== signature) return invalid;
   const expected = sign(secret, joined, expires);
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return invalid;
   if (expires <= seconds) return { ok: false, reason: "expired" };

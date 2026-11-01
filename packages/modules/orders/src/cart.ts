@@ -206,7 +206,9 @@ export const getCart = query({
  * look the same); removing works for any product. Refused with `orders.cart_quantity_limit` (and the
  * `max`) above the per-order limit, and `orders.cart_full` (and the `max`) for a new line in a cart
  * that already has `CART_MAX_LINES`. A guest without a token gets `orders.cart_token_required`.
- * Setting the quantity a line already has changes nothing.
+ * Setting the quantity a line already has changes nothing. `onlyIfAbsent` (igs-pharma#218, "Order my
+ * list") adds the line only when the cart has none for the product, decided under the cart lock: an
+ * existing quantity is never overwritten. `changed` says whether the cart changed.
  */
 export const setCartLine = command({
   name: "orders.cart.set_line",
@@ -214,12 +216,14 @@ export const setCartLine = command({
     cartToken: cartToken.optional(),
     productId: z.uuid(),
     quantity: z.number().int().min(0).max(100),
+    onlyIfAbsent: z.boolean().optional(),
   }),
   output: z.object({
     cartId: z.uuid().nullable(),
     productId: z.uuid(),
     quantity: z.number().int(),
     lineCount: z.number().int(),
+    changed: z.boolean(),
   }),
   permission: "public",
   // audits only when something changed: setting the same quantity again is not a change
@@ -234,7 +238,15 @@ export const setCartLine = command({
 
     if (input.quantity === 0) {
       const cart = await lockCart(ctx, owner);
-      if (!cart) return { cartId: null, productId: input.productId, quantity: 0, lineCount: 0 };
+      if (!cart) {
+        return {
+          cartId: null,
+          productId: input.productId,
+          quantity: 0,
+          lineCount: 0,
+          changed: false,
+        };
+      }
       const removed = await ctx.tx
         .delete(cartLines)
         .where(and(eq(cartLines.cartId, cart.id), eq(cartLines.productId, input.productId)))
@@ -248,6 +260,7 @@ export const setCartLine = command({
         productId: input.productId,
         quantity: 0,
         lineCount: await lineCount(ctx, cart.id),
+        changed: removed.length > 0,
       };
     }
 
@@ -262,12 +275,13 @@ export const setCartLine = command({
       .from(cartLines)
       .where(and(eq(cartLines.cartId, cart.id), eq(cartLines.productId, input.productId)));
     const lines = await lineCount(ctx, cart.id);
-    if (line?.quantity === input.quantity) {
+    if (line && (line.quantity === input.quantity || input.onlyIfAbsent)) {
       return {
         cartId: cart.id,
         productId: input.productId,
-        quantity: input.quantity,
+        quantity: line.quantity,
         lineCount: lines,
+        changed: false,
       };
     }
     if (!line && lines >= CART_MAX_LINES) {
@@ -293,6 +307,7 @@ export const setCartLine = command({
       productId: input.productId,
       quantity: input.quantity,
       lineCount: line ? lines : lines + 1,
+      changed: true,
     };
   },
 });

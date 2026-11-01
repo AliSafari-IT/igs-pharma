@@ -10,8 +10,30 @@ import { localeOf } from "../../../../../server/storefront";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** A list request is a few hundred bytes; anything far larger is refused unread. */
+/**
+ * A list request is a few hundred bytes. The body is read in chunks and refused as soon as it passes
+ * this, whether or not it announced its length.
+ */
 const MAX_BODY_BYTES = 4096;
+
+/** The body as text, or `null` once it passes `limit` bytes (the rest is never read). */
+async function readBounded(request: Request, limit: number): Promise<string | null> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 /**
  * `POST /api/mobile/v1/list-link` with `{"cnks": ["1234567", …], "locale": "nl"}` (igs-pharma#218):
@@ -29,15 +51,17 @@ export async function POST(request: Request) {
   if (length > MAX_BODY_BYTES) return mobileError("invalid_input", 400);
   let body: unknown;
   try {
-    const text = await request.text();
-    if (text.length > MAX_BODY_BYTES) return mobileError("invalid_input", 400);
+    const text = await readBounded(request, MAX_BODY_BYTES);
+    if (text === null) return mobileError("invalid_input", 400);
     body = JSON.parse(text);
   } catch {
     return mobileError("invalid_input", 400);
   }
   const input = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
   const cnks = listCnks(input["cnks"]);
-  const locale = input["locale"] === undefined ? "nl" : localeOf(String(input["locale"]));
+  const rawLocale = input["locale"];
+  const locale =
+    rawLocale === undefined ? "nl" : typeof rawLocale === "string" ? localeOf(rawLocale) : null;
   if (!cnks || !locale) return mobileError("invalid_input", 400);
 
   const { token, expiresAt } = createListToken(secret, cnks, Date.now());

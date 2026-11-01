@@ -291,12 +291,13 @@
     "fromListAgain": "Open My list in the IGS-Pharma app and tap “Order my list” again.",
     "fromListOut": "Out of stock",
     "fromListGone": "Product {cnk} is no longer available.",
-    "fromListAdd": "{count, plural, one {Add it to my cart} other {Add these # to my cart}}",
+    "fromListAdd": "Add to my cart",
     "fromListSkip": "Go to my cart",
     "fromListNone": "None of these products can be ordered at the moment.",
     "fromListNote": "Nothing is added until you press the button. You can change quantities in your cart.",
     "resultListAdded": "Your list was added to your cart.",
-    "resultListPartly": "Your list was added to your cart, except products that can no longer be ordered."
+    "resultListPartly": "Your list was added to your cart, except products that can no longer be ordered.",
+    "resultListFull": "Part of your list was added: your cart is full. Remove a product to add the rest."
   },
   "checkout": {
     "title": "Checkout",

@@ -47,7 +47,9 @@ export default async function FromListPage({ params, searchParams }: Props) {
       );
     }
   }
-  const available = entries?.filter((entry) => entry.product) ?? [];
+  // what the button can add: still sold and in stock (an out-of-stock product can't be added anywhere)
+  const available =
+    entries?.filter((entry) => entry.product && entry.product.status !== "out") ?? [];
 
   return (
     <StorefrontFrame locale={locale} path="/cart">
@@ -104,7 +106,7 @@ export default async function FromListPage({ params, searchParams }: Props) {
                 <input type="hidden" name="locale" value={locale} />
                 <input type="hidden" name={LIST_LINK_PARAM} value={token ?? ""} />
                 <Button type="submit" data-testid="from-list-add">
-                  {t("fromListAdd", { count: available.length })}
+                  {t("fromListAdd")}
                 </Button>
                 <Link href={`/${locale}/cart`}>{t("fromListSkip")}</Link>
               </form>

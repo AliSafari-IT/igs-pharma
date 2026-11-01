@@ -291,12 +291,13 @@
     "fromListAgain": "Öffnen Sie Meine Liste in der IGS-Pharma-App und tippen Sie erneut auf „Meine Liste bestellen“.",
     "fromListOut": "Nicht vorrätig",
     "fromListGone": "Produkt {cnk} ist nicht mehr erhältlich.",
-    "fromListAdd": "{count, plural, one {In meinen Warenkorb} other {Diese # in meinen Warenkorb}}",
+    "fromListAdd": "In meinen Warenkorb",
     "fromListSkip": "Zu meinem Warenkorb",
     "fromListNone": "Keines dieser Produkte kann derzeit bestellt werden.",
     "fromListNote": "Es wird nichts hinzugefügt, bevor Sie auf die Schaltfläche drücken. Mengen ändern Sie im Warenkorb.",
     "resultListAdded": "Ihre Liste wurde in Ihren Warenkorb gelegt.",
-    "resultListPartly": "Ihre Liste wurde in Ihren Warenkorb gelegt, außer Produkten, die nicht mehr bestellt werden können."
+    "resultListPartly": "Ihre Liste wurde in Ihren Warenkorb gelegt, außer Produkten, die nicht mehr bestellt werden können.",
+    "resultListFull": "Ein Teil Ihrer Liste wurde in den Warenkorb gelegt: Ihr Warenkorb ist voll. Entfernen Sie ein Produkt, um den Rest hinzuzufügen."
   },
   "checkout": {
     "title": "Zur Kasse",

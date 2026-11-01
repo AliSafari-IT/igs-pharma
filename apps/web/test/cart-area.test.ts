@@ -91,6 +91,7 @@ describe("the cart forms", () => {
       "removed",
       "listAdded",
       "listPartly",
+      "listFull",
     ]);
     expect(resultMessageKey("full")).toBe("resultFull");
   });

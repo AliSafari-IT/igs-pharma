@@ -68,6 +68,7 @@ describe("the list token", () => {
       `v2.${cnks}.${exp}.${sig}`,
       `${v}.${cnks}.${exp}`,
       `${v}.${cnks}.${exp}.${sig}x`,
+      `${v}.${cnks}.${exp}.${sig}!`, // Node would skip the "!": only the exact encoding counts
       `${v}.1234567-1234567.${exp}.${sig}`, // a duplicate is never signed
       "",
       "x".repeat(700),
@@ -138,6 +139,31 @@ describe("POST /api/mobile/v1/list-link", () => {
     }
     expect((await post(undefined, "not json")).status).toBe(400);
     expect((await post(undefined, "x".repeat(5000))).status).toBe(400);
+    expect((await post({ cnks: ["1234567"], locale: { toString: null } })).status).toBe(400);
+    expect((await post({ cnks: ["1234567"], locale: ["nl"] })).status).toBe(400);
+  });
+
+  it("refuses a large body that does not announce its length, while reading it", async () => {
+    configured();
+    const { POST } = await import("../src/app/api/mobile/v1/list-link/route");
+    let pulled = 0;
+    const chunk = new TextEncoder().encode("x".repeat(1024));
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk); // never ends by itself
+      },
+    });
+    const response = await POST(
+      new Request("http://localhost:3000/api/mobile/v1/list-link", {
+        method: "POST",
+        body,
+        // @ts-expect-error: Node's fetch needs this for a streamed body
+        duplex: "half",
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(pulled).toBeLessThan(10);
   });
 
   it("is unavailable while the cart is off or the storefront address is not set", async () => {
