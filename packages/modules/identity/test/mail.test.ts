@@ -11,6 +11,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MailRequested, loadRbacCatalogue, registerAuditActions, requestMail } from "../src";
 import { mailTokens, users } from "../src/schema";
 
+// The audit trail only has partitions for the current UTC month onward, so the test clock follows
+// the real month (a fixed date broke on the first day of the next month).
+const month = new Date();
+const NOW = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 14, 12));
+
 let iso: IsolatedDatabase;
 let kernel: KernelTestHandles;
 
@@ -24,7 +29,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
   kernel = configureKernelForTests({ db: iso.db, audit: createAuditPort() });
-  kernel.clock.set(new Date("2026-10-14T12:00:00Z"));
+  kernel.clock.set(NOW);
   registerEvents(MailRequested);
 });
 
@@ -52,9 +57,7 @@ describe("identity.mail.request", () => {
 
     const [row] = await iso.db.select().from(mailTokens).where(eq(mailTokens.id, tokenRef));
     expect(row).toMatchObject({ userId, template: "verify_email", url });
-    expect(row?.expiresAt.getTime()).toBe(
-      new Date("2026-10-14T12:00:00Z").getTime() + 24 * 3600_000,
-    );
+    expect(row?.expiresAt.getTime()).toBe(NOW.getTime() + 24 * 3600_000);
 
     const events = (await outboxRows()).filter((e) => e.payload["tokenRef"] === tokenRef);
     expect(events).toHaveLength(1);
@@ -77,9 +80,7 @@ describe("identity.mail.request", () => {
       .select()
       .from(mailTokens)
       .where(eq(mailTokens.id, notice.tokenRef));
-    expect(resetRow?.expiresAt.getTime()).toBe(
-      new Date("2026-10-14T12:00:00Z").getTime() + 3600_000,
-    );
+    expect(resetRow?.expiresAt.getTime()).toBe(NOW.getTime() + 3600_000);
     expect(noticeRow?.url).toBeNull();
   });
 
