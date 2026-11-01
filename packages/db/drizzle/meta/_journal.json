@@ -610,6 +610,20 @@
       "when": 1793542383827,
       "tag": "0086_rbac_seed_early_access_redeem",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1793550607224,
+      "tag": "0087_kernel_denied_audit_throttle",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1793550608593,
+      "tag": "0088_kernel_denied_audit_grants",
+      "breakpoints": true
     }
   ]
 }

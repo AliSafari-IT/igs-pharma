@@ -1,6 +1,11 @@
 import { configureAuth, configureCustomerAuth } from "@igs/auth";
 import { auditEnv, parseEnvFor, storefrontEnv } from "@igs/config/env";
-import { configureKernel, isDomainError, registerEvents } from "@igs/kernel";
+import {
+  configureKernel,
+  isDomainError,
+  registerEvents,
+  registerKernelAuditActions,
+} from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import {
   MailRequested,
@@ -53,6 +58,8 @@ export async function ensureKernelConfigured(): Promise<void> {
 export function ensureAuthConfigured(): void {
   if (configured) return;
   const env = parseEnvFor(auditEnv);
+  // igs-pharma#210: a person refused by any command or query leaves a `kernel.access.denied` entry
+  registerKernelAuditActions(registerAuditAction);
   registerIdentityAuditActions(registerAuditAction);
   // the cart and checkout (igs-pharma#116) audit their changes; the checkout holds stock through
   // inventory's reservation commands, which audit too

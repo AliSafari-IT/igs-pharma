@@ -2,7 +2,13 @@
 // loaded from the database and the real audit port: the request lifecycle, the one-open-request
 // index, the staff decisions (fresh MFA, never your own), the pass check, the mails and the purge.
 import { type IsolatedDatabase, createIsolatedDatabase } from "@igs/db/testing";
-import { type Actor, getKernelRuntime, isDomainError, registerEvents } from "@igs/kernel";
+import {
+  type Actor,
+  getKernelRuntime,
+  isDomainError,
+  registerEvents,
+  registerKernelAuditActions,
+} from "@igs/kernel";
 import { type KernelTestHandles, actors, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { and, eq } from "drizzle-orm";
@@ -48,6 +54,7 @@ beforeAll(async () => {
   iso = await createIsolatedDatabase();
   await loadRbacCatalogue(iso.db);
   registerAuditActions(registerAuditAction);
+  registerKernelAuditActions(registerAuditAction);
 });
 afterAll(async () => {
   await iso?.drop();
@@ -113,6 +120,12 @@ const mailsOf = async (userId: string) =>
   (await iso.db.select().from(mailTokens).where(eq(mailTokens.userId, userId)))
     .map((row) => row.template)
     .sort();
+
+/** igs-pharma#210: the refusals audited for one person. */
+const deniedOf = (actorId: string) =>
+  iso.sql<{ entity_id: string; data: Record<string, unknown> }[]>`
+    SELECT entity_id, data FROM audit.events
+    WHERE action = 'kernel.access.denied' AND actor_id = ${actorId} ORDER BY seq`;
 
 const auditOf = (entityId: string) =>
   iso.sql<{ action: string; actor_id: string; data: Record<string, unknown> }[]>`
@@ -348,6 +361,40 @@ describe("staff decisions", () => {
       expect(await codeOf(approveEarlyAccess({ requestId }, actor))).toBe("kernel.forbidden");
       expect(await codeOf(listEarlyAccessRequests({}, actor))).toBe("kernel.forbidden");
     }
+    // igs-pharma#210: each refusal is in the audit trail, once per person and operation
+    expect(await deniedOf(titular.id)).toEqual([
+      {
+        entity_id: "identity.early_access.approve",
+        data: {
+          operation: "identity.early_access.approve",
+          permission: "storefront.early_access.manage",
+          code: "kernel.forbidden",
+        },
+      },
+      {
+        entity_id: "identity.early_access.list",
+        data: {
+          operation: "identity.early_access.list",
+          permission: "storefront.early_access.manage",
+          code: "kernel.forbidden",
+        },
+      },
+    ]);
+    await codeOf(approveEarlyAccess({ requestId }, titular));
+    expect(await deniedOf(titular.id)).toHaveLength(2);
+  });
+
+  it("a stale passkey check and a decision on your own request are audited as refusals (#210)", async () => {
+    const an = await customer();
+    const requestId = await pending(an);
+    const stale = await owner(11 * 60 * 1000);
+    expect(await codeOf(rejectEarlyAccess({ requestId, reason: "private words" }, stale))).toBe(
+      "identity.fresh_mfa_required",
+    );
+    const denied = await deniedOf(stale.id);
+    expect(denied.map((d) => d.data["code"])).toEqual(["identity.fresh_mfa_required"]);
+    expect(JSON.stringify(denied)).not.toContain("private words");
+    expect((await rowsOf(an.id))[0]?.status).toBe("pending");
   });
 });
 

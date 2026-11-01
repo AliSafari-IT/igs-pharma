@@ -302,6 +302,24 @@ test("staff without the permission cannot see or decide early access", async ({
   await expect(page.getByText("You can't see the early-access requests")).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Early access" })).toHaveCount(0);
+  // igs-pharma#210: the refused visit is in the audit trail, with the operation and the code only
+  const titularId = (
+    await sql<{ user_id: string }[]>`
+      SELECT user_id FROM identity.sessions WHERE token = ${titularToken}`
+  )[0]?.user_id;
+  const denied = await sql<{ entity_id: string; data: Record<string, unknown> }[]>`
+    SELECT entity_id, data FROM audit.events
+    WHERE action = 'kernel.access.denied' AND actor_id = ${titularId as string}`;
+  expect(denied).toEqual([
+    {
+      entity_id: "identity.early_access.list",
+      data: {
+        operation: "identity.early_access.list",
+        permission: "storefront.early_access.manage",
+        code: "kernel.forbidden",
+      },
+    },
+  ]);
 });
 
 test("invite by e-mail: confirm first, the same answer for a known address, cancel (#211)", async ({

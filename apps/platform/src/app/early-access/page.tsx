@@ -11,7 +11,7 @@ import { EarlyAccessInviteDialog } from "../../components/early-access-invite-di
 import { identityErrorMessage } from "../../components/identity-labels";
 import { PageHeader } from "../../components/page-header";
 import { formatMoment } from "../../components/stock-labels";
-import { requireStaffActor } from "../../server/actor";
+import { requestOrigin, requireStaffActor } from "../../server/actor";
 import { ensureKernelConfigured } from "../../server/kernel";
 
 export const metadata = { title: "Early access · IGS-Pharma Platform" };
@@ -52,7 +52,8 @@ export default async function EarlyAccessPage() {
   let list: EarlyAccessList | null = null;
   let error: string | null = null;
   try {
-    list = await listEarlyAccessRequests({}, actor);
+    // the origin goes into the `kernel.access.denied` entry of a refused visit (igs-pharma#210)
+    list = await listEarlyAccessRequests({}, actor, { origin: await requestOrigin() });
   } catch (e) {
     if (!isDomainError(e)) throw e;
     error = e.code;
