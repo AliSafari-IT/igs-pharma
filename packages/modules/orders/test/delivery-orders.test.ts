@@ -340,7 +340,7 @@ describe("a delivery order", () => {
 
 describe("the database keeps an order's delivery consistent", () => {
   /** Inserts an order row by hand, with a line, to try the triggers. */
-  async function insertOrder(over: Record<string, string | number>) {
+  async function insertOrder(over: Record<string, string | number>, withAddress = false) {
     const checkoutId = randomUUID();
     const orderId = randomUUID();
     const values = {
@@ -363,6 +363,11 @@ describe("the database keeps an order's delivery consistent", () => {
         INSERT INTO orders.order_lines (id, order_id, product_id, cnk, name, is_medicine, vat_class,
           quantity, unit_price_cents, line_total_cents, vat_cents)
         VALUES (${randomUUID()}, ${orderId}, ${randomUUID()}, '9999999', 'x', false, 'BE_21', 1, 1000, 1000, 100)`;
+      if (withAddress) {
+        await sql`
+          INSERT INTO orders.order_addresses (order_id, street, postal_code, city, country)
+          VALUES (${orderId}, 'Demostraat 1', '1000', 'Brussel', 'BE')`;
+      }
       return orderId;
     });
   }
@@ -379,8 +384,8 @@ describe("the database keeps an order's delivery consistent", () => {
 
   it("a total that is not the lines plus the fee is refused", async () => {
     await expect(
-      insertOrder({ method: "delivery", total: 1_000, vat: 100, fee: 495, feeVat: 86 }),
-    ).rejects.toThrow();
+      insertOrder({ method: "delivery", total: 1_000, vat: 100, fee: 495, feeVat: 86 }, true),
+    ).rejects.toThrow(/does not match its lines/);
   });
 
   it("a placed order's delivery fee cannot change afterwards", async () => {
