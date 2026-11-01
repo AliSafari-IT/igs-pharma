@@ -133,8 +133,9 @@ describe("a pickup order is unchanged", () => {
         amount_cents: itemsCents,
       }),
     ]);
-    const [{ n }] = await iso.sql<{ n: number }[]>`
+    const [row0] = await iso.sql<{ n: number }[]>`
       SELECT count(*)::int AS n FROM orders.order_addresses WHERE order_id = ${orderId}`;
+    const { n } = row0 ?? { n: -1 };
     expect(n).toBe(0);
     const view = await getOrder({ cartToken: token, orderId }, actor);
     expect(view).toMatchObject({
@@ -161,8 +162,9 @@ describe("a delivery order", () => {
       delivery_vat_cents: 86,
       amount_cents: itemsCents + 495,
     });
-    const [{ lines_vat }] = await iso.sql<{ lines_vat: number }[]>`
+    const [row0] = await iso.sql<{ lines_vat: number }[]>`
       SELECT sum(vat_cents)::int AS lines_vat FROM orders.order_lines WHERE order_id = ${orderId}`;
+    const { lines_vat } = row0 ?? { lines_vat: -1 };
     expect(row?.vat_cents).toBe(lines_vat + 86);
   });
 
@@ -258,16 +260,18 @@ describe("a delivery order", () => {
     const first = await placeOrder(input, actor);
     const again = await placeOrder(input, actor);
     expect(again.orderId).toBe(first.orderId);
-    const [{ addresses, payments }] = await iso.sql<{ addresses: number; payments: number }[]>`
+    const [row0] = await iso.sql<{ addresses: number; payments: number }[]>`
       SELECT (SELECT count(*) FROM orders.order_addresses WHERE order_id = ${first.orderId})::int AS addresses,
              (SELECT count(*) FROM orders.payments WHERE order_id = ${first.orderId})::int AS payments`;
+    const { addresses, payments } = row0 ?? { addresses: -1, payments: -1 };
     expect({ addresses, payments }).toEqual({ addresses: 1, payments: 1 });
   });
 
   it("refuses a bad address and creates nothing", async () => {
     const { token, actor, checkoutId } = await checkoutWorth(1_000);
-    const [{ before }] = await iso.sql<{ before: number }[]>`
+    const [row0] = await iso.sql<{ before: number }[]>`
       SELECT count(*)::int AS before FROM orders.orders`;
+    const { before } = row0 ?? { before: -1 };
     for (const bad of [
       { ...address, postalCode: "0123" },
       { ...address, postalCode: "12345" },
@@ -291,7 +295,8 @@ describe("a delivery order", () => {
         JSON.stringify(bad),
       ).toBe("kernel.validation_failed");
     }
-    const [{ n }] = await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM orders.orders`;
+    const [after] = await iso.sql<{ n: number }[]>`SELECT count(*)::int AS n FROM orders.orders`;
+    const { n } = after ?? { n: -1 };
     expect(n).toBe(before);
   });
 
