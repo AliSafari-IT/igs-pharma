@@ -113,13 +113,16 @@ const recallNoticesRequested = z.object({
 
 /**
  * igs-pharma#202: amounts in cents and the new version only; the person who changed it is the audit
- * entry's actor. `previous*` is null the first time (the shop was on the defaults).
+ * entry's actor. `previous*` are the amounts in force before (the defaults the first time, then `previousWasDefault`);
+ * a null `previousFreeFromCents` means delivery was never free.
  */
 const deliverySettingsSet = z.object({
   priceCents: z.number().int().min(0),
   freeFromCents: z.number().int().min(0).nullable(),
   previousPriceCents: z.number().int().min(0).nullable(),
   previousFreeFromCents: z.number().int().min(0).nullable(),
+  /** `true`: staff had never saved, the `previous*` amounts are the defaults that were in force. */
+  previousWasDefault: z.boolean().optional(),
   version: z.number().int().min(1),
 });
 
