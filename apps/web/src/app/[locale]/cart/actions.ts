@@ -15,6 +15,7 @@ import {
 } from "../../../lib/cart-area";
 import { cartActor, cartLocale } from "../../../server/cart";
 import { requestOrigin } from "../../../server/customer";
+import { checkListToken, loadListEntries } from "../../../server/list-link";
 
 /**
  * The cart's Server Actions (igs-pharma#116). Each answers with a redirect to the cart page and a
@@ -101,4 +102,66 @@ export async function startCheckoutAction(form: FormData): Promise<void> {
   }
   if (!checkoutId) back(locale, result);
   redirect(`/${locale}/checkout/${checkoutId}`);
+}
+
+/**
+ * "Add to cart" on the page an "Order my list" link opens (igs-pharma#218): every product of the list
+ * that is still sold, in stock and not in the cart yet, once (the list holds no quantities); a line
+ * the cart already has is never changed (`onlyIfAbsent`, decided under the cart lock). The answer:
+ * `listAdded`, `listPartly` (some could not be ordered), `listFull` (some did not fit), or, when nothing
+ * was added and nothing was there already, `unavailable`. The token is checked again here: a forged or
+ * expired one adds nothing and goes back to the page, which explains. An unexpected failure is thrown,
+ * as for every cart action: what was added before it stays.
+ */
+export async function addListToCart(form: FormData): Promise<void> {
+  const locale = cartLocale(text(form, "locale"));
+  const tokenValue = text(form, "l");
+  const check = checkListToken(tokenValue);
+  if (!check.ok) redirect(`/${locale}/cart/from-list?l=${encodeURIComponent(tokenValue)}`);
+
+  let { actor, token } = await cartActor();
+  if (actor.type === "anonymous" && !token) {
+    token = newCartToken();
+    (await cookies()).set(CART_COOKIE, token, cartCookieOptions);
+  }
+  let result: CartResult;
+  try {
+    const entries = await loadListEntries(check.cnks, locale);
+    const origin = await requestOrigin();
+    let inCart = 0; // added now, or there already
+    let gone = false;
+    let full = false;
+    for (const { product } of entries) {
+      if (!product || product.status === "out") {
+        gone = true;
+        continue;
+      }
+      try {
+        await setCartLine(
+          { cartToken: token, productId: product.id, quantity: 1, onlyIfAbsent: true },
+          actor,
+          { origin },
+        );
+        inCart += 1;
+      } catch (error) {
+        if (!isDomainError(error)) throw error;
+        if (error.code === "orders.cart_full") full = true;
+        else gone = true;
+      }
+    }
+    result =
+      inCart === 0
+        ? full
+          ? "full"
+          : "unavailable"
+        : full
+          ? "listFull"
+          : gone
+            ? "listPartly"
+            : "listAdded";
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    result = resultOfCode(error.code);
+  }
+  back(locale, result);
 }

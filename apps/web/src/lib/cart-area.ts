@@ -33,10 +33,21 @@ export const CART_RESULTS = [
   "short",
   "empty",
   "failed",
+  // "Order my list" from the Android app (igs-pharma#218): all added, or some could not be
+  "listAdded",
+  "listPartly",
+  "listFull",
 ] as const;
 export type CartResult = (typeof CART_RESULTS)[number];
 
-const SUCCESS: readonly CartResult[] = ["added", "updated", "removed"];
+const SUCCESS: readonly CartResult[] = [
+  "added",
+  "updated",
+  "removed",
+  "listAdded",
+  "listPartly",
+  "listFull",
+];
 
 export const isSuccessResult = (result: CartResult): boolean => SUCCESS.includes(result);
 

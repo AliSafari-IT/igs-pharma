@@ -283,7 +283,21 @@
     "resultEmpty": "Votre panier est vide.",
     "deliveryInfo": "Le retrait à la pharmacie est gratuit. Livraison à domicile : {price}, TVA comprise.",
     "deliveryFreeNow": "Le retrait est gratuit, et votre commande donne droit à la livraison à domicile gratuite.",
-    "deliveryMissing": "Ajoutez encore {amount} pour la livraison à domicile gratuite."
+    "deliveryMissing": "Ajoutez encore {amount} pour la livraison à domicile gratuite.",
+    "fromListTitle": "Votre liste depuis l'app",
+    "fromListIntro": "{count, plural, one {Ce produit figure} other {Ces # produits figurent}} sur la liste envoyée depuis l'app IGS-Pharma. Prix et stock du jour.",
+    "fromListExpired": "Ce lien a expiré.",
+    "fromListInvalid": "Ce lien n'est pas valable.",
+    "fromListAgain": "Ouvrez Ma liste dans l'app IGS-Pharma et touchez à nouveau « Commander ma liste ».",
+    "fromListOut": "En rupture de stock",
+    "fromListGone": "Le produit {cnk} n'est plus disponible.",
+    "fromListAdd": "Ajouter à mon panier",
+    "fromListSkip": "Aller à mon panier",
+    "fromListNone": "Aucun de ces produits ne peut être commandé pour le moment.",
+    "fromListNote": "Rien n'est ajouté avant que vous appuyiez sur le bouton. Vous modifiez les quantités dans votre panier.",
+    "resultListAdded": "Votre liste a été ajoutée à votre panier.",
+    "resultListPartly": "Votre liste a été ajoutée à votre panier, sauf les produits qui ne peuvent plus être commandés.",
+    "resultListFull": "Une partie de votre liste a été ajoutée : votre panier est plein. Retirez un produit pour ajouter le reste."
   },
   "checkout": {
     "title": "Commander",

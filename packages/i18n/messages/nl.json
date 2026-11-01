@@ -283,7 +283,21 @@
     "resultEmpty": "Je winkelmandje is leeg.",
     "deliveryInfo": "Afhalen in de apotheek is gratis. Levering aan huis: {price}, inclusief btw.",
     "deliveryFreeNow": "Afhalen is gratis, en uw bestelling komt in aanmerking voor gratis levering aan huis.",
-    "deliveryMissing": "Voeg nog {amount} toe voor gratis levering aan huis."
+    "deliveryMissing": "Voeg nog {amount} toe voor gratis levering aan huis.",
+    "fromListTitle": "Uw lijst uit de app",
+    "fromListIntro": "{count, plural, one {Dit product staat} other {Deze # producten staan}} op de lijst die u vanuit de IGS-Pharma-app stuurde. Prijzen en voorraad zijn die van vandaag.",
+    "fromListExpired": "Deze link is verlopen.",
+    "fromListInvalid": "Deze link is niet geldig.",
+    "fromListAgain": "Open Mijn lijst in de IGS-Pharma-app en tik opnieuw op “Mijn lijst bestellen”.",
+    "fromListOut": "Niet op voorraad",
+    "fromListGone": "Product {cnk} is niet meer beschikbaar.",
+    "fromListAdd": "In mijn winkelmandje",
+    "fromListSkip": "Naar mijn winkelmandje",
+    "fromListNone": "Geen van deze producten kan nu besteld worden.",
+    "fromListNote": "Er wordt niets toegevoegd tot u op de knop drukt. Aantallen past u aan in uw winkelmandje.",
+    "resultListAdded": "Uw lijst staat in uw winkelmandje.",
+    "resultListPartly": "Uw lijst staat in uw winkelmandje, behalve producten die niet meer besteld kunnen worden.",
+    "resultListFull": "Een deel van uw lijst staat in uw winkelmandje: het mandje is vol. Verwijder een product om de rest toe te voegen."
   },
   "checkout": {
     "title": "Afrekenen",

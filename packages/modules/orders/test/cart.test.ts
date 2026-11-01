@@ -97,6 +97,26 @@ const cartRow = (cartId: string) =>
   iso.sql<{ token_hash: string | null; customer_id: string | null; expires_at: string }[]>`
     SELECT token_hash, customer_id, expires_at FROM orders.carts WHERE id = ${cartId}`;
 
+describe("onlyIfAbsent (igs-pharma#218, Order my list)", () => {
+  it("adds a missing line, and never overwrites a quantity the cart already has", async () => {
+    const productId = await product();
+    const token = newCartToken();
+    const added = await setCartLine(
+      { cartToken: token, productId, quantity: 1, onlyIfAbsent: true },
+      guest(),
+    );
+    expect(added).toMatchObject({ quantity: 1, lineCount: 1, changed: true });
+    await setCartLine({ cartToken: token, productId, quantity: 3 }, guest());
+    const kept = await setCartLine(
+      { cartToken: token, productId, quantity: 1, onlyIfAbsent: true },
+      guest(),
+    );
+    expect(kept).toMatchObject({ quantity: 3, lineCount: 1, changed: false });
+    const cart = await getCart({ cartToken: token }, guest());
+    expect(cart.lines.map((line) => line.quantity)).toEqual([3]);
+  });
+});
+
 describe("a guest's cart", () => {
   it("is opened by its cookie, stores only the cookie's hash, and audits as anonymous", async () => {
     const productId = await product();
