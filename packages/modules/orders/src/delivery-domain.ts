@@ -91,3 +91,42 @@ export function parseEuroAmount(text: string): number | null {
 
 /** Cents as the amount staff see and type: `4.95` (a point; the page adds the euro sign). */
 export const formatEuroAmount = (cents: number): string => (cents / 100).toFixed(2);
+
+// ── shipments (igs-pharma#202, part 3) ───────────────────────────────────────────────────────────
+
+/**
+ * A home-delivery order's parcel at the carrier platform (Sendcloud). Staff pack the order and a
+ * shipment is `requested`; the worker asks Sendcloud for the parcel and its label, outside any
+ * transaction (D-019), and records it `created` (with the tracking number and link) or `failed` (a
+ * refusal staff can ask again for). When the order is cancelled before it leaves, the shipment goes
+ * to `cancel_requested` and the worker cancels the parcel (`cancelled`). Forward only, enforced by the
+ * database.
+ */
+export const SHIPMENT_STATUSES = [
+  "requested",
+  "created",
+  "failed",
+  "cancel_requested",
+  "cancelled",
+] as const;
+export type ShipmentStatus = (typeof SHIPMENT_STATUSES)[number];
+
+/** Every allowed shipment status change (the database guard enforces the same). */
+export const SHIPMENT_TRANSITIONS: Readonly<Record<ShipmentStatus, readonly ShipmentStatus[]>> = {
+  requested: ["created", "failed", "cancel_requested"],
+  created: ["cancel_requested"],
+  failed: ["requested", "cancel_requested"],
+  cancel_requested: ["cancelled"],
+  cancelled: [],
+};
+
+/** The carrier platforms. Phase 1: Sendcloud only. */
+export const SHIPMENT_PROVIDERS = ["sendcloud"] as const;
+
+/** A tracking link we show and mail: https only, and short enough for a mail line. */
+export const TRACKING_URL_MAX = 500;
+export const isTrackingUrl = (url: string): boolean =>
+  url.length <= TRACKING_URL_MAX && /^https:\/\/[^\s<>"']+$/.test(url);
+
+/** A refusal code we store: what the worker saw, never the provider's message (it can echo the address). */
+export const SHIPMENT_FAILURE_CODE = /^[a-z0-9_]{1,40}$/;

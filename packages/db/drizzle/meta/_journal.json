@@ -631,6 +631,34 @@
       "when": 1793562420483,
       "tag": "0089_rbac_seed_audit_read",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1793566251802,
+      "tag": "0090_orders_shipments",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1793566260374,
+      "tag": "0091_orders_shipments_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1793566262001,
+      "tag": "0092_orders_shipments_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1793566448415,
+      "tag": "0093_rbac_seed_shipments",
+      "breakpoints": true
     }
   ]
 }

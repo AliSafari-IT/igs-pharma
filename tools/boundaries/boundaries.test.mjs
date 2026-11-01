@@ -410,3 +410,27 @@ mustFail(
   'import { createMollieClient } from "@igs/payments";\nconsole.log(createMollieClient);\n',
   "boundaries/element-types",
 );
+
+// --- @igs/shipping (igs-pharma#202): Sendcloud only from the worker and the back-office's label route ---
+mustPass(
+  "worker app -> @igs/shipping",
+  "apps/worker/src/x.ts",
+  'import { createSendcloudClient } from "@igs/shipping";\nconsole.log(createSendcloudClient);\n',
+);
+mustPass(
+  "platform app -> @igs/shipping",
+  "apps/platform/src/x.ts",
+  'import { createSendcloudClient } from "@igs/shipping";\nconsole.log(createSendcloudClient);\n',
+);
+mustFail(
+  "web app -> @igs/shipping",
+  "apps/web/src/x.ts",
+  'import { createSendcloudClient } from "@igs/shipping";\nconsole.log(createSendcloudClient);\n',
+  "boundaries/element-types",
+);
+mustFail(
+  "module -> @igs/shipping (no external I/O from a command, D-019)",
+  "packages/modules/orders/src/x.ts",
+  'import { createSendcloudClient } from "@igs/shipping";\nconsole.log(createSendcloudClient);\n',
+  "boundaries/element-types",
+);

@@ -131,5 +131,14 @@ export const orders: SchemaGrants = {
       note: "one row: the home-delivery price and the free-delivery value staff set (igs-pharma#202); never deleted",
       since: 80,
     }),
+    table("orders.shipments", "mutable", {
+      app: ["SELECT", "INSERT", "UPDATE"],
+      note: "the parcel of a home-delivery order (igs-pharma#202): ids, the tracking number and link; a trigger moves the status forward only and refuses DELETE",
+      since: 92,
+    }),
+    fn("orders.shipment_guard()", {
+      note: "trigger function: a parcel for a packed delivery order only, forward only, its parcel id set once",
+      since: 92,
+    }),
   ],
 };

@@ -344,10 +344,36 @@ export const paymentsEnv = z.object({
   ),
 });
 
+const optionalText = (schema: z.ZodString) =>
+  z.preprocess((v) => (v === "" ? undefined : v), schema.optional());
+
+/**
+ * Home-delivery labels through Sendcloud (igs-pharma#202, D-019): read by the worker (labels,
+ * cancellations, tracking) and the back-office's label route handler only, never inside a command.
+ * All optional: without the key pair and the shipping method, a packed delivery order waits for its
+ * label (`requested`) and staff see that Sendcloud is not set up.
+ */
+export const shippingEnv = z.object({
+  /** The integration's public key; with the secret key it makes labels, which cost money. */
+  SENDCLOUD_PUBLIC_KEY: optionalText(z.string().min(8).max(200)),
+  SENDCLOUD_SECRET_KEY: optionalText(z.string().min(8).max(200)),
+  /** The Sendcloud shipping method labels are made with (Sendcloud's `shipment.id`). */
+  SENDCLOUD_SHIPPING_METHOD_ID: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().min(1).max(1_000_000_000).optional(),
+  ),
+  /** The weight announced for every parcel; the shipping method's weight range must cover it. */
+  SENDCLOUD_PARCEL_WEIGHT_GRAMS: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().min(1).max(30_000).default(1_000),
+  ),
+});
+
 /** What the worker needs: no `AUTH_*`, no feature flags. */
 export const workerEnv = z.object({
   ...mailEnv.shape,
   ...paymentsEnv.shape,
+  ...shippingEnv.shape,
   ...dbEnv.shape,
   ...appEnv.shape,
   ...cryptoEnv.shape,

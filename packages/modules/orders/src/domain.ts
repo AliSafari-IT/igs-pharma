@@ -11,7 +11,10 @@
  * - `paid_stock_short`: paid after the stock hold lapsed and the stock is gone: staff re-reserve or
  *   refund, the customer is never charged silently for stock we do not have;
  * - `in_review`: paid, holds a medicine, waits for a pharmacist;
- * - `ready_to_prepare` → `preparing` → `ready_for_pickup` → `collected`;
+ * - `ready_to_prepare` → `preparing`, then for a pickup order `ready_for_pickup` → `collected`, and for a
+ *   home-delivery order (igs-pharma#202) `ready_to_ship` (packed, the Sendcloud label is made) →
+ *   `shipped` (handed to the carrier: the stock leaves) → `delivered`, or `returned` (the parcel came
+ *   back to the pharmacy; nothing goes back into stock);
  * - `cancelled`: payment failed or was cancelled, the pharmacist refused, or staff cancelled;
  * - `expired`: never paid (24 h).
  */
@@ -23,36 +26,86 @@ export const ORDER_STATUSES = [
   "preparing",
   "ready_for_pickup",
   "collected",
+  "ready_to_ship",
+  "shipped",
+  "delivered",
+  "returned",
   "cancelled",
   "expired",
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 /**
- * Every allowed status change. The database enforces the same table (migration `0047_orders`,
- * `orders.order_guard`); a real-Postgres test tries every pair against both. End states have no
- * arrows. One more rule than the table: an order that holds a medicine (`needs_review`) reaches
- * `ready_to_prepare` only from `in_review`, so it is never prepared without a pharmacist.
+ * Every allowed status change. The database enforces the same table (`orders.order_guard`, last
+ * replaced by migration `0090_orders_shipments`); a real-Postgres test tries every pair against both.
+ * End states have no arrows. Two more rules than the table: an order that holds a medicine
+ * (`needs_review`) reaches `ready_to_prepare` only from `in_review`, so it is never prepared without a
+ * pharmacist; and the pickup states are for pickup orders, the shipping states for delivery orders.
  */
 export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   pending_payment: ["paid_stock_short", "in_review", "ready_to_prepare", "cancelled", "expired"],
   paid_stock_short: ["in_review", "ready_to_prepare", "cancelled"],
   in_review: ["ready_to_prepare", "cancelled"],
   ready_to_prepare: ["preparing", "cancelled"],
-  preparing: ["ready_for_pickup", "cancelled"],
+  preparing: ["ready_for_pickup", "ready_to_ship", "cancelled"],
   ready_for_pickup: ["collected", "cancelled"],
   collected: [],
+  // a packed parcel can still be stopped; once the carrier has it, it is delivered or comes back
+  ready_to_ship: ["shipped", "cancelled"],
+  shipped: ["delivered", "returned"],
+  delivered: [],
+  returned: [],
   cancelled: [],
   expired: [],
 };
+
+/** The states only a pickup order takes, and the ones only a home-delivery order takes. */
+export const PICKUP_STATUSES = [
+  "ready_for_pickup",
+  "collected",
+] as const satisfies readonly OrderStatus[];
+export const SHIPPING_STATUSES = [
+  "ready_to_ship",
+  "shipped",
+  "delivered",
+  "returned",
+] as const satisfies readonly OrderStatus[];
+
+/** End states: the order never changes again (the database guard refuses any update). */
+export const END_STATUSES = [
+  "collected",
+  "delivered",
+  "returned",
+  "cancelled",
+  "expired",
+] as const satisfies readonly OrderStatus[];
+
+/**
+ * The goods left the pharmacy for the customer: collected, or handed to the carrier. A recall must
+ * tell these customers; nothing in them can be stopped any more.
+ */
+export const HANDED_OVER_STATUSES = [
+  "collected",
+  "shipped",
+  "delivered",
+  "returned",
+] as const satisfies readonly OrderStatus[];
 
 /** Whether an order may move from `from` to `to` (the TypeScript twin of the database guard). */
 export function canTransition(
   from: OrderStatus,
   to: OrderStatus,
-  options: { readonly needsReview: boolean },
+  options: { readonly needsReview: boolean; readonly deliveryMethod?: "pickup" | "delivery" },
 ): boolean {
   if (!ORDER_TRANSITIONS[from].includes(to)) return false;
+  // a pickup order never takes a shipping state, a delivery order never a pickup one
+  const method = options.deliveryMethod ?? "pickup";
+  if (method === "pickup" && (SHIPPING_STATUSES as readonly OrderStatus[]).includes(to)) {
+    return false;
+  }
+  if (method === "delivery" && (PICKUP_STATUSES as readonly OrderStatus[]).includes(to)) {
+    return false;
+  }
   // a medicine is never prepared without a pharmacist's approval
   return !(to === "ready_to_prepare" && options.needsReview && from !== "in_review");
 }
@@ -173,10 +226,15 @@ export type RefundReason = (typeof REFUND_REASONS)[number];
 /** Max length of the staff-only refund note. */
 export const REFUND_NOTE_MAX = 500;
 
-/** Order statuses whose paid payment is refunded: the order is closed. */
+/**
+ * Order statuses whose paid payment staff may refund: the order is closed, or its parcel came back
+ * (`returned`, igs-pharma#202). Only cancelled and expired orders are flagged as "refund due": for a
+ * returned parcel staff decide.
+ */
 export const REFUNDABLE_ORDER_STATUSES = [
   "cancelled",
   "expired",
+  "returned",
 ] as const satisfies readonly OrderStatus[];
 
 // ── customer mails ───────────────────────────────────────────────────────────────────────────────
@@ -184,13 +242,15 @@ export const REFUNDABLE_ORDER_STATUSES = [
 /**
  * The order mails (igs-pharma#157), each tied to one state: `order_received` (paid, now checked by
  * the pharmacy: in review or ready to prepare), `stock_short` (paid, stock short),
- * `ready_for_pickup`, `refund_initiated` (a refund recorded), `refund_completed` (refunded) and
- * `recall_notice` (a paid order a recall affects, igs-pharma#189; it names the order, never the product).
+ * `ready_for_pickup`, `refund_initiated` (a refund recorded), `refund_completed` (refunded),
+ * `recall_notice` (a paid order a recall affects, igs-pharma#189; it names the order, never the product)
+ * and `shipped` (handed to the carrier, with the tracking link, igs-pharma#202).
  */
 export const ORDER_MAIL_KINDS = [
   "order_received",
   "stock_short",
   "ready_for_pickup",
+  "shipped",
   "refund_initiated",
   "refund_completed",
   "recall_notice",

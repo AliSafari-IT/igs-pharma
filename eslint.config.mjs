@@ -66,6 +66,7 @@ const entryPoint = (
           ...infra.filter((name) => name !== "db" && name !== "kernel" && name !== "rbac"),
           "mail",
           "payments",
+          "shipping",
           "app",
         ],
         allow: "**",
@@ -111,6 +112,9 @@ export default [
         // the Mollie client (igs-pharma#116, D-019): payment I/O from route handlers and the worker,
         // never from a module (a command must not call out)
         { type: "payments", pattern: "packages/payments" },
+        // the Sendcloud client (igs-pharma#202, D-019): labels and tracking from the worker, the label
+        // PDF from a back-office route handler; never from a module
+        { type: "shipping", pattern: "packages/shipping" },
         // must come before the generic packages entries: packages/modules/<name>
         { type: "module", pattern: "packages/modules/*", capture: ["module"] },
         ...infra.map((name) => ({ type: name, pattern: `packages/${name}` })),
@@ -140,6 +144,15 @@ export default [
             },
             // a leaf: nothing in-repo
             { from: "payments", allow: [] },
+            // the apps that talk to Sendcloud: the worker (labels, tracking) and the back-office (label PDF)
+            {
+              from: [
+                ["app", { app: "platform" }],
+                ["app", { app: "worker" }],
+              ],
+              allow: ["shipping"],
+            },
+            { from: "shipping", allow: [] },
             // the read model: kernel + rbac + the modules it composes; no module imports it back
             {
               from: "storefront-module",

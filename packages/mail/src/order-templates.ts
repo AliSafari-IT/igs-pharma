@@ -11,6 +11,7 @@ export const ORDER_MAIL_TEMPLATES = [
   "order_received",
   "order_stock_short",
   "order_ready_for_pickup",
+  "order_shipped",
   "order_refund_initiated",
   "order_refund_completed",
   "order_recall_notice",
@@ -24,6 +25,11 @@ export interface OrderMailData {
   readonly reference: string;
   /** The refund's amount in cents; required by the refund templates. */
   readonly amountCents?: number | undefined;
+  /**
+   * The carrier's tracking link, for `order_shipped` (igs-pharma#202). https only; without one the
+   * mail still goes out and says the order is on its way.
+   */
+  readonly trackingUrl?: string | undefined;
 }
 
 interface Copy {
@@ -50,7 +56,46 @@ const SIGN_OFF: Record<MailLocale, string> = {
   en: "The IGS-Pharma team",
 };
 
+/** The label of the tracking link in `order_shipped`. */
+const TRACKING_LINK: Record<MailLocale, string> = {
+  nl: "Volg uw pakje",
+  fr: "Suivre votre colis",
+  de: "Ihr Paket verfolgen",
+  en: "Track your parcel",
+};
+
 const COPY: Record<OrderMailTemplateName, Record<MailLocale, Copy>> = {
+  // igs-pharma#202: the parcel is with the carrier. Names the order, never what is in it.
+  order_shipped: {
+    nl: {
+      subject: (ref) => `Uw bestelling ${ref} is onderweg`,
+      lines: (ref) => [
+        `Uw bestelling ${ref} is door de apotheek gecontroleerd, verpakt en aan de vervoerder overhandigd.`,
+        "De vervoerder levert het pakje op het adres dat u bij de bestelling opgaf.",
+      ],
+    },
+    fr: {
+      subject: (ref) => `Votre commande ${ref} est en route`,
+      lines: (ref) => [
+        `Votre commande ${ref} a été vérifiée par la pharmacie, emballée et remise au transporteur.`,
+        "Le transporteur livrera le colis à l'adresse indiquée lors de votre commande.",
+      ],
+    },
+    de: {
+      subject: (ref) => `Ihre Bestellung ${ref} ist unterwegs`,
+      lines: (ref) => [
+        `Ihre Bestellung ${ref} wurde von der Apotheke geprüft, verpackt und dem Paketdienst übergeben.`,
+        "Der Paketdienst liefert das Paket an die Adresse, die Sie bei der Bestellung angegeben haben.",
+      ],
+    },
+    en: {
+      subject: (ref) => `Your order ${ref} is on its way`,
+      lines: (ref) => [
+        `Your order ${ref} has been checked by the pharmacy, packed and handed to the carrier.`,
+        "The carrier will deliver the parcel to the address you gave with your order.",
+      ],
+    },
+  },
   // igs-pharma#189: a recall. Interim wording until counsel confirms what a recall notice may say: it
   // names the order, never the product, and asks the customer to contact the pharmacy.
   order_recall_notice: {
@@ -290,12 +335,30 @@ export function renderOrderMail(
   const lines = copy.lines(reference, amount);
   const signOff = SIGN_OFF[lang];
 
-  const text = [greeting, "", ...lines.flatMap((line) => [line, ""]), signOff, ""].join("\n");
+  // only the shipped mail carries a link, and only an https one without spaces or markup
+  const link =
+    template === "order_shipped" &&
+    data.trackingUrl &&
+    /^https:\/\/[^\s<>"']+$/.test(data.trackingUrl) &&
+    data.trackingUrl.length <= 500
+      ? data.trackingUrl
+      : null;
+  const linkLabel = TRACKING_LINK[lang];
+
+  const text = [
+    greeting,
+    "",
+    ...lines.flatMap((line) => [line, ""]),
+    ...(link ? [`${linkLabel}: ${link}`, ""] : []),
+    signOff,
+    "",
+  ].join("\n");
   const html = [
     "<!doctype html>",
     '<html><body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5; color: #1a1a1a;">',
     `<p>${escapeHtml(greeting)}</p>`,
     ...lines.map((line) => `<p>${escapeHtml(line)}</p>`),
+    ...(link ? [`<p><a href="${escapeHtml(link)}">${escapeHtml(linkLabel)}</a></p>`] : []),
     `<p>${escapeHtml(signOff)}</p>`,
     "</body></html>",
   ].join("\n");

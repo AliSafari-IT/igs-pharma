@@ -17,6 +17,7 @@ describe("renderOrderMail", () => {
         const mail = renderOrderMail(template, locale, data);
         expect(mail.subject, `${template}/${locale}`).toContain("IGS-2026-000123");
         expect(mail.text).toContain("IGS-Pharma");
+        // no link without one given (the shipped mail's tracking link is tested below)
         expect(mail.text).not.toContain("http");
       }
     }
@@ -41,6 +42,34 @@ describe("renderOrderMail", () => {
     expect(() =>
       renderOrderMail("order_refund_initiated", "nl", { name: "An", reference: "IGS-2026-000123" }),
     ).toThrow(/mail\.amount_missing/);
+  });
+
+  it("the shipped mail carries the carrier's https tracking link, and nothing else (#202)", () => {
+    const url = "https://tracking.sendcloud.sc/forward?carrier=bpost&code=3232";
+    for (const locale of MAIL_LOCALES) {
+      const mail = renderOrderMail("order_shipped", locale, { ...data, trackingUrl: url });
+      expect(mail.text).toContain(url);
+      expect(mail.html).toContain(`href="${url.replace("&", "&amp;")}"`);
+    }
+    for (const bad of [
+      "http://tracking.example/x",
+      'https://x.example/"><script>',
+      "javascript:x",
+    ]) {
+      const mail = renderOrderMail("order_shipped", "nl", { ...data, trackingUrl: bad });
+      expect(mail.html).not.toContain("<a ");
+      expect(mail.text).not.toContain(bad);
+    }
+    // the link is for the shipped mail only
+    expect(
+      renderOrderMail("order_ready_for_pickup", "nl", {
+        ...data,
+        trackingUrl: "https://x.example/",
+      }).text,
+    ).not.toContain("https://");
+    expect(renderOrderMail("order_shipped", "en", data).subject).toBe(
+      "Your order IGS-2026-000123 is on its way",
+    );
   });
 
   it("escapes the name in the HTML and falls back to Dutch", () => {

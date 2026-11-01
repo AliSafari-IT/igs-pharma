@@ -8,6 +8,7 @@ import {
   decideReview,
   reReserveOrder,
   requestRefund,
+  retryShipment,
 } from "@igs/module-orders";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -164,4 +165,22 @@ export async function cancelNotSellable(
   }
   revalidatePath("/orders");
   redirect(`/orders/${encodeURIComponent(orderId)}?done=cancelled`);
+}
+
+/** A parcel label Sendcloud refused: ask the worker to make it again (igs-pharma#202). */
+export async function retryLabel(
+  _previous: OrderActionState,
+  form: FormData,
+): Promise<OrderActionState> {
+  const actor = await requireStaffActor();
+  await ensureKernelConfigured();
+  const orderId = text(form, "orderId");
+  try {
+    await retryShipment({ orderId }, actor, { origin: await requestOrigin() });
+  } catch (error) {
+    if (!isDomainError(error)) throw error;
+    return { error: error.code };
+  }
+  revalidatePath("/orders");
+  redirect(`/orders/${encodeURIComponent(orderId)}?done=label`);
 }

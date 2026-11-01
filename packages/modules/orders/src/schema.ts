@@ -19,6 +19,9 @@ import {
   DELIVERY_METHODS,
   MAX_DELIVERY_PRICE_CENTS,
   MAX_FREE_FROM_CENTS,
+  SHIPMENT_PROVIDERS,
+  SHIPMENT_STATUSES,
+  TRACKING_URL_MAX,
 } from "./delivery-domain";
 import {
   CHECKOUT_STATUSES,
@@ -559,5 +562,63 @@ export const deliverySettings = orders.table(
       ),
     ),
     check("delivery_settings_version_check", sql`${t.version} >= 1`),
+  ],
+);
+
+/**
+ * The parcel of a home-delivery order (igs-pharma#202, part 3): one per order, made when staff pack
+ * it (`ready_to_ship`). `provider_parcel_id` is Sendcloud's parcel id, set once and never changed;
+ * the tracking number and link come with the label. The status only moves forward
+ * (`SHIPMENT_TRANSITIONS`, enforced by a trigger, migration `0090_orders_shipments`); no DELETE. The
+ * address is NOT copied here: it stays in `order_addresses`.
+ */
+export const shipments = orders.table(
+  "shipments",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => newId()),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => ordersTable.id, { onDelete: "restrict" }),
+    provider: text("provider").notNull().default("sendcloud"),
+    status: text("status").notNull().default("requested"),
+    providerParcelId: text("provider_parcel_id"),
+    trackingNumber: text("tracking_number"),
+    trackingUrl: text("tracking_url"),
+    /** The carrier Sendcloud chose (`bpost`, …), for the staff page. */
+    carrier: text("carrier"),
+    /** Why the label could not be made (a code, never the provider's text). */
+    failureCode: text("failure_code"),
+    /** Bumped by one on every change. */
+    version: integer("version").notNull().default(1),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+    labelCreatedAt: timestamp("label_created_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    check("shipments_provider_check", oneOf("provider", SHIPMENT_PROVIDERS)),
+    check("shipments_status_check", oneOf("status", SHIPMENT_STATUSES)),
+    check(
+      "shipments_parcel_id_check",
+      sql`${t.providerParcelId} IS NULL OR ${t.providerParcelId} ~ '^[0-9]{1,20}$'`,
+    ),
+    check(
+      "shipments_tracking_check",
+      sql`(${t.trackingNumber} IS NULL OR char_length(${t.trackingNumber}) BETWEEN 1 AND 64)
+        AND (${t.trackingUrl} IS NULL OR (${t.trackingUrl} ~ '^https://' AND char_length(${t.trackingUrl}) <= ${sql.raw(String(TRACKING_URL_MAX))}))
+        AND (${t.carrier} IS NULL OR char_length(${t.carrier}) BETWEEN 1 AND 40)`,
+    ),
+    check(
+      "shipments_created_check",
+      sql`${t.status} <> 'created' OR (${t.providerParcelId} IS NOT NULL AND ${t.trackingNumber} IS NOT NULL AND ${t.labelCreatedAt} IS NOT NULL)`,
+    ),
+    check(
+      "shipments_failure_check",
+      sql`(${t.status} = 'failed') = (${t.failureCode} IS NOT NULL) AND (${t.failureCode} IS NULL OR ${t.failureCode} ~ '^[a-z0-9_]{1,40}$')`,
+    ),
+    check("shipments_version_check", sql`${t.version} >= 1`),
+    uniqueIndex("shipments_order_idx").on(t.orderId),
+    index("shipments_status_updated_idx").on(t.status, t.updatedAt),
   ],
 );
