@@ -115,10 +115,13 @@ export const PERMISSIONS = {
    * Early access to the gated storefront (igs-pharma#199): before launch, approved customers see the
    * shop. Staff decide requests with `earlyAccessManage` (owner only); a customer asks for, reads and
    * uses their OWN access with `earlyAccessSelf` (it acts on `actor.id`, no user id in its input).
+   * `earlyAccessRedeem` (igs-pharma#211) is the Better Auth hook's: when a customer confirms an
+   * e-mail address, an open invitation for that address becomes their grant.
    */
   storefront: {
     earlyAccessManage: "storefront.early_access.manage",
     earlyAccessSelf: "storefront.early_access.self.request",
+    earlyAccessRedeem: "storefront.early_access.redeem",
   },
   staff: {
     invite: "staff.invite",
@@ -175,7 +178,8 @@ export const ROLES = {
   system_bootstrap: { kind: "system", description: "Bootstrap CLI: creates the first owner" },
   system_auth: {
     kind: "system",
-    description: "Better Auth hooks: records sign-in factor changes and requests account mails",
+    description:
+      "Better Auth hooks: records sign-in factor changes, requests account mails and redeems early-access invitations",
   },
   system_storefront: {
     kind: "system",
@@ -231,6 +235,8 @@ export const SYSTEM_ONLY: readonly Permission[] = [
   PERMISSIONS.pricing.storefrontRead,
   PERMISSIONS.inventory.reservationManage,
   PERMISSIONS.orders.paymentManage,
+  // igs-pharma#211: only the Better Auth hook redeems an invitation for someone
+  PERMISSIONS.storefront.earlyAccessRedeem,
 ];
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
@@ -322,7 +328,11 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.storefront.earlyAccessSelf,
   ],
   system_bootstrap: [PERMISSIONS.identity.bootstrap],
-  system_auth: [PERMISSIONS.identity.securityEventsRecord, PERMISSIONS.identity.mailRequest],
+  system_auth: [
+    PERMISSIONS.identity.securityEventsRecord,
+    PERMISSIONS.identity.mailRequest,
+    PERMISSIONS.storefront.earlyAccessRedeem,
+  ],
   system_storefront: [
     PERMISSIONS.catalog.storefrontRead,
     PERMISSIONS.inventory.availabilityRead,

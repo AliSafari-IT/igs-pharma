@@ -321,6 +321,8 @@ export const MAIL_TEMPLATES = [
   "early_access_rejected",
   "early_access_revoked",
   "early_access_staff_notice",
+  // igs-pharma#211: to an invited address that may have no account yet (`to_email`, `locale`)
+  "early_access_invited",
 ] as const;
 export type MailTemplate = (typeof MAIL_TEMPLATES)[number];
 
@@ -329,14 +331,19 @@ export type MailTemplate = (typeof MAIL_TEMPLATES)[number];
  * row's id (`tokenRef`), never the link, so a verification or reset token appears in no event payload,
  * job or log. The mail worker (PR 2) reads the row, sends the mail and deletes it; rows past
  * `expires_at` are never sent. `url` is NULL for templates without a link (`account_exists`).
+ *
+ * A mail goes to a user (`user_id`: their address, name and language) or, for an early-access
+ * invitation (igs-pharma#211), to an address that may have no account yet (`to_email` in `locale`).
  */
 export const mailTokens = identity.table(
   "mail_tokens",
   {
     id: id(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    /** igs-pharma#211: the address of a mail to no user (an invitation); NULL when `user_id` is set. */
+    toEmail: citext("to_email"),
+    /** The language of a `to_email` mail (one of {@link USER_LOCALES}). */
+    locale: text("locale"),
     template: text("template").$type<MailTemplate>().notNull(),
     url: text("url"),
     /**
@@ -351,6 +358,12 @@ export const mailTokens = identity.table(
     index("mail_tokens_user_id_idx").on(t.userId),
     index("mail_tokens_expires_at_idx").on(t.expiresAt),
     check("mail_tokens_template_check", oneOf("template", MAIL_TEMPLATES)),
+    check(
+      "mail_tokens_recipient_check",
+      sql`(user_id IS NOT NULL AND to_email IS NULL AND locale IS NULL) OR (user_id IS NULL AND to_email IS NOT NULL AND locale IS NOT NULL)`,
+    ),
+    // NULL passes (a user's mail takes the user's language)
+    check("mail_tokens_locale_check", oneOf("locale", USER_LOCALES)),
   ],
 );
 
@@ -369,8 +382,12 @@ export const EARLY_ACCESS_TEXT_MAX = 500;
  *
  * One OPEN (`pending`) request per user (partial unique index): asking again updates its note. A
  * decided row stays as history; a new request after a rejection, revocation or expiry is a new row.
- * `invited_email` is for staff invitations (a later PR): a row has a user, an invited address, or
- * both. Deleted with the user (erasure); decided rows are purged 12 months after they end.
+ * `invited_email` is for staff invitations (igs-pharma#211): an owner invites an address, the row is
+ * `approved` with no `user_id` (an open INVITATION), and when a customer confirms that address the
+ * row gets their `user_id` (redeemed). One open invitation per address (partial unique index on
+ * `lower(invited_email)`): inviting again updates it. A row has a user, an invited address, or both.
+ * Deleted with the user (erasure); decided rows are purged 12 months after they end, unredeemed
+ * invitations 12 months after their window closed.
  */
 export const earlyAccessRequests = identity.table(
   "early_access_requests",
@@ -391,6 +408,9 @@ export const earlyAccessRequests = identity.table(
   },
   (t) => [
     uniqueIndex("early_access_requests_one_pending").on(t.userId).where(sql`status = 'pending'`),
+    uniqueIndex("early_access_requests_one_invitation")
+      .on(sql`lower(${t.invitedEmail})`)
+      .where(sql`user_id IS NULL AND status IN ('pending', 'approved')`),
     index("early_access_requests_user_id_idx").on(t.userId),
     index("early_access_requests_status_idx").on(t.status, t.requestedAt),
     check("early_access_requests_status_check", oneOf("status", EARLY_ACCESS_STATUSES)),

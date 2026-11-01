@@ -1,7 +1,7 @@
 import type { EarlyAccessDuration } from "@igs/module-identity";
 
 /** What the early-access dialogs and the page say (igs-pharma#199). */
-export type EarlyAccessIntent = "approve" | "reject" | "revoke";
+export type EarlyAccessIntent = "approve" | "reject" | "revoke" | "cancel";
 
 export const EARLY_ACCESS_INTENT_LABELS: Record<
   EarlyAccessIntent,
@@ -24,7 +24,22 @@ export const EARLY_ACCESS_INTENT_LABELS: Record<
       "It ends within 15 minutes: their current pass keeps working until it runs out. They get a mail and can ask again after 30 days.",
     confirm: "End access",
   },
+  // igs-pharma#211: an invitation nobody has redeemed
+  cancel: {
+    title: "Cancel the invitation of",
+    description:
+      "Nobody who signs up with this address gets early access from it. They get no mail.",
+    confirm: "Cancel invitation",
+  },
 };
+
+/** The languages an invitation mail can be in (igs-pharma#211), as the invite form offers them. */
+export const INVITE_LOCALE_LABELS = {
+  nl: "Dutch",
+  fr: "French",
+  de: "German",
+  en: "English",
+} as const;
 
 /** The choices in the order the picker shows them. */
 export const EARLY_ACCESS_DURATION_ORDER: readonly EarlyAccessDuration[] = [

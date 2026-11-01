@@ -10,7 +10,9 @@ import { smokeDatabaseUrl, smokeEnv } from "../smoke-env";
  * igs-pharma#199, part 3: the Early access page of the back-office against the production build.
  * An owner whose passkey check is stale is asked to confirm first and nothing is decided; with a
  * fresh one they approve (for 90 days), reject (with a reason) and revoke, every decision is audited,
- * and their own request offers no buttons. The storefront half (request, pass, denied after a revoke)
+ * and their own request offers no buttons. igs-pharma#211: an owner invites an e-mail address (the
+ * same answer for a known and an unknown address) and cancels an invitation. The storefront half
+ * (request, pass, denied after a revoke; invite → sign up → confirm → the shop opens)
  * needs a web build with the customer accounts flag, which the smoke build does not have: it is
  * covered by the web tests. Needs SMOKE_DATABASE_URL (a migrated database).
  */
@@ -92,7 +94,20 @@ test.beforeAll(async () => {
   requestIds["own"] = await pendingRequest(ownerId, "My own test");
 });
 
+const invitedEmails: string[] = [];
+
 test.afterAll(async () => {
+  for (const email of invitedEmails) {
+    const rows = await sql<{ id: string }[]>`
+      DELETE FROM identity.early_access_requests WHERE invited_email = ${email} RETURNING id`.catch(
+      () => [],
+    );
+    for (const row of rows) {
+      await sql`DELETE FROM audit.events WHERE entity_id = ${row.id}`.catch(() => {});
+    }
+    await sql`DELETE FROM identity.mail_tokens WHERE to_email = ${email}`.catch(() => {});
+    await sql`DELETE FROM identity.users WHERE email = ${email}`.catch(() => {});
+  }
   for (const requestId of Object.values(requestIds)) {
     await sql`DELETE FROM audit.events WHERE entity_id = ${requestId}`.catch(() => {});
   }
@@ -289,6 +304,85 @@ test("staff without the permission cannot see or decide early access", async ({
   await expect(page.getByRole("link", { name: "Early access" })).toHaveCount(0);
 });
 
+test("invite by e-mail: confirm first, the same answer for a known address, cancel (#211)", async ({
+  page,
+  context,
+}) => {
+  const inviter = await freshStaff(`Inviter ${tag}`, "owner");
+  const unknown = `invite-${tag}@example.test`;
+  invitedEmails.push(unknown);
+
+  // an owner whose passkey check is 20 minutes old is asked for it first, and nobody is invited
+  const stale = await freshStaff(`Stale inviter ${tag}`, "owner");
+  await sql`
+    UPDATE identity.sessions SET passkey_checked_at = now() - interval '20 minutes'
+    WHERE token = ${stale}`;
+  await context.addCookies([
+    { name: "better-auth.session_token", value: signed(stale), url: PLATFORM },
+  ]);
+  await page.goto(`${PLATFORM}/early-access`, { waitUntil: "networkidle" });
+  await page.getByTestId("early-access-invite").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await dialog.getByLabel("E-mail address").fill(unknown);
+  await dialog.getByRole("button", { name: "Send invitation" }).click();
+  await expect(dialog.getByText("Confirm it's you first")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  expect(
+    await sql`SELECT 1 FROM identity.early_access_requests WHERE invited_email = ${unknown}`,
+  ).toHaveLength(0);
+
+  // a fresh owner invites; the address waits under "Invited", one mail is queued to it
+  await context.clearCookies();
+  await context.addCookies([
+    { name: "better-auth.session_token", value: signed(inviter), url: PLATFORM },
+  ]);
+  await page.goto(`${PLATFORM}/early-access`, { waitUntil: "networkidle" });
+  await page.getByTestId("early-access-invite").click();
+  await dialog.getByLabel("E-mail address").fill(unknown.toUpperCase());
+  await dialog.getByLabel("Access lasts").selectOption("7d");
+  await dialog.getByLabel("Language of the mail").selectOption("fr");
+  await dialog.getByRole("button", { name: "Send invitation" }).click();
+  const sent = page.getByTestId("early-access-invite-sent");
+  await expect(sent).toBeVisible();
+  const answerForUnknown = await sent.textContent();
+  const invited = page.getByTestId("early-access-invited").getByRole("row", { name: unknown });
+  await expect(invited).toBeVisible();
+  await expectAxeClean(page);
+  const mails = await sql<{ template: string; locale: string }[]>`
+    SELECT template, locale FROM identity.mail_tokens WHERE to_email = ${unknown}`;
+  expect(mails).toEqual([{ template: "early_access_invited", locale: "fr" }]);
+
+  // an address with a confirmed account: the same answer, and they have access now
+  const knownName = `Known ${tag}`;
+  const knownId = await user(knownName, "customer");
+  const [known] = await sql<{ email: string }[]>`
+    SELECT email FROM identity.users WHERE id = ${knownId}`;
+  await page.getByTestId("early-access-invite").click();
+  await dialog.getByLabel("E-mail address").fill((known as { email: string }).email);
+  await dialog.getByRole("button", { name: "Send invitation" }).click();
+  await expect(sent).toBeVisible();
+  expect(await sent.textContent()).toBe(answerForUnknown);
+  await expect(
+    page.getByTestId("early-access-active").getByRole("row", { name: knownName }),
+  ).toBeVisible();
+
+  // cancelling the open invitation moves it to the history; nothing is mailed
+  await invited.getByRole("button", { name: "Cancel invitation" }).click();
+  await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+  await dialog.getByRole("button", { name: "Cancel invitation" }).click();
+  await expect(
+    page.getByTestId("early-access-history").getByRole("row", { name: unknown }),
+  ).toContainText("invitation cancelled");
+  const [row] = await sql<{ id: string; status: string }[]>`
+    SELECT id, status FROM identity.early_access_requests WHERE invited_email = ${unknown}`;
+  expect(row?.status).toBe("revoked");
+  expect((await audit((row as { id: string }).id)).map((e) => e.action)).toEqual([
+    "identity.early_access.invited",
+    "identity.early_access.invitation_cancelled",
+  ]);
+});
+
 /**
  * The storefront half (igs-pharma#199's acceptance test): needs a CLOSED storefront built with
  * customer accounts ON. `NEXT_PUBLIC_*` flags are fixed at build time and the smoke build keeps them
@@ -374,6 +468,64 @@ test.describe("the storefront side (needs SMOKE_EARLY_ACCESS_URL) @early-access-
     expect((await customer.cookies()).some((cookie) => cookie.name === "igs_early_access")).toBe(
       false,
     );
+    await customer.close();
+    await owner.close();
+  });
+  test("invited → sign up with the address → confirm it → the shop opens (#211)", async ({
+    browser,
+  }) => {
+    const shop = STOREFRONT as string;
+    const email = `invited-${tag}@example.test`;
+    invitedEmails.push(email);
+    const inviter = await freshStaff(`Storefront inviter ${tag}`, "owner");
+    const owner = await browser.newContext();
+    await owner.addCookies([
+      { name: "better-auth.session_token", value: signed(inviter), url: PLATFORM },
+    ]);
+    const back = await owner.newPage();
+    await back.goto(`${PLATFORM}/early-access`, { waitUntil: "networkidle" });
+    await back.getByTestId("early-access-invite").click();
+    await back.getByRole("dialog").getByLabel("E-mail address").fill(email);
+    await back.getByRole("dialog").getByRole("button", { name: "Send invitation" }).click();
+    await expect(back.getByTestId("early-access-invite-sent")).toBeVisible();
+
+    // they sign up with the address in another case; the shop stays closed until they confirm
+    const customer = await browser.newContext();
+    await customer.setExtraHTTPHeaders({ "x-forwarded-for": `203.0.113.${Date.now() % 250}` });
+    const page = await customer.newPage();
+    const password = `a long password ${tag}`;
+    await page.goto(`${shop}/nl/account/sign-up`);
+    await page.getByLabel("Naam").fill(`Invited ${tag}`);
+    await page.getByLabel("E-mailadres").fill(email.toUpperCase());
+    await page.getByLabel("Wachtwoord").fill(password);
+    await page.getByRole("button", { name: "Account aanmaken" }).click();
+    await expect(page.getByTestId("sign-up-sent")).toBeVisible();
+    expect(
+      (
+        await sql<{ user_id: string | null }[]>`
+          SELECT user_id FROM identity.early_access_requests WHERE invited_email = ${email}`
+      )[0]?.user_id,
+    ).toBeNull();
+
+    // the confirmation link from the queued mail (the worker would send it)
+    const [mail] = await sql<{ url: string }[]>`
+      SELECT t.url FROM identity.mail_tokens t JOIN identity.users u ON u.id = t.user_id
+      WHERE u.email = ${email} AND t.template = 'verify_email'`;
+    const link = new URL((mail as { url: string }).url);
+    await page.goto(`${shop}${link.pathname}${link.search}`);
+    const [redeemed] = await sql<{ user_id: string | null }[]>`
+      SELECT user_id FROM identity.early_access_requests WHERE invited_email = ${email}`;
+    expect(redeemed?.user_id).not.toBeNull();
+
+    await page.goto(`${shop}/nl/account/sign-in?next=${encodeURIComponent("/early-access")}`);
+    await page.getByLabel("E-mailadres").fill(email);
+    await page.getByLabel("Wachtwoord").fill(password);
+    await page.getByRole("button", { name: "Aanmelden" }).click();
+    // signed in, the form itself goes on to the early-access page
+    await page.waitForURL(`${shop}/nl/early-access`);
+    await expect(page.getByTestId("early-access-approved")).toBeVisible();
+    await page.getByRole("link", { name: "Naar de webwinkel" }).click();
+    await expect(page.getByTestId("early-access-banner")).toBeVisible();
     await customer.close();
     await owner.close();
   });

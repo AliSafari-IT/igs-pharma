@@ -26,6 +26,7 @@ import { twoFactor } from "better-auth/plugins";
 import {
   CUSTOMER_FRESH_MS,
   type CustomerAuth,
+  type OnEmailVerified,
   type RequestMail,
   createCustomerAuth,
 } from "./customer";
@@ -298,19 +299,26 @@ export {
   CUSTOMER_SESSION_REFRESH_S,
   type CustomerAuth,
   type CustomerAuthDeps,
+  type OnEmailVerified,
   type RequestMail,
   createCustomerAuth,
 } from "./customer";
 
 let requestMail: RequestMail | undefined;
+let onEmailVerified: OnEmailVerified | undefined;
 
 /**
  * Composition root hook for the storefront (like `configureAuth`): the callback that turns a mail
  * request into the `identity.mail.request` command. `getCustomerAuth()` refuses to start without it,
- * so a verification or reset mail can never be silently dropped.
+ * so a verification or reset mail can never be silently dropped. `onEmailVerified` redeems an
+ * early-access invitation for the confirmed address (igs-pharma#211).
  */
-export function configureCustomerAuth(options: { requestMail: RequestMail }): void {
+export function configureCustomerAuth(options: {
+  requestMail: RequestMail;
+  onEmailVerified?: OnEmailVerified;
+}): void {
   requestMail = options.requestMail;
+  onEmailVerified = options.onEmailVerified;
 }
 
 let _customerAuth: CustomerAuth | undefined;
@@ -333,6 +341,7 @@ export function getCustomerAuth(): CustomerAuth {
       secret: env.AUTH_SECRET,
       baseURL: env.STOREFRONT_URL,
       requestMail,
+      ...(onEmailVerified ? { onEmailVerified } : {}),
     });
   }
   return _customerAuth;

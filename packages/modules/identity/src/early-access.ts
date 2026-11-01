@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
+
 import { type Ctx, command, conflict, forbidden, notFound, query } from "@igs/kernel";
 import { PERMISSIONS } from "@igs/rbac";
-import { aliasedTable, and, desc, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, gt, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { IDENTITY_AUDIT } from "./audit";
@@ -9,6 +11,7 @@ import { queueMail } from "./mail";
 import {
   EARLY_ACCESS_TEXT_MAX,
   type EarlyAccessStatus,
+  USER_LOCALES,
   earlyAccessRequests,
   users,
 } from "./schema";
@@ -24,6 +27,13 @@ import {
  * staff commands (`storefront.early_access.manage`, the owner only) need a fresh passkey check and
  * never decide the acting person's own request. Audit data carries identifiers and flags only: never
  * the note, a reason or a pass (D-028).
+ *
+ * Invitations (igs-pharma#211): an owner invites an e-mail address. The row is `approved` with no
+ * `user_id`; when a customer CONFIRMS that address, the row gets their `user_id` and the shop opens
+ * for them (`redeemEarlyAccessInvitation`, run by the Better Auth hook; the pass check and a request
+ * redeem too, in case the hook failed). An address that already belongs to a verified customer gets
+ * the grant at once. The invite answers the same either way, so the form never tells whether an
+ * address has an account.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -55,6 +65,39 @@ const optionalText = z
   .max(EARLY_ACCESS_TEXT_MAX)
   .optional()
   .transform((value) => (value ? value : null));
+
+/**
+ * How long an invitation can be redeemed (igs-pharma#211): an address nobody confirms within this many
+ * days of the (last) invitation gets nothing. Never past the access's own end.
+ */
+export const EARLY_ACCESS_INVITATION_DAYS = 30;
+
+/** When an invitation made (or renewed) at `invitedAt` can no longer be redeemed. */
+export function invitationEndsAt(invitedAt: Date, expiresAt: Date | null): Date {
+  const window = invitedAt.getTime() + EARLY_ACCESS_INVITATION_DAYS * DAY_MS;
+  return new Date(expiresAt === null ? window : Math.min(window, expiresAt.getTime()));
+}
+
+/** SQL: an invitation (no user yet) that can still be redeemed at `now`. */
+const openInvitation = (now: Date) =>
+  and(
+    isNull(earlyAccessRequests.userId),
+    eq(earlyAccessRequests.status, "approved"),
+    gt(
+      earlyAccessRequests.requestedAt,
+      new Date(now.getTime() - EARLY_ACCESS_INVITATION_DAYS * DAY_MS),
+    ),
+    or(isNull(earlyAccessRequests.expiresAt), gt(earlyAccessRequests.expiresAt, now)),
+  );
+
+/**
+ * The address in an audit entry (igs-pharma#211): a hash, never the address, salted with the
+ * invitation's id so a list of addresses cannot be matched against every entry at once.
+ */
+const addressHash = (requestId: string, email: string) =>
+  createHash("sha256")
+    .update(`igs-early-access-invitation/${requestId}/${email.trim().toLowerCase()}`, "utf8")
+    .digest("hex");
 
 /** Whether an approved row still grants access at `now`. */
 const grantsAt = (row: { status: EarlyAccessStatus; expiresAt: Date | null }, now: Date) =>
@@ -187,6 +230,8 @@ export const requestEarlyAccess = command({
   permission: PERMISSIONS.storefront.earlyAccessSelf,
   async handler({ input, ctx }) {
     const user = await lockVerifiedCustomer(ctx);
+    // an invitation the hook did not redeem (igs-pharma#211) is a grant, not a reason to ask
+    await redeemInvitations(ctx, user.id);
     const state = earlyAccessState(await rowsOf(ctx, user.id), ctx.now);
     if (state.state === "approved") throw conflict("identity.early_access.already_granted");
     if (!canAskForEarlyAccess(state, ctx.now)) throw conflict("identity.early_access.too_soon");
@@ -238,6 +283,8 @@ export const issueEarlyAccessPass = command({
   output: z.object({ granted: z.boolean(), until: z.date().nullable() }),
   permission: PERMISSIONS.storefront.earlyAccessSelf,
   async handler({ ctx }) {
+    // igs-pharma#211: the e-mail hook redeems; this catches a confirmation whose hook failed
+    await redeemInvitations(ctx, ctx.actor.id);
     const [grant] = await ctx.tx
       .select({ expiresAt: earlyAccessRequests.expiresAt })
       .from(earlyAccessRequests)
@@ -269,6 +316,58 @@ export const issueEarlyAccessPass = command({
   },
 });
 
+// ── Invitations: the redeeming side (igs-pharma#211) ────────────────────────────────────────────
+
+/**
+ * Turns the open invitations for `userId`'s address into their grant: only for an active customer
+ * whose address is VERIFIED, and only invitations still in their window. The address matches
+ * case-insensitively (`citext`). Each redemption is audited; returns how many there were.
+ */
+async function redeemInvitations(ctx: Ctx, userId: string): Promise<number> {
+  const [user] = await ctx.tx
+    .select({ email: users.email })
+    .from(users)
+    .where(
+      and(
+        eq(users.id, userId),
+        eq(users.status, "active"),
+        eq(users.kind, "customer"),
+        eq(users.emailVerified, true),
+      ),
+    );
+  if (!user) return 0;
+  const redeemed = await ctx.tx
+    .update(earlyAccessRequests)
+    .set({ userId, updatedAt: ctx.now })
+    .where(and(openInvitation(ctx.now), eq(earlyAccessRequests.invitedEmail, user.email)))
+    .returning({ id: earlyAccessRequests.id });
+  for (const row of redeemed) {
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.earlyAccessInvitationRedeemed,
+      entityType: "early_access_request",
+      entityId: row.id,
+      data: { requestId: row.id, userId },
+    });
+  }
+  return redeemed.length;
+}
+
+/**
+ * Better Auth's "e-mail verified" hook (igs-pharma#211), run by the app's composition root as the
+ * `system_auth` actor: an open invitation for the address the customer just confirmed becomes their
+ * grant. Audited only when something was redeemed (most confirmations have no invitation).
+ */
+export const redeemEarlyAccessInvitation = command({
+  name: "identity.early_access.redeem",
+  input: z.object({ userId: z.uuid() }),
+  output: z.object({ redeemed: z.number().int().nonnegative() }),
+  permission: PERMISSIONS.storefront.earlyAccessRedeem,
+  audit: "none",
+  async handler({ input, ctx }) {
+    return { redeemed: await redeemInvitations(ctx, input.userId) };
+  },
+});
+
 // ── The staff side ──────────────────────────────────────────────────────────────────────────────
 
 /** One request as the back-office lists it. */
@@ -287,6 +386,10 @@ export interface EarlyAccessListItem {
   readonly decidedByName: string | null;
   readonly decisionReason: string | null;
   readonly expiresAt: Date | null;
+  /** igs-pharma#211: an invitation nobody has redeemed yet (no user; `email` is the invited address). */
+  readonly invitation: boolean;
+  /** For an unredeemed invitation: until when it can be redeemed. */
+  readonly invitationEndsAt: Date | null;
 }
 
 export interface EarlyAccessList {
@@ -294,7 +397,12 @@ export interface EarlyAccessList {
   readonly pending: readonly EarlyAccessListItem[];
   /** Active grants, the soonest to end first (until launch last). */
   readonly approved: readonly EarlyAccessListItem[];
-  /** Rejected, revoked and expired, the latest decision first (at most `HISTORY_LIMIT`). */
+  /** igs-pharma#211: open invitations nobody has redeemed yet, the newest first. */
+  readonly invited: readonly EarlyAccessListItem[];
+  /**
+   * Rejected, revoked and expired, and invitations cancelled or never redeemed, the latest decision
+   * first (at most `HISTORY_LIMIT`).
+   */
   readonly history: readonly EarlyAccessListItem[];
 }
 
@@ -320,16 +428,33 @@ export const listEarlyAccessRequests = query({
         .from(earlyAccessRequests)
         .leftJoin(users, eq(users.id, earlyAccessRequests.userId))
         .leftJoin(decider, eq(decider.id, earlyAccessRequests.decidedBy));
-    const toItem = <T extends { status: EarlyAccessStatus; expiresAt: Date | null }>(row: T) => ({
-      ...row,
-      active: grantsAt(row, ctx.now),
-    });
+    const toItem = <
+      T extends {
+        userId: string | null;
+        status: EarlyAccessStatus;
+        requestedAt: Date;
+        expiresAt: Date | null;
+      },
+    >(
+      row: T,
+    ) => {
+      const invitation = row.userId === null;
+      return {
+        ...row,
+        active: !invitation && grantsAt(row, ctx.now),
+        invitation,
+        invitationEndsAt: invitation ? invitationEndsAt(row.requestedAt, row.expiresAt) : null,
+      };
+    };
     const pending = await select()
       .where(eq(earlyAccessRequests.status, "pending"))
       .orderBy(earlyAccessRequests.requestedAt);
     const approved = await select()
-      .where(activeGrant(ctx.now))
+      .where(and(isNotNull(earlyAccessRequests.userId), activeGrant(ctx.now)))
       .orderBy(sql`${earlyAccessRequests.expiresAt} ASC NULLS LAST`);
+    const invited = await select()
+      .where(openInvitation(ctx.now))
+      .orderBy(desc(earlyAccessRequests.requestedAt));
     const history = await select()
       .where(
         or(
@@ -339,6 +464,15 @@ export const listEarlyAccessRequests = query({
             eq(earlyAccessRequests.status, "approved"),
             lte(earlyAccessRequests.expiresAt, ctx.now),
           ),
+          // an invitation whose window closed unredeemed
+          and(
+            isNull(earlyAccessRequests.userId),
+            eq(earlyAccessRequests.status, "approved"),
+            lte(
+              earlyAccessRequests.requestedAt,
+              new Date(ctx.now.getTime() - EARLY_ACCESS_INVITATION_DAYS * DAY_MS),
+            ),
+          ),
         ),
       )
       .orderBy(desc(earlyAccessRequests.decidedAt))
@@ -346,6 +480,7 @@ export const listEarlyAccessRequests = query({
     return {
       pending: pending.map(toItem),
       approved: approved.map(toItem),
+      invited: invited.map(toItem),
       history: history.map(toItem),
     };
   },
@@ -487,6 +622,192 @@ async function endRequest(
   });
 }
 
+// ── Invitations: the staff side (igs-pharma#211) ────────────────────────────────────────────────
+
+/** Approves `userId`'s open request, extends their active grant, or adds a grant: one row stays theirs. */
+async function grantToUser(
+  ctx: Ctx,
+  userId: string,
+  invitedEmail: string,
+  expiresAt: Date | null,
+): Promise<string> {
+  const rows = await rowsOf(ctx, userId);
+  const current =
+    rows.find((row) => grantsAt(row, ctx.now)) ?? rows.find((row) => row.status === "pending");
+  const decision = {
+    status: "approved" as const,
+    decidedBy: ctx.actor.id,
+    decidedAt: ctx.now,
+    decisionReason: null,
+    expiresAt,
+    updatedAt: ctx.now,
+  };
+  if (current) {
+    await ctx.tx
+      .update(earlyAccessRequests)
+      .set(decision)
+      .where(eq(earlyAccessRequests.id, current.id));
+    return current.id;
+  }
+  const [row] = await ctx.tx
+    .insert(earlyAccessRequests)
+    .values({ ...decision, userId, invitedEmail, requestedAt: ctx.now })
+    .returning({ id: earlyAccessRequests.id });
+  if (!row) throw new Error("identity.early_access_not_stored");
+  return row.id;
+}
+
+/**
+ * Stores the open invitation for `email`, or renews the one there is (one per address: the partial
+ * unique index; a parallel invite of the same address waits on the row and renews it).
+ */
+async function upsertInvitation(ctx: Ctx, email: string, expiresAt: Date | null): Promise<string> {
+  const decision = {
+    status: "approved" as const,
+    decidedBy: ctx.actor.id,
+    decidedAt: ctx.now,
+    decisionReason: null,
+    expiresAt,
+    requestedAt: ctx.now,
+    updatedAt: ctx.now,
+  };
+  const [created] = await ctx.tx
+    .insert(earlyAccessRequests)
+    .values({ ...decision, invitedEmail: email })
+    .onConflictDoNothing()
+    .returning({ id: earlyAccessRequests.id });
+  if (created) return created.id;
+  const [renewed] = await ctx.tx
+    .update(earlyAccessRequests)
+    .set(decision)
+    .where(
+      and(
+        isNull(earlyAccessRequests.userId),
+        sql`lower(${earlyAccessRequests.invitedEmail}) = lower(${email})`,
+        sql`${earlyAccessRequests.status} IN ('pending', 'approved')`,
+      ),
+    )
+    .returning({ id: earlyAccessRequests.id });
+  // the conflicting row was redeemed or cancelled in between (rare): the owner tries again
+  if (!renewed) throw conflict("identity.early_access.state_changed");
+  return renewed.id;
+}
+
+/**
+ * Invites an e-mail address to see the shop before launch (igs-pharma#211), for 7, 30 or 90 days or
+ * until launch. An address of a verified customer gets the grant at once (and the approval mail);
+ * any other address gets an invitation (and the invitation mail, in `locale`), which becomes the
+ * grant when a customer confirms that address within {@link EARLY_ACCESS_INVITATION_DAYS} days.
+ * Inviting the same address again renews it. The answer is the same either way. Needs a fresh
+ * passkey check; nobody invites their own address. `link` is the storefront's early-access page.
+ */
+export const inviteEarlyAccess = command({
+  name: "identity.early_access.invite",
+  input: z.object({
+    email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
+    duration: z.enum(EARLY_ACCESS_DURATIONS).default(DEFAULT_EARLY_ACCESS_DURATION),
+    locale: z.enum(USER_LOCALES).default("nl"),
+    link: z.string().url().max(2048).optional(),
+  }),
+  output: decisionOutput,
+  permission: PERMISSIONS.storefront.earlyAccessManage,
+  async handler({ input, ctx }) {
+    requireFreshMfa(ctx);
+    const [self] = await ctx.tx
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, ctx.actor.id), eq(users.email, input.email)));
+    if (self) throw forbidden("identity.early_access.own_address");
+    const expiresAt =
+      input.duration === "until_launch"
+        ? null
+        : new Date(ctx.now.getTime() + DURATION_DAYS[input.duration] * DAY_MS);
+    // the person's row lock serialises this with their own request and the redeeming hook
+    const [customer] = await ctx.tx
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.email, input.email),
+          eq(users.kind, "customer"),
+          eq(users.status, "active"),
+          eq(users.emailVerified, true),
+        ),
+      )
+      .for("update");
+    const requestId = customer
+      ? await grantToUser(ctx, customer.id, input.email, expiresAt)
+      : await upsertInvitation(ctx, input.email, expiresAt);
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.earlyAccessInvited,
+      entityType: "early_access_request",
+      entityId: requestId,
+      data: {
+        requestId,
+        addressHash: addressHash(requestId, input.email),
+        duration: input.duration,
+      },
+    });
+    if (customer) {
+      await ctx.audit.record({
+        action: IDENTITY_AUDIT.earlyAccessInvitationRedeemed,
+        entityType: "early_access_request",
+        entityId: requestId,
+        data: { requestId, userId: customer.id },
+      });
+      await queueMail(ctx, {
+        userId: customer.id,
+        template: "early_access_approved",
+        url: input.link,
+        validUntil: expiresAt,
+      });
+    } else {
+      await queueMail(ctx, {
+        toEmail: input.email,
+        locale: input.locale,
+        template: "early_access_invited",
+        url: input.link,
+        validUntil: expiresAt,
+      });
+    }
+    return { ok: true as const };
+  },
+});
+
+/**
+ * Cancels an invitation nobody has redeemed (igs-pharma#211): a later sign-up with that address gets
+ * nothing. A redeemed invitation is an ordinary grant: it is revoked with `revokeEarlyAccess`.
+ */
+export const cancelEarlyAccessInvitation = command({
+  name: "identity.early_access.invitation.cancel",
+  input: decisionInput,
+  output: decisionOutput,
+  permission: PERMISSIONS.storefront.earlyAccessManage,
+  async handler({ input, ctx }) {
+    const [row] = await ctx.tx
+      .select({ userId: earlyAccessRequests.userId, status: earlyAccessRequests.status })
+      .from(earlyAccessRequests)
+      .where(eq(earlyAccessRequests.id, input.requestId))
+      .for("update");
+    if (!row) throw notFound("identity.early_access.not_found");
+    if (row.userId !== null || row.status !== "approved") {
+      throw conflict("identity.early_access.state_changed");
+    }
+    requireFreshMfa(ctx);
+    await ctx.tx
+      .update(earlyAccessRequests)
+      .set({ status: "revoked", decidedBy: ctx.actor.id, decidedAt: ctx.now, updatedAt: ctx.now })
+      .where(eq(earlyAccessRequests.id, input.requestId));
+    await ctx.audit.record({
+      action: IDENTITY_AUDIT.earlyAccessInvitationCancelled,
+      entityType: "early_access_request",
+      entityId: input.requestId,
+      data: { requestId: input.requestId },
+    });
+    return { ok: true as const };
+  },
+});
+
 // ── Retention (GDPR) ────────────────────────────────────────────────────────────────────────────
 
 /** How long an ended request is kept: 12 months after its rejection, revocation or expiry. */
@@ -494,7 +815,8 @@ export const EARLY_ACCESS_RETENTION_MS = 365 * DAY_MS;
 
 /**
  * Deletes the requests that ended more than {@link EARLY_ACCESS_RETENTION_MS} ago (rejected, revoked,
- * or approved and expired). Open requests and active grants are kept. Run by the worker's daily job,
+ * or approved and expired), and the invitations nobody redeemed whose window closed that long ago
+ * (igs-pharma#211: the address of someone with no account). Open requests and active grants are kept. Run by the worker's daily job,
  * in the caller's transaction; returns how many rows went.
  */
 export async function purgeEndedEarlyAccess(tx: Ctx["tx"], now: Date): Promise<number> {
@@ -508,6 +830,14 @@ export async function purgeEndedEarlyAccess(tx: Ctx["tx"], now: Date): Promise<n
           lt(earlyAccessRequests.decidedAt, cutoff),
         ),
         and(eq(earlyAccessRequests.status, "approved"), lt(earlyAccessRequests.expiresAt, cutoff)),
+        and(
+          isNull(earlyAccessRequests.userId),
+          eq(earlyAccessRequests.status, "approved"),
+          lt(
+            earlyAccessRequests.requestedAt,
+            new Date(cutoff.getTime() - EARLY_ACCESS_INVITATION_DAYS * DAY_MS),
+          ),
+        ),
       ),
     )
     .returning({ id: earlyAccessRequests.id });
