@@ -32,8 +32,53 @@ export function contactErrors(values: ContactValues): ContactErrors {
   return errors;
 }
 
+/**
+ * How the order reaches the customer (igs-pharma#202): collected at the pharmacy, or sent to an
+ * address in Belgium by Sendcloud. Home delivery exists only while its feature flag is on.
+ */
+export type DeliveryChoice = "pickup" | "delivery";
+
+/** Delivery is chosen with `delivery=delivery`; anything else, or the flag off, is pickup. */
+export const deliveryChoiceOf = (value: unknown, homeDelivery: boolean): DeliveryChoice =>
+  homeDelivery && value === "delivery" ? "delivery" : "pickup";
+
+export const ADDRESS_FIELDS = ["street", "postalCode", "city"] as const;
+export type AddressField = (typeof ADDRESS_FIELDS)[number];
+export type AddressValues = Record<AddressField, string>;
+export type AddressErrorKey =
+  | "streetRequired"
+  | "streetTooLong"
+  | "postalCodeInvalid"
+  | "cityRequired"
+  | "cityTooLong";
+export type AddressErrors = Partial<Record<AddressField, AddressErrorKey>>;
+
+export const STREET_MAX = 120;
+export const CITY_MAX = 80;
+/** A Belgian postal code: four digits, the first not 0 (the same rule as `orders.order.place`). */
+export const BE_POSTAL_CODE = /^[1-9][0-9]{3}$/;
+
+/** Per-field problems of a delivery address, or an empty object when it can be sent. */
+export function addressErrors(values: AddressValues): AddressErrors {
+  const errors: AddressErrors = {};
+  const street = values.street.trim();
+  if (!street) errors.street = "streetRequired";
+  else if (street.length > STREET_MAX) errors.street = "streetTooLong";
+  if (!BE_POSTAL_CODE.test(values.postalCode.trim())) errors.postalCode = "postalCodeInvalid";
+  const city = values.city.trim();
+  if (!city) errors.city = "cityRequired";
+  else if (city.length > CITY_MAX) errors.city = "cityTooLong";
+  return errors;
+}
+
 /** Why placing the order did not work, as a message key of the `checkout` namespace. */
-export type PlaceFailure = "expired" | "cancelled" | "notFound" | "invalid" | "failed";
+export type PlaceFailure =
+  | "expired"
+  | "cancelled"
+  | "notFound"
+  | "invalid"
+  | "feeChanged"
+  | "failed";
 
 export function placeFailureOf(code: string): PlaceFailure {
   switch (code) {
@@ -45,6 +90,8 @@ export function placeFailureOf(code: string): PlaceFailure {
       return "notFound";
     case "kernel.validation_failed":
       return "invalid";
+    case "orders.delivery_fee_changed":
+      return "feeChanged";
     default:
       return "failed";
   }
@@ -55,12 +102,21 @@ export interface PlaceState {
   readonly values: ContactValues;
   readonly errors: ContactErrors;
   readonly failure: PlaceFailure | null;
+  /** What was chosen, and the address typed, so a refused form keeps them. */
+  readonly delivery: DeliveryChoice;
+  readonly address: AddressValues;
+  readonly addressErrors: AddressErrors;
 }
+
+export const EMPTY_ADDRESS: AddressValues = { street: "", postalCode: "", city: "" };
 
 export const EMPTY_PLACE_STATE: PlaceState = {
   values: { name: "", email: "", phone: "" },
   errors: {},
   failure: null,
+  delivery: "pickup",
+  address: EMPTY_ADDRESS,
+  addressErrors: {},
 };
 
 /** A UUID from a URL segment or form, else `null`. */

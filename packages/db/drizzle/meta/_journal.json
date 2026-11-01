@@ -575,6 +575,27 @@
       "when": 1793482258437,
       "tag": "0081_rbac_seed_delivery_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1793483754811,
+      "tag": "0082_orders_delivery_method_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1793483783557,
+      "tag": "0083_orders_delivery_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1793483785843,
+      "tag": "0084_orders_delivery_grants",
+      "breakpoints": true
     }
   ]
 }

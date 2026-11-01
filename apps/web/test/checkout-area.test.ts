@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { resultOfCode } from "../src/lib/cart-area";
 import {
+  addressErrors,
   brusselsDate,
   brusselsTime,
   contactErrors,
+  deliveryChoiceOf,
   normalisePhone,
   payReturnOf,
   paymentNoticeOf,
@@ -56,6 +58,7 @@ describe("refusals", () => {
     expect(placeFailureOf("orders.checkout_cancelled")).toBe("cancelled");
     expect(placeFailureOf("orders.checkout_not_found")).toBe("notFound");
     expect(placeFailureOf("kernel.validation_failed")).toBe("invalid");
+    expect(placeFailureOf("orders.delivery_fee_changed")).toBe("feeChanged");
     expect(placeFailureOf("kernel.anything")).toBe("failed");
     expect(resultOfCode("orders.checkout_short")).toBe("short");
     expect(resultOfCode("orders.checkout_unavailable")).toBe("unavailable");
@@ -87,6 +90,7 @@ describe("messages", () => {
         "failureCancelled",
         "failureNotFound",
         "failureInvalid",
+        "failureFeeChanged",
         "failureFailed",
       ],
       order: [
@@ -180,5 +184,32 @@ describe("the order status link (igs-pharma#116)", () => {
 
   it("dates an order in Brussels", () => {
     expect(brusselsDate(new Date("2026-10-21T23:30:00Z"), "nl-BE")).toBe("22 okt 2026");
+  });
+});
+
+describe("the delivery step", () => {
+  const address = { street: "Rue Neuve 1", postalCode: "1000", city: "Brussel" };
+
+  it("accepts a Belgian address and names each problem per field", () => {
+    expect(addressErrors(address)).toEqual({});
+    expect(addressErrors({ street: " ", postalCode: "0123", city: "" })).toEqual({
+      street: "streetRequired",
+      postalCode: "postalCodeInvalid",
+      city: "cityRequired",
+    });
+    expect(addressErrors({ ...address, street: "x".repeat(121) })).toEqual({
+      street: "streetTooLong",
+    });
+    expect(addressErrors({ ...address, city: "x".repeat(81), postalCode: "123" })).toEqual({
+      city: "cityTooLong",
+      postalCode: "postalCodeInvalid",
+    });
+  });
+
+  it("only offers delivery while the flag is on", () => {
+    expect(deliveryChoiceOf("delivery", true)).toBe("delivery");
+    expect(deliveryChoiceOf("delivery", false)).toBe("pickup");
+    expect(deliveryChoiceOf("pickup", true)).toBe("pickup");
+    expect(deliveryChoiceOf(null, true)).toBe("pickup");
   });
 });

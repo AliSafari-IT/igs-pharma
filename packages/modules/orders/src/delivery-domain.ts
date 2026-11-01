@@ -21,6 +21,15 @@ export const MAX_FREE_FROM_CENTS = 100_000;
  */
 export const DELIVERY_VAT_RATE_BP = 2_100;
 
+/** How an order reaches the customer: collected at the pharmacy (free) or sent by Sendcloud. */
+export const DELIVERY_METHODS = ["pickup", "delivery"] as const;
+export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
+
+/** Home delivery goes to Belgium only for now (international delivery is out of scope, #202). */
+export const DELIVERY_COUNTRY = "BE";
+/** A Belgian postal code: four digits, the first not 0. */
+export const BE_POSTAL_CODE_PATTERN = /^[1-9][0-9]{3}$/;
+
 /** The two numbers staff control. `freeFromCents` is `null` when delivery is never free. */
 export interface DeliveryRates {
   readonly priceCents: number;

@@ -117,6 +117,17 @@ export const featureFlagsEnv = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /**
+   * Home delivery by Sendcloud at the checkout (igs-pharma#202): the delivery step with its address, and
+   * its cost on the product page, the cart and the checkout. Off by default and strictly `true` or
+   * `false`: off, the shop takes pickup orders only, as before. Switch it on only once the whole
+   * delivery chain (labels, tracking mail, the delivered and returned states) is live, or a delivery
+   * order would be handled as a pickup. Needs the cart.
+   */
+  NEXT_PUBLIC_FEATURE_HOME_DELIVERY: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 /**

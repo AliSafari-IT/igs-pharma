@@ -126,7 +126,9 @@
     "askPharmacistHeading": "Ask your pharmacist",
     "headerCart": "Cart",
     "earlyAccessBanner": "Early access: you are seeing the shop before it opens to everyone.",
-    "earlyAccessDetails": "Your early access"
+    "earlyAccessDetails": "Your early access",
+    "deliveryNote": "Pickup at the pharmacy is free. Home delivery {price}, free from {amount}. Prices include VAT.",
+    "deliveryNoteNever": "Pickup at the pharmacy is free. Home delivery {price}. Prices include VAT."
   },
   "account": {
     "headerSignIn": "Sign in",
@@ -278,7 +280,10 @@
     "resultUnavailable": "This product is no longer available.",
     "resultFailed": "That did not work. Please try again.",
     "resultShort": "There is not enough stock for some products. Lower the quantity or remove them.",
-    "resultEmpty": "Your cart is empty."
+    "resultEmpty": "Your cart is empty.",
+    "deliveryInfo": "Pickup at the pharmacy is free. Home delivery: {price}, VAT included.",
+    "deliveryFreeNow": "Pickup is free, and your order qualifies for free home delivery.",
+    "deliveryMissing": "Add {amount} more for free home delivery."
   },
   "checkout": {
     "title": "Checkout",
@@ -314,7 +319,28 @@
     "failureCancelled": "This checkout was replaced by a newer one. Go back to your cart.",
     "failureNotFound": "We can no longer find this checkout. Go back to your cart.",
     "failureInvalid": "Please check your details.",
-    "failureFailed": "That did not work. Please try again."
+    "failureFeeChanged": "The delivery price changed while you were ordering. Check the new amount and confirm again.",
+    "failureFailed": "That did not work. Please try again.",
+    "pickupWhere": "If you choose pickup, you collect your order here:",
+    "stepDelivery": "How would you like to get your order?",
+    "deliveryPickup": "Pickup at the pharmacy",
+    "deliveryHome": "Home delivery in Belgium (Sendcloud)",
+    "deliveryFree": "Free",
+    "deliveryFreeReached": "Your order qualifies for free delivery.",
+    "deliveryMissing": "Add {amount} more for free delivery.",
+    "deliveryCost": "Delivery",
+    "toPay": "To pay",
+    "addressTitle": "Delivery address",
+    "addressNote": "Only for home delivery. We deliver in Belgium only.",
+    "street": "Street and number",
+    "streetHint": "With the box number, if any",
+    "postalCode": "Postal code",
+    "city": "City",
+    "streetRequired": "Enter the street and number.",
+    "streetTooLong": "This is too long (120 characters at most).",
+    "postalCodeInvalid": "Enter a Belgian postal code of four digits.",
+    "cityRequired": "Enter the city.",
+    "cityTooLong": "This is too long (80 characters at most)."
   },
   "order": {
     "title": "Thank you, we have received your order",
@@ -349,7 +375,11 @@
     "statusCancelled": "Cancelled",
     "statusExpired": "Expired",
     "statusLinkTitle": "Keep this page",
-    "statusLinkBody": "The link to this page lets you follow your order, even without an account or on another device. Don't share it with anyone."
+    "statusLinkBody": "The link to this page lets you follow your order, even without an account or on another device. Don't share it with anyone.",
+    "deliveryCost": "Delivery",
+    "deliveryFree": "Free",
+    "deliveryTitle": "Delivery",
+    "deliveryHome": "Home delivery"
   },
   "earlyAccess": {
     "title": "Early access",

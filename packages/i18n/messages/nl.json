@@ -126,7 +126,9 @@
     "askPharmacistHeading": "Vraag het uw apotheker",
     "headerCart": "Winkelmandje",
     "earlyAccessBanner": "Vroege toegang: u ziet de webwinkel voor hij voor iedereen opengaat.",
-    "earlyAccessDetails": "Uw vroege toegang"
+    "earlyAccessDetails": "Uw vroege toegang",
+    "deliveryNote": "Afhalen in de apotheek is gratis. Levering aan huis {price}, gratis vanaf {amount}. Prijzen inclusief btw.",
+    "deliveryNoteNever": "Afhalen in de apotheek is gratis. Levering aan huis {price}. Prijzen inclusief btw."
   },
   "account": {
     "headerSignIn": "Aanmelden",
@@ -278,7 +280,10 @@
     "resultUnavailable": "Dit product is niet meer beschikbaar.",
     "resultFailed": "Dat is niet gelukt. Probeer het opnieuw.",
     "resultShort": "Er is niet genoeg voorraad voor sommige producten. Verlaag het aantal of verwijder ze.",
-    "resultEmpty": "Je winkelmandje is leeg."
+    "resultEmpty": "Je winkelmandje is leeg.",
+    "deliveryInfo": "Afhalen in de apotheek is gratis. Levering aan huis: {price}, inclusief btw.",
+    "deliveryFreeNow": "Afhalen is gratis, en uw bestelling komt in aanmerking voor gratis levering aan huis.",
+    "deliveryMissing": "Voeg nog {amount} toe voor gratis levering aan huis."
   },
   "checkout": {
     "title": "Afrekenen",
@@ -314,7 +319,28 @@
     "failureCancelled": "Deze bestelling werd vervangen door een nieuwere. Ga terug naar je winkelmandje.",
     "failureNotFound": "We vinden deze bestelling niet meer. Ga terug naar je winkelmandje.",
     "failureInvalid": "Controleer je gegevens.",
-    "failureFailed": "Dat is niet gelukt. Probeer het opnieuw."
+    "failureFeeChanged": "De bezorgprijs is gewijzigd terwijl u bestelde. Controleer het nieuwe bedrag en bevestig opnieuw.",
+    "failureFailed": "Dat is niet gelukt. Probeer het opnieuw.",
+    "pickupWhere": "Kiest u afhalen, dan haalt u uw bestelling hier op:",
+    "stepDelivery": "Hoe wilt u uw bestelling krijgen?",
+    "deliveryPickup": "Afhalen in de apotheek",
+    "deliveryHome": "Levering aan huis in België (Sendcloud)",
+    "deliveryFree": "Gratis",
+    "deliveryFreeReached": "Uw bestelling komt in aanmerking voor gratis levering.",
+    "deliveryMissing": "Voeg nog {amount} toe voor gratis levering.",
+    "deliveryCost": "Levering",
+    "toPay": "Te betalen",
+    "addressTitle": "Leveradres",
+    "addressNote": "Alleen voor levering aan huis. We leveren enkel in België.",
+    "street": "Straat en nummer",
+    "streetHint": "Met busnummer, indien van toepassing",
+    "postalCode": "Postcode",
+    "city": "Gemeente",
+    "streetRequired": "Vul straat en nummer in.",
+    "streetTooLong": "Dit is te lang (maximaal 120 tekens).",
+    "postalCodeInvalid": "Vul een Belgische postcode in van vier cijfers.",
+    "cityRequired": "Vul de gemeente in.",
+    "cityTooLong": "Dit is te lang (maximaal 80 tekens)."
   },
   "order": {
     "title": "Bedankt, we hebben je bestelling ontvangen",
@@ -349,7 +375,11 @@
     "statusCancelled": "Geannuleerd",
     "statusExpired": "Verlopen",
     "statusLinkTitle": "Bewaar deze pagina",
-    "statusLinkBody": "Met de link van deze pagina volg je je bestelling, ook zonder account of op een ander toestel. Deel hem met niemand."
+    "statusLinkBody": "Met de link van deze pagina volg je je bestelling, ook zonder account of op een ander toestel. Deel hem met niemand.",
+    "deliveryCost": "Levering",
+    "deliveryFree": "Gratis",
+    "deliveryTitle": "Levering",
+    "deliveryHome": "Levering aan huis"
   },
   "earlyAccess": {
     "title": "Vroege toegang",

@@ -128,11 +128,34 @@ export default async function OrderPage({ params, searchParams }: Props) {
                   </li>
                 ))}
               </ul>
+              {order.deliveryMethod === "delivery" ? (
+                <p className="flex items-baseline gap-2" data-testid="order-delivery-fee">
+                  <span>{t("deliveryCost")}</span>
+                  {order.deliveryFeeCents === 0 ? (
+                    <strong>{t("deliveryFree")}</strong>
+                  ) : (
+                    <Price cents={order.deliveryFeeCents} locale={intl} />
+                  )}
+                </p>
+              ) : null}
               <p className="flex items-baseline gap-2">
                 <span className="font-semibold">{t("total")}</span>
                 <Price cents={order.totalCents} locale={intl} vatLabel={t("vatIncluded")} />
               </p>
             </section>
+            {order.deliveryMethod === "delivery" && order.deliveryAddress ? (
+              <section aria-labelledby="order-delivery" className="flex flex-col gap-2">
+                <h2 id="order-delivery" className="font-display text-xl font-semibold">
+                  {t("deliveryTitle")}
+                </h2>
+                <p>{t("deliveryHome")}</p>
+                <address className="not-italic" data-testid="order-delivery-address">
+                  {order.deliveryAddress.street}
+                  <br />
+                  {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
+                </address>
+              </section>
+            ) : null}
             <Link href={`/${locale}`}>{t("continueShopping")}</Link>
           </>
         )}

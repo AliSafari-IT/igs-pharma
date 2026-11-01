@@ -117,6 +117,15 @@ export const orders: SchemaGrants = {
       note: "trigger function: pending → sent or skipped",
       since: 61,
     }),
+    table("orders.order_addresses", "mutable", {
+      app: ["SELECT", "INSERT"],
+      note: "where a home-delivery order goes (igs-pharma#202); written with the order, never changed (a trigger refuses UPDATE and DELETE); personal data like the contact",
+      since: 84,
+    }),
+    fn("orders.order_address_match()", {
+      note: "deferred constraint trigger function: a delivery order has one address, a pickup order none",
+      since: 84,
+    }),
     table("orders.delivery_settings", "mutable", {
       app: ["SELECT", "INSERT", "UPDATE"],
       note: "one row: the home-delivery price and the free-delivery value staff set (igs-pharma#202); never deleted",

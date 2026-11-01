@@ -1,12 +1,13 @@
 import { PHARMACY_IDENTITY } from "@igs/config";
+import { getFeatureFlags } from "@igs/config/feature-flags";
 import { isDomainError } from "@igs/kernel";
-import { type CheckoutView, getCheckout } from "@igs/module-orders";
+import { type CheckoutView, getCheckout, getDeliveryQuote } from "@igs/module-orders";
 import { logger } from "@igs/observability/logger";
 import { Alert, Button, Link, Price } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
 
-import { CheckoutForm } from "../../../../components/checkout/checkout-form";
+import { CheckoutForm, type DeliveryOffer } from "../../../../components/checkout/checkout-form";
 import { StorefrontFrame } from "../../../../components/storefront-frame";
 import { brusselsTime, uuidOf } from "../../../../lib/checkout-area";
 import { cartActor, cartLocale } from "../../../../server/cart";
@@ -34,9 +35,21 @@ export default async function CheckoutPage({ params }: Props) {
   const intl = INTL_LOCALE[locale];
 
   let checkout: CheckoutView | null = null;
+  // what home delivery would cost this checkout; `null` while it is off (pickup orders only)
+  let delivery: DeliveryOffer | null = null;
   try {
     const { actor, token } = await cartActor();
     checkout = await getCheckout({ cartToken: token, checkoutId }, actor);
+    if (getFeatureFlags().homeDelivery) {
+      const quote = await getDeliveryQuote({ itemsTotalCents: checkout.totalCents }, actor);
+      delivery = {
+        itemsCents: checkout.totalCents,
+        feeCents: quote.feeCents,
+        isFree: quote.isFree,
+        freeFromCents: quote.freeFromCents,
+        missingCents: quote.missingCents,
+      };
+    }
   } catch (error) {
     if (isDomainError(error) && error.code === "orders.checkout_not_found") notFound();
     logger.error({ event: "storefront.checkout_failed", err: error }, "storefront.checkout_failed");
@@ -110,7 +123,7 @@ export default async function CheckoutPage({ params }: Props) {
               <h2 id="step-pickup" className="font-display text-xl font-semibold">
                 {t("stepPickup")}
               </h2>
-              <p>{t("pickupOnly")}</p>
+              <p>{delivery ? t("pickupWhere") : t("pickupOnly")}</p>
               <address className="not-italic" data-testid="pickup-address">
                 {PHARMACY_IDENTITY.name}
                 <br />
@@ -131,7 +144,12 @@ export default async function CheckoutPage({ params }: Props) {
               <h2 id="step-contact" className="font-display text-xl font-semibold">
                 {t("stepContact")}
               </h2>
-              <CheckoutForm locale={locale} checkoutId={checkout.checkoutId} />
+              <CheckoutForm
+                locale={locale}
+                checkoutId={checkout.checkoutId}
+                intl={intl}
+                delivery={delivery}
+              />
             </section>
           </>
         )}

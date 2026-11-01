@@ -3,6 +3,7 @@ import { PERMISSIONS } from "@igs/rbac";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
+import type { DeliveryMethod } from "./delivery-domain";
 import {
   ORDER_STATUSES,
   type OrderStatus,
@@ -14,6 +15,7 @@ import {
 import { notSellableLinesOf } from "./eligibility";
 import { type RefundView, refundsOf } from "./refunds";
 import {
+  orderAddresses,
   orderContacts,
   orderEvents,
   orderLines,
@@ -22,7 +24,7 @@ import {
   payments,
   refunds,
 } from "./schema";
-import type { BasketLineView } from "./views";
+import type { BasketLineView, DeliveryAddressView } from "./views";
 
 /** Back-office order reads (`orders.read`). */
 
@@ -197,8 +199,14 @@ export interface StaffOrderView {
   /** While stock-short: since when, and whether past `STOCK_SHORT_DEADLINE_HOURS`. */
   readonly stockShort: { readonly since: Date; readonly overdue: boolean } | null;
   readonly locale: string;
+  /** What the customer paid, the delivery fee included. */
   readonly totalCents: number;
   readonly vatCents: number;
+  /** Collected at the pharmacy, or sent to `deliveryAddress` (igs-pharma#202). */
+  readonly deliveryMethod: DeliveryMethod;
+  /** Part of `totalCents`; 0 for a pickup order. */
+  readonly deliveryFeeCents: number;
+  readonly deliveryAddress: DeliveryAddressView | null;
   readonly createdAt: Date;
   readonly contact: {
     readonly name: string;
@@ -250,6 +258,8 @@ export const getOrderForStaff = query({
         locale: ordersTable.locale,
         totalCents: ordersTable.totalCents,
         vatCents: ordersTable.vatCents,
+        deliveryMethod: ordersTable.deliveryMethod,
+        deliveryFeeCents: ordersTable.deliveryFeeCents,
         createdAt: ordersTable.createdAt,
         paymentStatus: latestPaymentStatus,
         refunding: activeRefund,
@@ -258,6 +268,15 @@ export const getOrderForStaff = query({
       .from(ordersTable)
       .where(eq(ordersTable.id, input.orderId));
     if (!order) throw notFound("orders.order_not_found");
+    const [address] = await ctx.tx
+      .select({
+        street: orderAddresses.street,
+        postalCode: orderAddresses.postalCode,
+        city: orderAddresses.city,
+        country: orderAddresses.country,
+      })
+      .from(orderAddresses)
+      .where(eq(orderAddresses.orderId, order.id));
     const [contact] = await ctx.tx
       .select({ name: orderContacts.name, email: orderContacts.email, phone: orderContacts.phone })
       .from(orderContacts)
@@ -312,6 +331,9 @@ export const getOrderForStaff = query({
       locale: order.locale,
       totalCents: order.totalCents,
       vatCents: order.vatCents,
+      deliveryMethod: order.deliveryMethod === "delivery" ? "delivery" : "pickup",
+      deliveryFeeCents: order.deliveryFeeCents,
+      deliveryAddress: address ?? null,
       createdAt: order.createdAt,
       contact: contact ?? null,
       lines,

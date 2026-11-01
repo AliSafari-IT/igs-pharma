@@ -41,7 +41,11 @@ export {
 } from "./cart";
 export { placeOrder, startCheckout } from "./checkout";
 export {
+  BE_POSTAL_CODE_PATTERN,
+  DELIVERY_COUNTRY,
   DELIVERY_DEFAULTS,
+  DELIVERY_METHODS,
+  type DeliveryMethod,
   DELIVERY_DEFAULT_FREE_FROM_CENTS,
   DELIVERY_DEFAULT_PRICE_CENTS,
   DELIVERY_VAT_RATE_BP,
@@ -57,13 +61,16 @@ export {
   parseEuroAmount,
 } from "./delivery-domain";
 export {
+  type DeliveryQuote,
   type DeliverySettings,
+  getDeliveryQuote,
   getDeliverySettings,
   loadDeliverySettings,
   setDeliverySettings,
 } from "./delivery";
 export {
   type BasketLineView,
+  type DeliveryAddressView,
   type CheckoutView,
   type OrderView,
   type OwnOrderListItem,

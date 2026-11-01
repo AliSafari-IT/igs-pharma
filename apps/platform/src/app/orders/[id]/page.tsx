@@ -271,6 +271,19 @@ export default async function OrderPage({ params, searchParams }: Props) {
                 ))}
               </tbody>
               <tfoot>
+                {order.deliveryMethod === "delivery" ? (
+                  <tr>
+                    <th scope="row" colSpan={3} className="py-2 pr-4 text-right font-normal">
+                      Home delivery
+                    </th>
+                    <td
+                      className="py-2 text-right tabular-nums"
+                      data-testid="staff-order-delivery-fee"
+                    >
+                      {order.deliveryFeeCents === 0 ? "Free" : formatEuros(order.deliveryFeeCents)}
+                    </td>
+                  </tr>
+                ) : null}
                 <tr>
                   <th scope="row" colSpan={3} className="py-2 pr-4 text-right font-semibold">
                     Total (VAT {formatEuros(order.vatCents)} included)
@@ -295,6 +308,21 @@ export default async function OrderPage({ params, searchParams }: Props) {
                   <dd>{order.contact.phone}</dd>
                   <dt className="font-semibold">Language</dt>
                   <dd>{order.locale.toUpperCase()}</dd>
+                  <dt className="font-semibold">Handover</dt>
+                  <dd data-testid="staff-order-method">
+                    {order.deliveryMethod === "delivery"
+                      ? "Home delivery"
+                      : "Pick up in the pharmacy"}
+                  </dd>
+                  {order.deliveryAddress ? (
+                    <>
+                      <dt className="font-semibold">Address</dt>
+                      <dd data-testid="staff-order-address">
+                        {order.deliveryAddress.street}, {order.deliveryAddress.postalCode}{" "}
+                        {order.deliveryAddress.city}
+                      </dd>
+                    </>
+                  ) : null}
                 </dl>
               ) : (
                 <p className="text-[var(--color-text-subtle)]">No contact details.</p>

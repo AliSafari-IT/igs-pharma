@@ -5,8 +5,16 @@ import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { cartToken, ownerOf } from "./cart";
+import type { DeliveryMethod } from "./delivery-domain";
 import type { CheckoutStatus, OrderStatus, PaymentStatus } from "./domain";
-import { checkoutLines, checkouts, orderLines, ordersTable, payments } from "./schema";
+import {
+  checkoutLines,
+  checkouts,
+  orderAddresses,
+  orderLines,
+  ordersTable,
+  payments,
+} from "./schema";
 
 /**
  * What the storefront shows of a checkout and of an order (igs-pharma#116, Sprint 3 E2), to their
@@ -97,13 +105,27 @@ export const getCheckout = query({
   },
 });
 
+/** Where a home-delivery order goes (igs-pharma#202). */
+export interface DeliveryAddressView {
+  readonly street: string;
+  readonly postalCode: string;
+  readonly city: string;
+  readonly country: string;
+}
+
 export interface OrderView {
   readonly orderId: string;
   readonly reference: string;
   readonly status: OrderStatus;
   readonly needsReview: boolean;
+  /** What the customer paid, the delivery fee included. */
   readonly totalCents: number;
   readonly vatCents: number;
+  /** Collected at the pharmacy, or sent to `deliveryAddress`. */
+  readonly deliveryMethod: DeliveryMethod;
+  /** What delivery cost, VAT included, and part of `totalCents`; 0 for a pickup order. */
+  readonly deliveryFeeCents: number;
+  readonly deliveryAddress: DeliveryAddressView | null;
   readonly createdAt: Date;
   readonly lines: readonly BasketLineView[];
   /** The latest payment's status, `null` when there is none. */
@@ -130,6 +152,8 @@ export const getOrder = query({
         needsReview: ordersTable.needsReview,
         totalCents: ordersTable.totalCents,
         vatCents: ordersTable.vatCents,
+        deliveryMethod: ordersTable.deliveryMethod,
+        deliveryFeeCents: ordersTable.deliveryFeeCents,
         createdAt: ordersTable.createdAt,
         customerId: ordersTable.customerId,
         statusTokenHash: ordersTable.statusTokenHash,
@@ -172,6 +196,15 @@ export const getOrder = query({
       // the latest attempt decides (retries add rows); the id (UUIDv7) breaks a same-instant tie
       .orderBy(desc(payments.createdAt), desc(payments.id))
       .limit(1);
+    const [address] = await ctx.tx
+      .select({
+        street: orderAddresses.street,
+        postalCode: orderAddresses.postalCode,
+        city: orderAddresses.city,
+        country: orderAddresses.country,
+      })
+      .from(orderAddresses)
+      .where(eq(orderAddresses.orderId, order.id));
     return {
       orderId: order.id,
       reference: order.reference,
@@ -179,6 +212,9 @@ export const getOrder = query({
       needsReview: order.needsReview,
       totalCents: order.totalCents,
       vatCents: order.vatCents,
+      deliveryMethod: order.deliveryMethod === "delivery" ? "delivery" : "pickup",
+      deliveryFeeCents: order.deliveryFeeCents,
+      deliveryAddress: address ?? null,
       createdAt: order.createdAt,
       lines,
       paymentStatus: (payment?.status as PaymentStatus | undefined) ?? null,
