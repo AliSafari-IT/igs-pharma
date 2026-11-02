@@ -229,7 +229,8 @@ test("refund refusal retains reason and note for an explicit retry", async ({ pa
   await signIn(context, pharmacistToken);
   await page.goto(`${PLATFORM}/orders/${orderId}`, { waitUntil: "networkidle" });
   const form = page.getByTestId("refund-form");
-  const reason = form.getByLabel("Reason", { exact: true });
+  await expect(form).toBeVisible();
+  const reason = form.getByRole("combobox", { name: "Reason", exact: true });
   const note = form.getByLabel("Note (staff only, optional)");
   await reason.selectOption("customer_request");
   await note.fill("Customer requested cancellation; draft retained.");
