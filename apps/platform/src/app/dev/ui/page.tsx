@@ -180,7 +180,7 @@ export default function UiGalleryPage() {
           </Section>
 
           <Section title="Responsive table">
-            <ResponsiveTable data-testid="responsive-table-demo">
+            <ResponsiveTable data-testid="responsive-table-demo" className="align-top">
               <caption className="sr-only">Demo orders</caption>
               <TableHead>
                 <TableRow className="border-b border-[var(--color-border-strong)]">

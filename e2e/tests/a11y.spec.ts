@@ -44,6 +44,7 @@ for (const width of [320, 639, 640, 1280]) {
         document.documentElement.dataset["theme"] = value;
       }, theme);
       const table = page.getByRole("table", { name: "Demo orders" });
+      await expect(table).toHaveClass(/align-top/);
       await expect(table.getByRole("columnheader")).toHaveCount(4);
       await expect(table.getByRole("row")).toHaveCount(3);
       await expect(table.getByRole("cell")).toHaveCount(8);

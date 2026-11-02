@@ -1,11 +1,20 @@
+import { cn } from "@igs/ui";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 /** One semantic table at every width; small screens show labelled rows as cards. */
-export function ResponsiveTable({ children, ...props }: ComponentPropsWithoutRef<"table">) {
+export function ResponsiveTable({
+  children,
+  className,
+  ...props
+}: ComponentPropsWithoutRef<"table">) {
   return (
     <div className="overflow-x-auto">
       {/* biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: Preserve semantics when CSS changes display. */}
-      <table {...props} role="table" className="responsive-table w-full border-collapse text-left">
+      <table
+        {...props}
+        role="table"
+        className={cn("responsive-table w-full border-collapse text-left", className)}
+      >
         {children}
       </table>
     </div>
