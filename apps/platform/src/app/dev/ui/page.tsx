@@ -13,6 +13,15 @@ import {
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../components/responsive-table";
+
 /**
  * Component gallery (T-017): every @igs/ui primitive and variant on one page, for review, the visual
  * smoke test and axe. A 404 in production unless UI_GALLERY=on (read at request time).
@@ -168,6 +177,55 @@ export default function UiGalleryPage() {
                 </dd>
               </dl>
             </Card>
+          </Section>
+
+          <Section title="Responsive table">
+            <ResponsiveTable data-testid="responsive-table-demo">
+              <caption className="sr-only">Demo orders</caption>
+              <TableHead>
+                <TableRow className="border-b border-[var(--color-border-strong)]">
+                  <TableHeader className="py-2 pr-4">Reference</TableHeader>
+                  <TableHeader className="py-2 pr-4">Customer</TableHeader>
+                  <TableHeader className="py-2 pr-4">Status</TableHeader>
+                  <TableHeader className="py-2 text-right">Total</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow className="border-b border-[var(--color-border)]">
+                  <TableCell label="Reference" className="py-2 pr-4">
+                    <Link href="#responsive-table-target">IGS-DEMO-000001</Link>
+                  </TableCell>
+                  <TableCell label="Customer" className="py-2 pr-4">
+                    DemoCustomerWithAVeryLongUnbrokenNameToCheckNarrowScreens
+                  </TableCell>
+                  <TableCell label="Status" className="py-2 pr-4">
+                    <span className="flex flex-wrap gap-1">
+                      <Badge variant="primary">In review</Badge>
+                      <Badge variant="neutral">Medicine</Badge>
+                      <Badge variant="error">Refund due</Badge>
+                    </span>
+                  </TableCell>
+                  <TableCell label="Total" className="py-2 text-right tabular-nums">
+                    € 1.234,56
+                  </TableCell>
+                </TableRow>
+                <TableRow className="border-b border-[var(--color-border)]">
+                  <TableCell label="Reference" className="py-2 pr-4">
+                    IGS-DEMO-000002
+                  </TableCell>
+                  <TableCell label="Customer" className="py-2 pr-4">
+                    —
+                  </TableCell>
+                  <TableCell label="Status" className="py-2 pr-4">
+                    <Badge variant="success">Ready for pickup</Badge>
+                  </TableCell>
+                  <TableCell label="Total" className="py-2 text-right tabular-nums">
+                    € 0,00
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </ResponsiveTable>
+            <p id="responsive-table-target">Synthetic table example; no customer records.</p>
           </Section>
 
           <Section title="Typography">

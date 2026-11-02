@@ -15,6 +15,14 @@ import { ListPager } from "../../components/list-pager";
 import { ListSearch } from "../../components/list-search";
 import { ExpiryBufferForm } from "../../components/lot-dialogs";
 import { PageHeader } from "../../components/page-header";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/responsive-table";
 import { formatMoment, stockErrorMessage } from "../../components/stock-labels";
 import { TableSkeleton } from "../../components/table-skeleton";
 import { type ListQuery, pageCount, parseListQuery } from "../../lib/list-query";
@@ -125,79 +133,81 @@ async function StockTable({ actor, query }: { actor: ResolvedActor; query: ListQ
           data-testid="stock-empty"
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <caption className="sr-only">
-              Stock, page {result.page} of {pages}
-            </caption>
-            <thead>
-              <tr className="border-b border-[var(--color-border-strong)]">
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  CNK
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Name (Dutch)
-                </th>
-                <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
-                  On hand
-                </th>
-                <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
-                  Reserved
-                </th>
-                <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
-                  Available
-                </th>
-                <th scope="col" className="py-2 font-semibold">
-                  Last movement
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.items.map((item) => (
-                <tr key={item.productId} className="border-b border-[var(--color-border)]">
-                  <td className="py-2 pr-4">
-                    <Link href={`/stock/${item.productId}`}>
-                      <code>{item.cnk}</code>
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-4">
-                    {item.nameNl ?? (
-                      <span className="text-[var(--color-text-subtle)]">No Dutch name yet</span>
-                    )}
-                    {item.flaggedLots > 0 ? (
-                      <>
-                        {" "}
-                        <Badge variant="error">
-                          {item.flaggedLots === 1
-                            ? "1 lot can't be sold"
-                            : `${item.flaggedLots} lots can't be sold`}
-                        </Badge>
-                      </>
-                    ) : null}
-                  </td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{item.onHand}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{item.reserved}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">
-                    {item.available}
-                    {item.short > 0 ? (
-                      <>
-                        {" "}
-                        <Badge variant="amber">Short by {item.short}</Badge>
-                      </>
-                    ) : null}
-                  </td>
-                  <td className="py-2">
-                    {item.lastMovementAt ? (
-                      formatMoment(item.lastMovementAt)
-                    ) : (
-                      <span className="text-[var(--color-text-subtle)]">Never</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable>
+          <caption className="sr-only">
+            Stock, page {result.page} of {pages}
+          </caption>
+          <TableHead>
+            <TableRow className="border-b border-[var(--color-border-strong)]">
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                CNK
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                Name (Dutch)
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                On hand
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                Reserved
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                Available
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 font-semibold">
+                Last movement
+              </TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {result.items.map((item) => (
+              <TableRow key={item.productId} className="border-b border-[var(--color-border)]">
+                <TableCell label="CNK" className="py-2 pr-4">
+                  <Link href={`/stock/${item.productId}`}>
+                    <code>{item.cnk}</code>
+                  </Link>
+                </TableCell>
+                <TableCell label="Name (Dutch)" className="py-2 pr-4">
+                  {item.nameNl ?? (
+                    <span className="text-[var(--color-text-subtle)]">No Dutch name yet</span>
+                  )}
+                  {item.flaggedLots > 0 ? (
+                    <>
+                      {" "}
+                      <Badge variant="error">
+                        {item.flaggedLots === 1
+                          ? "1 lot can't be sold"
+                          : `${item.flaggedLots} lots can't be sold`}
+                      </Badge>
+                    </>
+                  ) : null}
+                </TableCell>
+                <TableCell label="On hand" className="py-2 pr-4 text-right tabular-nums">
+                  {item.onHand}
+                </TableCell>
+                <TableCell label="Reserved" className="py-2 pr-4 text-right tabular-nums">
+                  {item.reserved}
+                </TableCell>
+                <TableCell label="Available" className="py-2 pr-4 text-right tabular-nums">
+                  {item.available}
+                  {item.short > 0 ? (
+                    <>
+                      {" "}
+                      <Badge variant="amber">Short by {item.short}</Badge>
+                    </>
+                  ) : null}
+                </TableCell>
+                <TableCell label="Last movement" className="py-2">
+                  {item.lastMovementAt ? (
+                    formatMoment(item.lastMovementAt)
+                  ) : (
+                    <span className="text-[var(--color-text-subtle)]">Never</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </ResponsiveTable>
       )}
 
       <ListPager

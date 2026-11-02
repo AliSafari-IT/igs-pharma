@@ -1,0 +1,49 @@
+/* Keep table semantics explicit in JSX when narrow layouts change display values. */
+.responsive-table-label {
+  display: none;
+}
+
+.responsive-table-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (width < 40rem) {
+  .responsive-table,
+  .responsive-table tbody {
+    display: block;
+  }
+
+  /* Visually hide column headings without removing them from the accessibility tree. */
+  .responsive-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .responsive-table tbody > tr {
+    display: block;
+    margin-block-end: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg);
+  }
+
+  .responsive-table tbody > tr > td {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    text-align: start;
+  }
+
+  .responsive-table-label {
+    display: block;
+    font-weight: 600;
+  }
+}
