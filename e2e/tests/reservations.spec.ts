@@ -136,7 +136,8 @@ test("the list shows what is on hand, reserved and available", async ({ page, co
   await page.goto(`${PLATFORM}/stock?q=${shelf.cnk}`, { waitUntil: "networkidle" });
   const row = page.locator("tbody tr").first();
   await expect(row).toContainText(shelf.name);
-  const cells = row.locator("td");
+  // Check values independently of the mobile field labels.
+  const cells = row.locator("td > .responsive-table-value");
   await expect(cells.nth(2)).toHaveText("10"); // on hand
   await expect(cells.nth(3)).toHaveText("7"); // reserved: 3 in a checkout + 4 in an order
   await expect(cells.nth(4)).toHaveText("3"); // available

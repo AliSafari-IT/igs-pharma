@@ -143,3 +143,53 @@ test("owner: set a price, schedule another, see both and the list's Price column
     WHERE actor_id = ${userId} AND action = 'pricing.price.set'`;
   expect(audit?.n).toBe(2);
 });
+
+// #223: field labels and values stay aligned when the optional Price column is omitted.
+test("mobile product list respects Price-column permissions", async ({ page, context }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await signIn(context);
+  await page.goto(`${PLATFORM}/products?q=${cnk}`, { waitUntil: "networkidle" });
+  let table = page.getByRole("table", { name: /Products, page/ });
+  await expect(table.getByRole("columnheader", { name: "Price", exact: true })).toHaveCount(1);
+  await expect(table.locator("tbody td")).toHaveCount(4);
+  await expect(table.locator(".responsive-table-label", { hasText: /^Price$/ })).toBeVisible();
+  await expect(table.locator("tbody .responsive-table-value").nth(2)).toHaveText("€5.99");
+
+  const editorId = randomUUID();
+  const editorToken = randomUUID();
+  try {
+    await sql`
+      INSERT INTO identity.users (id, name, email, email_verified, kind)
+      VALUES (${editorId}, 'Demo Editor', ${`${editorId}@example.test`}, true, 'staff')`;
+    await sql`
+      INSERT INTO identity.user_roles (id, user_id, role_key)
+      VALUES (gen_random_uuid(), ${editorId}, 'content_editor')`;
+    await sql`
+      INSERT INTO identity.passkeys (id, user_id, public_key, credential_id, counter, device_type, backed_up)
+      VALUES (gen_random_uuid(), ${editorId}, 'pk', ${randomUUID()}, 0, 'singleDevice', false)`;
+    await sql`
+      INSERT INTO identity.sessions (id, user_id, token, expires_at, mfa_verified_at)
+      VALUES (gen_random_uuid(), ${editorId}, ${editorToken}, now() + interval '1 hour', now())`;
+    await context.clearCookies();
+    await context.addCookies([
+      { name: "better-auth.session_token", value: signed(editorToken), url: PLATFORM },
+    ]);
+    await page.goto(`${PLATFORM}/products?q=${cnk}`, { waitUntil: "networkidle" });
+    table = page.getByRole("table", { name: /Products, page/ });
+    await expect(table.getByRole("columnheader", { name: "Price", exact: true })).toHaveCount(0);
+    await expect(table.locator("tbody td")).toHaveCount(3);
+    await expect(table.locator(".responsive-table-label")).toHaveText([
+      "CNK",
+      "Name (Dutch)",
+      "Status",
+    ]);
+    await expect(table).not.toContainText("€5.99");
+    await expect(table.getByRole("link", { name: cnk, exact: true })).toBeVisible();
+    expect(await table.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
+    await expectAxeClean(page);
+  } finally {
+    await sql`DELETE FROM identity.users WHERE id = ${editorId}`;
+  }
+});

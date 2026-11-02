@@ -11,6 +11,14 @@ import { ListPager } from "../../components/list-pager";
 import { ListSearch } from "../../components/list-search";
 import { PageHeader } from "../../components/page-header";
 import { formatEuros } from "../../components/price-labels";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/responsive-table";
 import { TableSkeleton } from "../../components/table-skeleton";
 import { type ListQuery, pageCount, parseListQuery } from "../../lib/list-query";
 import { requireStaffActor } from "../../server/actor";
@@ -107,59 +115,60 @@ async function ProductsTable({ actor, query }: { actor: ResolvedActor; query: Li
           data-testid="products-empty"
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <caption className="sr-only">
-              Products, page {result.page} of {pages}
-            </caption>
-            <thead>
-              <tr className="border-b border-[var(--color-border-strong)]">
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  CNK
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Name (Dutch)
-                </th>
+        <ResponsiveTable>
+          <caption className="sr-only">
+            Products, page {result.page} of {pages}
+          </caption>
+          <TableHead>
+            <TableRow className="border-b border-[var(--color-border-strong)]">
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                CNK
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                Name (Dutch)
+              </TableHeader>
+              {priceOf ? (
+                <TableHeader
+                  scope="col"
+                  className="py-2 pr-4 text-right font-semibold tabular-nums"
+                >
+                  Price
+                </TableHeader>
+              ) : null}
+              <TableHeader scope="col" className="py-2 font-semibold">
+                Status
+              </TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {result.items.map((item) => (
+              <TableRow key={item.id} className="border-b border-[var(--color-border)]">
+                <TableCell label="CNK" className="py-2 pr-4">
+                  <Link href={`/products/${item.id}`}>
+                    <code>{item.cnk}</code>
+                  </Link>
+                </TableCell>
+                <TableCell label="Name (Dutch)" className="py-2 pr-4">
+                  {item.nameNl ?? (
+                    <span className="text-[var(--color-text-subtle)]">No Dutch name yet</span>
+                  )}
+                </TableCell>
                 {priceOf ? (
-                  <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
-                    Price
-                  </th>
-                ) : null}
-                <th scope="col" className="py-2 font-semibold">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.items.map((item) => (
-                <tr key={item.id} className="border-b border-[var(--color-border)]">
-                  <td className="py-2 pr-4">
-                    <Link href={`/products/${item.id}`}>
-                      <code>{item.cnk}</code>
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-4">
-                    {item.nameNl ?? (
-                      <span className="text-[var(--color-text-subtle)]">No Dutch name yet</span>
+                  <TableCell label="Price" className="py-2 pr-4 text-right tabular-nums">
+                    {priceOf.has(item.id) ? (
+                      formatEuros(priceOf.get(item.id) ?? 0)
+                    ) : (
+                      <span className="sr-only">No price</span>
                     )}
-                  </td>
-                  {priceOf ? (
-                    <td className="py-2 pr-4 text-right tabular-nums">
-                      {priceOf.has(item.id) ? (
-                        formatEuros(priceOf.get(item.id) ?? 0)
-                      ) : (
-                        <span className="sr-only">No price</span>
-                      )}
-                    </td>
-                  ) : null}
-                  <td className="py-2">
-                    <Badge variant={STATUS_BADGE[item.status]}>{STATUS_LABELS[item.status]}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </TableCell>
+                ) : null}
+                <TableCell label="Status" className="py-2">
+                  <Badge variant={STATUS_BADGE[item.status]}>{STATUS_LABELS[item.status]}</Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </ResponsiveTable>
       )}
 
       <ListPager

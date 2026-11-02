@@ -12,6 +12,14 @@ import {
 } from "../../components/order-labels";
 import { PageHeader } from "../../components/page-header";
 import { formatEuros } from "../../components/price-labels";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/responsive-table";
 import { formatMoment } from "../../components/stock-labels";
 import { TableSkeleton } from "../../components/table-skeleton";
 import { pageCount } from "../../lib/list-query";
@@ -117,55 +125,59 @@ async function OrdersTable({
           data-testid="orders-empty"
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
-            <caption className="sr-only">
-              Orders, page {result.page} of {pages}
-            </caption>
-            <thead>
-              <tr className="border-b border-[var(--color-border-strong)]">
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Reference
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Placed
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Customer
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
-                  Status
-                </th>
-                <th scope="col" className="py-2 text-right font-semibold tabular-nums">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.items.map((item) => (
-                <tr key={item.orderId} className="border-b border-[var(--color-border)]">
-                  <td className="py-2 pr-4">
-                    <Link href={`/orders/${item.orderId}`}>
-                      <code>{item.reference}</code>
-                    </Link>
-                  </td>
-                  <td className="py-2 pr-4">{formatMoment(item.createdAt)}</td>
-                  <td className="py-2 pr-4">{item.contactName ?? "—"}</td>
-                  <td className="py-2 pr-4">
-                    <span className="flex flex-wrap gap-1">
-                      <Badge variant={ORDER_STATUS_BADGE[item.status]}>
-                        {ORDER_STATUS_LABELS[item.status]}
-                      </Badge>
-                      {item.needsReview ? <Badge variant="neutral">Medicine</Badge> : null}
-                      {item.refundDue ? <Badge variant="error">Refund due</Badge> : null}
-                    </span>
-                  </td>
-                  <td className="py-2 text-right tabular-nums">{formatEuros(item.totalCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable>
+          <caption className="sr-only">
+            Orders, page {result.page} of {pages}
+          </caption>
+          <TableHead>
+            <TableRow className="border-b border-[var(--color-border-strong)]">
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                Reference
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                Placed
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                Customer
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                Status
+              </TableHeader>
+              <TableHeader scope="col" className="py-2 text-right font-semibold tabular-nums">
+                Total
+              </TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {result.items.map((item) => (
+              <TableRow key={item.orderId} className="border-b border-[var(--color-border)]">
+                <TableCell label="Reference" className="py-2 pr-4">
+                  <Link href={`/orders/${item.orderId}`}>
+                    <code>{item.reference}</code>
+                  </Link>
+                </TableCell>
+                <TableCell label="Placed" className="py-2 pr-4">
+                  {formatMoment(item.createdAt)}
+                </TableCell>
+                <TableCell label="Customer" className="py-2 pr-4">
+                  {item.contactName ?? "—"}
+                </TableCell>
+                <TableCell label="Status" className="py-2 pr-4">
+                  <span className="flex flex-wrap gap-1">
+                    <Badge variant={ORDER_STATUS_BADGE[item.status]}>
+                      {ORDER_STATUS_LABELS[item.status]}
+                    </Badge>
+                    {item.needsReview ? <Badge variant="neutral">Medicine</Badge> : null}
+                    {item.refundDue ? <Badge variant="error">Refund due</Badge> : null}
+                  </span>
+                </TableCell>
+                <TableCell label="Total" className="py-2 text-right tabular-nums">
+                  {formatEuros(item.totalCents)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </ResponsiveTable>
       )}
 
       {pages > 1 ? (

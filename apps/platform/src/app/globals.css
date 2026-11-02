@@ -4,6 +4,7 @@
  */
 @import "@igs/ui/styles/tokens.css";
 @import "@igs/ui/styles/global.css";
+@import "../components/responsive-table.css";
 
 /* Tailwind scans this app automatically; shared components live in packages/ui. */
 @source "../../../../packages/ui/src";
