@@ -9,6 +9,14 @@ import {
 import { STOCK_SHORT_DEADLINE_HOURS, type StaffOrderView } from "@igs/module-orders";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, type BadgeVariant } from "@igs/ui";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./responsive-table";
 
 import { CancelStockShortForm, ReReserveForm } from "./order-actions";
 import { formatMoment } from "./stock-labels";
@@ -111,44 +119,47 @@ export async function StockShort({
           )}
         </p>
       ) : null}
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-[var(--color-border-strong)]">
-            <th scope="col" className="py-2 pr-4 font-semibold">
+      <ResponsiveTable>
+        <caption className="sr-only">Stock holds for this order</caption>
+        <TableHead>
+          <TableRow className="border-b border-[var(--color-border-strong)]">
+            <TableHeader scope="col" className="py-2 pr-4 font-semibold">
               Product
-            </th>
-            <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+            </TableHeader>
+            <TableHeader scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
               Ordered
-            </th>
-            <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+            </TableHeader>
+            <TableHeader scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
               Available now
-            </th>
-            <th scope="col" className="py-2 font-semibold">
+            </TableHeader>
+            <TableHeader scope="col" className="py-2 font-semibold">
               Hold
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHeader>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {order.lines.map((line) => {
             const free = available.get(line.productId);
             const hold = holdOf(line.productId);
             return (
-              <tr key={line.productId} className="border-b border-[var(--color-border)]">
-                <td className="py-2 pr-4">
+              <TableRow key={line.productId} className="border-b border-[var(--color-border)]">
+                <TableCell label="Product" className="py-2 pr-4">
                   <code>{line.cnk}</code> {line.name}
-                </td>
-                <td className="py-2 pr-4 text-right tabular-nums">{line.quantity}</td>
-                <td className="py-2 pr-4 text-right tabular-nums">
+                </TableCell>
+                <TableCell label="Ordered" className="py-2 pr-4 text-right tabular-nums">
+                  {line.quantity}
+                </TableCell>
+                <TableCell label="Available now" className="py-2 pr-4 text-right tabular-nums">
                   {free === undefined || free === null ? "—" : free}
-                </td>
-                <td className="py-2">
+                </TableCell>
+                <TableCell label="Hold" className="py-2">
                   {hold ? <Badge variant={HOLD_BADGE[hold]}>{HOLD_LABELS[hold]}</Badge> : "—"}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </ResponsiveTable>
       {seesStock && !allThere ? (
         <p>Not every product is available in the quantity ordered.</p>
       ) : null}

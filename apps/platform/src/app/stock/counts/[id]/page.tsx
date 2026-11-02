@@ -2,6 +2,14 @@ import { isDomainError } from "@igs/kernel";
 import { type ReconciliationView, getReconciliation } from "@igs/module-inventory";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../../components/responsive-table";
 
 import { CountActions } from "../../../../components/count-actions";
 import { PageHeader } from "../../../../components/page-header";
@@ -57,7 +65,7 @@ export default async function CountPage({ params, searchParams }: Props) {
   if (!count) {
     return (
       <Container asChild size="lg">
-        <main className="py-10">
+        <main className="py-10 [overflow-wrap:anywhere]">
           <Stack gap={6}>
             <Link href="/stock">Back to stock</Link>
             <Alert variant="error" title="You can't see this count">
@@ -75,7 +83,7 @@ export default async function CountPage({ params, searchParams }: Props) {
 
   return (
     <Container asChild size="lg">
-      <main className="py-10">
+      <main className="py-10 [overflow-wrap:anywhere]">
         <Stack gap={6}>
           <Link href="/stock">Back to stock</Link>
           <PageHeader
@@ -122,43 +130,55 @@ export default async function CountPage({ params, searchParams }: Props) {
             )
           ) : null}
 
-          <table className="w-full border-collapse text-left">
+          <ResponsiveTable>
             <caption className="sr-only">Counted lots</caption>
-            <thead>
-              <tr className="border-b border-[var(--color-border-strong)]">
-                <th scope="col" className="py-2 pr-4 font-semibold">
+            <TableHead>
+              <TableRow className="border-b border-[var(--color-border-strong)]">
+                <TableHeader scope="col" className="py-2 pr-4 font-semibold">
                   Product
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
+                </TableHeader>
+                <TableHeader scope="col" className="py-2 pr-4 font-semibold">
                   Lot
-                </th>
-                <th scope="col" className="py-2 pr-4 font-semibold">
+                </TableHeader>
+                <TableHeader scope="col" className="py-2 pr-4 font-semibold">
                   Expires
-                </th>
-                <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                </TableHeader>
+                <TableHeader
+                  scope="col"
+                  className="py-2 pr-4 text-right font-semibold tabular-nums"
+                >
                   In stock
-                </th>
-                <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                </TableHeader>
+                <TableHeader
+                  scope="col"
+                  className="py-2 pr-4 text-right font-semibold tabular-nums"
+                >
                   Counted
-                </th>
-                <th scope="col" className="py-2 text-right font-semibold">
+                </TableHeader>
+                <TableHeader scope="col" className="py-2 text-right font-semibold">
                   Difference
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {count.lines.map((line) => (
-                <tr key={line.line} className="border-b border-[var(--color-border)]">
-                  <td className="py-2 pr-4">
+                <TableRow key={line.line} className="border-b border-[var(--color-border)]">
+                  <TableCell label="Product" className="py-2 pr-4">
                     <code>{line.cnk}</code> {line.nameNl ?? ""}
-                  </td>
-                  <td className="py-2 pr-4">{lotLabel(line)}</td>
-                  <td className="py-2 pr-4">
+                  </TableCell>
+                  <TableCell label="Lot" className="py-2 pr-4">
+                    {lotLabel(line)}
+                  </TableCell>
+                  <TableCell label="Expires" className="py-2 pr-4">
                     {line.expiryDate ? formatDate(line.expiryDate) : "—"}
-                  </td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{line.booked}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{line.counted}</td>
-                  <td className="py-2 text-right">
+                  </TableCell>
+                  <TableCell label="In stock" className="py-2 pr-4 text-right tabular-nums">
+                    {line.booked}
+                  </TableCell>
+                  <TableCell label="Counted" className="py-2 pr-4 text-right tabular-nums">
+                    {line.counted}
+                  </TableCell>
+                  <TableCell label="Difference" className="py-2 text-right">
                     {line.moved ? (
                       <Badge variant="error">Moved since</Badge>
                     ) : line.difference === 0 ? (
@@ -168,11 +188,11 @@ export default async function CountPage({ params, searchParams }: Props) {
                         {signed(line.difference)}
                       </Badge>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ResponsiveTable>
 
           {canApply ? (
             <CountActions reconciliationId={count.reconciliationId} differing={differing} />

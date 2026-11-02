@@ -2,6 +2,14 @@ import { isDomainError } from "@igs/kernel";
 import { type StaffMember, listStaff } from "@igs/module-identity";
 import { PHARMACIST_ROLES, ROLES, ROLE_KEYS } from "@igs/rbac";
 import { Alert, Badge, Container, Stack } from "@igs/ui";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/responsive-table";
 
 import { identityErrorMessage } from "../../components/identity-labels";
 import { PageHeader } from "../../components/page-header";
@@ -56,7 +64,7 @@ export default async function StaffPage() {
 
   return (
     <Container asChild size="lg">
-      <main className="py-10">
+      <main className="py-10 [overflow-wrap:anywhere]">
         <Stack gap={6}>
           <PageHeader
             title="Staff"
@@ -68,74 +76,78 @@ export default async function StaffPage() {
             </Alert>
           ) : null}
           {members ? (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-[var(--color-border-strong)]">
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Name
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Roles
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-semibold">
-                      Signs in with
-                    </th>
-                    <th scope="col" className="py-2 font-semibold">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.map((member) => (
-                    <tr key={member.id} className="border-b border-[var(--color-border)] align-top">
-                      <td className="py-3 pr-4">
-                        <div className="font-medium">{member.name}</div>
-                        <div className="text-[var(--color-text-subtle)]">{member.email}</div>
-                        {member.status === "suspended" ? (
-                          <Badge variant="amber">suspended</Badge>
+            <ResponsiveTable>
+              <caption className="sr-only">Staff access</caption>
+              <TableHead>
+                <TableRow className="border-b border-[var(--color-border-strong)]">
+                  <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                    Name
+                  </TableHeader>
+                  <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                    Roles
+                  </TableHeader>
+                  <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                    Signs in with
+                  </TableHeader>
+                  <TableHeader scope="col" className="py-2 font-semibold">
+                    <span className="sr-only">Actions</span>
+                  </TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {members.map((member) => (
+                  <TableRow
+                    key={member.id}
+                    className="border-b border-[var(--color-border)] align-top"
+                  >
+                    <TableCell label="Name" className="py-3 pr-4">
+                      <div className="font-medium">{member.name}</div>
+                      <div className="text-[var(--color-text-subtle)]">{member.email}</div>
+                      {member.status === "suspended" ? (
+                        <Badge variant="amber">suspended</Badge>
+                      ) : null}
+                    </TableCell>
+                    <TableCell label="Roles" className="py-3 pr-4">
+                      {member.roles.length > 0 ? (
+                        <ul className="flex flex-wrap gap-1">
+                          {inCatalogueOrder(member.roles).map((role) => (
+                            <li key={role}>
+                              <Badge variant="neutral" data-testid="staff-role-badge">
+                                {staffRoleLabel(role)}
+                              </Badge>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-[var(--color-text-subtle)]">none</span>
+                      )}
+                    </TableCell>
+                    <TableCell label="Signs in with" className="py-3 pr-4">
+                      {signInMethods(member)}
+                    </TableCell>
+                    <TableCell label="Actions" stacked className="py-3">
+                      <div className="flex flex-wrap gap-2">
+                        {member.id !== actor.id ? (
+                          <StaffAccessDialog
+                            userId={member.id}
+                            name={member.name}
+                            status={member.status}
+                            roles={inCatalogueOrder(member.roles).map(roleOption)}
+                            grantable={grantableTo(member.roles)}
+                            pharmacist={member.roles.some((role) =>
+                              (PHARMACIST_ROLES as readonly string[]).includes(role),
+                            )}
+                          />
                         ) : null}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {member.roles.length > 0 ? (
-                          <ul className="flex flex-wrap gap-1">
-                            {inCatalogueOrder(member.roles).map((role) => (
-                              <li key={role}>
-                                <Badge variant="neutral" data-testid="staff-role-badge">
-                                  {staffRoleLabel(role)}
-                                </Badge>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span className="text-[var(--color-text-subtle)]">none</span>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4">{signInMethods(member)}</td>
-                      <td className="py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {member.id !== actor.id ? (
-                            <StaffAccessDialog
-                              userId={member.id}
-                              name={member.name}
-                              status={member.status}
-                              roles={inCatalogueOrder(member.roles).map(roleOption)}
-                              grantable={grantableTo(member.roles)}
-                              pharmacist={member.roles.some((role) =>
-                                (PHARMACIST_ROLES as readonly string[]).includes(role),
-                              )}
-                            />
-                          ) : null}
-                          {member.id !== actor.id && member.status === "active" ? (
-                            <ResetSignInDialog userId={member.id} name={member.name} />
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {member.id !== actor.id && member.status === "active" ? (
+                          <ResetSignInDialog userId={member.id} name={member.name} />
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </ResponsiveTable>
           ) : null}
         </Stack>
       </main>

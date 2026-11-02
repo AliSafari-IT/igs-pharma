@@ -68,7 +68,7 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
 
   return (
     <Container asChild size="lg">
-      <main className="py-10">
+      <main className="py-10 [overflow-wrap:anywhere]">
         <Stack gap={6}>
           {request ? null : <Link href="/privacy/requests">Back to data requests</Link>}
 
@@ -124,7 +124,7 @@ export default async function DataRequestPage({ params, searchParams }: Props) {
                 />
               ) : null}
 
-              <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+              <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[max-content_minmax(0,1fr)]">
                 <dt className="font-semibold">Received</dt>
                 <dd>
                   {formatDay(request.receivedAt)} · {DSR_CHANNEL_LABELS[request.channel]}

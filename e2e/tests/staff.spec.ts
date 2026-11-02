@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -96,6 +97,7 @@ test("the owner sees staff and their sign-in methods; never a reset for themselv
   await signIn(context);
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
   await expect(page.getByRole("heading", { name: "Staff", level: 1 })).toBeVisible();
+  await expectResponsiveTables(page);
   const target = page.getByRole("row", { name: new RegExp(targetName) });
   await expect(target.getByText("1 passkey")).toBeVisible();
   await expect(target.getByRole("button", { name: "Reset sign-in" })).toBeVisible();
@@ -119,6 +121,7 @@ test("with a stale 2-step proof the owner must confirm first; nothing is reset",
 }) => {
   await signIn(context);
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
+  await expectResponsiveTables(page);
   await page
     .getByRole("row", { name: new RegExp(targetName) })
     .getByRole("button", { name: "Reset sign-in" })
@@ -143,6 +146,7 @@ test("with a fresh proof: the reset deletes their passkeys and sessions, is audi
     WHERE token = ${token}`;
   await signIn(context);
   await page.goto(`${PLATFORM}/staff`, { waitUntil: "networkidle" });
+  await expectResponsiveTables(page);
   await page
     .getByRole("row", { name: new RegExp(targetName) })
     .getByRole("button", { name: "Reset sign-in" })

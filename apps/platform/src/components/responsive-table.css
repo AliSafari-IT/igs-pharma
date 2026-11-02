@@ -10,7 +10,8 @@
 
 @media (width < 40rem) {
   .responsive-table,
-  .responsive-table tbody {
+  .responsive-table tbody,
+  .responsive-table tfoot {
     display: block;
   }
 
@@ -39,6 +40,29 @@
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
     gap: 0.75rem;
     padding: 0.5rem 0;
+    text-align: start;
+  }
+
+  .responsive-table tbody > tr > td.responsive-table-stacked {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .responsive-table tfoot > tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .responsive-table tfoot > tr > th,
+  .responsive-table tfoot > tr > td {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .responsive-table tfoot > tr > th {
     text-align: start;
   }
 

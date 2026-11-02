@@ -4,6 +4,14 @@ import { type HolderAllocation, listHolderAllocations } from "@igs/module-invent
 import type { StaffOrderView } from "@igs/module-orders";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert } from "@igs/ui";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./responsive-table";
 
 import { formatDate, lotLabel } from "./stock-labels";
 
@@ -57,62 +65,76 @@ export async function LotsToPick({
           from sellable lots. The order can't be packed until stock comes in or a lot is released.
         </Alert>
       ) : null}
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-[var(--color-border-strong)]">
-            <th scope="col" className="py-2 pr-4 font-semibold">
+      <ResponsiveTable>
+        <caption className="sr-only">Lots allocated to this order</caption>
+        <TableHead>
+          <TableRow className="border-b border-[var(--color-border-strong)]">
+            <TableHeader scope="col" className="py-2 pr-4 font-semibold">
               Product
-            </th>
-            <th scope="col" className="py-2 pr-4 font-semibold">
+            </TableHeader>
+            <TableHeader scope="col" className="py-2 pr-4 font-semibold">
               Lot
-            </th>
-            <th scope="col" className="py-2 pr-4 font-semibold">
+            </TableHeader>
+            <TableHeader scope="col" className="py-2 pr-4 font-semibold">
               Expires
-            </th>
-            <th scope="col" className="py-2 text-right font-semibold tabular-nums">
+            </TableHeader>
+            <TableHeader scope="col" className="py-2 text-right font-semibold tabular-nums">
               Qty
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHeader>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {allocations.flatMap((item) => {
             const line = lineOf.get(item.productId);
             const rows = item.lots.map((lot) => (
-              <tr
+              <TableRow
                 key={`${item.reservationId}-${lot.lotId}`}
                 className="border-b border-[var(--color-border)]"
               >
-                <td className="py-2 pr-4">
+                <TableCell label="Product" className="py-2 pr-4">
                   <ProductName line={line} productId={item.productId} />
-                </td>
-                <td className="py-2 pr-4">{lotLabel(lot)}</td>
-                <td className="py-2 pr-4">{lot.expiryDate ? formatDate(lot.expiryDate) : "—"}</td>
-                <td className="py-2 text-right tabular-nums">{lot.quantity}</td>
-              </tr>
+                </TableCell>
+                <TableCell label="Lot" className="py-2 pr-4">
+                  {lotLabel(lot)}
+                </TableCell>
+                <TableCell label="Expires" className="py-2 pr-4">
+                  {lot.expiryDate ? formatDate(lot.expiryDate) : "—"}
+                </TableCell>
+                <TableCell label="Qty" className="py-2 text-right tabular-nums">
+                  {lot.quantity}
+                </TableCell>
+              </TableRow>
             ));
             const missing = item.quantity - item.allocated;
             if (missing > 0) {
               rows.push(
-                <tr
+                <TableRow
                   key={`${item.reservationId}-short`}
                   className="border-b border-[var(--color-border)]"
                 >
-                  <td className="py-2 pr-4">
+                  <TableCell label="Product" className="py-2 pr-4">
                     <ProductName line={line} productId={item.productId} />
-                  </td>
-                  <td className="py-2 pr-4 text-[var(--color-error-text)]" colSpan={2}>
+                  </TableCell>
+                  <TableCell
+                    label="Lot / Expires"
+                    className="py-2 pr-4 text-[var(--color-error-text)]"
+                    colSpan={2}
+                  >
                     No sellable lot
-                  </td>
-                  <td className="py-2 text-right tabular-nums text-[var(--color-error-text)]">
+                  </TableCell>
+                  <TableCell
+                    label="Qty"
+                    className="py-2 text-right tabular-nums text-[var(--color-error-text)]"
+                  >
                     {missing}
-                  </td>
-                </tr>,
+                  </TableCell>
+                </TableRow>,
               );
             }
             return rows;
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </ResponsiveTable>
     </section>
   );
 }

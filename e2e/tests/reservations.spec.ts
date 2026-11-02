@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -155,6 +156,7 @@ test("the product page lists what is set aside, with kind, age and expiry", asyn
   await expect(page.getByTestId("held")).toHaveText("3");
   await expect(page.getByTestId("ordered")).toHaveText("4");
   await expect(page.getByTestId("available")).toHaveText("3");
+  await expectResponsiveTables(page);
   const table = page.getByRole("region", { name: "Set aside" }).getByRole("table");
   await expect(table.locator("tbody tr")).toHaveCount(2);
   const order = table
@@ -172,6 +174,7 @@ test("the product page lists what is set aside, with kind, age and expiry", asyn
 test("Release needs a reason, gives the stock back and is audited", async ({ page, context }) => {
   await signIn(context);
   await page.goto(`${PLATFORM}/stock/${shelf.id}`, { waitUntil: "networkidle" });
+  await expectResponsiveTables(page);
   const hold = page.locator("tbody tr", { hasText: "Checkout in progress" });
   await hold.getByRole("button", { name: "Release" }).click();
   const dialog = page.getByRole("dialog", { name: "Release 3 set aside" });

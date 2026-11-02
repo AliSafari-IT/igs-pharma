@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -151,6 +152,13 @@ test("pack: the label is asked for; nothing can be handed over without it", asyn
   await signIn(context, assistantToken);
   await page.goto(`${PLATFORM}/orders/${orderId}`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("staff-order-method")).toHaveText("Home delivery");
+  await expectResponsiveTables(page);
+  await expect(
+    page
+      .getByRole("table", { name: "Order products" })
+      .getByRole("rowheader", { name: "Home delivery", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("staff-order-delivery-fee")).toBeVisible();
   await page.getByRole("button", { name: "Start preparing" }).click();
   await expect(page.getByText("The order is now “Preparing”.")).toBeVisible();
   // a delivery order is packed, never "ready for pickup"

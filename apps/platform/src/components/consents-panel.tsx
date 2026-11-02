@@ -2,6 +2,14 @@
 
 import { Alert, Badge, Button, EmptyState, Label, Select, Stack, TextField } from "@igs/ui";
 import { useActionState, useId } from "react";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./responsive-table";
 
 import { type ConsentsState, consents } from "../app/privacy/actions";
 import {
@@ -25,7 +33,7 @@ export function ConsentsPanel() {
         <form action={action} noValidate className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="intent" value="lookup" />
           <TextField
-            className="min-w-64 flex-1"
+            className="w-full min-w-0 sm:min-w-64 sm:flex-1"
             label="The person's e-mail address"
             name="subjectRef"
             type="email"
@@ -133,41 +141,49 @@ export function ConsentsPanel() {
             {found.history.length === 0 ? (
               <EmptyState title="No consent recorded yet" data-testid="consent-history-empty" />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <caption className="sr-only">Consent history, newest first</caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        When
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Purpose
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Consent
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Source
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        Policy
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {found.history.map((event) => (
-                      <tr key={event.id} className="border-b border-[var(--color-border)]">
-                        <td className="py-2 pr-4">{formatMoment(event.at)}</td>
-                        <td className="py-2 pr-4">{CONSENT_PURPOSE_LABELS[event.purpose]}</td>
-                        <td className="py-2 pr-4">{event.granted ? "Given" : "Withdrawn"}</td>
-                        <td className="py-2 pr-4">{CONSENT_SOURCE_LABELS[event.source]}</td>
-                        <td className="py-2">{event.policyVersion}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ResponsiveTable>
+                <caption className="sr-only">Consent history, newest first</caption>
+                <TableHead>
+                  <TableRow className="border-b border-[var(--color-border-strong)]">
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      When
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      Purpose
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      Consent
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      Source
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 font-semibold">
+                      Policy
+                    </TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {found.history.map((event) => (
+                    <TableRow key={event.id} className="border-b border-[var(--color-border)]">
+                      <TableCell label="When" className="py-2 pr-4">
+                        {formatMoment(event.at)}
+                      </TableCell>
+                      <TableCell label="Purpose" className="py-2 pr-4">
+                        {CONSENT_PURPOSE_LABELS[event.purpose]}
+                      </TableCell>
+                      <TableCell label="Consent" className="py-2 pr-4">
+                        {event.granted ? "Given" : "Withdrawn"}
+                      </TableCell>
+                      <TableCell label="Source" className="py-2 pr-4">
+                        {CONSENT_SOURCE_LABELS[event.source]}
+                      </TableCell>
+                      <TableCell label="Policy" className="py-2">
+                        {event.policyVersion}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </ResponsiveTable>
             )}
           </section>
         </>
