@@ -3,7 +3,7 @@
 import type { FulfilmentStep } from "@igs/module-orders";
 import { Alert, Button, Label, Select, Stack, Textarea } from "@igs/ui";
 import { useRouter } from "next/navigation";
-import { useActionState, useId, useState, useTransition } from "react";
+import { type FormEvent, useActionState, useId, useState, useTransition } from "react";
 
 import {
   type OrderActionState,
@@ -21,6 +21,12 @@ import {
   STEP_ACTION_LABELS,
   orderErrorMessage,
 } from "./order-labels";
+
+// React resets a resolved form action even when its returned state contains an error.
+// Keep the visible draft in sync with client state; successful actions navigate away.
+function keepDraft(event: FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+}
 
 interface OrderRef {
   readonly orderId: string;
@@ -40,7 +46,7 @@ export function ReviewForm({
   const busy = pending || refreshing;
   const id = useId();
   return (
-    <form action={action} aria-busy={busy} data-testid="review-form">
+    <form action={action} onReset={keepDraft} aria-busy={busy} data-testid="review-form">
       <Stack gap={3}>
         <input type="hidden" name="orderId" value={orderId} />
         <input type="hidden" name="expectedVersion" value={version} />
@@ -156,7 +162,7 @@ export function RefundForm({ orderId }: { readonly orderId: string }) {
   const [reason, setReason] = useState<string>(REFUND_REASON_OPTIONS[0]);
   const id = useId();
   return (
-    <form action={action} aria-busy={pending} data-testid="refund-form">
+    <form action={action} onReset={keepDraft} aria-busy={pending} data-testid="refund-form">
       <Stack gap={3}>
         <input type="hidden" name="orderId" value={orderId} />
         {state.error ? (
