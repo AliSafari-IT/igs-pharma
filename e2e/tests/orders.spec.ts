@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -158,6 +159,7 @@ test("customer service sees the review queue and the order, without actions", as
   await row.getByRole("link", { name: reference }).click();
   await expect(page.getByRole("heading", { name: reference, level: 1 })).toBeVisible();
   await expect(page.getByText("+32470123456")).toBeVisible();
+  await expectResponsiveTables(page);
   await expect(page.getByTestId("review-form")).toHaveCount(0);
   await expect(page.getByTestId("step-form")).toHaveCount(0);
   await expectAxeClean(page);
@@ -183,6 +185,8 @@ test("the pharmacist approves; the assistant prepares and marks it ready", async
   await expect(lots).toContainText("E2E-ORD");
   await expect(lots).toContainText("Paracetamol 500 mg");
   await expect(page.getByTestId("allocation-short")).toHaveCount(0);
+  await expectResponsiveTables(page);
+  await expect(page.getByRole("rowheader", { name: /Total \(VAT/ })).toHaveCount(1);
   await page.getByRole("button", { name: "Mark ready for pickup" }).click();
   await expect(page.getByText("The order is now “Ready for pickup”.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark collected" })).toBeVisible();

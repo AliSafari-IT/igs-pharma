@@ -17,9 +17,12 @@ import {
   ResponsiveTable,
   TableBody,
   TableCell,
+  TableFoot,
+  TableFooterCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableRowHeader,
 } from "../../../components/responsive-table";
 
 /**
@@ -226,6 +229,59 @@ export default function UiGalleryPage() {
               </TableBody>
             </ResponsiveTable>
             <p id="responsive-table-target">Synthetic table example; no customer records.</p>
+          </Section>
+
+          <Section title="Operational table">
+            <ResponsiveTable data-testid="operational-table-demo">
+              <caption className="sr-only">Demo operational details</caption>
+              <TableHead>
+                <TableRow>
+                  <TableHeader className="py-2 pr-4">Product</TableHeader>
+                  <TableHeader className="py-2 pr-4">Lot</TableHeader>
+                  <TableHeader className="py-2 pr-4">Expires</TableHeader>
+                  <TableHeader className="py-2">Actions</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell label="Product" className="py-2 pr-4">
+                    Demo product
+                  </TableCell>
+                  <TableCell label="Lot" className="py-2 pr-4">
+                    DEMO-LONG-LOT-REFERENCE-1234567890
+                  </TableCell>
+                  <TableCell label="Expires" className="py-2 pr-4">
+                    31/12/2027
+                  </TableCell>
+                  <TableCell label="Actions" stacked className="py-2">
+                    <Button type="button" variant="secondary">
+                      Example reservation action
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell label="Product" className="py-2 pr-4">
+                    Demo shortage
+                  </TableCell>
+                  <TableCell label="Lot / Expires" colSpan={2} className="py-2 pr-4">
+                    <Badge variant="error">No sellable lot</Badge>
+                  </TableCell>
+                  <TableCell label="Actions" stacked className="py-2">
+                    Await stock
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+              <TableFoot>
+                <TableRow>
+                  <TableRowHeader colSpan={3} className="py-2 pr-4 text-right">
+                    Total (VAT included)
+                  </TableRowHeader>
+                  <TableFooterCell className="py-2 text-right tabular-nums">
+                    € 1.234,56
+                  </TableFooterCell>
+                </TableRow>
+              </TableFoot>
+            </ResponsiveTable>
           </Section>
 
           <Section title="Typography">

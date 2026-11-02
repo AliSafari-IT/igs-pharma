@@ -3,6 +3,17 @@ import { type StaffOrderView, getOrderForStaff } from "@igs/module-orders";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
 import type { ReactNode } from "react";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableFoot,
+  TableFooterCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableRowHeader,
+} from "../../../components/responsive-table";
 
 import { LotsToPick } from "../../../components/lots-to-pick";
 import {
@@ -91,7 +102,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   if (!order) {
     return (
       <Container asChild size="lg">
-        <main className="py-10">
+        <main className="py-10 [overflow-wrap:anywhere]">
           <Stack gap={6}>
             <Link href="/orders">Back to orders</Link>
             <Alert variant="error" title="You can't see this order">
@@ -139,7 +150,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
 
   return (
     <Container asChild size="lg">
-      <main className="py-10">
+      <main className="py-10 [overflow-wrap:anywhere]">
         <Stack gap={6}>
           <PageHeader
             title={order.reference}
@@ -315,30 +326,34 @@ export default async function OrderPage({ params, searchParams }: Props) {
           ) : null}
 
           <Section title="Products">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="border-b border-[var(--color-border-strong)]">
-                  <th scope="col" className="py-2 pr-4 font-semibold">
+            <ResponsiveTable>
+              <caption className="sr-only">Order products</caption>
+              <TableHead>
+                <TableRow className="border-b border-[var(--color-border-strong)]">
+                  <TableHeader scope="col" className="py-2 pr-4 font-semibold">
                     CNK
-                  </th>
-                  <th scope="col" className="py-2 pr-4 font-semibold">
+                  </TableHeader>
+                  <TableHeader scope="col" className="py-2 pr-4 font-semibold">
                     Product
-                  </th>
-                  <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
+                  </TableHeader>
+                  <TableHeader
+                    scope="col"
+                    className="py-2 pr-4 text-right font-semibold tabular-nums"
+                  >
                     Qty
-                  </th>
-                  <th scope="col" className="py-2 text-right font-semibold tabular-nums">
+                  </TableHeader>
+                  <TableHeader scope="col" className="py-2 text-right font-semibold tabular-nums">
                     Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {order.lines.map((line) => (
-                  <tr key={line.productId} className="border-b border-[var(--color-border)]">
-                    <td className="py-2 pr-4">
+                  <TableRow key={line.productId} className="border-b border-[var(--color-border)]">
+                    <TableCell label="CNK" className="py-2 pr-4">
                       <code>{line.cnk}</code>
-                    </td>
-                    <td className="py-2 pr-4">
+                    </TableCell>
+                    <TableCell label="Product" className="py-2 pr-4">
                       {line.name}
                       {line.isMedicine ? (
                         <>
@@ -352,44 +367,54 @@ export default async function OrderPage({ params, searchParams }: Props) {
                           <Badge variant="error">No longer sellable</Badge>
                         </>
                       ) : null}
-                    </td>
-                    <td className="py-2 pr-4 text-right tabular-nums">{line.quantity}</td>
-                    <td className="py-2 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell label="Qty" className="py-2 pr-4 text-right tabular-nums">
+                      {line.quantity}
+                    </TableCell>
+                    <TableCell label="Total" className="py-2 text-right tabular-nums">
                       {formatEuros(line.lineTotalCents)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-              <tfoot>
+              </TableBody>
+              <TableFoot>
                 {order.deliveryMethod === "delivery" ? (
-                  <tr>
-                    <th scope="row" colSpan={3} className="py-2 pr-4 text-right font-normal">
+                  <TableRow>
+                    <TableRowHeader
+                      scope="row"
+                      colSpan={3}
+                      className="py-2 pr-4 text-right font-normal"
+                    >
                       Home delivery
-                    </th>
-                    <td
+                    </TableRowHeader>
+                    <TableFooterCell
                       className="py-2 text-right tabular-nums"
                       data-testid="staff-order-delivery-fee"
                     >
                       {order.deliveryFeeCents === 0 ? "Free" : formatEuros(order.deliveryFeeCents)}
-                    </td>
-                  </tr>
+                    </TableFooterCell>
+                  </TableRow>
                 ) : null}
-                <tr>
-                  <th scope="row" colSpan={3} className="py-2 pr-4 text-right font-semibold">
+                <TableRow>
+                  <TableRowHeader
+                    scope="row"
+                    colSpan={3}
+                    className="py-2 pr-4 text-right font-semibold"
+                  >
                     Total (VAT {formatEuros(order.vatCents)} included)
-                  </th>
-                  <td className="py-2 text-right font-semibold tabular-nums">
+                  </TableRowHeader>
+                  <TableFooterCell className="py-2 text-right font-semibold tabular-nums">
                     {formatEuros(order.totalCents)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                  </TableFooterCell>
+                </TableRow>
+              </TableFoot>
+            </ResponsiveTable>
           </Section>
 
           <div className="grid gap-6 md:grid-cols-2">
             <Section title="Customer">
               {order.contact ? (
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[max-content_minmax(0,1fr)]">
                   <dt className="font-semibold">Name</dt>
                   <dd>{order.contact.name}</dd>
                   <dt className="font-semibold">E-mail</dt>

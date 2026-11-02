@@ -26,18 +26,24 @@ function SemanticTable(props: ComponentPropsWithoutRef<"table">) {
 
 interface TableCellProps extends ComponentPropsWithoutRef<"td"> {
   readonly label: string;
+  readonly stacked?: boolean;
   readonly children: ReactNode;
 }
 
-export function TableCell({ label, children, ...props }: TableCellProps) {
+export function TableCell({
+  label,
+  children,
+  stacked = false,
+  className,
+  ...props
+}: TableCellProps) {
   return (
-    // biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: Preserve cell semantics when CSS changes display.
-    <td {...props} role="cell">
+    <SemanticCell {...props} className={cn(className, stacked && "responsive-table-stacked")}>
       <span className="responsive-table-label" aria-hidden="true">
         {label}
       </span>
       <div className="responsive-table-value">{children}</div>
-    </td>
+    </SemanticCell>
   );
 }
 
@@ -58,4 +64,23 @@ export function TableRow(props: ComponentPropsWithoutRef<"tr">) {
 
 export function TableHeader(props: ComponentPropsWithoutRef<"th">) {
   return <th {...props} scope="col" role="columnheader" />;
+}
+
+function SemanticCell(props: ComponentPropsWithoutRef<"td">) {
+  // biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: Preserve cell semantics when CSS changes display.
+  return <td {...props} role="cell" />;
+}
+
+export function TableFoot(props: ComponentPropsWithoutRef<"tfoot">) {
+  // biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: Preserve table semantics when CSS changes display.
+  return <tfoot {...props} role="rowgroup" />;
+}
+
+export function TableRowHeader(props: ComponentPropsWithoutRef<"th">) {
+  // biome-ignore lint/a11y/noRedundantRoles: Preserve row-header semantics when CSS changes display.
+  return <th {...props} scope="row" role="rowheader" />;
+}
+
+export function TableFooterCell(props: ComponentPropsWithoutRef<"td">) {
+  return <SemanticCell {...props} />;
 }

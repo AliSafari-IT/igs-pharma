@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -136,6 +137,7 @@ test("owner: receive, adjust, then count the lots and see on-hand and history", 
   await receive.getByRole("button", { name: "Receive" }).click();
   await expect(page.getByText("The stock was received into its lot.")).toBeVisible();
   await expect(page.getByTestId("on-hand")).toHaveText("12");
+  await expectResponsiveTables(page);
   const movements = page.getByRole("region", { name: "Movements" }).locator("tbody tr");
   await expect(movements).toHaveCount(1);
   const lots = page.getByRole("region", { name: "Lots" }).locator("tbody tr");
@@ -172,6 +174,7 @@ test("owner: receive, adjust, then count the lots and see on-hand and history", 
   await page.getByRole("button", { name: "Preview the count" }).click();
   await expect(page.getByRole("heading", { name: "Stock count", level: 1 })).toBeVisible();
   await expect(page.getByTestId("count-status")).toHaveText("Preview: nothing has changed yet");
+  await expectResponsiveTables(page);
   await expect(page.getByText("1 lot will change when you apply the count.")).toBeVisible();
   const counted = page.getByRole("table", { name: "Counted lots" }).locator("tbody tr");
   await expect(counted).toHaveCount(2);
@@ -185,6 +188,7 @@ test("owner: receive, adjust, then count the lots and see on-hand and history", 
 
   await page.goto(`${PLATFORM}/stock/${productId}`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("on-hand")).toHaveText("12");
+  await expectResponsiveTables(page);
   await expect(movements.first()).toContainText("Stock count");
 
   // a typed count of the product's lots, discarded: nothing changes
@@ -194,10 +198,12 @@ test("owner: receive, adjust, then count the lots and see on-hand and history", 
   await expectAxeClean(page);
   await count.getByRole("button", { name: "Preview the count" }).click();
   await expect(page.getByTestId("count-status")).toHaveText("Preview: nothing has changed yet");
+  await expectResponsiveTables(page);
   await page.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByTestId("count-status")).toHaveText("Discarded");
   await page.goto(`${PLATFORM}/stock/${productId}`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("on-hand")).toHaveText("12");
+  await expectResponsiveTables(page);
 
   const [audit] = await sql<{ n: number }[]>`
     SELECT count(*)::int AS n FROM audit.events

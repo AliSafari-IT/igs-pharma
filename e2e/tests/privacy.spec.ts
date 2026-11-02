@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -95,6 +96,7 @@ test("signed out: the data requests page sends you to sign in", async ({ page })
 test("owner: a backdated open request is overdue", async ({ page, context }) => {
   await signIn(context);
   await page.goto(`${PLATFORM}/privacy/requests`, { waitUntil: "networkidle" });
+  await expectResponsiveTables(page);
   await expect(page.getByRole("heading", { name: "Data requests", level: 1 })).toBeVisible();
   await expect(page.getByText("Overdue requests")).toBeVisible();
   await expectAxeClean(page);
@@ -109,6 +111,7 @@ test("owner: log an erasure request, move it to in progress, then completed", as
   context,
 }) => {
   await signIn(context);
+  await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`${PLATFORM}/privacy/requests/new`, { waitUntil: "networkidle" });
   await expectAxeClean(page);
   await page.getByLabel("Type of request").selectOption("erasure");
@@ -121,6 +124,9 @@ test("owner: log an erasure request, move it to in progress, then completed", as
   await expect(page.getByRole("heading", { name: "Erasure request", level: 1 })).toBeVisible();
   await expect(page.getByText("Request logged", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(subject)).toBeVisible();
+  expect(
+    await page.locator("main").evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
   // one calendar month (igs-pharma#73): 28 to 31 days, and 32 when the month crosses the autumn
   // DST change (daysUntil rounds the 25-hour day up)
   await expect(page.getByText(/Due in (28|29|30|31|32) days/)).toBeVisible();
@@ -161,6 +167,7 @@ test("owner: log an erasure request, move it to in progress, then completed", as
 
 test("owner: record a consent given in the pharmacy, then see it", async ({ page, context }) => {
   await signIn(context);
+  await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`${PLATFORM}/privacy/consents`, { waitUntil: "networkidle" });
   await page.getByLabel("The person's e-mail address").fill(subject);
   await page.getByRole("button", { name: "Look up" }).click();
@@ -176,6 +183,7 @@ test("owner: record a consent given in the pharmacy, then see it", async ({ page
   const current = page.getByRole("region", { name: /Current consents/ });
   await expect(current.getByText("Given")).toBeVisible();
   await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expectResponsiveTables(page);
   await expect(page).not.toHaveURL(new RegExp(tag));
   await expectAxeClean(page);
 });
@@ -185,6 +193,7 @@ test("owner: extend a request's deadline (art. 12(3)) and record that the person
   context,
 }) => {
   await signIn(context);
+  await page.setViewportSize({ width: 320, height: 900 });
   await page.goto(`${PLATFORM}/privacy/requests/new`, { waitUntil: "networkidle" });
   await page.getByLabel("Type of request").selectOption("objection");
   await page.getByLabel("The person's e-mail address").fill(`e2e.extend.${tag}@example.invalid`);
@@ -224,6 +233,7 @@ test("owner: extend a request's deadline (art. 12(3)) and record that the person
   expect(audit[1]?.data).toEqual({ requestId, months: 2, reason: "complex" });
 
   await page.goto(`${PLATFORM}/privacy/requests`, { waitUntil: "networkidle" });
+  await expectResponsiveTables(page);
   const row = page.getByRole("row", { name: new RegExp(`e2e.extend.${tag}`) });
   await expect(row.getByText("Extended")).toBeVisible();
 });

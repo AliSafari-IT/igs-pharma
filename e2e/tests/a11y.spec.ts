@@ -79,6 +79,31 @@ for (const width of [320, 639, 640, 1280]) {
         [],
       );
       await table.screenshot({ path: testInfo.outputPath(`table-${width}-${theme}.png`) });
+      const operational = page.getByRole("table", { name: "Demo operational details" });
+      await expect(
+        operational.getByRole("rowheader", { name: "Total (VAT included)" }),
+      ).toBeVisible();
+      await expect(operational.locator("tfoot td")).toHaveText("€ 1.234,56");
+      await expect(operational.locator("td[colspan='2']")).toContainText("No sellable lot");
+      const action = operational.getByRole("button", { name: "Example reservation action" });
+      await action.focus();
+      await expect(action).toBeFocused();
+      expect(
+        await operational.evaluate((element) => element.scrollWidth <= element.clientWidth),
+      ).toBe(true);
+      expect(
+        await action.evaluate((element) => element.getBoundingClientRect().right <= innerWidth),
+      ).toBe(true);
+      const result = await new AxeBuilder({ page })
+        .include("[data-testid=operational-table-demo]")
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
+        .analyze();
+      expect(
+        result.violations.filter((v) => v.impact === "serious" || v.impact === "critical"),
+      ).toEqual([]);
+      await operational.screenshot({
+        path: testInfo.outputPath(`operational-${width}-${theme}.png`),
+      });
     });
   }
 }

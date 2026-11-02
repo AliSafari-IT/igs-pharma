@@ -3,6 +3,14 @@ import { type RecallView, getRecall } from "@igs/module-inventory";
 import { type RecallAffectedOrder, listRecallAffectedOrders } from "@igs/module-orders";
 import { PERMISSIONS, hasPermission } from "@igs/rbac";
 import { Alert, Badge, Container, Link, Stack } from "@igs/ui";
+import {
+  ResponsiveTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../components/responsive-table";
 
 import { ORDER_STATUS_BADGE, ORDER_STATUS_LABELS } from "../../../components/order-labels";
 import { PageHeader } from "../../../components/page-header";
@@ -75,7 +83,7 @@ export default async function RecallPage({ params, searchParams }: Props) {
   if (!recall) {
     return (
       <Container asChild size="lg">
-        <main className="py-10">
+        <main className="py-10 [overflow-wrap:anywhere]">
           <Stack gap={6}>
             <Link href="/recalls">Back to recalls</Link>
             <Alert variant="error" title="You can't see this recall">
@@ -98,7 +106,7 @@ export default async function RecallPage({ params, searchParams }: Props) {
 
   return (
     <Container asChild size="lg">
-      <main className="py-10">
+      <main className="py-10 [overflow-wrap:anywhere]">
         <Stack gap={6}>
           <PageHeader
             title={`Recall: ${recall.nameNl ?? "No Dutch name yet"}`}
@@ -159,59 +167,62 @@ export default async function RecallPage({ params, searchParams }: Props) {
                 The product had no lots when the recall started.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left" data-testid="recall-lots">
-                  <caption className="sr-only">The lots this recall covers</caption>
-                  <thead>
-                    <tr className="border-b border-[var(--color-border-strong)]">
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Lot
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        Expires
-                      </th>
-                      <th scope="col" className="py-2 pr-4 text-right font-semibold tabular-nums">
-                        On hand
-                      </th>
-                      <th scope="col" className="py-2 pr-4 font-semibold">
-                        State
-                      </th>
-                      <th scope="col" className="py-2 font-semibold">
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recall.lots.map((lot) => {
-                      const state = lotState(lot);
-                      return (
-                        <tr key={lot.lotId} className="border-b border-[var(--color-border)]">
-                          <td className="py-2 pr-4">
-                            <code>{lotLabel(lot)}</code>
-                          </td>
-                          <td className="py-2 pr-4">
-                            {lot.expiryDate ? formatDate(lot.expiryDate) : "—"}
-                          </td>
-                          <td className="py-2 pr-4 text-right tabular-nums">{lot.onHand}</td>
-                          <td className="py-2 pr-4">
-                            <Badge variant={state.variant}>{state.label}</Badge>
-                          </td>
-                          <td className="py-2">
-                            {canRecall && lot.onHand > 0 ? (
-                              <DisposeDialog
-                                recallId={recall.recallId}
-                                lotId={lot.lotId}
-                                lotName={lotLabel(lot)}
-                                onHand={lot.onHand}
-                              />
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <ResponsiveTable data-testid="recall-lots">
+                <caption className="sr-only">The lots this recall covers</caption>
+                <TableHead>
+                  <TableRow className="border-b border-[var(--color-border-strong)]">
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      Lot
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      Expires
+                    </TableHeader>
+                    <TableHeader
+                      scope="col"
+                      className="py-2 pr-4 text-right font-semibold tabular-nums"
+                    >
+                      On hand
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                      State
+                    </TableHeader>
+                    <TableHeader scope="col" className="py-2 font-semibold">
+                      <span className="sr-only">Actions</span>
+                    </TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recall.lots.map((lot) => {
+                    const state = lotState(lot);
+                    return (
+                      <TableRow key={lot.lotId} className="border-b border-[var(--color-border)]">
+                        <TableCell label="Lot" className="py-2 pr-4">
+                          <code>{lotLabel(lot)}</code>
+                        </TableCell>
+                        <TableCell label="Expires" className="py-2 pr-4">
+                          {lot.expiryDate ? formatDate(lot.expiryDate) : "—"}
+                        </TableCell>
+                        <TableCell label="On hand" className="py-2 pr-4 text-right tabular-nums">
+                          {lot.onHand}
+                        </TableCell>
+                        <TableCell label="State" className="py-2 pr-4">
+                          <Badge variant={state.variant}>{state.label}</Badge>
+                        </TableCell>
+                        <TableCell label="Actions" stacked className="py-2">
+                          {canRecall && lot.onHand > 0 ? (
+                            <DisposeDialog
+                              recallId={recall.recallId}
+                              lotId={lot.lotId}
+                              lotName={lotLabel(lot)}
+                              onHand={lot.onHand}
+                            />
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </ResponsiveTable>
             )}
           </section>
 
@@ -253,54 +264,55 @@ export default async function RecallPage({ params, searchParams }: Props) {
               {affected.length === 0 ? (
                 <p data-testid="affected-empty">No order is affected.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left" data-testid="affected-orders">
-                    <caption className="sr-only">Orders this recall affects, oldest first</caption>
-                    <thead>
-                      <tr className="border-b border-[var(--color-border-strong)]">
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Order
-                        </th>
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Status
-                        </th>
-                        <th scope="col" className="py-2 pr-4 font-semibold">
-                          Customer
-                        </th>
-                        <th scope="col" className="py-2 font-semibold">
-                          Notice
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {affected.map((order) => (
-                        <tr key={order.orderId} className="border-b border-[var(--color-border)]">
-                          <td className="py-2 pr-4">
-                            <Link href={`/orders/${order.orderId}`}>
-                              <code>{order.reference}</code>
-                            </Link>
-                          </td>
-                          <td className="py-2 pr-4">
-                            <Badge variant={ORDER_STATUS_BADGE[order.status]}>
-                              {ORDER_STATUS_LABELS[order.status]}
-                            </Badge>
-                          </td>
-                          <td className="py-2 pr-4">
-                            {order.contactName ?? "—"}
-                            {order.contactEmail ? (
-                              <span className="block text-sm text-[var(--color-text-subtle)]">
-                                {order.contactEmail}
-                              </span>
-                            ) : null}
-                          </td>
-                          <td className="py-2">
-                            {order.paid ? NOTICE_LABELS[order.notice] : "Not paid: no notice"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ResponsiveTable data-testid="affected-orders">
+                  <caption className="sr-only">Orders this recall affects, oldest first</caption>
+                  <TableHead>
+                    <TableRow className="border-b border-[var(--color-border-strong)]">
+                      <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                        Order
+                      </TableHeader>
+                      <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                        Status
+                      </TableHeader>
+                      <TableHeader scope="col" className="py-2 pr-4 font-semibold">
+                        Customer
+                      </TableHeader>
+                      <TableHeader scope="col" className="py-2 font-semibold">
+                        Notice
+                      </TableHeader>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {affected.map((order) => (
+                      <TableRow
+                        key={order.orderId}
+                        className="border-b border-[var(--color-border)]"
+                      >
+                        <TableCell label="Order" className="py-2 pr-4">
+                          <Link href={`/orders/${order.orderId}`}>
+                            <code>{order.reference}</code>
+                          </Link>
+                        </TableCell>
+                        <TableCell label="Status" className="py-2 pr-4">
+                          <Badge variant={ORDER_STATUS_BADGE[order.status]}>
+                            {ORDER_STATUS_LABELS[order.status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell label="Customer" className="py-2 pr-4">
+                          {order.contactName ?? "—"}
+                          {order.contactEmail ? (
+                            <span className="block text-sm text-[var(--color-text-subtle)]">
+                              {order.contactEmail}
+                            </span>
+                          ) : null}
+                        </TableCell>
+                        <TableCell label="Notice" className="py-2">
+                          {order.paid ? NOTICE_LABELS[order.notice] : "Not paid: no notice"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </ResponsiveTable>
               )}
             </section>
           ) : null}

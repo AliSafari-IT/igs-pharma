@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -118,6 +119,7 @@ test("pharmacist: start a recall, see the product stop selling, then end it", as
   await expect(page.getByTestId("recall-active")).toBeVisible();
   await expect(page.getByTestId("recall-note")).toHaveText("E2E notice 1, batch contamination");
   await expect(page.getByTestId("recall-lots").locator("tbody tr")).toHaveCount(1);
+  await expectResponsiveTables(page);
   await expectAxeClean(page);
 
   await page.goto(`${PLATFORM}/stock/${productId}`, { waitUntil: "networkidle" });
