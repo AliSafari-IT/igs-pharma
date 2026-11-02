@@ -22,27 +22,22 @@ export function CountActions({
 }) {
   const [state, action, pending] = useActionState(chooseCount, {});
   return (
-    <form
-      action={action}
-      aria-busy={pending}
-      className="flex flex-col gap-3"
-      data-testid="count-actions"
-    >
-      <input type="hidden" name="reconciliationId" value={reconciliationId} />
+    <div className="flex flex-col gap-3" data-testid="count-actions">
       {!pending && state.error ? (
         <Alert variant="error" title="Nothing was changed">
           {stockErrorMessage(state.error)}
         </Alert>
       ) : null}
       {pending ? <output>Saving your choice…</output> : null}
-      <div className="flex flex-wrap gap-3">
+      <form action={action} aria-busy={pending} className="flex flex-wrap gap-3">
+        <input type="hidden" name="reconciliationId" value={reconciliationId} />
         <Button type="submit" name="decision" value="apply" disabled={pending}>
           {differing === 0 ? "Confirm the count" : "Apply the count"}
         </Button>
         <Button type="submit" name="decision" value="discard" variant="ghost" disabled={pending}>
           Discard
         </Button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 }
