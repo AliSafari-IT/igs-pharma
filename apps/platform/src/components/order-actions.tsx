@@ -2,7 +2,8 @@
 
 import type { FulfilmentStep } from "@igs/module-orders";
 import { Alert, Button, Label, Select, Stack, Textarea } from "@igs/ui";
-import { useActionState, useId, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useId, useState, useTransition } from "react";
 
 import {
   type OrderActionState,
@@ -34,9 +35,12 @@ export function ReviewForm({
 }: OrderRef & { readonly blocked?: boolean }) {
   const [state, action, pending] = useActionState(decide, {} as OrderActionState);
   const [note, setNote] = useState("");
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
+  const busy = pending || refreshing;
   const id = useId();
   return (
-    <form action={action} aria-busy={pending} data-testid="review-form">
+    <form action={action} aria-busy={busy} data-testid="review-form">
       <Stack gap={3}>
         <input type="hidden" name="orderId" value={orderId} />
         <input type="hidden" name="expectedVersion" value={version} />
@@ -44,6 +48,19 @@ export function ReviewForm({
           <Alert variant="error" title="Nothing was recorded">
             {orderErrorMessage(state.error)}
           </Alert>
+        ) : null}
+        {state.error === "orders.stale_version" ? (
+          <div>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={refreshing}
+              disabled={pending}
+              onClick={() => startRefresh(() => router.refresh())}
+            >
+              Refresh order
+            </Button>
+          </div>
         ) : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${id}-note`}>Note (staff only, optional)</Label>
@@ -54,7 +71,7 @@ export function ReviewForm({
             rows={3}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            readOnly={pending}
+            readOnly={busy}
           />
         </div>
         <div className="flex flex-wrap gap-3">
@@ -63,17 +80,11 @@ export function ReviewForm({
             name="decision"
             value="approved"
             loading={pending}
-            disabled={blocked}
+            disabled={blocked || refreshing}
           >
             Approve
           </Button>
-          <Button
-            type="submit"
-            name="decision"
-            value="rejected"
-            variant="danger"
-            disabled={pending}
-          >
+          <Button type="submit" name="decision" value="rejected" variant="danger" disabled={busy}>
             Reject and cancel
           </Button>
         </div>

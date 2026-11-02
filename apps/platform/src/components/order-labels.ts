@@ -175,7 +175,7 @@ export const shipmentFailureMessage = (code: string | null): string =>
 
 const ERRORS: Record<string, string> = {
   "orders.stale_version":
-    "Someone else changed this order meanwhile. The page shows it as it is now.",
+    "Someone else changed this order meanwhile. Refresh it before trying again.",
   "orders.order_not_in_review": "This order is no longer waiting for a pharmacist.",
   "orders.invalid_transition": "This order can't take that step from where it is now.",
   "orders.order_not_found": "This order doesn't exist.",

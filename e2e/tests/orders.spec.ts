@@ -178,9 +178,8 @@ test("the pharmacist approves; the assistant prepares and marks it ready", async
   const version = await versionInput.inputValue();
   await note.fill("Checked with the customer.");
   // A refused command must retain the draft. It must not queue a second decision while waiting.
-  await versionInput.evaluate((input: HTMLInputElement) => {
-    input.value = "1";
-  });
+  await sql`UPDATE orders.orders SET version = version + 1, updated_by_type = 'system',
+    updated_by_id = 'e2e-concurrent-edit', updated_at = now() WHERE id = ${orderId}`;
   const held = await holdNextAction(page);
   await review.getByRole("button", { name: "Approve" }).click();
   try {
@@ -197,9 +196,10 @@ test("the pharmacist approves; the assistant prepares and marks it ready", async
   await expect(note).toHaveValue("Checked with the customer.");
   await expect(note).toHaveJSProperty("readOnly", false);
   await expect(review.getByRole("button", { name: "Approve" })).toBeEnabled();
-  await versionInput.evaluate((input: HTMLInputElement, value) => {
-    input.value = value;
-  }, version);
+  await review.getByRole("button", { name: "Refresh order" }).click();
+  await expect(versionInput).toHaveValue(String(Number(version) + 1));
+  await expect(note).toHaveValue("Checked with the customer.");
+  await expect(review.getByRole("button", { name: "Approve" })).toBeEnabled();
   await review.getByRole("button", { name: "Approve" }).click();
   await expect(page.getByText("The order is now “To prepare”.")).toBeVisible();
   await expect(page.getByTestId("review-record")).toContainText("Approved by you");
