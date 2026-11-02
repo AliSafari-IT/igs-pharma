@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { holdNextAction } from "../helpers/held-action";
 import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
@@ -171,8 +172,35 @@ test("the pharmacist approves; the assistant prepares and marks it ready", async
 }) => {
   await signIn(context, pharmacistToken);
   await page.goto(`${PLATFORM}/orders/${orderId}`, { waitUntil: "networkidle" });
-  await page.getByLabel("Note (staff only, optional)").fill("Checked with the customer.");
-  await page.getByRole("button", { name: "Approve" }).click();
+  const review = page.getByTestId("review-form");
+  const note = review.getByLabel("Note (staff only, optional)");
+  const versionInput = review.locator('input[name="expectedVersion"]');
+  const version = await versionInput.inputValue();
+  await note.fill("Checked with the customer.");
+  // A refused command must retain the draft. It must not queue a second decision while waiting.
+  await versionInput.evaluate((input: HTMLInputElement) => {
+    input.value = "1";
+  });
+  const held = await holdNextAction(page);
+  await review.getByRole("button", { name: "Approve" }).click();
+  try {
+    await held.ready;
+    await expect(review).toHaveAttribute("aria-busy", "true");
+    await expect(review.getByRole("button", { name: "Approve" })).toBeDisabled();
+    await expect(review.getByRole("button", { name: "Reject and cancel" })).toBeDisabled();
+    await expect(note).toHaveJSProperty("readOnly", true);
+    expect(held.requests()).toBe(1);
+  } finally {
+    held.release();
+  }
+  await expect(review.getByRole("alert")).toContainText("Someone else changed this order");
+  await expect(note).toHaveValue("Checked with the customer.");
+  await expect(note).toHaveJSProperty("readOnly", false);
+  await expect(review.getByRole("button", { name: "Approve" })).toBeEnabled();
+  await versionInput.evaluate((input: HTMLInputElement, value) => {
+    input.value = value;
+  }, version);
+  await review.getByRole("button", { name: "Approve" }).click();
   await expect(page.getByText("The order is now “To prepare”.")).toBeVisible();
   await expect(page.getByTestId("review-record")).toContainText("Approved by you");
 
@@ -191,4 +219,49 @@ test("the pharmacist approves; the assistant prepares and marks it ready", async
   await expect(page.getByText("The order is now “Ready for pickup”.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark collected" })).toBeVisible();
   await expectAxeClean(page);
+});
+
+// #227: a permission change can refuse a refund after the form was opened.
+test("refund refusal retains reason and note for an explicit retry", async ({ page, context }) => {
+  await paidMedicineOrder();
+  await sql`UPDATE orders.orders SET status = 'cancelled', version = version + 1,
+    updated_by_type = 'system', updated_by_id = 'e2e', updated_at = now() WHERE id = ${orderId}`;
+  await signIn(context, pharmacistToken);
+  await page.goto(`${PLATFORM}/orders/${orderId}`, { waitUntil: "networkidle" });
+  const form = page.getByTestId("refund-form");
+  const reason = form.getByLabel("Reason", { exact: true });
+  const note = form.getByLabel("Note (staff only, optional)");
+  await reason.selectOption("customer_request");
+  await note.fill("Customer requested cancellation; draft retained.");
+  try {
+    await sql`UPDATE identity.user_roles SET role_key = 'customer_service'
+      WHERE user_id = ${userIds[0] as string} AND role_key = 'pharmacist'`;
+    const held = await holdNextAction(page);
+    await form.getByRole("button", { name: "Refund the full amount" }).click();
+    try {
+      await held.ready;
+      await expect(reason).toBeDisabled();
+      await expect(note).toHaveJSProperty("readOnly", true);
+      await expect(form.getByRole("button")).toBeDisabled();
+      expect(held.requests()).toBe(1);
+    } finally {
+      held.release();
+    }
+    await expect(form.getByRole("alert")).toBeVisible();
+    await expect(reason).toHaveValue("customer_request");
+    await expect(note).toHaveValue("Customer requested cancellation; draft retained.");
+    await expect(reason).toBeEnabled();
+  } finally {
+    await sql`UPDATE identity.user_roles SET role_key = 'pharmacist'
+      WHERE user_id = ${userIds[0] as string} AND role_key = 'customer_service'`;
+  }
+  await form.getByRole("button", { name: "Refund the full amount" }).click();
+  await expect(page.getByTestId("refunds")).toContainText(
+    "Customer requested cancellation; draft retained.",
+  );
+  const rows = await sql<{ reason: string; note: string }[]>`
+    SELECT reason, note FROM orders.refunds WHERE order_id = ${orderId}`;
+  expect(rows).toEqual([
+    { reason: "customer_request", note: "Customer requested cancellation; draft retained." },
+  ]);
 });

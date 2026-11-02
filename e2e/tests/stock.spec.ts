@@ -1,4 +1,5 @@
 import { createHmac, randomInt, randomUUID } from "node:crypto";
+import { holdNextAction } from "../helpers/held-action";
 import { expectResponsiveTables } from "../helpers/responsive-tables";
 
 import AxeBuilder from "@axe-core/playwright";
@@ -181,7 +182,37 @@ test("owner: receive, adjust, then count the lots and see on-hand and history", 
   await expect(counted.nth(0)).toContainText("-1");
   await expect(counted.nth(1)).toContainText("No change");
   await expectAxeClean(page);
-  await page.getByRole("button", { name: "Apply the count" }).click();
+  const choices = page.getByTestId("count-actions");
+  const countIdInput = choices.locator('input[name="reconciliationId"]');
+  const countId = await countIdInput.inputValue();
+  await countIdInput.evaluate((input: HTMLInputElement) => {
+    input.value = "invalid-id";
+  });
+  const refused = await holdNextAction(page);
+  await choices.getByRole("button", { name: "Apply the count" }).click();
+  try {
+    await refused.ready;
+    await expect(choices.getByRole("button", { name: "Apply the count" })).toBeDisabled();
+    await expect(choices.getByRole("button", { name: "Discard" })).toBeDisabled();
+    await expect(choices.getByRole("status")).toHaveText("Saving your choice…");
+    expect(refused.requests()).toBe(1);
+  } finally {
+    refused.release();
+  }
+  await expect(choices.getByRole("alert")).toBeVisible();
+  await expect(choices.getByRole("button", { name: "Discard" })).toBeEnabled();
+  await countIdInput.evaluate((input: HTMLInputElement, value) => {
+    input.value = value;
+  }, countId);
+  const applying = await holdNextAction(page);
+  await choices.getByRole("button", { name: "Apply the count" }).click();
+  try {
+    await applying.ready;
+    await expect(choices.getByRole("button", { name: "Discard" })).toBeDisabled();
+    await expect(choices.getByRole("alert")).toHaveCount(0);
+  } finally {
+    applying.release();
+  }
   await expect(page.getByText("1 lot changed.")).toBeVisible();
   await expect(page.getByTestId("count-status")).toHaveText("Applied");
   await expect(page.getByRole("button", { name: "Apply the count" })).toHaveCount(0);
@@ -199,7 +230,19 @@ test("owner: receive, adjust, then count the lots and see on-hand and history", 
   await count.getByRole("button", { name: "Preview the count" }).click();
   await expect(page.getByTestId("count-status")).toHaveText("Preview: nothing has changed yet");
   await expectResponsiveTables(page);
+  const discarding = await holdNextAction(page);
   await page.getByRole("button", { name: "Discard" }).click();
+  try {
+    await discarding.ready;
+    await expect(
+      page.getByTestId("count-actions").getByRole("button", { name: "Apply the count" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByTestId("count-actions").getByRole("button", { name: "Discard" }),
+    ).toBeDisabled();
+  } finally {
+    discarding.release();
+  }
   await expect(page.getByTestId("count-status")).toHaveText("Discarded");
   await page.goto(`${PLATFORM}/stock/${productId}`, { waitUntil: "networkidle" });
   await expect(page.getByTestId("on-hand")).toHaveText("12");

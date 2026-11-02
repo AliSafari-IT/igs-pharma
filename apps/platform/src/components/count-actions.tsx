@@ -3,8 +3,14 @@
 import { Alert, Button } from "@igs/ui";
 import { useActionState } from "react";
 
-import { applyCount, discardCount } from "../app/stock/actions";
+import { type CountActionState, applyCount, discardCount } from "../app/stock/actions";
 import { stockErrorMessage } from "./stock-labels";
+
+async function chooseCount(previous: CountActionState, form: FormData): Promise<CountActionState> {
+  if (form.get("decision") === "apply") return applyCount(previous, form);
+  if (form.get("decision") === "discard") return discardCount(previous, form);
+  return { error: "kernel.validation_failed" };
+}
 
 /** Apply or discard an open count (igs-pharma#166). */
 export function CountActions({
@@ -14,30 +20,29 @@ export function CountActions({
   readonly reconciliationId: string;
   readonly differing: number;
 }) {
-  const [applied, apply, applying] = useActionState(applyCount, {});
-  const [discarded, discard, discarding] = useActionState(discardCount, {});
-  const error = applied.error ?? discarded.error;
+  const [state, action, pending] = useActionState(chooseCount, {});
   return (
-    <div className="flex flex-col gap-3" data-testid="count-actions">
-      {error ? (
+    <form
+      action={action}
+      aria-busy={pending}
+      className="flex flex-col gap-3"
+      data-testid="count-actions"
+    >
+      <input type="hidden" name="reconciliationId" value={reconciliationId} />
+      {!pending && state.error ? (
         <Alert variant="error" title="Nothing was changed">
-          {stockErrorMessage(error)}
+          {stockErrorMessage(state.error)}
         </Alert>
       ) : null}
+      {pending ? <output>Saving your choice…</output> : null}
       <div className="flex flex-wrap gap-3">
-        <form action={apply}>
-          <input type="hidden" name="reconciliationId" value={reconciliationId} />
-          <Button type="submit" loading={applying}>
-            {differing === 0 ? "Confirm the count" : "Apply the count"}
-          </Button>
-        </form>
-        <form action={discard}>
-          <input type="hidden" name="reconciliationId" value={reconciliationId} />
-          <Button type="submit" variant="ghost" loading={discarding}>
-            Discard
-          </Button>
-        </form>
+        <Button type="submit" name="decision" value="apply" disabled={pending}>
+          {differing === 0 ? "Confirm the count" : "Apply the count"}
+        </Button>
+        <Button type="submit" name="decision" value="discard" variant="ghost" disabled={pending}>
+          Discard
+        </Button>
       </div>
-    </div>
+    </form>
   );
 }
