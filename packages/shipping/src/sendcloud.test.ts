@@ -7,7 +7,9 @@ function fakeFetch(...answers: { status: number; body?: unknown; raw?: Uint8Arra
   const impl = (async (url: string, init: RequestInit) => {
     calls.push({ url, init });
     const answer = answers[Math.min(calls.length - 1, answers.length - 1)] ?? { status: 500 };
-    const payload = answer.raw ?? JSON.stringify(answer.body ?? {});
+    const payload = [204, 205, 304].includes(answer.status)
+      ? null
+      : (answer.raw ?? JSON.stringify(answer.body === undefined ? {} : answer.body));
     return new Response(payload, { status: answer.status });
   }) as unknown as typeof fetch;
   return { impl, calls };
@@ -134,6 +136,100 @@ describe("createSendcloudClient", () => {
     expect(await client(202, { status: "queued" }).cancelParcel("1")).toBe("queued");
     expect(await client(410).cancelParcel("1")).toBe("gone");
     await expect(client(400).cancelParcel("1")).rejects.toMatchObject({ status: 400 });
+  });
+
+  it.each([
+    { raw: new Uint8Array(), label: "empty" },
+    { raw: new TextEncoder().encode("<html>upstream error</html>"), label: "non-JSON" },
+    { body: { status: "cancelled" }, label: "contradictory" },
+  ])("keeps HTTP 202 queued with a $label body", async ({ raw, body }) => {
+    const { impl, calls } = fakeFetch({ status: 202, ...(raw ? { raw } : { body }) });
+    await expect(createSendcloudClient("pub", "sec", impl).cancelParcel("1")).resolves.toBe(
+      "queued",
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each([
+    { body: {} },
+    { body: { status: "pending" } },
+    { body: { status: true } },
+    { body: [] },
+    { body: null },
+  ])("never treats an unknown HTTP 200 acknowledgement as cancelled: %j", async ({ body }) => {
+    const { impl } = fakeFetch({ status: 200, body });
+    await expect(createSendcloudClient("pub", "sec", impl).cancelParcel("1")).rejects.toMatchObject(
+      { status: 200, code: "invalid_cancellation" },
+    );
+  });
+
+  it("does not complete on malformed JSON, body-read errors or an unrecognised success code", async () => {
+    const address = "Private address in provider response";
+    const malformed = fakeFetch({ status: 200, raw: new TextEncoder().encode(address) });
+    const error = await createSendcloudClient("pub", "sec", malformed.impl)
+      .cancelParcel("1")
+      .catch((value: unknown) => value);
+    expect(error).toMatchObject({ status: 200, code: "invalid_body" });
+    expect(String(error)).not.toContain(address);
+    const broken = (async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new Error(address));
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch;
+    await expect(
+      createSendcloudClient("pub", "sec", broken).cancelParcel("1"),
+    ).rejects.toMatchObject({ status: 200, code: "invalid_body" });
+    await expect(
+      createSendcloudClient("pub", "sec", fakeFetch({ status: 204 }).impl).cancelParcel("1"),
+    ).rejects.toMatchObject({ status: 204, code: "invalid_cancellation" });
+  });
+
+  it("retains a queued acknowledgement on HTTP 200 for compatibility", async () => {
+    const { impl } = fakeFetch({ status: 200, body: { status: "queued" } });
+    await expect(createSendcloudClient("pub", "sec", impl).cancelParcel("1")).resolves.toBe(
+      "queued",
+    );
+  });
+
+  it("confirms the exact parcel after a refusal instead of trusting the refusal body", async () => {
+    const { impl, calls } = fakeFetch(
+      { status: 400, body: { message: "Private provider message" } },
+      { status: 200, body: { parcel: parcel({ id: 1, status: { id: 2000 } }) } },
+    );
+    await expect(createSendcloudClient("pub", "sec", impl).cancelParcel("1")).resolves.toBe(
+      "cancelled",
+    );
+    expect(calls.map(({ url, init }) => [init.method, url])).toEqual([
+      ["POST", "https://panel.sendcloud.sc/api/v2/parcels/1/cancel"],
+      ["GET", "https://panel.sendcloud.sc/api/v2/parcels/1"],
+    ]);
+    const wrong = fakeFetch(
+      { status: 400 },
+      { status: 200, body: { parcel: parcel({ status: { id: 2000 } }) } },
+    );
+    await expect(
+      createSendcloudClient("pub", "sec", wrong.impl).cancelParcel("1"),
+    ).rejects.toMatchObject({ code: "parcel_mismatch" });
+  });
+
+  it.each([404, 410])("a missing parcel (%i) after a refusal is gone", async (status) => {
+    const { impl } = fakeFetch({ status: 400 }, { status });
+    await expect(createSendcloudClient("pub", "sec", impl).cancelParcel("1")).resolves.toBe("gone");
+  });
+
+  it("does not accept an active parcel or a failed confirmation lookup as cancellation", async () => {
+    const active = fakeFetch({ status: 400 }, { status: 200, body: { parcel: parcel({ id: 1 }) } });
+    await expect(
+      createSendcloudClient("pub", "sec", active.impl).cancelParcel("1"),
+    ).rejects.toMatchObject({ status: 400, code: "refused" });
+    const failed = fakeFetch({ status: 400 }, { status: 503 });
+    await expect(
+      createSendcloudClient("pub", "sec", failed.impl).cancelParcel("1"),
+    ).rejects.toMatchObject({ status: 503, code: "refused" });
   });
 
   it("passes on a label only when it is a PDF", async () => {

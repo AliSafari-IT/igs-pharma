@@ -182,6 +182,18 @@ export function createSendcloudClient(
     if (!SENDCLOUD_PARCEL_ID.test(id)) throw new SendcloudError(0, "invalid_id");
   };
 
+  async function getParcel(id: string): Promise<Parcel> {
+    checkId(id);
+    const body = (await json(`/parcels/${id}`, { method: "GET" })) as {
+      parcel?: ParcelBody;
+    } | null;
+    return toParcel(body?.parcel);
+  }
+
+  async function discardBody(response: Response): Promise<void> {
+    await response.body?.cancel().catch(() => {});
+  }
+
   return {
     async createParcel(input) {
       const body = (await json("/parcels", {
@@ -206,11 +218,7 @@ export function createSendcloudClient(
       })) as { parcel?: ParcelBody };
       return toParcel(body.parcel);
     },
-    async getParcel(id) {
-      checkId(id);
-      const body = (await json(`/parcels/${id}`, { method: "GET" })) as { parcel?: ParcelBody };
-      return toParcel(body.parcel);
-    },
+    getParcel,
     async findParcel(externalReference) {
       const query = new URLSearchParams({ external_reference: externalReference });
       const body = (await json(`/parcels?${query}`, { method: "GET" })) as { parcels?: unknown };
@@ -223,12 +231,48 @@ export function createSendcloudClient(
     async cancelParcel(id) {
       checkId(id);
       const response = await call(`/parcels/${id}/cancel`, { method: "POST" });
-      // 410: already cancelled or deleted; 404: no such parcel (never announced)
-      if (response.status === 410 || response.status === 404) return "gone";
-      if (!response.ok) throw new SendcloudError(response.status, "refused");
-      const body = (await response.json().catch(() => null)) as { status?: unknown } | null;
+      // An accepted request is still pending, even if its body is empty or unreadable.
+      if (response.status === 202) {
+        await discardBody(response);
+        return "queued";
+      }
+      if (response.status === 410 || response.status === 404) {
+        await discardBody(response);
+        return "gone";
+      }
+      if (response.status === 400) {
+        await discardBody(response);
+        // A retry after a queued/lost answer may find a parcel already cancelled.
+        // Confirm its state rather than interpreting the refusal's message body.
+        try {
+          const parcel = await getParcel(id);
+          if (parcel.id !== id) throw new SendcloudError(0, "parcel_mismatch");
+          if (parcel.statusId === SENDCLOUD_STATUS.cancelled) return "cancelled";
+        } catch (error) {
+          if (error instanceof SendcloudError && (error.status === 404 || error.status === 410)) {
+            return "gone";
+          }
+          throw error;
+        }
+        throw new SendcloudError(400, "refused");
+      }
+      if (!response.ok) {
+        await discardBody(response);
+        throw new SendcloudError(response.status, "refused");
+      }
+      if (response.status !== 200) {
+        await discardBody(response);
+        throw new SendcloudError(response.status, "invalid_cancellation");
+      }
+      let body: { status?: unknown } | null;
+      try {
+        body = (await response.json()) as { status?: unknown } | null;
+      } catch {
+        throw new SendcloudError(response.status, "invalid_body");
+      }
       if (body?.status === "queued") return "queued";
-      return "cancelled";
+      if (body?.status === "cancelled") return "cancelled";
+      throw new SendcloudError(response.status, "invalid_cancellation");
     },
     async getLabelPdf(id, format) {
       checkId(id);
