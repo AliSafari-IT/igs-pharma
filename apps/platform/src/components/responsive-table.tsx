@@ -9,16 +9,19 @@ export function ResponsiveTable({
 }: ComponentPropsWithoutRef<"table">) {
   return (
     <div className="overflow-x-auto">
-      {/* biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: Preserve semantics when CSS changes display. */}
-      <table
+      <SemanticTable
         {...props}
-        role="table"
         className={cn("responsive-table w-full border-collapse text-left", className)}
       >
         {children}
-      </table>
+      </SemanticTable>
     </div>
   );
+}
+
+function SemanticTable(props: ComponentPropsWithoutRef<"table">) {
+  // biome-ignore lint/a11y/noRedundantRoles lint/a11y/useSemanticElements: Preserve semantics when CSS changes display.
+  return <table {...props} role="table" />;
 }
 
 interface TableCellProps extends ComponentPropsWithoutRef<"td"> {
