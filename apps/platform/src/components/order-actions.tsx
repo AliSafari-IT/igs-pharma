@@ -2,7 +2,8 @@
 
 import type { FulfilmentStep } from "@igs/module-orders";
 import { Alert, Button, Label, Select, Stack, Textarea } from "@igs/ui";
-import { useActionState, useId } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useId, useState, useTransition } from "react";
 
 import {
   type OrderActionState,
@@ -33,9 +34,13 @@ export function ReviewForm({
   blocked = false,
 }: OrderRef & { readonly blocked?: boolean }) {
   const [state, action, pending] = useActionState(decide, {} as OrderActionState);
+  const [note, setNote] = useState("");
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
+  const busy = pending || refreshing;
   const id = useId();
   return (
-    <form action={action} data-testid="review-form">
+    <form action={action} aria-busy={busy} data-testid="review-form">
       <Stack gap={3}>
         <input type="hidden" name="orderId" value={orderId} />
         <input type="hidden" name="expectedVersion" value={version} />
@@ -44,9 +49,30 @@ export function ReviewForm({
             {orderErrorMessage(state.error)}
           </Alert>
         ) : null}
+        {state.error === "orders.stale_version" ? (
+          <div>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={refreshing}
+              disabled={pending}
+              onClick={() => startRefresh(() => router.refresh())}
+            >
+              Refresh order
+            </Button>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${id}-note`}>Note (staff only, optional)</Label>
-          <Textarea id={`${id}-note`} name="note" maxLength={500} rows={3} />
+          <Textarea
+            id={`${id}-note`}
+            name="note"
+            maxLength={500}
+            rows={3}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            readOnly={busy}
+          />
         </div>
         <div className="flex flex-wrap gap-3">
           <Button
@@ -54,17 +80,11 @@ export function ReviewForm({
             name="decision"
             value="approved"
             loading={pending}
-            disabled={blocked}
+            disabled={blocked || refreshing}
           >
             Approve
           </Button>
-          <Button
-            type="submit"
-            name="decision"
-            value="rejected"
-            variant="danger"
-            disabled={pending}
-          >
+          <Button type="submit" name="decision" value="rejected" variant="danger" disabled={busy}>
             Reject and cancel
           </Button>
         </div>
@@ -132,9 +152,11 @@ export function RetryLabelForm({ orderId }: { readonly orderId: string }) {
 /** Asks for the full refund of a closed, paid order; the note is optional and staff-only. */
 export function RefundForm({ orderId }: { readonly orderId: string }) {
   const [state, action, pending] = useActionState(refund, {} as OrderActionState);
+  const [note, setNote] = useState("");
+  const [reason, setReason] = useState<string>(REFUND_REASON_OPTIONS[0]);
   const id = useId();
   return (
-    <form action={action} data-testid="refund-form">
+    <form action={action} aria-busy={pending} data-testid="refund-form">
       <Stack gap={3}>
         <input type="hidden" name="orderId" value={orderId} />
         {state.error ? (
@@ -146,7 +168,14 @@ export function RefundForm({ orderId }: { readonly orderId: string }) {
           <Label htmlFor={`${id}-reason`} required>
             Reason
           </Label>
-          <Select id={`${id}-reason`} name="reason" required>
+          <Select
+            id={`${id}-reason`}
+            name="reason"
+            required
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            disabled={pending}
+          >
             {REFUND_REASON_OPTIONS.map((reason) => (
               <option key={reason} value={reason}>
                 {REFUND_REASON_LABELS[reason]}
@@ -156,7 +185,15 @@ export function RefundForm({ orderId }: { readonly orderId: string }) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${id}-note`}>Note (staff only, optional)</Label>
-          <Textarea id={`${id}-note`} name="note" maxLength={500} rows={3} />
+          <Textarea
+            id={`${id}-note`}
+            name="note"
+            maxLength={500}
+            rows={3}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            readOnly={pending}
+          />
         </div>
         <div>
           <Button type="submit" variant="danger" loading={pending}>

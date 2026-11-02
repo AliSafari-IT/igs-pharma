@@ -43,6 +43,24 @@ for (const width of [320, 639, 640, 1280]) {
       await page.evaluate((value) => {
         document.documentElement.dataset["theme"] = value;
       }, theme);
+      const loading = page.getByTestId("table-skeleton");
+      await expect(loading.getByRole("status")).toHaveCount(1);
+      await expect(loading.getByRole("status")).toHaveText("Loading…");
+      await expect(loading.getByTestId("loading-row")).toHaveCount(3);
+      const loadingRow = loading.getByTestId("loading-row").first();
+      expect(await loadingRow.evaluate((element) => getComputedStyle(element).flexDirection)).toBe(
+        width < 640 ? "column" : "row",
+      );
+      expect(await loading.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      expect(
+        await loadingRow
+          .locator('[class*="animate-pulse"]')
+          .last()
+          .evaluate((element) => getComputedStyle(element).animationName),
+      ).toBe("none");
       const table = page.getByRole("table", { name: "Demo orders" });
       await expect(table).toHaveClass(/align-top/);
       await expect(table.getByRole("columnheader")).toHaveCount(4);

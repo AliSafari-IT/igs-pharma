@@ -25,6 +25,8 @@ import {
   TableRowHeader,
 } from "../../../components/responsive-table";
 
+import { TableSkeleton } from "../../../components/table-skeleton";
+
 /**
  * Component gallery (T-017): every @igs/ui primitive and variant on one page, for review, the visual
  * smoke test and axe. A 404 in production unless UI_GALLERY=on (read at request time).
@@ -282,6 +284,10 @@ export default function UiGalleryPage() {
                 </TableRow>
               </TableFoot>
             </ResponsiveTable>
+          </Section>
+
+          <Section title="Loading a list">
+            <TableSkeleton columns={4} rows={3} />
           </Section>
 
           <Section title="Typography">

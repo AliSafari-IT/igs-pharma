@@ -58,7 +58,7 @@ export default async function OrdersPage({ searchParams }: Props) {
             title="Orders"
             description="Paid orders move from pharmacist review (medicines) to preparation and pickup."
           />
-          <Suspense key={`${status ?? ""}|${page}`} fallback={<TableSkeleton columns={6} />}>
+          <Suspense key={`${status ?? ""}|${page}`} fallback={<TableSkeleton columns={5} />}>
             <OrdersTable actor={actor} status={status} page={page} />
           </Suspense>
         </Stack>
