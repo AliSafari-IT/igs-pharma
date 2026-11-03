@@ -15,6 +15,39 @@ function fakeFetch(...answers: { status: number; body?: unknown; raw?: Uint8Arra
   return { impl, calls };
 }
 
+function streamedLabel(
+  chunks: Uint8Array[],
+  options: {
+    status?: number;
+    headers?: Record<string, string>;
+    failure?: Error;
+    cancelFails?: boolean;
+  } = {},
+) {
+  const state = { reads: 0, cancellations: 0 };
+  const body = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        const chunk = chunks[state.reads++];
+        if (chunk) controller.enqueue(chunk);
+        else if (options.failure) controller.error(options.failure);
+        else controller.close();
+      },
+      cancel() {
+        state.cancellations++;
+        if (options.cancelFails) throw new Error("private cleanup failure");
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const response = new Response(body, {
+    status: options.status ?? 200,
+    headers: options.headers ?? {},
+  });
+  const impl = (async () => response) as unknown as typeof fetch;
+  return { impl, response, state };
+}
+
 const parcel = (overrides: Record<string, unknown> = {}) => ({
   id: 123456,
   tracking_number: "323211588764200",
@@ -245,5 +278,112 @@ describe("createSendcloudClient", () => {
       createSendcloudClient("pub", "sec", html.impl).getLabelPdf("1", "a6"),
     ).rejects.toThrow(/invalid_label/);
     expect(html.calls[0]?.url).toBe("https://panel.sendcloud.sc/api/v2/labels/label_printer/1");
+  });
+
+  it("assembles a PDF whose signature spans chunks, including empty chunks", async () => {
+    const encode = (s: string) => new TextEncoder().encode(s);
+    const stream = streamedLabel([
+      encode("%"),
+      new Uint8Array(),
+      encode("PD"),
+      encode("F-1.4 label"),
+    ]);
+    const bytes = await createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a6");
+    expect(new TextDecoder().decode(bytes)).toBe("%PDF-1.4 label");
+    expect(stream.state.cancellations).toBe(0);
+    expect(stream.response.body?.locked).toBe(false);
+  });
+
+  it("accepts a PDF at the existing 5,000,000-byte limit", async () => {
+    const signature = new TextEncoder().encode("%PDF");
+    const rest = new Uint8Array(5_000_000 - signature.length).fill(42);
+    const stream = streamedLabel([signature, rest]);
+    const bytes = await createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a4");
+    expect(bytes.length).toBe(5_000_000);
+    expect(bytes.subarray(0, 4)).toEqual(signature);
+    expect(bytes[bytes.length - 1]).toBe(42);
+    expect(stream.state.cancellations).toBe(0);
+  });
+
+  it("preserves the bytes when many small chunks grow the bounded buffer", async () => {
+    const chunks = [
+      new TextEncoder().encode("%PDF"),
+      ...Array.from({ length: 1024 }, (_, i) => new Uint8Array(32).fill(i % 256)),
+    ];
+    const stream = streamedLabel(chunks);
+    const bytes = await createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a6");
+    expect(bytes.length).toBe(4 + 32 * 1024);
+    for (let i = 0; i < 1024; i++) {
+      expect(bytes.subarray(4 + i * 32, 4 + (i + 1) * 32)).toEqual(chunks[i + 1]);
+    }
+  });
+
+  it.each([{}, { "content-length": "4" }])(
+    "stops an oversized stream without trusting Content-Length (%j)",
+    async (headers) => {
+      const stream = streamedLabel(
+        [new TextEncoder().encode("%PDF"), new Uint8Array(5_000_000 - 3), new Uint8Array([1])],
+        { headers },
+      );
+      await expect(
+        createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a4"),
+      ).rejects.toMatchObject({ status: 0, code: "invalid_label" });
+      expect(stream.state).toEqual({ reads: 2, cancellations: 1 });
+      expect(stream.response.body?.locked).toBe(false);
+    },
+  );
+
+  it("cancels immediately when a split PDF signature is invalid", async () => {
+    const stream = streamedLabel(
+      [
+        new TextEncoder().encode("%P"),
+        new TextEncoder().encode("DX private provider data"),
+        new Uint8Array(100),
+      ],
+      { cancelFails: true },
+    );
+    await expect(
+      createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a4"),
+    ).rejects.toMatchObject({ message: "sendcloud.invalid_label (0)" });
+    expect(stream.state).toEqual({ reads: 2, cancellations: 1 });
+    expect(stream.response.body?.locked).toBe(false);
+  });
+
+  it.each(["", "%PD"])("rejects an empty or truncated label (%j)", async (content) => {
+    const stream = streamedLabel([new TextEncoder().encode(content)]);
+    await expect(
+      createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a4"),
+    ).rejects.toMatchObject({ status: 0, code: "invalid_label" });
+    expect(stream.response.body?.locked).toBe(false);
+  });
+
+  it("sanitises a stream failure after a valid prefix and releases the reader", async () => {
+    const stream = streamedLabel([new TextEncoder().encode("%PDF")], {
+      failure: new Error("private address and provider details"),
+    });
+    await expect(
+      createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a4"),
+    ).rejects.toMatchObject({ name: "SendcloudError", message: "sendcloud.invalid_body (200)" });
+    expect(stream.response.body?.locked).toBe(false);
+  });
+
+  it.each([404, 503])(
+    "discards a refused HTTP %i label without reading its body",
+    async (status) => {
+      const stream = streamedLabel([new TextEncoder().encode("private provider refusal")], {
+        status,
+      });
+      await expect(
+        createSendcloudClient("pub", "sec", stream.impl).getLabelPdf("1", "a6"),
+      ).rejects.toMatchObject({ status, code: status === 404 ? "not_found" : "refused" });
+      expect(stream.state).toEqual({ reads: 0, cancellations: 1 });
+    },
+  );
+
+  it("rejects a successful response without a body", async () => {
+    const empty = fakeFetch({ status: 204 });
+    await expect(
+      createSendcloudClient("pub", "sec", empty.impl).getLabelPdf("1", "a4"),
+    ).rejects.toMatchObject({ status: 0, code: "invalid_label" });
   });
 });
