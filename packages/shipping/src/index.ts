@@ -194,6 +194,45 @@ export function createSendcloudClient(
     await response.body?.cancel().catch(() => {});
   }
 
+  async function readLabel(response: Response): Promise<Uint8Array> {
+    if (!response.body) throw new SendcloudError(0, "invalid_label");
+    const reader = response.body.getReader();
+    let bytes = new Uint8Array(0);
+    const signature = [0x25, 0x50, 0x44, 0x46]; // %PDF, including across chunk boundaries
+    let length = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value.length > MAX_LABEL_BYTES - length) {
+          throw new SendcloudError(0, "invalid_label");
+        }
+        for (let i = 0; i < value.length && length + i < signature.length; i++) {
+          if (value[i] !== signature[length + i]) throw new SendcloudError(0, "invalid_label");
+        }
+        if (length + value.length > bytes.length) {
+          const capacity = Math.min(
+            MAX_LABEL_BYTES,
+            Math.max(16_384, bytes.length * 2, length + value.length),
+          );
+          const grown = new Uint8Array(capacity);
+          grown.set(bytes.subarray(0, length));
+          bytes = grown;
+        }
+        bytes.set(value, length);
+        length += value.length;
+      }
+      if (length < signature.length) throw new SendcloudError(0, "invalid_label");
+      return bytes.slice(0, length);
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      if (error instanceof SendcloudError) throw error;
+      throw new SendcloudError(response.status, "invalid_body");
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
   return {
     async createParcel(input) {
       const body = (await json("/parcels", {
@@ -283,17 +322,13 @@ export function createSendcloudClient(
         "application/pdf",
       );
       if (!response.ok) {
+        await discardBody(response);
         throw new SendcloudError(
           response.status,
           response.status === 404 ? "not_found" : "refused",
         );
       }
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      // a PDF starts with "%PDF"; anything else (an HTML error page) is not passed on
-      const isPdf =
-        bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
-      if (!isPdf || bytes.length > MAX_LABEL_BYTES) throw new SendcloudError(0, "invalid_label");
-      return bytes;
+      return readLabel(response);
     },
   };
 }
