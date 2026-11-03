@@ -540,6 +540,18 @@ const parcelOutcome = (parcel: ProviderParcelView) =>
         carrier: parcel.carrier,
       } as const);
 
+/** Confirm the provider result belongs to this shipment before using its state or cancelling it. */
+function assertParcelIdentity(shipment: ShipmentForExecution, parcel: ProviderParcelView): void {
+  const knownId = shipment.providerParcelId;
+  if (
+    (knownId !== null && parcel.id !== knownId) ||
+    ((!knownId || parcel.externalReference !== null) &&
+      parcel.externalReference !== shipment.shipmentId)
+  ) {
+    throw conflict("orders.shipment_parcel_mismatch");
+  }
+}
+
 export interface ShipmentSyncResult {
   readonly shipmentId: string;
   readonly status: ShipmentStatus;
@@ -589,11 +601,19 @@ export async function syncShipment(
       await record({ kind: "refused", parcelId: null, code });
       return { shipmentId, status: shipment.status, changed, delivered };
     }
+    assertParcelIdentity(shipment, parcel);
     await record(parcelOutcome(parcel));
   }
 
   if (shipment.status === "cancel_requested") {
-    const id = shipment.providerParcelId ?? (await provider.findParcel(shipment.shipmentId))?.id;
+    let id = shipment.providerParcelId;
+    if (!id) {
+      const parcel = await provider.findParcel(shipment.shipmentId);
+      if (parcel) {
+        assertParcelIdentity(shipment, parcel);
+        id = parcel.id;
+      }
+    }
     const outcome = id ? await provider.cancelParcel(id) : "gone";
     if (outcome !== "queued") await record({ kind: "cancelled" });
   }
@@ -604,6 +624,7 @@ export async function syncShipment(
     shipment.providerParcelId
   ) {
     const parcel = await provider.getParcel(shipment.providerParcelId);
+    assertParcelIdentity(shipment, parcel);
     if (PARCEL_STATUS.delivered.includes(parcel.statusId)) {
       const result = await recordDelivered({ shipmentId }, actor);
       delivered = result.changed;
