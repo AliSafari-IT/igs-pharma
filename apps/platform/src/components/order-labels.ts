@@ -168,7 +168,8 @@ const SHIPMENT_FAILURES: Record<string, string> = {
     "The carrier refused the parcel. Fix it in Sendcloud's panel (the address, usually), then try again.",
   provider_unauthorized:
     "Sendcloud refused our keys. Ask the owner to check the Sendcloud settings.",
-  provider_not_found: "Sendcloud doesn't know this parcel. Try again to make a new one.",
+  provider_not_found:
+    "Sendcloud didn't return the parcel. Check the saved parcel in Sendcloud before retrying.",
 };
 
 export const shipmentFailureMessage = (code: string | null): string =>

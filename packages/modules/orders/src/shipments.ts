@@ -135,12 +135,9 @@ export const retryShipment = command({
     if (!shipment || shipment.status !== "failed" || order.status !== "ready_to_ship") {
       throw conflict("orders.shipment_not_failed", { status: shipment?.status ?? "none" });
     }
-    // A retained, rejected creation is not a verified association yet.
-    const failureCode = shipment.failureCode === "parcel_mismatch" ? "parcel_mismatch" : null;
-    await moveShipment(ctx, shipment, "requested", { failureCode });
+    await moveShipment(ctx, shipment, "requested", { failureCode: null });
     await auditShipment(ctx, shipment, "requested", {
       providerParcelId: shipment.providerParcelId,
-      failureCode,
     });
     await ctx.outbox.publish(ShipmentRequested, {
       shipmentId: shipment.id,
@@ -278,7 +275,7 @@ export interface ShipmentForExecution {
   readonly reference: string;
   readonly locale: OrderLocale;
   readonly providerParcelId: string | null;
-  readonly failureCode: string | null;
+  readonly requiresReferenceVerification: boolean;
   /** The parcel's address and contact, for the label (personal data: the worker passes it on only). */
   readonly recipient: {
     readonly name: string;
@@ -305,7 +302,7 @@ export const getShipmentForExecution = query({
         reference: ordersTable.reference,
         locale: ordersTable.locale,
         providerParcelId: shipments.providerParcelId,
-        failureCode: shipments.failureCode,
+        requiresReferenceVerification: shipments.requiresReferenceVerification,
         name: orderContacts.name,
         email: orderContacts.email,
         phone: orderContacts.phone,
@@ -444,14 +441,13 @@ export const recordShipmentOutcome = command({
     }
     if (outcome.kind === "refused") {
       if (from !== "requested") return unchanged;
-      // Provider errors during recovery cannot turn an unverified association into a trusted one.
-      const code =
-        shipment.failureCode === "parcel_mismatch"
-          ? "parcel_mismatch"
-          : SHIPMENT_FAILURE_CODE.test(outcome.code)
-            ? outcome.code
-            : "provider_refused";
-      await moveShipment(ctx, shipment, "failed", { ...parcelSet, failureCode: code });
+      const code = SHIPMENT_FAILURE_CODE.test(outcome.code) ? outcome.code : "provider_refused";
+      await moveShipment(ctx, shipment, "failed", {
+        ...parcelSet,
+        failureCode: code,
+        requiresReferenceVerification:
+          shipment.requiresReferenceVerification || code === "parcel_mismatch",
+      });
       await auditShipment(ctx, shipment, "failed", {
         providerParcelId: named ?? shipment.providerParcelId,
         failureCode: code,
@@ -464,6 +460,7 @@ export const recordShipmentOutcome = command({
       await moveShipment(ctx, shipment, "created", {
         ...parcelSet,
         failureCode: null,
+        requiresReferenceVerification: false,
         trackingNumber: outcome.trackingNumber,
         trackingUrl:
           outcome.trackingUrl && isTrackingUrl(outcome.trackingUrl) ? outcome.trackingUrl : null,
@@ -559,9 +556,7 @@ function assertParcelIdentity(shipment: ShipmentForExecution, parcel: ProviderPa
   if (
     parcel.invalidExternalReference === true ||
     (knownId !== null && parcel.id !== knownId) ||
-    ((!knownId ||
-      shipment.failureCode === "parcel_mismatch" ||
-      parcel.externalReference !== null) &&
+    ((!knownId || shipment.requiresReferenceVerification || parcel.externalReference !== null) &&
       parcel.externalReference !== shipment.shipmentId)
   ) {
     throw conflict("orders.shipment_parcel_mismatch");

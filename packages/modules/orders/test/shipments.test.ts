@@ -231,6 +231,12 @@ const onHand = async (productId: string) =>
     )[0]?.on_hand,
   );
 
+const needsReferenceVerification = async (shipmentId: string) =>
+  (
+    await iso.sql<{ required: boolean }[]>`
+    SELECT requires_reference_verification AS required FROM orders.shipments WHERE id = ${shipmentId}`
+  )[0]?.required;
+
 const versionOf = async (orderId: string) => (await getOrderForStaff({ orderId }, owner)).version;
 
 const step = async (
@@ -451,18 +457,20 @@ describe("provider parcel identity", () => {
           trackingNumber: null,
           labelCreatedAt: null,
         });
+        expect(await needsReferenceVerification(shipmentId)).toBe(true);
         const calls = sendcloud.calls.length;
         expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
           changed: false,
         });
         expect(sendcloud.calls).toHaveLength(calls);
         await retryShipment({ orderId }, assistant);
+        expect(await needsReferenceVerification(shipmentId)).toBe(true);
         expect(await codeOf(syncShipment(shipmentId, sendcloud.provider, settings))).toBe(
           "orders.shipment_parcel_mismatch",
         );
         expect((await getOrderForStaff({ orderId }, owner)).shipment).toMatchObject({
           status: "requested",
-          failureCode: "parcel_mismatch",
+          failureCode: null,
           providerParcelId: after.shipment?.providerParcelId,
         });
         const get = sendcloud.provider.getParcel;
@@ -473,7 +481,7 @@ describe("provider parcel identity", () => {
           status: "failed",
         });
         expect((await getOrderForStaff({ orderId }, owner)).shipment?.failureCode).toBe(
-          "parcel_mismatch",
+          "provider_not_found",
         );
         await retryShipment({ orderId }, assistant);
         sendcloud.provider.getParcel = get;
@@ -510,6 +518,7 @@ describe("provider parcel identity", () => {
         status: "created",
       });
       expect((await getOrderForStaff({ orderId }, owner)).shipment?.failureCode).toBeNull();
+      expect(await needsReferenceVerification(shipmentId)).toBe(false);
       expect(sendcloud.calls.filter((call) => call === "create")).toHaveLength(
         source === "find" ? 0 : 1,
       );

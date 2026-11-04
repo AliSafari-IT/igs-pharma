@@ -584,6 +584,10 @@ export const shipments = orders.table(
     provider: text("provider").notNull().default("sendcloud"),
     status: text("status").notNull().default("requested"),
     providerParcelId: text("provider_parcel_id"),
+    /** A retained creation response that must be correlated before accepting its label. */
+    requiresReferenceVerification: boolean("requires_reference_verification")
+      .notNull()
+      .default(false),
     trackingNumber: text("tracking_number"),
     trackingUrl: text("tracking_url"),
     /** The carrier Sendcloud chose (`bpost`, …), for the staff page. */
@@ -618,6 +622,11 @@ export const shipments = orders.table(
       sql`(${t.status} = 'failed') = (${t.failureCode} IS NOT NULL) AND (${t.failureCode} IS NULL OR ${t.failureCode} ~ '^[a-z0-9_]{1,40}$')`,
     ),
     check("shipments_version_check", sql`${t.version} >= 1`),
+    check(
+      "shipments_reference_verification_check",
+      sql`NOT ${t.requiresReferenceVerification} OR (${t.providerParcelId} IS NOT NULL
+        AND ${t.status} <> 'created' AND ${t.trackingNumber} IS NULL AND ${t.labelCreatedAt} IS NULL)`,
+    ),
     uniqueIndex("shipments_order_idx").on(t.orderId),
     index("shipments_status_updated_idx").on(t.status, t.updatedAt),
   ],
