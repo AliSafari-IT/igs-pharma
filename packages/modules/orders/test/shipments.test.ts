@@ -722,6 +722,13 @@ describe("a packed order cancelled", () => {
       });
       expect(cancelled.refunds).toHaveLength(1);
       expect(await onHand(productId)).toBe(10);
+      if (failure === "rejected creation") {
+        expect(await codeOf(syncShipment(shipmentId, sendcloud.provider, settings))).toBe(
+          "orders.shipment_parcel_mismatch",
+        );
+        expect(sendcloud.calls.some((call) => call.startsWith("cancel:"))).toBe(false);
+        sendcloud.set(parcelId as string, { externalReference: shipmentId });
+      }
       expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
         status: "cancelled",
       });
@@ -778,6 +785,30 @@ describe("a packed order cancelled", () => {
     expect(sendcloud.calls).toHaveLength(calls);
     expect(sendcloud.calls.filter((call) => call === "create")).toHaveLength(1);
   });
+
+  it.each([404, 410])(
+    "finishes an unverified cancelled shipment only when its parcel is gone (%i)",
+    async (status) => {
+      const { orderId, shipmentId, productId } = await packedOrder();
+      const sendcloud = fakeSendcloud();
+      const create = sendcloud.provider.createParcel;
+      sendcloud.provider.createParcel = async (input) => ({
+        ...(await create(input)),
+        externalReference: null,
+      });
+      await syncShipment(shipmentId, sendcloud.provider, settings);
+      await setProductStatusRegulated({ productId, status: "archived" }, pharmacist);
+      await cancelNotSellableOrder({ orderId, expectedVersion: await versionOf(orderId) }, owner);
+      sendcloud.provider.getParcel = async () => {
+        throw Object.assign(new Error("gone"), { status });
+      };
+      expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
+        status: "cancelled",
+      });
+      expect(sendcloud.calls.some((call) => call.startsWith("cancel:"))).toBe(false);
+      expect((await getOrderForStaff({ orderId }, owner)).refunds).toHaveLength(1);
+    },
+  );
 
   it("cancels its parcel at Sendcloud; a queued cancellation is retried", async () => {
     const { orderId, shipmentId, productId } = await packedOrder();
