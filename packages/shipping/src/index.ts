@@ -62,6 +62,8 @@ export interface Parcel {
   readonly trackingUrl: string | null;
   readonly carrier: string | null;
   readonly externalReference: string | null;
+  /** Present-but-invalid provider data must never be treated as a missing reference. */
+  readonly invalidExternalReference?: true;
 }
 
 export type CancelOutcome = "cancelled" | "queued" | "gone";
@@ -121,13 +123,16 @@ export function toParcel(body: ParcelBody | null | undefined): Parcel {
     throw new SendcloudError(0, "invalid_status");
   }
   const url = text(body?.tracking_url, 500);
+  const reference = text(body?.external_reference, 100);
+  const invalidReference = body?.external_reference != null && reference === null;
   return {
     id: parcelId,
     statusId,
     trackingNumber: text(body?.tracking_number, 64),
     trackingUrl: url && /^https:\/\/[^\s<>"']+$/.test(url) ? url : null,
     carrier: text(body?.carrier?.code, 40),
-    externalReference: text(body?.external_reference, 100),
+    externalReference: reference,
+    ...(invalidReference ? { invalidExternalReference: true as const } : {}),
   };
 }
 
@@ -262,9 +267,16 @@ export function createSendcloudClient(
       const query = new URLSearchParams({ external_reference: externalReference });
       const body = (await json(`/parcels?${query}`, { method: "GET" })) as { parcels?: unknown };
       if (!Array.isArray(body.parcels)) throw new SendcloudError(0, "invalid_list");
-      const found = body.parcels
-        .map((parcel) => toParcel(parcel as ParcelBody))
-        .find((parcel) => parcel.externalReference === externalReference);
+      const parcels = body.parcels.map((parcel) => toParcel(parcel as ParcelBody));
+      if (
+        parcels.some(
+          (parcel) => parcel.externalReference === null || parcel.invalidExternalReference,
+        )
+      ) {
+        // An uncorrelatable result is not evidence that no parcel exists for this reference.
+        throw new SendcloudError(0, "invalid_reference");
+      }
+      const found = parcels.find((parcel) => parcel.externalReference === externalReference);
       return found ?? null;
     },
     async cancelParcel(id) {

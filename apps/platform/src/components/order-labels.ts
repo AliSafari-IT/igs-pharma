@@ -160,13 +160,16 @@ export const SHIPMENT_STATUS_BADGE: Record<ShipmentStatus, BadgeVariant> = {
 };
 
 const SHIPMENT_FAILURES: Record<string, string> = {
+  parcel_mismatch:
+    "The parcel's shipment reference could not be verified. Check the saved parcel in Sendcloud before retrying. Its label is blocked; retry uses the same parcel.",
   provider_refused:
     "Sendcloud refused the parcel (often the address or the shipping method). Check it in Sendcloud, then try again.",
   announcement_failed:
     "The carrier refused the parcel. Fix it in Sendcloud's panel (the address, usually), then try again.",
   provider_unauthorized:
     "Sendcloud refused our keys. Ask the owner to check the Sendcloud settings.",
-  provider_not_found: "Sendcloud doesn't know this parcel. Try again to make a new one.",
+  provider_not_found:
+    "Sendcloud didn't return the parcel. Check the saved parcel in Sendcloud before retrying.",
 };
 
 export const shipmentFailureMessage = (code: string | null): string =>

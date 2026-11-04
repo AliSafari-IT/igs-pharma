@@ -1,0 +1,3 @@
+ALTER TABLE "orders"."shipments" ADD COLUMN "requires_reference_verification" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "orders"."shipments" ADD CONSTRAINT "shipments_reference_verification_check" CHECK (NOT "orders"."shipments"."requires_reference_verification" OR ("orders"."shipments"."provider_parcel_id" IS NOT NULL
+        AND "orders"."shipments"."status" <> 'created' AND "orders"."shipments"."tracking_number" IS NULL AND "orders"."shipments"."label_created_at" IS NULL));
