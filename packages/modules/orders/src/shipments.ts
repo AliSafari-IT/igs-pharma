@@ -633,8 +633,19 @@ export async function syncShipment(
 
   if (shipment.status === "cancel_requested") {
     let id = shipment.providerParcelId;
+    if (id && shipment.requiresReferenceVerification) {
+      try {
+        assertParcelIdentity(shipment, await provider.getParcel(id));
+      } catch (error) {
+        const status = (error as { status?: unknown } | null)?.status;
+        if (status !== 404 && status !== 410) throw error;
+        id = null;
+      }
+    }
     if (!id) {
-      const parcel = await provider.findParcel(shipment.shipmentId);
+      const parcel = shipment.providerParcelId
+        ? null
+        : await provider.findParcel(shipment.shipmentId);
       if (parcel) {
         assertParcelIdentity(shipment, parcel);
         id = parcel.id;
