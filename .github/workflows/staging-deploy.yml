@@ -22,35 +22,27 @@ jobs:
       SHA: ${{ github.event.workflow_run.head_sha }}
       RUN_ID: ${{ github.event.workflow_run.id }}
     steps:
-      - name: Skip superseded builds
-        id: current
+      - name: Request staging deployment
         env:
           GH_TOKEN: ${{ github.token }}
+          DISPATCH_TOKEN: ${{ secrets.IGS_DEPLOY_DISPATCH_TOKEN }}
         run: |
           set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
           head=$(gh api repos/AliSafari-IT/igs-pharma/commits/main --jq .sha)
           if [[ "$head" != "$SHA" ]]; then
             echo "Skipping superseded build $SHA" >> "$GITHUB_STEP_SUMMARY"
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-
-      - name: Request staging deployment
-        if: steps.current.outputs.deploy == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.IGS_DEPLOY_DISPATCH_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$GH_TOKEN" ]]; then
+          if [[ -z "$DISPATCH_TOKEN" ]]; then
             echo "::error::IGS_DEPLOY_DISPATCH_TOKEN is required; see the private staging runbook."
             exit 1
           fi
-          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]
           jq -n --arg sha "$SHA" --arg run_id "$RUN_ID" \
             '{event_type: "igs-deploy", client_payload: {sha: $sha, run_id: $run_id}}' |
-            gh api --method POST repos/AliSafari-IT/asafarim-platform/dispatches --input -
+            GH_TOKEN="$DISPATCH_TOKEN" gh api --method POST repos/AliSafari-IT/asafarim-platform/dispatches --input -
           {
             printf 'Requested staging deployment of %s.\n' "$SHA"
             echo "Follow the igs-deploy workflow in AliSafari-IT/asafarim-platform for the deployment result."
           } >> "$GITHUB_STEP_SUMMARY"
+
