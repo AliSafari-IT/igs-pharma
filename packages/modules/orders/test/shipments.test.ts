@@ -425,16 +425,65 @@ describe("provider parcel identity", () => {
           };
         };
       } else {
-        sendcloud.provider.createParcel = async (input) => ({
-          ...(await create(input)),
-          externalReference,
+        sendcloud.provider.createParcel = async (input) => {
+          const made = await create(input);
+          // The provider really persisted the bad reference: lookup cannot recover it.
+          sendcloud.set(made.id, { externalReference });
+          return { ...made, externalReference };
+        };
+      }
+      if (source === "find") {
+        expect(await codeOf(syncShipment(shipmentId, sendcloud.provider, settings))).toBe(
+          "orders.shipment_parcel_mismatch",
+        );
+      } else {
+        expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
+          status: "failed",
         });
       }
-      expect(await codeOf(syncShipment(shipmentId, sendcloud.provider, settings))).toBe(
-        "orders.shipment_parcel_mismatch",
-      );
       const after = await getOrderForStaff({ orderId }, owner);
-      expect(after.shipment).toEqual(before.shipment);
+      if (source === "find") expect(after.shipment).toEqual(before.shipment);
+      else {
+        expect(after.shipment).toMatchObject({
+          status: "failed",
+          failureCode: "parcel_mismatch",
+          providerParcelId: expect.stringMatching(/^[0-9]+$/),
+          trackingNumber: null,
+          labelCreatedAt: null,
+        });
+        const calls = sendcloud.calls.length;
+        expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
+          changed: false,
+        });
+        expect(sendcloud.calls).toHaveLength(calls);
+        await retryShipment({ orderId }, assistant);
+        expect(await codeOf(syncShipment(shipmentId, sendcloud.provider, settings))).toBe(
+          "orders.shipment_parcel_mismatch",
+        );
+        expect((await getOrderForStaff({ orderId }, owner)).shipment).toMatchObject({
+          status: "requested",
+          failureCode: "parcel_mismatch",
+          providerParcelId: after.shipment?.providerParcelId,
+        });
+        const get = sendcloud.provider.getParcel;
+        sendcloud.provider.getParcel = async () => {
+          throw Object.assign(new Error("provider lookup failed"), { status: 404 });
+        };
+        expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
+          status: "failed",
+        });
+        expect((await getOrderForStaff({ orderId }, owner)).shipment?.failureCode).toBe(
+          "parcel_mismatch",
+        );
+        await retryShipment({ orderId }, assistant);
+        sendcloud.provider.getParcel = get;
+        expect(await codeOf(syncShipment(shipmentId, sendcloud.provider, settings))).toBe(
+          "orders.shipment_parcel_mismatch",
+        );
+        sendcloud.set(after.shipment?.providerParcelId as string, {
+          externalReference: shipmentId,
+        });
+      }
       expect(after.events).toEqual(before.events);
       expect(await onHand(productId)).toBe(10);
       expect(await codeOf(getShipmentLabel({ orderId }, assistant))).toBe(
@@ -460,6 +509,7 @@ describe("provider parcel identity", () => {
       expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
         status: "created",
       });
+      expect((await getOrderForStaff({ orderId }, owner)).shipment?.failureCode).toBeNull();
       expect(sendcloud.calls.filter((call) => call === "create")).toHaveLength(
         source === "find" ? 0 : 1,
       );
@@ -469,6 +519,10 @@ describe("provider parcel identity", () => {
   it.each([
     { label: "parcel ID", patch: { id: "999999" } },
     { label: "external reference", patch: { externalReference: "another-shipment" } },
+    {
+      label: "invalid present reference",
+      patch: { externalReference: null, invalidExternalReference: true as const },
+    },
   ])("rejects a conflicting $label while awaiting announcement", async ({ patch }) => {
     const { shipmentId, orderId } = await packedOrder();
     const sendcloud = fakeSendcloud();
@@ -495,6 +549,10 @@ describe("provider parcel identity", () => {
   it.each([
     { label: "parcel ID", patch: { id: "999999" } },
     { label: "external reference", patch: { externalReference: "another-shipment" } },
+    {
+      label: "invalid present reference",
+      patch: { externalReference: null, invalidExternalReference: true as const },
+    },
   ])("does not deliver an order from a conflicting $label", async ({ patch }) => {
     const { shipmentId, orderId, productId } = await packedOrder();
     const sendcloud = fakeSendcloud();

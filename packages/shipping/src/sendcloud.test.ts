@@ -73,6 +73,34 @@ const input = {
 };
 
 describe("toParcel", () => {
+  it.each([undefined, null])(
+    "keeps an absent reference distinct from invalid data (%s)",
+    (value) => {
+      expect(toParcel(parcel({ external_reference: value }))).toMatchObject({
+        externalReference: null,
+      });
+      expect(
+        toParcel(parcel({ external_reference: value })).invalidExternalReference,
+      ).toBeUndefined();
+    },
+  );
+
+  it.each([
+    { label: "empty", value: "" },
+    { label: "blank", value: "   " },
+    { label: "too long", value: "x".repeat(101) },
+    { label: "number", value: 1 },
+    { label: "boolean", value: false },
+    { label: "object", value: {} },
+    { label: "array", value: [] },
+  ])("flags a present $label reference without retaining its contents", ({ value }) => {
+    expect(toParcel(parcel({ external_reference: value }))).toMatchObject({
+      id: "123456",
+      externalReference: null,
+      invalidExternalReference: true,
+    });
+  });
+
   it("reads a parcel strictly", () => {
     expect(toParcel(parcel())).toEqual({
       id: "123456",
@@ -103,6 +131,22 @@ describe("toParcel", () => {
 });
 
 describe("createSendcloudClient", () => {
+  it.each([null, "", "x".repeat(101)])(
+    "does not turn an uncorrelatable lookup into no parcel (%s)",
+    async (reference) => {
+      const { impl } = fakeFetch({
+        status: 200,
+        body: { parcels: [parcel({ external_reference: reference })] },
+      });
+      await expect(
+        createSendcloudClient("pub", "sec", impl).findParcel(input.externalReference),
+      ).rejects.toMatchObject({
+        status: 0,
+        code: "invalid_reference",
+      });
+    },
+  );
+
   it("announces a parcel with a label, our id as external reference, and no product data", async () => {
     const { impl, calls } = fakeFetch({ status: 200, body: { parcel: parcel() } });
     const made = await createSendcloudClient("pub", "sec", impl).createParcel(input);
