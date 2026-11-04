@@ -692,6 +692,46 @@ describe("handing over, delivery and return", () => {
 });
 
 describe("a packed order cancelled", () => {
+  it.each(["provider refusal", "rejected creation"])(
+    "cancels a failed shipment after %s and records the refund",
+    async (failure) => {
+      const { orderId, shipmentId, productId } = await packedOrder();
+      const sendcloud = fakeSendcloud();
+      if (failure === "provider refusal") sendcloud.state.refuseWith = 400;
+      else {
+        const create = sendcloud.provider.createParcel;
+        sendcloud.provider.createParcel = async (input) => {
+          const made = await create(input);
+          sendcloud.set(made.id, { externalReference: "another-shipment" });
+          return { ...made, externalReference: "another-shipment" };
+        };
+      }
+      expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
+        status: "failed",
+      });
+      const parcelId = (await getOrderForStaff({ orderId }, owner)).shipment?.providerParcelId;
+      await setProductStatusRegulated({ productId, status: "archived" }, pharmacist);
+      expect(
+        await cancelNotSellableOrder({ orderId, expectedVersion: await versionOf(orderId) }, owner),
+      ).toMatchObject({ status: "cancelled" });
+      const cancelled = await getOrderForStaff({ orderId }, owner);
+      expect(cancelled.shipment).toMatchObject({
+        status: "cancel_requested",
+        failureCode: null,
+        providerParcelId: parcelId,
+      });
+      expect(cancelled.refunds).toHaveLength(1);
+      expect(await onHand(productId)).toBe(10);
+      expect(await syncShipment(shipmentId, sendcloud.provider, settings)).toMatchObject({
+        status: "cancelled",
+      });
+      expect(sendcloud.calls.filter((call) => call.startsWith("cancel:"))).toEqual(
+        parcelId ? [`cancel:${parcelId}`] : [],
+      );
+      expect((await getOrderForStaff({ orderId }, owner)).refunds).toHaveLength(1);
+    },
+  );
+
   it("keeps an ambiguous cancellation pending, retries it and completes only once", async () => {
     const { orderId, shipmentId, productId } = await packedOrder();
     const sendcloud = fakeSendcloud();

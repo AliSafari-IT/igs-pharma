@@ -107,7 +107,7 @@ export async function cancelShipmentOf(ctx: Ctx, orderId: string): Promise<void>
   if (!shipment) return;
   const from = shipment.status as ShipmentStatus;
   if (!SHIPMENT_TRANSITIONS[from].includes("cancel_requested")) return;
-  await moveShipment(ctx, shipment, "cancel_requested");
+  await moveShipment(ctx, shipment, "cancel_requested", { failureCode: null });
   await auditShipment(ctx, shipment, "cancel_requested", {
     providerParcelId: shipment.providerParcelId,
   });
