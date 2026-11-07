@@ -391,9 +391,47 @@ export const shippingEnv = z.object({
   ),
 });
 
+/**
+ * The weekly SAM import (igs-pharma#237): read by the WORKER only, which downloads the official
+ * medicines export outside any command (D-019). All optional: without `SAM_EXPORT_URL` the job is
+ * not scheduled (a boot warning); without OTC codes every pack counts as on prescription.
+ */
+export const samImportEnv = z.object({
+  /**
+   * The https address of the full SAM v2 export ZIP. Server setting only, never in git: treated as
+   * a secret in case it ever carries a token.
+   */
+  SAM_EXPORT_URL: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().url().startsWith("https://", "the SAM export is downloaded over https").optional(),
+  ),
+  /**
+   * The SAM `DeliveryModus` codes that mean "no prescription", comma-separated. Fail closed: a pack
+   * is imported only when its code is listed. Confirm the codes with `sam-import --dry-run` first.
+   */
+  SAM_OTC_DELIVERY_MODUS_CODES: z.preprocess(
+    (v) => (v === undefined || v === "" ? "" : v),
+    z
+      .string()
+      .transform((v) =>
+        v
+          .split(",")
+          .map((code) => code.trim())
+          .filter((code) => code !== ""),
+      )
+      .pipe(z.array(z.string().regex(/^[A-Za-z0-9_./-]{1,32}$/)).max(50)),
+  ),
+  /** The largest export the worker downloads (bytes); a bigger one is refused. */
+  SAM_EXPORT_MAX_BYTES: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.coerce.number().int().min(1_000_000).max(20_000_000_000).default(2_000_000_000),
+  ),
+});
+
 /** What the worker needs: no `AUTH_*`, no feature flags. */
 export const workerEnv = z.object({
   ...mailEnv.shape,
+  ...samImportEnv.shape,
   ...paymentsEnv.shape,
   ...shippingEnv.shape,
   ...dbEnv.shape,

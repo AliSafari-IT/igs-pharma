@@ -11,6 +11,7 @@
     "bootstrap-owner": "tsx --conditions=react-server src/bootstrap-owner.ts",
     "migrate": "tsx --conditions=react-server src/migrate.ts",
     "seed-catalog": "tsx --conditions=react-server src/seed-catalog.ts",
+    "sam-import": "tsx --conditions=react-server src/sam-import.ts",
     "test": "vitest run"
   },
   "dependencies": {
@@ -33,7 +34,9 @@
     "pg-boss": "10.1.6",
     "pino": "9.5.0",
     "postgres": "3.4.5",
+    "saxes": "6.0.0",
     "uuidv7": "1.2.1",
+    "yauzl": "3.4.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -41,6 +44,7 @@
     "@igs/tsconfig": "workspace:*",
     "@testcontainers/postgresql": "12.2.0",
     "@types/node": "24.19.1",
+    "@types/yauzl": "3.4.0",
     "tsup": "8.5.1",
     "tsx": "4.19.2",
     "typescript": "5.7.2",

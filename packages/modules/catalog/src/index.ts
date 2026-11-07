@@ -93,3 +93,31 @@ export { SEARCH_FOLD_FROM, SEARCH_FOLD_TO, foldSearch, searchTerms } from "./dom
 export { approvedForStorefront, inUuidSet, isMedicineSql } from "./visibility";
 export { activeStopSales, endStopSale, startStopSale } from "./stop-sales";
 export { notStopped } from "./visibility";
+export {
+  SAM_SKIP_REASONS,
+  type SamImportRow,
+  type SamOutcome,
+  type SamSkipReason,
+  brusselsToday,
+  mapAmp,
+} from "./sam/map";
+export { type SamAmp, type SamNode, parseSamAmps } from "./sam/parse";
+export {
+  SAM_BATCH_SIZE,
+  SAM_IMPORT_ACTOR,
+  SAM_NEW_PRODUCT,
+  type SamImportOptions,
+  type SamImportReport,
+  importSamBatch,
+  recordSamImportRun,
+  runSamImport,
+} from "./sam/import";
+export {
+  SAM_IMPORT_JOBS,
+  SAM_IMPORT_QUEUES,
+  type SamExportStream,
+  type SamImportJobScheduler,
+  ensureSamImportQueues,
+  registerSamImportJob,
+  runSamImportFrom,
+} from "./sam/jobs";

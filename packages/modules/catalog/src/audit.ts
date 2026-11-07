@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { samRunAudit } from "./sam/report";
+
 import { CNK_PATTERN, PRODUCT_STATUSES, REGULATED_FIELDS, STOP_SALE_REASONS } from "./domain";
 
 /** Audit actions recorded by the catalog commands (`<domain>.<noun>.<verb>`). */
@@ -17,6 +19,7 @@ export const CATALOG_AUDIT = {
   productCategoriesSet: "catalog.product.categories_set",
   productSaleStopped: "catalog.product.sale_stopped",
   productSaleResumed: "catalog.product.sale_resumed",
+  samImportCompleted: "catalog.sam_import.completed",
 } as const;
 
 const cnk = z.string().regex(CNK_PATTERN);
@@ -81,6 +84,8 @@ export type RegisterAuditAction = (action: string, data: z.ZodObject<z.ZodRawSha
  * passing `registerAuditAction` from `@igs/module-audit`.
  */
 export function registerAuditActions(register: RegisterAuditAction): void {
+  // igs-pharma#237: one event per SAM import run, counts only (no CNK, no text)
+  register(CATALOG_AUDIT.samImportCompleted, samRunAudit);
   register(CATALOG_AUDIT.productCreated, productChange);
   register(CATALOG_AUDIT.productUpdated, productChange);
   register(CATALOG_AUDIT.productCnkChanged, cnkChange);

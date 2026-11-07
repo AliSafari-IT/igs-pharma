@@ -1,5 +1,6 @@
 import { ensureKernelQueues, grantPgBossRuntime } from "@igs/kernel";
 import { ensureAuditQueues } from "@igs/module-audit";
+import { ensureSamImportQueues } from "@igs/module-catalog";
 import { ensureIdentityQueues } from "@igs/module-identity";
 import { ensureInventoryQueues } from "@igs/module-inventory";
 import { ensureOrdersQueues } from "@igs/module-orders";
@@ -28,5 +29,6 @@ export async function installPgBossQueuesAndGrants(boss: InstallableBoss): Promi
   await ensureInventoryQueues(boss);
   await ensureOrdersQueues(boss);
   await ensurePrivacyQueues(boss);
+  await ensureSamImportQueues(boss);
   await grantPgBossRuntime(boss.getDb());
 }

@@ -66,6 +66,11 @@ export const PERMISSIONS = {
      * own transaction; while one is active the product is not storefront-visible.
      */
     stopSalesManage: "catalog.stop_sales.manage",
+    /**
+     * System-only (igs-pharma#237): the worker's SAM import creates DRAFT OTC products and writes
+     * `sam` texts; it never activates a product or changes a regulated field of an existing one.
+     */
+    productsImport: "catalog.products.import",
   },
   inventory: {
     /** Back-office: on-hand stock and the movement ledger (igs-pharma#53). */
@@ -221,6 +226,11 @@ export const ROLES = {
     description:
       "Shipping: the worker makes and cancels parcel labels at Sendcloud and records tracking and delivery",
   },
+  system_catalog_import: {
+    kind: "system",
+    description:
+      "SAM import: the worker creates draft OTC products and SAM texts from the official medicines database; never activates",
+  },
 } as const satisfies Record<string, RoleDefinition>;
 
 export type RoleKey = keyof typeof ROLES;
@@ -255,6 +265,8 @@ export const SYSTEM_ONLY: readonly Permission[] = [
   PERMISSIONS.orders.shipmentManage,
   // igs-pharma#211: only the Better Auth hook redeems an invitation for someone
   PERMISSIONS.storefront.earlyAccessRedeem,
+  // igs-pharma#237: only the worker's SAM import job writes imported products
+  PERMISSIONS.catalog.productsImport,
 ];
 
 /** The canonical role → permission map (seeded by migration; checked against the DB at boot). */
@@ -377,6 +389,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
   system_reservations: [PERMISSIONS.inventory.reservationManage],
   system_payments: [PERMISSIONS.orders.paymentManage],
   system_shipping: [PERMISSIONS.orders.shipmentManage],
+  system_catalog_import: [PERMISSIONS.catalog.productsImport],
 };
 
 /** One row of `identity.role_permissions`. */

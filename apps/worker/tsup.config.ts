@@ -80,8 +80,17 @@ function assertBundleImportsDeclared(): void {
   }
 }
 
-/** The worker, the bootstrap CLI (36b) and the one-shot migrate entry (#46), all in one image. */
-const ENTRIES = ["src/index.ts", "src/bootstrap-owner.ts", "src/migrate.ts", "src/seed-catalog.ts"];
+/**
+ * The worker, the bootstrap CLI (36b), the one-shot migrate entry (#46), the synthetic seed and the
+ * manual SAM import (#237), all in one image.
+ */
+const ENTRIES = [
+  "src/index.ts",
+  "src/bootstrap-owner.ts",
+  "src/migrate.ts",
+  "src/seed-catalog.ts",
+  "src/sam-import.ts",
+];
 
 export default defineConfig({
   entry: ENTRIES,
