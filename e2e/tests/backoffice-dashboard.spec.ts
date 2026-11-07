@@ -114,8 +114,9 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   // #112 V1 item 1: the "Needs attention" panel under the tiles, a list or its calm empty line
   const attention = page.getByTestId("needs-attention");
   await expect(attention.getByRole("heading", { name: "Needs attention", level: 2 })).toBeVisible();
+  // (on a fresh database the launch line, below, can be the only one)
   await expect(attention).toContainText(
-    /short for orders|overdue|out of stock|awaiting|Nothing needs attention/,
+    /short for orders|overdue|out of stock|awaiting|opening the shop|Nothing needs attention/,
   );
   // #238: the owner also sees what still blocks opening the shop, linking to the checklist
   await expect(attention.getByTestId("attention-launch")).toContainText(
