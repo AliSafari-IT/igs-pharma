@@ -7,6 +7,7 @@ import { type Actor, isDomainError } from "@igs/kernel";
 import { type KernelTestHandles, configureKernelForTests } from "@igs/kernel/testing";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { loadRbacCatalogue } from "@igs/module-identity";
+import { addBrusselsMonths } from "@igs/time";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -344,9 +345,8 @@ describe("privacy.dsr.transition", () => {
 
 describe("privacy.dsr.list", () => {
   it("puts overdue requests first, then open ones by deadline, then closed ones", async () => {
-    const overdue = await newRequest({
-      receivedAt: new Date(Date.now() - 35 * DAY).toISOString(),
-    });
+    const overdueReceived = new Date(Date.now() - 35 * DAY);
+    const overdue = await newRequest({ receivedAt: overdueReceived.toISOString() });
     const soon = await newRequest({ receivedAt: new Date(Date.now() - 20 * DAY).toISOString() });
     const closed = await newRequest({
       receivedAt: new Date(Date.now() - 40 * DAY).toISOString(),
@@ -359,9 +359,13 @@ describe("privacy.dsr.list", () => {
     expect(ids.indexOf(soon)).toBeLessThan(ids.indexOf(closed));
     const first = page.items.find((i) => i.id === overdue);
     expect(first?.overdue).toBe(true);
-    // 5 days past the deadline, less the milliseconds between the test clock and the request
-    expect(first?.daysLeft).toBeGreaterThanOrEqual(-5);
-    expect(first?.daysLeft).toBeLessThanOrEqual(-4);
+    // past the deadline by 35 days less one calendar month in Brussels (D-038): 4 or 5 days with the
+    // month's length, an hour more or less across a DST change; a little slack for the clock between
+    // the test and the request
+    const late = Math.ceil((addBrusselsMonths(overdueReceived, 1).getTime() - Date.now()) / DAY);
+    expect(first?.daysLeft).toBeGreaterThanOrEqual(late - 1);
+    expect(first?.daysLeft).toBeLessThanOrEqual(late);
+    expect(first?.daysLeft).toBeLessThan(0);
     expect(page.items.find((i) => i.id === closed)).toMatchObject({
       overdue: false,
       daysLeft: null,
