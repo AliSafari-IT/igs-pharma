@@ -8,6 +8,7 @@ import { needsAttention } from "../lib/dashboard";
 import { currentActor, requireStaffActor } from "../server/actor";
 import { loadDashboard } from "../server/dashboard";
 import { ensureKernelConfigured } from "../server/kernel";
+import { loadLaunchChecklist } from "../server/launch";
 
 /**
  * The back-office home (igs-pharma#115). A signed-in staff member sees the tiles they may see; a
@@ -27,7 +28,10 @@ export default async function DashboardPage() {
   }
   const actor = await requireStaffActor();
   await ensureKernelConfigured();
-  const { products, stock, reservations, requests, orders } = await loadDashboard(actor);
+  const [{ products, stock, reservations, requests, orders }, launch] = await Promise.all([
+    loadDashboard(actor),
+    loadLaunchChecklist(actor),
+  ]);
   const none = !products && !stock && !reservations && !requests;
 
   return (
@@ -123,8 +127,16 @@ export default async function DashboardPage() {
             ) : null}
           </div>
         )}
-        {products || stock || requests || orders ? (
-          <NeedsAttention attention={needsAttention({ orders, products, stock, requests })} />
+        {products || stock || requests || orders || launch ? (
+          <NeedsAttention
+            attention={needsAttention({
+              orders,
+              products,
+              stock,
+              requests,
+              launch: launch ? { missing: launch.missing.length } : undefined,
+            })}
+          />
         ) : null}
       </main>
     </Container>

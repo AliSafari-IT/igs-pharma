@@ -1,15 +1,7 @@
 import createMiddleware from "next-intl/middleware";
 import { type NextRequest, NextResponse } from "next/server";
 
-import {
-  appEnv,
-  cspEnv,
-  cspReportingEnabled,
-  getFeatureFlags,
-  parseEnvFor,
-  siteGateEnabled,
-  siteGateEnv,
-} from "@igs/config";
+import { appEnv, cspEnv, cspReportingEnabled, getFeatureFlags, parseEnvFor } from "@igs/config";
 import { routing } from "@igs/i18n/routing";
 import { CSP_REPORT_PATH, buildSecurityHeaders, generateNonce } from "@igs/security-headers";
 
@@ -23,6 +15,7 @@ import {
   sessionCookieValue,
   verifyPass,
 } from "./early-access";
+import { currentStorefrontGate } from "./launch-gate";
 
 const handleI18nRouting = createMiddleware(routing);
 
@@ -32,8 +25,6 @@ function reportOptions(): { reportPath?: string } {
   reporting ??= cspReportingEnabled(parseEnvFor(appEnv.extend(cspEnv.shape)));
   return reporting ? { reportPath: CSP_REPORT_PATH } : {};
 }
-
-const gateEnv = appEnv.extend(siteGateEnv.shape);
 
 /** The internal route of the "coming soon" page (`src/app/coming-soon`); reachable only by rewrite. */
 export const COMING_SOON_PATH = "/coming-soon";
@@ -91,7 +82,8 @@ export function isEarlyAccessPath(pathname: string): boolean {
  * <script> tags; `x-nonce` exposes it to server components (headers()) for any script they render.
  * Security note: authorization is NEVER enforced here — only in server actions / route handlers (D-005).
  * The site gate is not authorization either: it keeps an unfinished storefront out of view and out of
- * search indexes (`SITE_GATE`, on by default in production).
+ * search indexes (`SITE_GATE`, on by default in production). `SITE_GATE=off` does not open it while
+ * an owner-only launch item is missing (igs-pharma#238, `LAUNCH_CHECK`, `launch-gate.ts`).
  */
 export default function proxy(request: NextRequest) {
   const nonce = generateNonce();
@@ -112,7 +104,7 @@ export default function proxy(request: NextRequest) {
   request.headers.delete(RETURN_HEADER);
 
   const { pathname } = request.nextUrl;
-  const gated = siteGateEnabled(parseEnvFor(gateEnv));
+  const gated = currentStorefrontGate().closed;
   const now = Date.now();
 
   let response: NextResponse;

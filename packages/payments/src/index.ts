@@ -9,7 +9,10 @@
  * `getPayment` fetches with our key.
  */
 
-/** Instant methods only (O-2): no bank transfer, whose "paid" arrives days later. */
+/**
+ * Instant methods only (O-2): no bank transfer, whose "paid" arrives days later. The owner confirms
+ * the list (igs-pharma#238 item 4.2, `LAUNCH_DECISIONS.paymentMethods` in `@igs/config/launch`).
+ */
 export const INSTANT_METHODS = ["bancontact", "creditcard", "applepay"] as const;
 
 /** Mollie's payment statuses (the ones the shop stores as they are). */

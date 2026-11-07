@@ -83,6 +83,7 @@
     "email": "E-mail",
     "pharmacistTitular": "Titularis",
     "authorisationNumber": "Erkenningsnummer",
+    "legalName": "Onderneming",
     "vatNumber": "Btw-nummer",
     "openingHours": "Openingsuren",
     "placeholderNote": "Voorlopige gegevens, nog te vervangen.",

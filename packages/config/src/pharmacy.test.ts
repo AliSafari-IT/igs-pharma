@@ -21,6 +21,7 @@ describe("the pharmacy identity", () => {
     const real: PharmacyIdentity = {
       isPlaceholder: false,
       name: "IGS-Pharma",
+      legalName: "Example Pharma BV",
       address: {
         street: "Rue Example 1",
         postalCode: "1000",
@@ -42,9 +43,10 @@ describe("the pharmacy identity", () => {
   it("holds the real pharmacist-titular and VAT number (igs-pharma#203), and still counts as a placeholder", () => {
     expect(PHARMACY_IDENTITY.pharmacistTitular).toBe("Djavad Salehi");
     expect(PHARMACY_IDENTITY.vatNumber).toBe("BE 0739.742.487");
-    // the address, phone, e-mail, authorisation number and opening hours are still to come from the
-    // owner: they stay marked stand-ins, so the identity stays a placeholder and the note stays on
+    // the company's legal name (#238 item 1.7), the address, phone, e-mail, authorisation number and
+    // opening hours are still to come from the owner: they stay marked stand-ins, so the identity stays a placeholder and the note stays on
     expect(identityValues(PHARMACY_IDENTITY).filter(isStandIn)).toEqual([
+      "[company legal name]",
       "[street and number]",
       "[postal code]",
       "[city]",
