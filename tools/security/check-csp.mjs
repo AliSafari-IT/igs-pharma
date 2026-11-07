@@ -40,6 +40,9 @@ function start({ app, port }) {
     // the OPEN storefront: production defaults to the coming-soon gate (#46), which answers every
     // page with one static page and would leave the locale redirect and the pages below unchecked
     SITE_GATE: "off",
+    // ...which production also keeps closed while owner-only launch items are missing (#238): this
+    // check reports them instead, so the open pages still get checked
+    LAUNCH_CHECK: "report",
   };
   const server = spawn(
     "pnpm",

@@ -129,6 +129,8 @@ describe("SITE_GATE=off", () => {
   it("serves the storefront as before: locale routing, no noindex", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("SITE_GATE", "off");
+    // the owner has not answered #238 yet: production would refuse to open (see below)
+    vi.stubEnv("LAUNCH_CHECK", "report");
     const root = call("/");
     expect(rewrittenTo(root) ?? "").not.toContain(COMING_SOON_PATH);
     expect(root.headers.get("location")).toBe(`${BASE}/nl`);
@@ -138,5 +140,36 @@ describe("SITE_GATE=off", () => {
     expect(call("/api/health/live").headers.get("x-middleware-next")).toBe("1");
     expect(call("/api/mobile/v1/products").headers.get("x-middleware-next")).toBe("1");
     expect(robots().rules).toEqual({ userAgent: "*", allow: "/" });
+  });
+});
+
+describe("SITE_GATE=off while launch items are missing (igs-pharma#238)", () => {
+  it("is refused in production by default: every page stays the coming-soon page, robots disallow", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("SITE_GATE", "off");
+    vi.stubEnv("LAUNCH_CHECK", "");
+    for (const path of PAGES) {
+      const res = call(path);
+      expect(rewrittenTo(res), path).toBe(`${BASE}${COMING_SOON_PATH}`);
+      expect(res.headers.get("x-robots-tag"), path).toBe("noindex, nofollow");
+    }
+    // the Android app stays closed too; health stays reachable
+    expect(call("/api/mobile/v1/products").status).toBe(503);
+    expect(call("/api/health/live").headers.get("x-middleware-next")).toBe("1");
+    expect(robots().rules).toEqual({ userAgent: "*", disallow: "/" });
+  });
+
+  it("is refused anywhere with LAUNCH_CHECK=enforce", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("SITE_GATE", "off");
+    vi.stubEnv("LAUNCH_CHECK", "enforce");
+    expect(rewrittenTo(call("/nl"))).toBe(`${BASE}${COMING_SOON_PATH}`);
+  });
+
+  it("opens outside production by default (local development)", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("SITE_GATE", "off");
+    vi.stubEnv("LAUNCH_CHECK", "");
+    expect(rewrittenTo(call("/nl")) ?? "").not.toContain(COMING_SOON_PATH);
   });
 });

@@ -24,6 +24,8 @@ export async function generateMetadata({ params }: Props) {
 /**
  * Terms, privacy and cookies (igs-pharma#104): placeholder pages in the shopper's language. The
  * real text is supplied by counsel later; until then the page says so rather than inventing any.
+ * When it is in (igs-pharma#238 items 3.1–3.3, 5.6), set `LAUNCH_DECISIONS.legalTexts` to `"final"`
+ * in `packages/config/src/launch.ts`: the launch check keeps the shop closed until then.
  */
 export default async function LegalPage({ params }: Props) {
   const { locale: rawLocale, doc } = await params;

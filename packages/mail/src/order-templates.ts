@@ -4,6 +4,10 @@
  * pharmacist's approval, nor stock confirmed, nor an order ready. The order reference and, for a
  * refund, its amount are the only order data; never a product name or anything medical.
  * Pure functions: nothing here sends or reads the environment.
+ *
+ * The wording is interim until the titular pharmacist or counsel approves it (igs-pharma#238 items
+ * 3.4, 3.5); once they have, set `LAUNCH_DECISIONS.orderMailWording` to `"approved"` in
+ * `packages/config/src/launch.ts` (the launch check keeps the shop closed until then).
  */
 import { type MailLocale, isMailLocale } from "./templates";
 

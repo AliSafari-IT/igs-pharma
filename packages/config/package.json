@@ -16,6 +16,10 @@
       "types": "./src/feature-flags.ts",
       "default": "./src/feature-flags.ts"
     },
+    "./launch": {
+      "types": "./src/launch.ts",
+      "default": "./src/launch.ts"
+    },
     "./db-ssl": {
       "types": "./src/db-ssl.ts",
       "default": "./src/db-ssl.ts"

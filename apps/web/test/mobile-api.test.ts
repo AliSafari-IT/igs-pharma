@@ -198,7 +198,7 @@ describe("GET /api/mobile/v1/pharmacy", () => {
     expect(body.address).toHaveProperty("city");
   });
 
-  it("keeps v1's exact fields: nothing added to the identity reaches it (the VAT number, milestone 5.1)", async () => {
+  it("keeps v1's exact fields: nothing added to the identity reaches it (the VAT number, milestone 5.1; the legal name, #238)", async () => {
     const { GET } = await import("../src/app/api/mobile/v1/pharmacy/route");
     const body = await GET().json();
     expect(Object.keys(body).sort()).toEqual(
@@ -215,7 +215,8 @@ describe("GET /api/mobile/v1/pharmacy", () => {
     );
     expect(Object.keys(body.address).sort()).toEqual(["city", "country", "postalCode", "street"]);
     // and each field carries its own value
-    const { vatNumber: _offV1, ...v1 } = PHARMACY_IDENTITY;
+    // neither the VAT number nor the company's legal name (#238 item 1.7) is in v1
+    const { vatNumber: _offV1, legalName: _alsoOffV1, ...v1 } = PHARMACY_IDENTITY;
     expect(body).toEqual(v1);
   });
 });

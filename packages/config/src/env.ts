@@ -209,6 +209,27 @@ export function siteGateEnabled(
 }
 
 /**
+ * The launch check (igs-pharma#238): `enforce|report`. With `enforce`, `SITE_GATE=off` is refused
+ * while anything the owner still has to answer blocks the opening (`launch.ts`): the storefront
+ * stays behind the "coming soon" page and the refusal is logged as an error. With `report` the gate
+ * opens as configured and the missing items are logged as an error instead (an internal demo, the
+ * CI smoke run). Unset → `enforce` in production, `report` elsewhere (fail closed).
+ */
+export const launchCheckEnv = z.object({
+  LAUNCH_CHECK: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["enforce", "report"]).optional(),
+  ),
+});
+
+/** Whether a missing launch item keeps the storefront closed even when `SITE_GATE=off`. */
+export function launchCheckEnforced(
+  env: Pick<z.output<typeof appEnv>, "NODE_ENV"> & z.output<typeof launchCheckEnv>,
+): boolean {
+  return env.LAUNCH_CHECK ? env.LAUNCH_CHECK === "enforce" : env.NODE_ENV === "production";
+}
+
+/**
  * Synthetic catalogue seed (igs-pharma#50): `node dist/seed-catalog.js` loads fake products. It runs
  * only when `NODE_ENV=development` is set explicitly, or with `IGS_ALLOW_SYNTHETIC_SEED=1` (staging
  * runs the production image, so the operator opts in there on purpose; never on the live shop). A
@@ -288,6 +309,7 @@ export const envSchema = z.object({
   ...cspEnv.shape,
   ...uiGalleryEnv.shape,
   ...siteGateEnv.shape,
+  ...launchCheckEnv.shape,
 });
 
 /**
