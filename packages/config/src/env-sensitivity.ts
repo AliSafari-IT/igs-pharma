@@ -28,6 +28,10 @@ export const ENV_SENSITIVITY = {
   SENDCLOUD_SECRET_KEY: "sensitive",
   SENDCLOUD_SHIPPING_METHOD_ID: "not-sensitive",
   SENDCLOUD_PARCEL_WEIGHT_GRAMS: "not-sensitive",
+  // the SAM import (igs-pharma#237)
+  SAM_EXPORT_URL: "sensitive", // a download address could carry a token: never baked or committed
+  SAM_OTC_DELIVERY_MODUS_CODES: "not-sensitive",
+  SAM_EXPORT_MAX_BYTES: "not-sensitive",
   MAIL_FROM: "not-sensitive",
   EARLY_ACCESS_NOTIFY_TO: "not-sensitive", // staff addresses for the early-access notice (#199)
   // crypto

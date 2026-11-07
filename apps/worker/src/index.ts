@@ -16,6 +16,8 @@ import {
   registerAuditAction,
   registerAuditJobs,
 } from "@igs/module-audit";
+import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
+import { type SamImportJobScheduler, registerSamImportJob } from "@igs/module-catalog/sam";
 import {
   type IdentityJobScheduler,
   ensureRbacCatalogue,
@@ -45,6 +47,7 @@ import PgBoss from "pg-boss";
 
 import { registerWorkerEvents } from "./events";
 import { createMailSender, createOrderMailSender } from "./mail-sender";
+import { samExportOpener } from "./sam-export";
 
 /** Hard stop if graceful shutdown hangs (e.g. a stuck connection). */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -71,6 +74,7 @@ async function main() {
   registerPrivacyAuditActions(registerAuditAction); // the retention purge audits its counts
   registerInventoryAuditActions(registerAuditAction); // the reservation expiry audits each hold it ends
   registerOrdersAuditActions(registerAuditAction); // payment reconciliation and unpaid-order expiry
+  registerCatalogAuditActions(registerAuditAction); // the weekly SAM import audits its counts (#237)
   configureKernel({ audit: createAuditPort(), logger });
   registerWorkerEvents(); // the topics the relay publishes; migrate creates their queues (./events)
 
@@ -151,6 +155,13 @@ async function main() {
   );
   // Order mails (igs-pharma#157): `orders.mail.requested` events, each tied to the order's state.
   await registerOrderMailJobs(boss as unknown as OrderMailJobScheduler, createOrderMailSender(env));
+  // igs-pharma#237: the weekly SAM import of OTC medicines (Mondays 05:41 Europe/Brussels). The
+  // download and unzip happen here in the worker, outside any command (D-019); the catalog module
+  // parses, maps and writes drafts. Without SAM_EXPORT_URL the job is not scheduled (a warning).
+  await registerSamImportJob(boss as unknown as SamImportJobScheduler, {
+    openExport: samExportOpener({ url: env.SAM_EXPORT_URL, maxBytes: env.SAM_EXPORT_MAX_BYTES }),
+    otcDeliveryModusCodes: env.SAM_OTC_DELIVERY_MODUS_CODES,
+  });
   // boss.work("<module>.<entity>.<past_tense>", handlers…) is registered here as modules land.
 
   // pg-boss's timers keep the loop alive, but hold the process open ourselves too so a stopped

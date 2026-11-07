@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HAND-MADE fixture for igs-pharma#237, NOT a real SAM export: invented products, invented CNKs
+  (99000xx) and invented delivery-modus codes (FIXTURE_OTC / FIXTURE_RX). The shape follows the SAM
+  v2 `ExportActualMedicines` model: Amp > Ampp > Dmpp, `Data from/to` validity periods.
+
+  Ampp 9900001  OTC, marketed, valid GTIN, own pack names (nl/fr), German from the AMP
+  Ampp 9900002  on prescription (FIXTURE_RX)                        -> skipped: prescription
+  Ampp 9900003  OTC, invalid GTIN; an expired Data period + a current one -> row without GTIN
+  Ampp 9900004  OTC, commercialisation ended in 2021                -> withdrawn
+  Ampp 9900005  OTC, no pack names, the AMP has no French name      -> skipped: missing_name
+  Ampp 99-0006  bad CNK                                              -> skipped: invalid_cnk
+  Ampp (none)   hospital-only DMPP                                   -> skipped: no_public_cnk
+-->
+<ns4:ExportActualMedicines xmlns="urn:be:fgov:ehealth:samws:v2:core" xmlns:ns4="urn:be:fgov:ehealth:samws:v2:export" version="6.0" samId="FIXTURE-1">
+  <ns4:Amp code="SAM900001-00" vmpCode="900001">
+    <ns4:Data from="2020-01-01">
+      <ns4:OfficialName>Fixtamol 500 mg</ns4:OfficialName>
+      <ns4:Status>AUTHORIZED</ns4:Status>
+      <ns4:Name>
+        <Nl>Fixtamol 500 mg tabletten</Nl>
+        <Fr>Fixtamol 500 mg comprimés</Fr>
+        <De>Fixtamol 500 mg Tabletten</De>
+      </ns4:Name>
+    </ns4:Data>
+    <ns4:Ampp ctiExtended="900001-01">
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:Gtin>5400000000010</ns4:Gtin>
+        <ns4:PrescriptionNameFamhp>
+          <Nl>Fixtamol 500 mg tabl. 30</Nl>
+          <Fr>Fixtamol 500 mg comp. 30</Fr>
+        </ns4:PrescriptionNameFamhp>
+        <ns4:DeliveryModus code="FIXTURE_OTC"/>
+      </ns4:Data>
+      <ns4:Commercialization>
+        <ns4:Data from="2020-02-01"/>
+      </ns4:Commercialization>
+      <ns4:Dmpp code="9900001" codeType="CNK" deliveryEnvironment="P">
+        <ns4:Data from="2020-01-01"><ns4:Price>4.50</ns4:Price></ns4:Data>
+      </ns4:Dmpp>
+      <ns4:Dmpp code="9900091" codeType="CNK" deliveryEnvironment="H">
+        <ns4:Data from="2020-01-01"><ns4:Price>3.10</ns4:Price></ns4:Data>
+      </ns4:Dmpp>
+    </ns4:Ampp>
+    <ns4:Ampp ctiExtended="900001-02">
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:PrescriptionNameFamhp>
+          <Nl>Fixtamol 500 mg tabl. 100</Nl>
+          <Fr>Fixtamol 500 mg comp. 100</Fr>
+        </ns4:PrescriptionNameFamhp>
+        <ns4:DeliveryModus code="FIXTURE_RX"/>
+      </ns4:Data>
+      <ns4:Commercialization><ns4:Data from="2020-02-01"/></ns4:Commercialization>
+      <ns4:Dmpp code="9900002" codeType="CNK" deliveryEnvironment="P"/>
+    </ns4:Ampp>
+    <ns4:Ampp ctiExtended="900001-03">
+      <ns4:Data from="2019-01-01" to="2019-12-31">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:DeliveryModus code="FIXTURE_RX"/>
+      </ns4:Data>
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:Gtin>5400000000011</ns4:Gtin>
+        <ns4:PrescriptionNameFamhp>
+          <Nl>Fixtamol 500 mg tabl. 10</Nl>
+          <Fr>Fixtamol 500 mg comp. 10</Fr>
+        </ns4:PrescriptionNameFamhp>
+        <ns4:DeliveryModus code="FIXTURE_OTC"/>
+      </ns4:Data>
+      <ns4:Commercialization><ns4:Data from="2020-02-01"/></ns4:Commercialization>
+      <ns4:Dmpp code="9900003" codeType="CNK" deliveryEnvironment="P"/>
+    </ns4:Ampp>
+    <ns4:Ampp ctiExtended="900001-04">
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:PrescriptionNameFamhp>
+          <Nl>Fixtamol 500 mg tabl. 20</Nl>
+          <Fr>Fixtamol 500 mg comp. 20</Fr>
+        </ns4:PrescriptionNameFamhp>
+        <ns4:DeliveryModus code="FIXTURE_OTC"/>
+      </ns4:Data>
+      <ns4:Commercialization><ns4:Data from="2020-02-01" to="2021-06-30"/></ns4:Commercialization>
+      <ns4:Dmpp code="9900004" codeType="CNK" deliveryEnvironment="P"/>
+    </ns4:Ampp>
+  </ns4:Amp>
+  <ns4:Amp code="SAM900002-00" vmpCode="900002">
+    <ns4:Data from="2020-01-01">
+      <ns4:Status>AUTHORIZED</ns4:Status>
+      <ns4:Name><Nl>Fixtacreme 1 %</Nl></ns4:Name>
+    </ns4:Data>
+    <ns4:Ampp ctiExtended="900002-01">
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:DeliveryModus code="FIXTURE_OTC"/>
+      </ns4:Data>
+      <ns4:Commercialization><ns4:Data from="2020-02-01"/></ns4:Commercialization>
+      <ns4:Dmpp code="9900005" codeType="CNK" deliveryEnvironment="P"/>
+    </ns4:Ampp>
+    <ns4:Ampp ctiExtended="900002-02">
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:DeliveryModus code="FIXTURE_OTC"/>
+      </ns4:Data>
+      <ns4:Commercialization><ns4:Data from="2020-02-01"/></ns4:Commercialization>
+      <ns4:Dmpp code="99-0006" codeType="CNK" deliveryEnvironment="P"/>
+    </ns4:Ampp>
+    <ns4:Ampp ctiExtended="900002-03">
+      <ns4:Data from="2020-01-01">
+        <ns4:Status>AUTHORIZED</ns4:Status>
+        <ns4:DeliveryModus code="FIXTURE_OTC"/>
+      </ns4:Data>
+      <ns4:Dmpp code="9900097" codeType="CNK" deliveryEnvironment="H"/>
+    </ns4:Ampp>
+  </ns4:Amp>
+</ns4:ExportActualMedicines>

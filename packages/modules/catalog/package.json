@@ -11,6 +11,10 @@
     "./schema": {
       "types": "./src/schema.ts",
       "default": "./src/schema.ts"
+    },
+    "./sam": {
+      "types": "./src/sam/index.ts",
+      "default": "./src/sam/index.ts"
     }
   },
   "scripts": {
@@ -21,7 +25,9 @@
     "@igs/db": "workspace:*",
     "@igs/kernel": "workspace:*",
     "@igs/rbac": "workspace:*",
+    "@igs/time": "workspace:*",
     "drizzle-orm": "0.38.3",
+    "saxes": "6.0.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
