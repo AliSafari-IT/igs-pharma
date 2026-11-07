@@ -18,7 +18,7 @@ import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-import type { SamExportStream } from "@igs/module-catalog/sam";
+import type { SamExportStream } from "@igs/module-catalog";
 import yauzl from "yauzl";
 
 /** A local file header starts every ZIP (an empty archive starts with the end record instead). */

@@ -16,7 +16,7 @@ import {
   registerAuditActions,
   setProductStatusRegulated,
 } from "../src";
-import { SAM_IMPORT_ACTOR, importSamBatch, runSamImport } from "../src/sam";
+import { SAM_IMPORT_ACTOR, importSamBatch, runSamImport } from "../src";
 
 let iso: IsolatedDatabase;
 let kernel: KernelTestHandles;

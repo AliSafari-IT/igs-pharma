@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { crc32 } from "node:zlib";
 
-import { parseSamAmps } from "@igs/module-catalog/sam";
+import { parseSamAmps } from "@igs/module-catalog";
 import { describe, expect, it } from "vitest";
 
 import { assertZip, openAmpEntry, parseSamImportArgs, samExportOpener } from "../src/sam-export";

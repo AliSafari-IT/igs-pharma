@@ -11,10 +11,6 @@
     "./schema": {
       "types": "./src/schema.ts",
       "default": "./src/schema.ts"
-    },
-    "./sam": {
-      "types": "./src/sam/index.ts",
-      "default": "./src/sam/index.ts"
     }
   },
   "scripts": {

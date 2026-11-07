@@ -1,6 +1,6 @@
 import { ensureKernelQueues, grantPgBossRuntime } from "@igs/kernel";
 import { ensureAuditQueues } from "@igs/module-audit";
-import { ensureSamImportQueues } from "@igs/module-catalog/sam";
+import { ensureSamImportQueues } from "@igs/module-catalog";
 import { ensureIdentityQueues } from "@igs/module-identity";
 import { ensureInventoryQueues } from "@igs/module-inventory";
 import { ensureOrdersQueues } from "@igs/module-orders";

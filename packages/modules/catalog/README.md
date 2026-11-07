@@ -55,7 +55,7 @@ RIZIV-INAMI). It is the only writer of `source = 'sam'` texts.
 
 **Where the code lives**
 
-- `src/sam/` is the module's `@igs/module-catalog/sam` subpath, so only the worker loads the XML parser.
+- `src/sam/`, exported from the module's entry point (`src/index.ts`).
   - `parse.ts`: a streaming `saxes` reader that yields one `<Amp>` tree at a time.
   - `map.ts`: a pure function that maps an AMPP to an import row or to a skip reason.
   - `import.ts`: the commands and `runSamImport`.

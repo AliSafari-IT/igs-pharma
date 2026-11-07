@@ -17,7 +17,7 @@ import {
   registerAuditJobs,
 } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
-import { type SamImportJobScheduler, registerSamImportJob } from "@igs/module-catalog/sam";
+import { type SamImportJobScheduler, registerSamImportJob } from "@igs/module-catalog";
 import {
   type IdentityJobScheduler,
   ensureRbacCatalogue,

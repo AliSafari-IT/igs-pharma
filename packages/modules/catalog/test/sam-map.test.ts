@@ -13,7 +13,7 @@ import {
   mapAmp,
   parseSamAmps,
   registerSamImportJob,
-} from "../src/sam";
+} from "../src";
 import { SKIPPED_KEYS, samRunAudit } from "../src/sam/report";
 
 const XML = readFileSync(new URL("./fixtures/sam-amp-small.xml", import.meta.url), "utf8");

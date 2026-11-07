@@ -15,7 +15,7 @@ import { parseEnvFor, workerEnv } from "@igs/config/env";
 import { checkDatabase, closeDatabase, configureKernel } from "@igs/kernel";
 import { createAuditPort, registerAuditAction } from "@igs/module-audit";
 import { registerAuditActions as registerCatalogAuditActions } from "@igs/module-catalog";
-import { runSamImportFrom } from "@igs/module-catalog/sam";
+import { runSamImportFrom } from "@igs/module-catalog";
 import { ensureRbacCatalogue } from "@igs/module-identity";
 
 import { parseSamImportArgs, samExportOpener } from "./sam-export";
