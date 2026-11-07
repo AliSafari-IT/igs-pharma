@@ -45,14 +45,42 @@ export async function assertZip(file: string): Promise<void> {
   }
 }
 
-/** Streams `url` into `file`; refuses a non-2xx answer and anything over `maxBytes`. */
+/** The whole download (headers and body) must finish within this; then it is aborted. */
+export const SAM_DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+/** Redirects followed at most, and only on the configured host over https. */
+const MAX_REDIRECTS = 3;
+
+/**
+ * Streams `url` into `file`. Refuses a non-2xx answer, anything over `maxBytes`, a download slower
+ * than `timeoutMs`, and a redirect to another host or away from https (`sam.redirect_refused`):
+ * the address is fixed by the server setting and never chosen by the remote side.
+ */
 export async function downloadTo(
   url: string,
   file: string,
   maxBytes: number,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = SAM_DOWNLOAD_TIMEOUT_MS,
 ): Promise<number> {
-  const response = await fetchImpl(url, { redirect: "follow" });
+  const signal = AbortSignal.timeout(timeoutMs);
+  const host = new URL(url).host;
+  let target = url;
+  let response: Response;
+  for (let hop = 0; ; hop++) {
+    try {
+      response = await fetchImpl(target, { redirect: "manual", signal });
+    } catch (error) {
+      if (signal.aborted) throw new SamExportError("sam.download_timeout");
+      throw error;
+    }
+    if (response.status < 300 || response.status >= 400) break;
+    const location = response.headers.get("location");
+    const next = location ? new URL(location, target) : null;
+    if (!next || next.protocol !== "https:" || next.host !== host || hop >= MAX_REDIRECTS) {
+      throw new SamExportError("sam.redirect_refused");
+    }
+    target = next.toString();
+  }
   if (!response.ok || response.body === null) {
     throw new SamExportError(`sam.download_failed_${response.status}`);
   }
@@ -66,11 +94,17 @@ export async function downloadTo(
       else done(null, chunk);
     },
   });
-  await pipeline(
-    Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
-    cap,
-    createWriteStream(file, { flags: "wx", mode: 0o600 }),
-  );
+  try {
+    await pipeline(
+      Readable.fromWeb(response.body as import("node:stream/web").ReadableStream),
+      cap,
+      createWriteStream(file, { flags: "wx", mode: 0o600 }),
+      { signal },
+    );
+  } catch (error) {
+    if (signal.aborted) throw new SamExportError("sam.download_timeout");
+    throw error;
+  }
   return bytes;
 }
 

@@ -9,7 +9,13 @@ import { crc32 } from "node:zlib";
 import { parseSamAmps } from "@igs/module-catalog";
 import { describe, expect, it } from "vitest";
 
-import { assertZip, openAmpEntry, parseSamImportArgs, samExportOpener } from "../src/sam-export";
+import {
+  assertZip,
+  downloadTo,
+  openAmpEntry,
+  parseSamImportArgs,
+  samExportOpener,
+} from "../src/sam-export";
 
 const AMP_XML = readFileSync(
   new URL("../../../packages/modules/catalog/test/fixtures/sam-amp-small.xml", import.meta.url),
@@ -169,6 +175,62 @@ describe("samExportOpener", () => {
     expect(await amps(source.chunks)).toHaveLength(2);
     await source.close();
     expect(existsSync(file)).toBe(true);
+  });
+});
+
+describe("downloadTo", () => {
+  const zipBytes = zip({ "AMP-1.xml": AMP_XML });
+  const target = async () => path.join(await mkdtemp(path.join(tmpdir(), "sam-dl-")), "x.zip");
+  const redirect = (location: string) => new Response(null, { status: 302, headers: { location } });
+
+  it("follows a redirect on the same https host", async () => {
+    const seen: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      seen.push(url);
+      return url.endsWith("/latest") ? redirect("/files/export-12590.zip") : new Response(zipBytes);
+    }) as unknown as typeof fetch;
+    const bytes = await downloadTo(
+      "https://sam.example.test/latest",
+      await target(),
+      10_000_000,
+      fetchImpl,
+    );
+    expect(bytes).toBe(zipBytes.length);
+    expect(seen).toEqual([
+      "https://sam.example.test/latest",
+      "https://sam.example.test/files/export-12590.zip",
+    ]);
+  });
+
+  it("refuses a redirect to another host or to plain http", async () => {
+    for (const location of [
+      "https://elsewhere.example.test/x.zip",
+      "http://sam.example.test/x.zip",
+    ]) {
+      const fetchImpl = (async () => redirect(location)) as unknown as typeof fetch;
+      expect(
+        await errorCode(downloadTo("https://sam.example.test/x", await target(), 1_000, fetchImpl)),
+      ).toBe("sam.redirect_refused");
+    }
+  });
+
+  it("refuses an endless redirect loop", async () => {
+    const fetchImpl = (async () => redirect("/again")) as unknown as typeof fetch;
+    expect(
+      await errorCode(downloadTo("https://sam.example.test/x", await target(), 1_000, fetchImpl)),
+    ).toBe("sam.redirect_refused");
+  });
+
+  it("gives up after the timeout", async () => {
+    const fetchImpl = ((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      })) as unknown as typeof fetch;
+    expect(
+      await errorCode(
+        downloadTo("https://sam.example.test/x", await target(), 1_000, fetchImpl, 50),
+      ),
+    ).toBe("sam.download_timeout");
   });
 });
 
