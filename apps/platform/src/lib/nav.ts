@@ -54,6 +54,12 @@ export const NAV: readonly NavGroup[] = [
         href: "/settings/delivery",
         permission: PERMISSIONS.orders.deliverySettingsManage,
       },
+      // igs-pharma#238: what the owner still has to answer before the shop may open
+      {
+        label: "Launch checklist",
+        href: "/settings/launch",
+        permission: PERMISSIONS.orders.deliverySettingsManage,
+      },
       // igs-pharma#220: who did what, refused actions included (the owner only)
       { label: "Audit trail", href: "/audit", permission: PERMISSIONS.audit.eventsRead },
       // no permission: every signed-in staff member has an account page

@@ -123,6 +123,8 @@ test("home: the shell, the category grid, the products, the identity footer", as
   // the VAT number and the pharmacist-titular are real (#203); the rest is still marked
   await expect(footer.getByTestId("identity-vat")).toHaveText("BE 0739.742.487");
   await expect(footer.getByTestId("identity")).toContainText("Djavad Salehi");
+  // the company's legal name next to it is still a stand-in (#238 item 1.7)
+  await expect(footer.getByTestId("identity-legal-name")).toHaveText("[company legal name]");
   // the EU logo is behind a flag that is off
   await expect(page.getByTestId("eu-logo")).toHaveCount(0);
   await expectAxeClean(page);

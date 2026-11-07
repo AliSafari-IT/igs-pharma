@@ -83,6 +83,7 @@
     "email": "E-mail",
     "pharmacistTitular": "Pharmacien titulaire",
     "authorisationNumber": "Numéro d'agrément",
+    "legalName": "Société",
     "vatNumber": "Numéro de TVA",
     "openingHours": "Heures d'ouverture",
     "placeholderNote": "Informations provisoires, à remplacer.",

@@ -49,6 +49,7 @@ export const ENV_SENSITIVITY = {
   UI_GALLERY: "not-sensitive",
   DEPLOY_STAGE: "not-sensitive", // staging | production: the back-office badge
   SITE_GATE: "not-sensitive",
+  LAUNCH_CHECK: "not-sensitive", // enforce | report: whether a missing launch item keeps the shop closed (#238)
   STOREFRONT_LOW_STOCK_THRESHOLD: "not-sensitive",
   IGS_ALLOW_SYNTHETIC_SEED: "not-sensitive",
 } as const satisfies Record<string, "sensitive" | "not-sensitive">;

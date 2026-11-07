@@ -57,6 +57,8 @@ export interface AttentionSources {
     | TileResult<Pick<StockAlerts, "out" | "short" | "flaggedLots" | "unallocatedOrders">>
     | undefined;
   readonly requests?: TileResult<{ readonly overdue: number }> | undefined;
+  /** The owner-only launch items still missing (igs-pharma#238); absent for who may not see them. */
+  readonly launch?: { readonly missing: number } | undefined;
 }
 
 /** One line of the panel: a plain sentence that links to the page where it is dealt with. */
@@ -68,7 +70,8 @@ export interface AttentionItem {
     | "flagged_lots"
     | "overdue"
     | "out"
-    | "awaiting";
+    | "awaiting"
+    | "launch";
   readonly text: string;
   readonly href: string;
 }
@@ -87,7 +90,8 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
  * no query and no permission of its own. Order: paid orders short of stock (#158), order lines
  * without enough sellable lots (#165), products short for their orders, lots that can't be sold
  * (#164), overdue data
- * requests, products out of stock, medicines awaiting a pharmacist's approval. A tile the member
+ * requests, products out of stock, medicines awaiting a pharmacist's approval, then the launch items
+ * the owner still has to answer before the shop may open (#238). A tile the member
  * may not see, or one in its error state, adds nothing (an error marks the list incomplete).
  */
 export function needsAttention(sources: AttentionSources): Attention {
@@ -148,6 +152,13 @@ export function needsAttention(sources: AttentionSources): Attention {
       id: "awaiting",
       text: `${medicines} awaiting a pharmacist's approval`,
       href: "/products",
+    });
+  }
+  if (sources.launch && sources.launch.missing > 0) {
+    items.push({
+      id: "launch",
+      text: `${count(sources.launch.missing, "item still blocks", "items still block")} opening the shop`,
+      href: "/settings/launch",
     });
   }
   return {

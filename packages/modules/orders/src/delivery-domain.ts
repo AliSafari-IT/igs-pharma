@@ -17,7 +17,9 @@ export const MAX_FREE_FROM_CENTS = 100_000;
 
 /**
  * Belgian VAT on transport services, in basis points (21 %). The delivery price includes it, so the
- * VAT part is cut out of the price, never added on top. To be confirmed with the accountant.
+ * VAT part is cut out of the price, never added on top. To be confirmed with the accountant
+ * (igs-pharma#238 item 6.1): once they have, set `LAUNCH_DECISIONS.deliveryVatRate` to `"confirmed"`
+ * in `@igs/config/launch`.
  */
 export const DELIVERY_VAT_RATE_BP = 2_100;
 

@@ -83,6 +83,7 @@
     "email": "E-Mail",
     "pharmacistTitular": "Verantwortlicher Apotheker",
     "authorisationNumber": "Zulassungsnummer",
+    "legalName": "Unternehmen",
     "vatNumber": "MwSt.-Nummer",
     "openingHours": "Öffnungszeiten",
     "placeholderNote": "Vorläufige Angaben, noch zu ersetzen.",

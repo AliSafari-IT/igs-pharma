@@ -1,4 +1,3 @@
-import { appEnv, parseEnvFor, siteGateEnabled, siteGateEnv } from "@igs/config";
 import { locales } from "@igs/i18n";
 import { isDomainError } from "@igs/kernel";
 import { issueEarlyAccessPass } from "@igs/module-identity";
@@ -13,6 +12,7 @@ import {
   safeReturnPath,
   sessionCookieValue,
 } from "../../../../early-access";
+import { currentStorefrontGate } from "../../../../launch-gate";
 import { EARLY_ACCESS_LIMITS, type EarlyAccessResult } from "../../../../lib/early-access-area";
 import { currentCustomer, requestOrigin } from "../../../../server/customer";
 import { ipKey, withinLimits } from "../../../../server/early-access";
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const next = safeReturnPath(
     request.headers.get(RETURN_HEADER) ?? request.nextUrl.searchParams.get("next"),
   );
-  if (!siteGateEnabled(parseEnvFor(appEnv.extend(siteGateEnv.shape)))) {
+  if (!currentStorefrontGate().closed) {
     // the shop is open to everyone: no pass needed
     return withoutPass(seeOther(next));
   }

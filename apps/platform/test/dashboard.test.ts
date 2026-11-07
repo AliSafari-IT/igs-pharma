@@ -187,4 +187,17 @@ describe("needsAttention", () => {
     });
     expect(needsAttention({ requests: failed })).toEqual({ items: [], incomplete: true });
   });
+
+  it("ends with the launch items still blocking the opening (igs-pharma#238), linking to the checklist", () => {
+    expect(needsAttention({ requests: ok({ overdue: 1 }), launch: { missing: 8 } }).items).toEqual([
+      { id: "overdue", text: "1 data request is overdue", href: "/privacy/requests" },
+      { id: "launch", text: "8 items still block opening the shop", href: "/settings/launch" },
+    ]);
+    expect(needsAttention({ launch: { missing: 1 } }).items[0]?.text).toBe(
+      "1 item still blocks opening the shop",
+    );
+    // nothing missing, or a member who may not see it: no line
+    expect(needsAttention({ launch: { missing: 0 } }).items).toEqual([]);
+    expect(needsAttention({ launch: undefined }).items).toEqual([]);
+  });
 });

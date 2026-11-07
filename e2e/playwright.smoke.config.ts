@@ -57,8 +57,9 @@ export default defineConfig({
     {
       command: "pnpm --filter=@igs/web run start",
       url: "http://localhost:3000/nl",
-      // the open storefront; production defaults to the coming-soon gate (#46)
-      env: { ...env, SITE_GATE: "off" },
+      // the open storefront; production defaults to the coming-soon gate (#46), and refuses to open
+      // while owner-only launch items are missing (#238): this test shop reports them instead
+      env: { ...env, SITE_GATE: "off", LAUNCH_CHECK: "report" },
       reuseExistingServer: false,
     },
     {

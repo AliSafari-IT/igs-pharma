@@ -114,8 +114,13 @@ test("owner: the frame, every nav group and every tile", async ({ page, context 
   // #112 V1 item 1: the "Needs attention" panel under the tiles, a list or its calm empty line
   const attention = page.getByTestId("needs-attention");
   await expect(attention.getByRole("heading", { name: "Needs attention", level: 2 })).toBeVisible();
+  // (on a fresh database the launch line, below, can be the only one)
   await expect(attention).toContainText(
-    /short for orders|overdue|out of stock|awaiting|Nothing needs attention/,
+    /short for orders|overdue|out of stock|awaiting|opening the shop|Nothing needs attention/,
+  );
+  // #238: the owner also sees what still blocks opening the shop, linking to the checklist
+  await expect(attention.getByTestId("attention-launch")).toContainText(
+    /\d+ items? still blocks? opening the shop/,
   );
   await expect(page.getByTestId("tile-reservations")).toContainText(
     /Orders and checkout holds|No active reservations/,
@@ -202,13 +207,14 @@ test("a content editor sees only the catalogue tile and the catalogue and accoun
   await expect(page.getByTestId("tile-requests")).toHaveCount(0);
   // the panel reads only the products tile: no stock or data-request lines
   await expect(page.getByTestId("needs-attention")).toBeVisible();
-  for (const line of ["short", "overdue", "out"]) {
+  // nor the launch checklist (#238): that is for the owner and the pharmacist-titular
+  for (const line of ["short", "overdue", "out", "launch"]) {
     await expect(page.getByTestId(`attention-${line}`)).toHaveCount(0);
   }
   const nav = page.getByRole("navigation", { name: "Back-office" });
   await expect(nav.getByRole("link", { name: "Products", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Your account", exact: true })).toBeVisible();
-  for (const hidden of ["Stock", "Data requests", "Consents", "Staff"]) {
+  for (const hidden of ["Stock", "Data requests", "Consents", "Staff", "Launch checklist"]) {
     await expect(nav.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
   }
   await expect(nav.getByRole("heading", { name: "Shop", level: 2 })).toHaveCount(0);
@@ -267,3 +273,37 @@ for (const [label, width, height] of [
     });
   });
 }
+
+test("owner: the launch checklist lists what still blocks opening the shop (#238)", async ({
+  page,
+  context,
+}) => {
+  await signIn(context, ownerToken);
+  await page.goto(`${PLATFORM}/`, { waitUntil: "networkidle" });
+  await page.getByTestId("attention-launch").getByRole("link").click();
+  await expect(page).toHaveURL(`${PLATFORM}/settings/launch`);
+  await expect(page.getByRole("heading", { name: "Launch checklist", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("launch-missing-count")).toContainText(
+    /items? blocks? the opening/,
+  );
+  // the owner has not answered yet: the details, the legal texts, the delivery choice are red
+  for (const id of ["pharmacy_details", "famhp_registration", "legal_texts", "delivery_choice"]) {
+    await expect(page.getByTestId(`launch-check-${id}`)).toHaveAttribute("data-status", "missing");
+  }
+  // the storefront's own settings are checked by the storefront, the server allowlist by hand
+  await expect(page.getByTestId("launch-check-payments")).toHaveAttribute(
+    "data-status",
+    "elsewhere",
+  );
+  await expect(page.getByTestId("launch-check-back_office_access")).toHaveAttribute(
+    "data-status",
+    "manual",
+  );
+  await expect(
+    page.getByRole("navigation", { name: "Back-office" }).getByRole("link", {
+      name: "Launch checklist",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expectAxeClean(page);
+});

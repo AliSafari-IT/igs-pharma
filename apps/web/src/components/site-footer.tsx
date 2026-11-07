@@ -1,4 +1,9 @@
-import { EU_COMMON_LOGO_LIST_URL, PHARMACY_IDENTITY, getFeatureFlags } from "@igs/config";
+import {
+  EU_COMMON_LOGO_LIST_URL,
+  PHARMACY_IDENTITY,
+  euCommonLogoAllowed,
+  getFeatureFlags,
+} from "@igs/config";
 import type { ContentLocale } from "@igs/module-catalog";
 import { Container, Link } from "@igs/ui";
 import { getTranslations } from "next-intl/server";
@@ -7,18 +12,16 @@ import { getTranslations } from "next-intl/server";
  * The footer of every storefront page (igs-pharma#104, backlog C11): who runs the pharmacy, from
  * the one typed config (`PHARMACY_IDENTITY`), and the legal pages. While the config still holds
  * stand-ins the footer says so, in plain words, so nobody mistakes them for the real details. The
- * EU common logo shows only when its flag is on AND the identity is no longer a stand-in: a logo
- * on a pharmacy that is not registered would claim a registration it does not have. It is
- * text-only here, the approved artwork comes from the owner.
- *
- * Release checklist: confirm `EU_COMMON_LOGO_LIST_URL` is the FAMHP list of registered online
- * pharmacies before turning `NEXT_PUBLIC_FEATURE_EU_COMMON_LOGO` on (today it points at the FAMHP
- * home page).
+ * EU common logo shows only when its flag is on, the identity is no longer a stand-in, the owner
+ * confirmed the FAMHP registration and `EU_COMMON_LOGO_LIST_URL` is the pharmacy's entry on the
+ * FAMHP list (`euCommonLogoAllowed`, igs-pharma#238 items 2.1, 2.2): a logo on a pharmacy that is not
+ * registered would claim a registration it does not have. It is text-only here, the approved
+ * artwork comes from the owner.
  */
 export async function SiteFooter({ locale }: { readonly locale: ContentLocale }) {
   const t = await getTranslations({ locale, namespace: "storefront" });
   const identity = PHARMACY_IDENTITY;
-  const { euCommonLogo } = getFeatureFlags();
+  const euLogo = euCommonLogoAllowed(getFeatureFlags().euCommonLogo);
   const { address } = identity;
 
   return (
@@ -48,6 +51,8 @@ export async function SiteFooter({ locale }: { readonly locale: ContentLocale })
             <dd>{identity.pharmacistTitular}</dd>
             <dt className="text-[var(--color-text-subtle)]">{t("authorisationNumber")}</dt>
             <dd>{identity.authorisationNumber}</dd>
+            <dt className="text-[var(--color-text-subtle)]">{t("legalName")}</dt>
+            <dd data-testid="identity-legal-name">{identity.legalName}</dd>
             <dt className="text-[var(--color-text-subtle)]">{t("vatNumber")}</dt>
             <dd data-testid="identity-vat">{identity.vatNumber}</dd>
             <dt className="text-[var(--color-text-subtle)]">{t("openingHours")}</dt>
@@ -62,7 +67,7 @@ export async function SiteFooter({ locale }: { readonly locale: ContentLocale })
               {t("placeholderNote")}
             </p>
           ) : null}
-          {euCommonLogo && !identity.isPlaceholder ? (
+          {euLogo ? (
             <p data-testid="eu-logo" className="mt-4 text-sm">
               <span className="font-semibold">{t("euLogo")}</span>
               {" · "}
