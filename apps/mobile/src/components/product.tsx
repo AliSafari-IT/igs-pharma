@@ -56,8 +56,10 @@ export function ProductRow({
   status: AvailabilityStatus;
   footer?: React.ReactNode;
 }) {
+  const { locale, t } = useSettings();
+  const label = `${name}${brandName ? `, ${brandName}` : ""}, ${formatPrice(price.amountCents, locale)}, ${t(status)}`;
   return (
-    <Card onPress={() => router.push(`/product/${cnk}`)}>
+    <Card label={label} onPress={() => router.push(`/product/${cnk}`)}>
       <AppText bold>{name}</AppText>
       {brandName && (
         <AppText variant="small" muted>
