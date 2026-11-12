@@ -53,6 +53,8 @@ const nl = {
     "Dit is een geneesmiddel. Lees de bijsluiter aandachtig en vraag advies aan uw apotheker.",
   orderOnWebsite: "Bestellen op igs-pharma.be",
   orderHint: "Opent de productpagina in uw browser. Bestellen en betalen gebeurt op de website.",
+  orderMyList: "Lijstje bestellen op igs-pharma.be",
+  orderMyListHint: "Opent uw lijstje in de browser. Bestellen en betalen gebeurt op de website.",
   addToList: "In mijn lijstje",
   removeFromList: "Uit mijn lijstje",
   inList: "Staat in uw lijstje",
@@ -190,6 +192,9 @@ const fr: Strings = {
   orderOnWebsite: "Commander sur igs-pharma.be",
   orderHint:
     "Ouvre la page du produit dans votre navigateur. La commande et le paiement se font sur le site.",
+  orderMyList: "Commander ma liste sur igs-pharma.be",
+  orderMyListHint:
+    "Ouvre votre liste dans votre navigateur. La commande et le paiement se font sur le site.",
   addToList: "Ajouter à ma liste",
   removeFromList: "Retirer de ma liste",
   inList: "Dans votre liste",
@@ -326,6 +331,9 @@ const de: Strings = {
   orderOnWebsite: "Auf igs-pharma.be bestellen",
   orderHint:
     "Öffnet die Produktseite im Browser. Bestellung und Bezahlung erfolgen auf der Website.",
+  orderMyList: "Meine Liste auf igs-pharma.be bestellen",
+  orderMyListHint:
+    "Öffnet Ihre Liste im Browser. Bestellung und Bezahlung erfolgen auf der Website.",
   addToList: "Auf meine Liste",
   removeFromList: "Von meiner Liste",
   inList: "Auf Ihrer Liste",
@@ -459,6 +467,8 @@ const en: Strings = {
     "This is a medicine. Read the package leaflet carefully and ask your pharmacist for advice.",
   orderOnWebsite: "Order on igs-pharma.be",
   orderHint: "Opens the product page in your browser. Ordering and payment happen on the website.",
+  orderMyList: "Order my list on igs-pharma.be",
+  orderMyListHint: "Opens your list in your browser. Ordering and payment happen on the website.",
   addToList: "Add to my list",
   removeFromList: "Remove from my list",
   inList: "On your list",

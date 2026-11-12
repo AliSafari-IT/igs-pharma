@@ -32,6 +32,42 @@ export function errorKind(status: number, code: unknown): ApiErrorKind {
 
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
+export async function postJson<T>(
+  path: string,
+  body: unknown,
+  fetchImpl: Fetch = fetch,
+): Promise<T> {
+  const url = `${STOREFRONT_URL}/api/mobile/v1${path}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let response: Response;
+  let responseBody: unknown;
+  try {
+    try {
+      response = await fetchImpl(url, {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch {
+      throw new ApiError("offline");
+    }
+    try {
+      responseBody = await response.json();
+    } catch {
+      if (controller.signal.aborted) throw new ApiError("offline");
+      throw new ApiError(response.ok ? "unavailable" : errorKind(response.status, undefined));
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!response.ok) {
+    throw new ApiError(errorKind(response.status, (responseBody as { error?: unknown } | null)?.error));
+  }
+  return responseBody as T;
+}
+
 export async function getJson<T>(
   path: string,
   params: Record<string, string | number | undefined> = {},
@@ -103,4 +139,7 @@ export const api = {
       (body) => body.categories,
     ),
   pharmacy: () => getJson<Pharmacy>("/pharmacy"),
+  /** A 15-minute signed link that opens the list on the website cart (1.2, milestone 5.4). */
+  listLink: (cnks: string[], locale: Locale) =>
+    postJson<{ url: string; expiresAt: string }>("/list-link", { cnks, locale }),
 };
