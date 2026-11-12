@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../api/client";
 import { Availability, PriceLine } from "../../components/product";
@@ -25,6 +25,10 @@ export default function ProductScreen() {
   const product = useRemote(`${locale}:${cnk}`, () => api.product(cnk, locale));
   const saved = list.has(cnk);
   const { refresh } = list;
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (product.state !== "loading") setRefreshing(false);
+  }, [product.state]);
 
   // a saved product keeps its price and stock current when it is viewed again
   const data = product.state === "ready" ? product.data : undefined;
@@ -32,10 +36,15 @@ export default function ProductScreen() {
     if (data && saved) refresh(data);
   }, [data, saved, refresh]);
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    product.reload();
+  };
+
   if (product.state === "loading") return <Loading />;
   if (product.state === "error") {
     return (
-      <Screen>
+      <Screen onRefresh={onRefresh} refreshing={refreshing}>
         <Problem kind={product.kind} onRetry={product.reload} />
         {saved && product.kind === "not_found" && (
           <Button kind="secondary" label={t("removeFromList")} onPress={() => list.remove(cnk)} />
@@ -45,7 +54,7 @@ export default function ProductScreen() {
   }
   const item = product.data;
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <Stack.Screen options={{ title: item.name }} />
       {item.breadcrumb.length > 0 && (
         <View style={styles.row}>

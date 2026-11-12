@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { api } from "../../api/client";
 import { OnDutyCard, PharmacyCard } from "../../components/PharmacyCard";
@@ -17,11 +17,19 @@ export default function HomeScreen() {
   const pharmacy = usePharmacy();
   const [query, setQuery] = useState("");
   const categories = useRemote(`categories:${locale}`, () => api.categories(locale));
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (categories.state !== "loading") setRefreshing(false);
+  }, [categories.state]);
 
   const search = () => router.navigate({ pathname: "/search", params: { q: query.trim() } });
+  const onRefresh = () => {
+    setRefreshing(true);
+    categories.reload();
+  };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <AppText variant="big">{t("homeTitle")}</AppText>
       <AppText muted>{t("homeIntro")}</AppText>
       <SearchBox value={query} onChange={setQuery} onSubmit={search} />

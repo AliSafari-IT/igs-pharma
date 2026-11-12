@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../api/client";
 import type { ListSort } from "../../api/types";
@@ -21,6 +21,12 @@ export default function CategoryScreen() {
   const result = useRemote(JSON.stringify([locale, slug, sort, inStockOnly, page]), () =>
     api.products({ locale, category: slug, sort, inStockOnly, page }),
   );
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (refreshing && tree.state !== "loading" && result.state !== "loading") {
+      setRefreshing(false);
+    }
+  }, [refreshing, tree.state, result.state]);
 
   const self = tree.state === "ready" ? tree.data.find((node) => node.slug === slug) : undefined;
   const children =
@@ -30,9 +36,14 @@ export default function CategoryScreen() {
       ? tree.data.find((node) => node.id === self.parentId)
       : undefined;
   const title = self?.name ?? (result.state === "ready" ? result.data.category?.name : undefined);
+  const onRefresh = () => {
+    setRefreshing(true);
+    tree.reload();
+    result.reload();
+  };
 
   return (
-    <Screen>
+    <Screen onRefresh={onRefresh} refreshing={refreshing}>
       <Stack.Screen options={{ title: title ?? t("categories") }} />
       {title && <AppText variant="big">{title}</AppText>}
       {children.length > 0 && (
