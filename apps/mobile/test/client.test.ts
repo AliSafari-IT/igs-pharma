@@ -14,47 +14,6 @@ describe("errorKind", () => {
   });
 });
 
-describe("postJson", () => {
-  it("POSTs JSON and returns the body of a 2xx answer", async () => {
-    const fetchImpl = vi.fn(async () =>
-      json(200, { url: "https://igs-pharma.be/nl/cart/from-list?l=abc", expiresAt: "2026-01-01T00:15:00.000Z" }),
-    );
-    const result = await postJson<{ url: string; expiresAt: string }>(
-      "/list-link",
-      { cnks: ["1234567", "7654321"], locale: "nl" },
-      fetchImpl,
-    );
-    expect(result).toEqual({
-      url: "https://igs-pharma.be/nl/cart/from-list?l=abc",
-      expiresAt: "2026-01-01T00:15:00.000Z",
-    });
-    expect(fetchImpl).toHaveBeenCalledWith(
-      "https://igs-pharma.be/api/mobile/v1/list-link",
-      expect.objectContaining({
-        method: "POST",
-        headers: { accept: "application/json", "content-type": "application/json" },
-        body: JSON.stringify({ cnks: ["1234567", "7654321"], locale: "nl" }),
-      }),
-    );
-  });
-
-  it("turns a closed storefront into 'closed'", async () => {
-    await expect(
-      postJson("/list-link", { cnks: ["1234567"], locale: "nl" }, async () =>
-        json(503, { error: "coming_soon" }),
-      ),
-    ).rejects.toEqual(new ApiError("closed"));
-  });
-
-  it("turns no answer into 'offline'", async () => {
-    await expect(
-      postJson("/list-link", { cnks: ["1234567"], locale: "nl" }, async () => {
-        throw new TypeError("Network request failed");
-      }),
-    ).rejects.toMatchObject({ kind: "offline" });
-  });
-});
-
 describe("getJson", () => {
   it("builds the v1 URL with encoded parameters and drops empty ones", async () => {
     const fetchImpl = vi.fn(async () => json(200, { ok: true }));
@@ -121,7 +80,10 @@ describe("getJson", () => {
 describe("postJson", () => {
   it("POSTs JSON and returns the body of a 2xx answer", async () => {
     const fetchImpl = vi.fn(async () =>
-      json(200, { url: "https://igs-pharma.be/nl/cart/from-list?l=abc", expiresAt: "2026-01-01T00:15:00.000Z" }),
+      json(200, {
+        url: "https://igs-pharma.be/nl/cart/from-list?l=abc",
+        expiresAt: "2026-01-01T00:15:00.000Z",
+      }),
     );
     const result = await postJson<{ url: string; expiresAt: string }>(
       "/list-link",
