@@ -23,10 +23,10 @@ export default function CategoryScreen() {
   );
   const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
-    if (refreshing && tree.state !== "loading" && result.state !== "loading") {
+    if (tree.state !== "loading" && result.state !== "loading") {
       setRefreshing(false);
     }
-  }, [refreshing, tree.state, result.state]);
+  }, [tree.state, result.state]);
 
   const self = tree.state === "ready" ? tree.data.find((node) => node.slug === slug) : undefined;
   const children =
