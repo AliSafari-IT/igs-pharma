@@ -1,13 +1,13 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, View } from "react-native";
 import { api } from "../../api/client";
 import { ProductRow } from "../../components/product";
-import { AppText, Button, Card, Screen, open, styles } from "../../components/ui";
 import { Loading, Problem } from "../../components/states";
+import { AppText, Button, Card, Screen, open, styles } from "../../components/ui";
 import { intlLocale } from "../../format";
-import { useList } from "../../list/ListContext";
 import { useRemote } from "../../hooks/useRemote";
+import { useList } from "../../list/ListContext";
 import { useSettings } from "../../settings/SettingsContext";
 
 /** My list: on the phone only, works offline; show it at the counter or order on the website. */
@@ -15,17 +15,22 @@ export default function ListScreen() {
   const { locale, t } = useSettings();
   const { saved, remove, clear } = useList();
   const [orderTrigger, setOrderTrigger] = useState(0);
-  const orderResult = useRemote(
-    orderTrigger > 0 ? `order:${orderTrigger}` : null,
-    () => api.listLink(saved.map((entry) => entry.cnk).slice(0, 30), locale),
+  const consumedOrderResult = useRef<object | null>(null);
+  const orderResult = useRemote(orderTrigger > 0 ? `order:${orderTrigger}` : null, () =>
+    api.listLink(saved.map((entry) => entry.cnk).slice(0, 30), locale),
   );
 
   useEffect(() => {
-    if (orderResult.state === "ready") {
-      open(orderResult.data.url);
-      setOrderTrigger(0);
-    }
-  }, [orderResult]);
+    if (
+      orderTrigger === 0 ||
+      orderResult.state !== "ready" ||
+      consumedOrderResult.current === orderResult.data
+    )
+      return;
+    consumedOrderResult.current = orderResult.data;
+    open(orderResult.data.url);
+    setOrderTrigger(0);
+  }, [orderTrigger, orderResult]);
 
   const date = (iso: string) =>
     new Date(iso).toLocaleString(intlLocale(locale), { dateStyle: "medium", timeStyle: "short" });
