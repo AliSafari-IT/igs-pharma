@@ -322,7 +322,9 @@ jobs:
         run: |
           docker tag "igs-${{ matrix.image }}:ci" "$REPO:${{ github.sha }}"
           docker push "$REPO:${{ github.sha }}"
-          digest=$(docker image inspect "$REPO:${{ github.sha }}" --format '{{ index .RepoDigests 0 }}')
+          # ask GHCR, not the local store: on runner images with Docker's containerd image store
+          # (ubuntu-latest = 26.04 since Nov 2026), RepoDigests no longer holds the pushed digest
+          digest="$REPO@$(docker buildx imagetools inspect "$REPO:${{ github.sha }}" --format '{{ .Manifest.Digest }}')"
           case "$digest" in "$REPO@sha256:"*) ;; *) echo "::error::no digest for $REPO"; exit 1 ;; esac
           echo "$digest" > digest-${{ matrix.image }}.txt
       # what GHCR now serves under that digest, not the local copy
