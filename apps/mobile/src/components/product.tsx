@@ -48,6 +48,7 @@ export function ProductRow({
   price,
   status,
   footer,
+  footerLabel,
 }: {
   cnk: string;
   name: string;
@@ -55,9 +56,22 @@ export function ProductRow({
   price: Price;
   status: AvailabilityStatus;
   footer?: React.ReactNode;
+  /** What the footer shows, spoken with the card: the card's label replaces its children's text. */
+  footerLabel?: string;
 }) {
+  const { locale, t } = useSettings();
+  const label = [
+    name,
+    brandName,
+    formatPrice(price.amountCents, locale),
+    t("vatIncluded", { rate: formatVatRate(price.vatRateBp, locale) }),
+    t(status),
+    footerLabel,
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
-    <Card onPress={() => router.push(`/product/${cnk}`)}>
+    <Card label={label} onPress={() => router.push(`/product/${cnk}`)}>
       <AppText bold>{name}</AppText>
       {brandName && (
         <AppText variant="small" muted>

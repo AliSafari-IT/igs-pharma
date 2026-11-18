@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import {
   Linking,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,13 +18,31 @@ export function open(url: string) {
   Linking.openURL(url).catch(() => {});
 }
 
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({
+  children,
+  onRefresh,
+  refreshing = false,
+}: {
+  children: ReactNode;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
   const { palette } = useSettings();
   return (
     <ScrollView
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.primary}
+            colors={[palette.primary]}
+          />
+        ) : undefined
+      }
     >
       {children}
     </ScrollView>

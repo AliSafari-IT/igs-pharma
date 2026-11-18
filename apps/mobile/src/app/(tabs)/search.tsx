@@ -32,14 +32,23 @@ export default function SearchScreen() {
     ready ? JSON.stringify([locale, q, sort, inStockOnly, page]) : null,
     () => api.products({ locale, q, sort, inStockOnly, page }),
   );
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (!ready || result.state !== "loading") setRefreshing(false);
+  }, [ready, result.state]);
 
   const submit = () => {
     setQ(input.trim());
     setPage(1);
   };
+  const onRefresh = () => {
+    if (!ready) return;
+    setRefreshing(true);
+    result.reload();
+  };
 
   return (
-    <Screen>
+    <Screen onRefresh={ready ? onRefresh : undefined} refreshing={refreshing}>
       <SearchBox value={input} onChange={setInput} onSubmit={submit} />
       <Button kind="secondary" label={t("scanButton")} onPress={() => router.push("/scan")} />
       {!ready ? (
