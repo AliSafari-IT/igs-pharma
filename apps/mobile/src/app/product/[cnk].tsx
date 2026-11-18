@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 import { api } from "../../api/client";
 import { Availability, PriceLine } from "../../components/product";
@@ -22,13 +22,20 @@ export default function ProductScreen() {
   const { locale, t } = useSettings();
   const list = useList();
   const pharmacy = usePharmacy();
-  const product = useRemote(`${locale}:${cnk}`, () => api.product(cnk, locale));
+  const remote = useRemote(`${locale}:${cnk}`, () => api.product(cnk, locale));
   const saved = list.has(cnk);
   const { refresh } = list;
   const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
-    if (product.state !== "loading") setRefreshing(false);
-  }, [product.state]);
+    if (remote.state !== "loading") setRefreshing(false);
+  }, [remote.state]);
+
+  // a pull-to-refresh keeps the last answer on screen, so the scroll view and its refresh
+  // indicator stay mounted; the full-screen loader is only for the first load
+  const settled = useRef<typeof remote | null>(null);
+  if (remote.state !== "loading") settled.current = remote;
+  const product =
+    remote.state === "loading" && refreshing && settled.current ? settled.current : remote;
 
   // a saved product keeps its price and stock current when it is viewed again
   const data = product.state === "ready" ? product.data : undefined;
@@ -38,14 +45,14 @@ export default function ProductScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    product.reload();
+    remote.reload();
   };
 
   if (product.state === "loading") return <Loading />;
   if (product.state === "error") {
     return (
       <Screen onRefresh={onRefresh} refreshing={refreshing}>
-        <Problem kind={product.kind} onRetry={product.reload} />
+        <Problem kind={product.kind} onRetry={remote.reload} />
         {saved && product.kind === "not_found" && (
           <Button kind="secondary" label={t("removeFromList")} onPress={() => list.remove(cnk)} />
         )}
