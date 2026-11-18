@@ -19,7 +19,16 @@ export function Loading() {
  * What a screen shows instead of data. Never a dead end: retry, plus My list and the pharmacy,
  * which work without the storefront.
  */
-export function Problem({ kind, onRetry }: { kind: ApiErrorKind; onRetry: () => void }) {
+export function Problem({
+  kind,
+  onRetry,
+  onList = () => router.navigate("/list"),
+}: {
+  kind: ApiErrorKind;
+  onRetry: () => void;
+  /** Override for the My list button, e.g. on the list screen itself. */
+  onList?: () => void;
+}) {
   const { t } = useSettings();
   const [title, body] =
     kind === "closed"
@@ -35,7 +44,7 @@ export function Problem({ kind, onRetry }: { kind: ApiErrorKind; onRetry: () => 
       <AppText muted>{body}</AppText>
       <View style={styles.row}>
         {kind !== "not_found" && <Button label={t("retry")} onPress={onRetry} />}
-        <Button kind="secondary" label={t("tabList")} onPress={() => router.navigate("/list")} />
+        <Button kind="secondary" label={t("tabList")} onPress={onList} />
         <Button
           kind="secondary"
           label={t("tabPharmacy")}

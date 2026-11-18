@@ -1,8 +1,12 @@
 import { router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { Alert, View } from "react-native";
+import { api } from "../../api/client";
 import { ProductRow } from "../../components/product";
-import { AppText, Button, Card, Screen, styles } from "../../components/ui";
+import { Loading, Problem } from "../../components/states";
+import { AppText, Button, Card, Screen, open, styles } from "../../components/ui";
 import { intlLocale } from "../../format";
+import { useRemote } from "../../hooks/useRemote";
 import { useList } from "../../list/ListContext";
 import { useSettings } from "../../settings/SettingsContext";
 
@@ -10,6 +14,23 @@ import { useSettings } from "../../settings/SettingsContext";
 export default function ListScreen() {
   const { locale, t } = useSettings();
   const { saved, remove, clear } = useList();
+  const [orderTrigger, setOrderTrigger] = useState(0);
+  const consumedOrderResult = useRef<object | null>(null);
+  const orderResult = useRemote(orderTrigger > 0 ? `order:${orderTrigger}` : null, () =>
+    api.listLink(saved.map((entry) => entry.cnk).slice(0, 30), locale),
+  );
+
+  useEffect(() => {
+    if (
+      orderTrigger === 0 ||
+      orderResult.state !== "ready" ||
+      consumedOrderResult.current === orderResult.data
+    )
+      return;
+    consumedOrderResult.current = orderResult.data;
+    open(orderResult.data.url);
+    setOrderTrigger(0);
+  }, [orderTrigger, orderResult]);
 
   const date = (iso: string) =>
     new Date(iso).toLocaleString(intlLocale(locale), { dateStyle: "medium", timeStyle: "short" });
@@ -32,6 +53,22 @@ export default function ListScreen() {
       </Screen>
     );
   }
+
+  if (orderTrigger > 0 && orderResult.state === "loading") {
+    return <Loading />;
+  }
+  if (orderTrigger > 0 && orderResult.state === "error") {
+    return (
+      <Screen>
+        <Problem
+          kind={orderResult.kind}
+          onRetry={() => setOrderTrigger((n) => n + 1)}
+          onList={() => setOrderTrigger(0)}
+        />
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <AppText muted>{t("listIntro")}</AppText>
@@ -54,6 +91,14 @@ export default function ListScreen() {
           }
         />
       ))}
+      <Button
+        label={t("orderMyList")}
+        accessibilityHint={t("orderMyListHint")}
+        onPress={() => setOrderTrigger((n) => n + 1)}
+      />
+      <AppText variant="small" muted>
+        {t("orderMyListHint")}
+      </AppText>
       <Button
         kind="secondary"
         label={t("listClear")}
