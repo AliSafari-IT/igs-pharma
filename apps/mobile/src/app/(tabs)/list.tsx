@@ -77,6 +77,7 @@ export default function ListScreen() {
           brandName={entry.brandName}
           price={entry.price}
           status={entry.status}
+          footerLabel={`${t("cnk")} ${entry.cnk}, ${t("listSavedAt", { date: date(entry.seenAt) })}`}
           footer={
             <View style={[styles.rowBetween, { alignItems: "center" }]}>
               <AppText variant="small" muted style={{ flexShrink: 1 }}>
