@@ -60,8 +60,11 @@ export default function ListScreen() {
   if (orderTrigger > 0 && orderResult.state === "error") {
     return (
       <Screen>
-        <Problem kind={orderResult.kind} onRetry={() => setOrderTrigger((n) => n + 1)} />
-        <Button kind="secondary" label={t("tabList")} onPress={() => setOrderTrigger(0)} />
+        <Problem
+          kind={orderResult.kind}
+          onRetry={() => setOrderTrigger((n) => n + 1)}
+          onList={() => setOrderTrigger(0)}
+        />
       </Screen>
     );
   }

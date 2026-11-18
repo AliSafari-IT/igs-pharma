@@ -63,7 +63,9 @@ export async function postJson<T>(
     clearTimeout(timer);
   }
   if (!response.ok) {
-    throw new ApiError(errorKind(response.status, (responseBody as { error?: unknown } | null)?.error));
+    throw new ApiError(
+      errorKind(response.status, (responseBody as { error?: unknown } | null)?.error),
+    );
   }
   return responseBody as T;
 }
